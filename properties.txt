@@ -1,0 +1,91 @@
+
+generic style/properties:
+	{,min-,max-}width  : length
+	{,min-,max-}height : length
+	margin:            : length
+	padding:           : length
+	border-color       : color
+	background-color   : color
+	vertical-align     : align,
+	horizontal-align   : align,
+
+button:
+	on-click            : callback
+
+label:
+	text                : binding(text)
+	font-face           : fontface
+	font-size           : length
+	font-color          : color
+
+radiobutton:
+	on-click            : callback(bool)
+	on-select           : callback
+	is-selected         : binding(bool)
+
+checkbox:
+	on-click            : callback(bool)
+	is-selected         : binding(bool)
+
+textbox:
+	multi-line          : bool
+	text                : binding(text)
+	font-face           : fontface
+	font-size           : length
+	font-color          : color
+	on-input            : callback(string)
+	on-leave            : callback(string)
+
+picture:
+	image               : resource(bitmap,vectors)
+	on-click            : callback(x,y,id)
+
+drawing:
+	image               : binding(vectors)
+	on-click            : callback(x,y,id)
+
+listbox:
+	items               : binding(list)
+	item-template       : resource(template)
+
+combobox:
+	items               : binding(list)
+	item-text           : binding(string)
+	font-face           : fontface
+	font-size           : length
+	font-color          : color
+
+datagrid:
+	???
+	- row-template?
+	- cell-template?
+	- selector of templates?
+
+scroll-view:
+	items               : binding(list)
+	item-template       : resource(template)
+
+slider:
+	value               : binding(number)
+	minimum             : binding(number)
+	maximum             : binding(number)
+
+progress-bar:
+	value               : binding(number)
+	minimum             : binding(number)
+	maximum             : binding(number)
+
+number-spin:
+	value               : binding(number)
+	minimum             : binding(number)
+	maximum             : binding(number)
+	step-size           : number
+	digits              : number
+	font-face           : fontface
+	font-size           : length
+	font-color          : color
+
+toolbar:
+	–
+
+
