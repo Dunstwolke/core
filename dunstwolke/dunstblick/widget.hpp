@@ -5,11 +5,12 @@
 #include "types.hpp"
 
 #include "inputstream.hpp"
+#include "rendercontext.hpp"
 
 #include <vector>
 #include <memory>
+#include <variant>
 #include <sdl2++/renderer>
-
 
 // widget layouting algorithm:
 // stage 1:
@@ -46,7 +47,6 @@ public:
     /// stage1: calculates recursively the wanted size of all widgets.
     void updateWantedSize();
 
-
     /// stage2: recursivly lays out this widget and all child widgets.
     /// @param bounds the rectangle this widget should reside in.
     ///        These bounds will be reduced by the margins of the widget.
@@ -54,7 +54,7 @@ public:
     void layout(SDL_Rect const & bounds);
 
     /// draws the widget
-    void paint(sdl2::renderer & renderer);
+    void paint(RenderContext & context);
 
     /// returns the bounds of the widget with margins
     SDL_Rect bounds_with_margins() const {
@@ -67,7 +67,7 @@ public:
     }
 
     /// deserializes a single property or throws a "not supported exception"
-    virtual void deserialize_property(UIProperty property, InputStream & stream);
+    virtual void setProperty(UIProperty property, UIValue value);
 
 protected:
     /// stage1: calculates the space this widget wants to take.
@@ -78,10 +78,10 @@ protected:
     /// stage2: recursively lays out all child elements to the widgets layout.
     /// the default layouting is "all children get their wanted size with alignment".
     /// note: this method should call layout(rect) on all its children!
-    /// @params childArea the area where the children will be positioned in
+    /// @param childArea the area where the children will be positioned in
     virtual void layoutChildren(SDL_Rect const & childArea);
 
-    virtual void paintWidget(sdl2::renderer & renderer, SDL_Rect const & rectangle) = 0;
+    virtual void paintWidget(RenderContext & context, SDL_Rect const & rectangle) = 0;
 };
 
 #endif // WIDGET_HPP

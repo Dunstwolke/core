@@ -9,20 +9,20 @@ struct StackLayout : Widget
 
     explicit StackLayout(StackDirection dir = StackDirection::vertical);
 
-    void paintWidget(sdl2::renderer &, const SDL_Rect &) override;
+    void paintWidget(RenderContext &, const SDL_Rect &) override;
 
     void layoutChildren(SDL_Rect const & childArea) override;
 
     SDL_Size calculateWantedSize() override;
 
-    void deserialize_property(UIProperty property, InputStream &stream) override;
+    void setProperty(UIProperty property, UIValue value) override;
 };
 
 struct DockLayout : Widget
 {
     std::vector<DockSite> dockSites;
 
-    void paintWidget(sdl2::renderer &, const SDL_Rect &) override;
+    void paintWidget(RenderContext &, const SDL_Rect &) override;
 
     void layoutChildren(SDL_Rect const & childArea) override;
 
@@ -32,7 +32,7 @@ struct DockLayout : Widget
 
     void setDockSite(size_t index, DockSite site);
 
-    void deserialize_property(UIProperty property, InputStream &stream) override;
+    void setProperty(UIProperty property, UIValue value) override;
 };
 
 

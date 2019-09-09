@@ -25,6 +25,9 @@ namespace UIEnum
     constexpr uint8_t collapsed  = 15; // visibility
     constexpr uint8_t vertical   = 16; // stackdirection
     constexpr uint8_t horizontal = 17; // stackdirection
+    constexpr uint8_t sans       = 18; // uifont
+    constexpr uint8_t serif      = 19; // uifont
+    constexpr uint8_t monospace  = 20; // uifont
 };
 
 enum class UIWidget : uint8_t
@@ -69,6 +72,33 @@ enum class UIProperty : uint8_t
     stackDirection = 5,
     dockSites = 6,
     visibility = 7,
+    sizeHint = 8,
+    fontFamility = 9,
+    text = 10,
+
+    // MAXMIMUM ALLOWED VALUE IS 127!
+    // upper bit is used for marking value bindings
+};
+
+enum class UIType : uint8_t
+{
+    invalid     = 0,
+    integer     = 1,
+    number      = 2,
+    string      = 3,
+    enumeration = 4,
+    margins     = 5,
+    color       = 6,
+    size        = 7,
+    point       = 8,
+    resource    = 9,
+};
+
+enum class UIFont : uint8_t
+{
+    sans = UIEnum::sans,
+    serif = UIEnum::serif,
+    monospace = UIEnum::monospace,
 };
 
 enum class HAlignment : uint8_t

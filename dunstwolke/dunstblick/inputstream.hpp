@@ -18,8 +18,8 @@ struct InputStream
     explicit InputStream(uint8_t const * data, size_t length);
 
     template<size_t N>
-    explicit InputStream(uint8_t const (& data)[N]) :
-        InputStream(data, N)
+    explicit InputStream(uint8_t const (&_data)[N]) :
+        InputStream(_data, N)
     {
 
     }

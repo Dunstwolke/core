@@ -106,44 +106,28 @@ void Widget::layoutChildren(SDL_Rect const & rect)
 /// Stage 3:
 /// Rendering
 
-void Widget::paint(sdl2::renderer & renderer)
+void Widget::paint(RenderContext & context)
 {
-    renderer.setClipRect(actual_bounds);
+    context.renderer.setClipRect(actual_bounds);
 
-    renderer.setColor(0xFF, 0x00, 0xFF, 0x40);
-    renderer.fillRect(actual_bounds);
+    context.renderer.setColor(0xFF, 0x00, 0xFF, 0x40);
+    context.renderer.fillRect(actual_bounds);
 
-    this->paintWidget(renderer, actual_bounds);
-    renderer.resetClipRect();
+    this->paintWidget(context, actual_bounds);
+    context.renderer.resetClipRect();
     for(auto & child : children)
-        child->paint(renderer);
+        child->paint(context);
 }
 
-void Widget::deserialize_property(UIProperty property, InputStream &stream)
+void Widget::setProperty(UIProperty property, UIValue value)
 {
     switch(property)
     {
-    case UIProperty::horizontalAlignment:
-        horizontalAlignment = stream.read_enum<HAlignment>();
-        break;
-    case UIProperty::verticalAlignment:
-        verticalAlignment = stream.read_enum<VAlignment>();
-        break;
-    case UIProperty::visibility:
-        visibility = stream.read_enum<Visibility>();
-        break;
-    case UIProperty::margins:
-        margins.left   = gsl::narrow<int>(stream.read_uint());
-        margins.top    = gsl::narrow<int>(stream.read_uint());
-        margins.right  = gsl::narrow<int>(stream.read_uint());
-        margins.bottom = gsl::narrow<int>(stream.read_uint());
-        break;
-    case UIProperty::paddings:
-        paddings.left   = gsl::narrow<int>(stream.read_uint());
-        paddings.top    = gsl::narrow<int>(stream.read_uint());
-        paddings.right  = gsl::narrow<int>(stream.read_uint());
-        paddings.bottom = gsl::narrow<int>(stream.read_uint());
-        break;
+    case UIProperty::verticalAlignment:   verticalAlignment   = VAlignment(std::get<uint8_t>(value)); break;
+    case UIProperty::horizontalAlignment: horizontalAlignment = HAlignment(std::get<uint8_t>(value)); break;
+    case UIProperty::visibility:          visibility          = Visibility(std::get<uint8_t>(value)); break;
+    case UIProperty::margins:             margins             = std::get<UIMargin>(value); break;
+    case UIProperty::paddings:            paddings            = std::get<UIMargin>(value); break;
     default:
         throw std::range_error("widget received unsupported property!");
     }

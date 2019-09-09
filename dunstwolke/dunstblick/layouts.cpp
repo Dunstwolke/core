@@ -10,7 +10,7 @@ StackLayout::StackLayout(StackDirection dir) :
 {
 }
 
-void StackLayout::paintWidget(sdl2::renderer &, const SDL_Rect &)
+void StackLayout::paintWidget(RenderContext &, const SDL_Rect &)
 {
     // layouts don't have visuals
 }
@@ -63,16 +63,12 @@ SDL_Size StackLayout::calculateWantedSize()
     }
 }
 
-void StackLayout::deserialize_property(UIProperty property, InputStream &stream)
+void StackLayout::setProperty(UIProperty property, UIValue value)
 {
     switch(property)
     {
-    case UIProperty::stackDirection:
-        direction = stream.read_enum<StackDirection>();
-        break;
-    default:
-        Widget::deserialize_property(property, stream);
-        break;
+    case UIProperty::stackDirection: direction = StackDirection(std::get<uint8_t>(value)); break;
+    default: return Widget::setProperty(property, value);
     }
 }
 
@@ -80,7 +76,7 @@ void StackLayout::deserialize_property(UIProperty property, InputStream &stream)
  * Dock  Layout                                                                *
  ******************************************************************************/
 
-void DockLayout::paintWidget(sdl2::renderer &, const SDL_Rect &)
+void DockLayout::paintWidget(RenderContext &, const SDL_Rect &)
 {
     // layouts don't have visuals
 }
@@ -194,20 +190,21 @@ void DockLayout::setDockSite(size_t index, DockSite site)
     dockSites.at(index) = site;
 }
 
-void DockLayout::deserialize_property(UIProperty property, InputStream &stream)
+void DockLayout::setProperty(UIProperty property, UIValue value)
 {
     switch(property)
     {
     case UIProperty::dockSites:
     {
-        auto const num = stream.read_uint();
-        dockSites.resize(num);
-        for(size_t i = 0; i < num; i++)
-            dockSites[i] = stream.read_enum<DockSite>();
-        break;
+        assert(false);
+//        auto const num = stream.read_uint();
+//        dockSites.resize(num);
+//        for(size_t i = 0; i < num; i++)
+//            dockSites[i] = stream.read_enum<DockSite>();
+//        break;
     }
     default:
-        Widget::deserialize_property(property, stream);
+        Widget::setProperty(property, value);
         break;
     }
 }
