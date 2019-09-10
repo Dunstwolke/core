@@ -32,7 +32,7 @@ namespace UIEnum
 
 enum class UIWidget : uint8_t
 {
-    spacer        = 0,
+    invalid       = 0, // marks "end of children" in the binary format
     button        = 1,
     label         = 2,
     combobox      = 3,
@@ -51,6 +51,7 @@ enum class UIWidget : uint8_t
     progressbar   = 16,
     spinedit      = 17,
     separator     = 18,
+    spacer        = 19,
 
     // widgets go here ↑
     // layouts go here ↓
@@ -64,7 +65,7 @@ enum class UIWidget : uint8_t
 
 enum class UIProperty : uint8_t
 {
-    invalid = 0,
+    invalid = 0, // marks "end of properties" in the binary format
     horizontalAlignment = 1,
     verticalAlignment = 2,
     margins = 3,
@@ -73,7 +74,7 @@ enum class UIProperty : uint8_t
     dockSites = 6,
     visibility = 7,
     sizeHint = 8,
-    fontFamility = 9,
+    fontFamily = 9,
     text = 10,
 
     // MAXMIMUM ALLOWED VALUE IS 127!
@@ -93,6 +94,8 @@ enum class UIType : uint8_t
     point       = 8,
     resource    = 9,
 };
+
+UIType getPropertyType(UIProperty property);
 
 enum class UIFont : uint8_t
 {

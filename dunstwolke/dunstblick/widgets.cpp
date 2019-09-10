@@ -57,7 +57,7 @@ SDL_Size Label::calculateWantedSize()
 void Label::setProperty(UIProperty property, UIValue value)
 {
     switch(property) {
-    case UIProperty::fontFamility: font = UIFont(std::get<uint8_t>(value)); break;
+    case UIProperty::fontFamily: font = UIFont(std::get<uint8_t>(value)); break;
     case UIProperty::text:         text = std::get<std::string>(value); break;
     default:
         return Widget::setProperty(property, value);

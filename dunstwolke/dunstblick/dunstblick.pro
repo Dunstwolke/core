@@ -10,6 +10,7 @@ include($$(XQLIB_ROOT)/xqlib.pri)
 SOURCES += \
         fontcache.cpp \
         inputstream.cpp \
+        layoutparser.cpp \
         layouts.cpp \
         main.cpp \
         rendercontext.cpp \
@@ -21,8 +22,15 @@ HEADERS += \
   enums.hpp \
   fontcache.hpp \
   inputstream.hpp \
+  layoutparser.hpp \
   layouts.hpp \
   rendercontext.hpp \
   types.hpp \
   widget.hpp \
   widgets.hpp
+
+LEXSOURCES += \
+  Layout.l
+
+DISTFILES += \
+  development.uit

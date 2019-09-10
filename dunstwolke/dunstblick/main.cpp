@@ -9,6 +9,8 @@
 
 #include "inputstream.hpp"
 
+#include "layoutparser.hpp"
+
 static bool shutdown_app_requested = false;
 
 [[noreturn]] static void exit_sdl_error(char const * msg = nullptr) {
@@ -94,66 +96,67 @@ static void event(SDL_Event const & e)
 
 uint8_t const formData[] =
     "\xFF" // StackLayout
-        "\x03" // 2 properties
+        "\x03\x10\x10\x10\x10" // margins, 16,16,16,16
+        "\x04\x08\x08\x08\x08" // paddings, 8,8,8,8
+        "\x05\x11" // direction = horizontal
+        "\x00" // end of properties
+        "\x01" // button widget
+            "\x01\x01" // horizontal alignment = left
+            "\x02\x04" // vertical alignment = top
             "\x03\x10\x10\x10\x10" // margins, 16,16,16,16
-            "\x04\x08\x08\x08\x08" // paddings, 8,8,8,8
-            "\x05\x11" // direction = horizontal
-        "\x05" // 4 child objects
-            "\x01" // button widget
-                "\x03" // 3 properties
-                    "\x01\x01" // horizontal alignment = left
-                    "\x02\x04" // vertical alignment = top
-                    "\x03\x10\x10\x10\x10" // margins, 16,16,16,16
-                "\x01" // 1 children
-                    "\x02" // label
-                        "\x02" // 1 property
-                            "\x09\x12" // font family =
-                            "\x0A\x05Upper" // text = "Upper"
-                        "\x00" // 0 children
-            "\x01" // spacer widget
-                "\x03" // 3 properties
-                    "\x01\x02" // horizontal alignment = center
-                    "\x02\x05" // vertical alignment = middle
-                    "\x03\x10\x10\x10\x10" // margins, 16,16,16,16
-                "\x01" // 1 children
-                    "\x02" // label
-                        "\x02" // 1 property
-                            "\x09\x12" // font family =
-                            "\x0A\x06Middle" // text = "Middle"
-                        "\x00" // 0 children
-            "\x01" // spacer widget
-                "\x03" // 3 properties
-                    "\x01\x03" // horizontal alignment = right
-                    "\x02\x06" // vertical alignment = bottom
-                    "\x03\x10\x10\x10\x10" // margins, 16,16,16,16
-                "\x01" // 1 children
-                    "\x02" // label
-                        "\x02" // 1 property
-                            "\x09\x12" // font family =
-                            "\x0A\x05Lower" // text = "Lower"
-                        "\x00" // 0 children
-            "\x01" // spacer widget
-                "\x03" // 3 properties
-                    "\x01\x07" // horizontal alignment = stretch
-                    "\x02\x07" // vertical alignment = stretch
-                    "\x03\x10\x10\x10\x10" // margins, 16,16,16,16
-                "\x01" // 1 children
-                    "\x02" // label
-                        "\x02" // 1 property
-                            "\x09\x12" // font family =
-                            "\x0A\x07Stretch" // text = "Stretch"
-                        "\x00" // 0 children
-            "\x01" // spacer widget
-                "\x03" // 3 properties
-                    "\x01\x07" // horizontal alignment = stretch
-                    "\x02\x07" // vertical alignment = stretch
-                    "\x03\x10\x10\x10\x10" // margins, 16,16,16,16
-                "\x01" // 1 children
-                    "\x02" // label
-                        "\x02" // 1 property
-                            "\x09\x12" // font family =
-                            "\x0A\x0AMulti\nLine" // text = "Multi\nLine"
-                        "\x00" // 0 children
+            "\x00" // end of properties
+            "\x02" // label
+                "\x09\x12" // font family =
+                "\x0A\x05Upper" // text = "Upper"
+                "\x00" // 0 end of properties
+                "\x00" // 0 end of children
+            "\x00" // end of children
+        "\x01" // spacer widget
+            "\x01\x02" // horizontal alignment = center
+            "\x02\x05" // vertical alignment = middle
+            "\x03\x10\x10\x10\x10" // margins, 16,16,16,16
+            "\x00" // 0 end of properties
+            "\x02" // label
+                "\x09\x12" // font family =
+                "\x0A\x06Middle" // text = "Middle"
+                "\x00" // 0 end of properties
+                "\x00" // 0 end of children
+            "\x00" // 0 end of children
+        "\x01" // spacer widget
+            "\x01\x03" // horizontal alignment = right
+            "\x02\x06" // vertical alignment = bottom
+            "\x03\x10\x10\x10\x10" // margins, 16,16,16,16
+            "\x00" // 0 end of properties
+            "\x02" // label
+                "\x09\x12" // font family =
+                "\x0A\x05Lower" // text = "Lower"
+                "\x00" // 0 end of properties
+                "\x00" // 0 end of children
+            "\x00" // 0 end of children
+        "\x01" // spacer widget
+            "\x01\x07" // horizontal alignment = stretch
+            "\x02\x07" // vertical alignment = stretch
+            "\x03\x10\x10\x10\x10" // margins, 16,16,16,16
+            "\x00" // 0 end of properties
+            "\x02" // label
+                "\x09\x12" // font family =
+                "\x0A\x07Stretch" // text = "Stretch"
+                "\x00" // end of properties
+                "\x00" // end of children
+            "\x00" // end of children
+        "\x01" // spacer widget
+            "\x01\x07" // horizontal alignment = stretch
+            "\x02\x07" // vertical alignment = stretch
+            "\x03\x10\x10\x10\x10" // margins, 16,16,16,16
+            "\x00" // 0 end of properties
+            "\x02" // label
+                "\x09\x12" // font family =
+                "\x0A\x0AMulti\nLine" // text = "Multi\nLine"
+                "\x00" // end of properties
+                "\x00" // end of children
+            "\x00" // end of children
+    "\x00" // end of children
+
 ;
 
 UIType getPropertyType(UIProperty property)
@@ -165,7 +168,7 @@ UIType getPropertyType(UIProperty property)
     case UIProperty::stackDirection:
     case UIProperty::dockSites:
     case UIProperty::visibility:
-    case UIProperty::fontFamility:
+    case UIProperty::fontFamily:
         return UIType::enumeration;
 
     case UIProperty::margins:
@@ -218,10 +221,8 @@ UIValue deserialize_value(UIType type, InputStream & stream)
     assert(false and "property type not in table yet!");
 }
 
-std::unique_ptr<Widget> deserialize_widget(InputStream & stream)
+std::unique_ptr<Widget> deserialize_widget(UIWidget widgetType, InputStream & stream)
 {
-    auto const widgetType = stream.read_enum<UIWidget>();
-
     std::unique_ptr<Widget> widget;
     switch(widgetType)
     {
@@ -237,30 +238,52 @@ std::unique_ptr<Widget> deserialize_widget(InputStream & stream)
     }
     assert(widget);
 
-    auto const propertyCount = stream.read_uint();
-    for(size_t i = 0; i < propertyCount; i++)
+    UIProperty property;
+    do
     {
-        auto const property = stream.read_enum<UIProperty>();
+        property = stream.read_enum<UIProperty>();
+        if(property != UIProperty::invalid)
+        {
+            auto const value = deserialize_value(getPropertyType(property), stream);
+            widget->setProperty(property, value);
+        }
+    } while(property != UIProperty::invalid);
 
-        auto const value = deserialize_value(getPropertyType(property), stream);
-
-        widget->setProperty(property, value);
-    }
-
-    auto const childCount = stream.read_uint();
-    widget->children.resize(childCount);
-    for(size_t i = 0; i < childCount; i++)
+    UIWidget childType;
+    do
     {
-         widget->children[i] = deserialize_widget(stream);
-    }
+        childType = stream.read_enum<UIWidget>();
+        if(childType != UIWidget::invalid)
+            widget->children.emplace_back(deserialize_widget(childType, stream));
+    } while(childType != UIWidget::invalid);
 
     return widget;
 }
+
+std::unique_ptr<Widget> deserialize_widget(InputStream & stream)
+{
+    auto const widgetType = stream.read_enum<UIWidget>();
+    return deserialize_widget(widgetType, stream);
+}
+
+#include <fstream>
 
 int main()
 {
     printf("cwd = %s\n", std::filesystem::current_path().c_str());
     fflush(stdout);
+
+    std::ifstream input_src("./dunstblick/development.uit");
+
+    std::ofstream output_dst("/tmp/development.ui");
+
+    std::ofstream output_cmp("/tmp/development.ui.orig");
+    output_cmp.write((char const *)formData, sizeof(formData) - 1);
+
+    LayoutParser layout_parser;
+    layout_parser.compile(input_src, output_dst);
+
+    return 0;
 
     if(SDL_Init(SDL_INIT_EVERYTHING) < 0) {
         exit_sdl_error();
