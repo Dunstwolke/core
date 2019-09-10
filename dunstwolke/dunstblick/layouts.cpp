@@ -108,8 +108,8 @@ void DockLayout::layoutChildren(const SDL_Rect &_rect)
             children[i]->layout({
                 childArea.x,
                 childArea.y,
-                childArea.w,
-                childSize.h
+                childSize.w,
+                childArea.h
             });
             childArea.x += childSize.w;
             childArea.w -= childSize.w;
@@ -119,8 +119,8 @@ void DockLayout::layoutChildren(const SDL_Rect &_rect)
             children[i]->layout({
                 childArea.x + childArea.w - childSize.w,
                 childArea.y,
-                childArea.w,
-                childSize.h
+                childSize.w,
+                childArea.h
             });
             childArea.w -= childSize.w;
             break;
@@ -168,14 +168,10 @@ SDL_Size DockLayout::calculateWantedSize()
 
 DockSite DockLayout::getDockSite(size_t index) const
 {
-    if(index >= dockSites.size())
-        return DockSite::top;
-    else
-        return dockSites.at(index);
+    return children.at(index)->dockSite;
 }
 
 void DockLayout::setDockSite(size_t index, DockSite site)
 {
-    dockSites.resize(children.size());
-    dockSites.at(index) = site;
+    children.at(index)->dockSite = site;
 }

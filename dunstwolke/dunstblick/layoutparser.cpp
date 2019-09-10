@@ -49,7 +49,7 @@ const std::map<std::string, UIProperty> properties =
     { "margins", UIProperty::margins },
     { "paddings", UIProperty::paddings },
     { "stack-direction", UIProperty::stackDirection },
-    { "dock-sites", UIProperty::dockSites },
+    { "dock-site", UIProperty::dockSite },
     { "visibility", UIProperty::visibility },
     { "size-hint", UIProperty::sizeHint },
     { "font-family", UIProperty::fontFamily },

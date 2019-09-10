@@ -18,8 +18,6 @@ struct StackLayout : WidgetIs<UIWidget::stack_layout>
 
 struct DockLayout : WidgetIs<UIWidget::dock_layout>
 {
-    std::vector<DockSite> dockSites;
-
     void paintWidget(RenderContext &, const SDL_Rect &) override;
 
     void layoutChildren(SDL_Rect const & childArea) override;

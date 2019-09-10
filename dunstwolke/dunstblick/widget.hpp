@@ -114,6 +114,7 @@ public: // deserializable properties
     property<Visibility> visibility = Visibility::visible;
     property<UIMargin> margins = UIMargin(0);
     property<UIMargin> paddings = UIMargin(0);
+    property<DockSite> dockSite = DockSite::top;
 
 public: // layouting and rendering
     /// the space the widget says it needs to have.

@@ -74,7 +74,7 @@ UIType getPropertyType(UIProperty property)
     case UIProperty::horizontalAlignment:
     case UIProperty::verticalAlignment:
     case UIProperty::stackDirection:
-    case UIProperty::dockSites:
+    case UIProperty::dockSite:
     case UIProperty::visibility:
     case UIProperty::fontFamily:
     case UIProperty::displayProgressStyle:

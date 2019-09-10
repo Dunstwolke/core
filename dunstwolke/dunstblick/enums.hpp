@@ -74,7 +74,7 @@ enum class UIProperty : uint8_t
     margins = 3,
     paddings = 4,
     stackDirection = 5,
-    dockSites = 6,
+    dockSite = 6,
     visibility = 7,
     sizeHint = 8,
     fontFamily = 9,

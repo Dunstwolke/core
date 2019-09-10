@@ -184,6 +184,7 @@ std::map<UIProperty, GetPropertyFunction> const MetaWidget::defaultProperties = 
     MetaProperty { UIProperty::horizontalAlignment, &Widget::horizontalAlignment },
     MetaProperty { UIProperty::verticalAlignment, &Widget::verticalAlignment },
     MetaProperty { UIProperty::visibility, &Widget::visibility },
+    MetaProperty { UIProperty::dockSite, &Widget::dockSite },
 });
 
 std::map<UIWidget, MetaWidget> const metaWidgets

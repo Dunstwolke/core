@@ -2,17 +2,28 @@
 DockLayout
 {
   Panel {
+	dock-site: top;
     Label {
-      text: "top 1";
+      text: "top";
     }
   }
   Panel {
+	dock-site: left;
     Label {
-      text: "top 2";
+      text: "left";
     }
   }
-  ProgressBar {
-    value: 50.0;
+  Panel {
+	dock-site: bottom;
+    Label {
+      text: "bottom";
+    }
+  }
+  Panel {
+	dock-site: right;
+    Label {
+      text: "right";
+    }
   }
   Panel {
     Label {
