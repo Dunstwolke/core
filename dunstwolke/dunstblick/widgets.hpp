@@ -33,4 +33,30 @@ struct Label : Widget
     void setProperty(UIProperty property, UIValue value) override;
 };
 
+struct PlaceholderWidget : Widget
+{
+    void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
+};
+
+#define ComboBox PlaceholderWidget
+#define TreeViewItem PlaceholderWidget
+#define TreeView PlaceholderWidget
+#define ListBoxItem PlaceholderWidget
+#define ListBox PlaceholderWidget
+#define Drawing PlaceholderWidget
+#define Picture PlaceholderWidget
+#define TextBox PlaceholderWidget
+#define CheckBox PlaceholderWidget
+#define RadioButton PlaceholderWidget
+#define ScrollView PlaceholderWidget
+#define ScrollBar PlaceholderWidget
+#define Slider PlaceholderWidget
+#define ProgressBar PlaceholderWidget
+#define SpinEdit PlaceholderWidget
+#define Separator PlaceholderWidget
+
+#define CanvasLayout StackLayout
+#define FlowLayout StackLayout
+#define GridLayout StackLayout
+
 #endif // WIDGETS_HPP

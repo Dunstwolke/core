@@ -63,3 +63,14 @@ void Label::setProperty(UIProperty property, UIValue value)
         return Widget::setProperty(property, value);
     }
 }
+
+void PlaceholderWidget::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
+{
+    context.renderer.setColor(0xFF, 0x00, 0xFF);
+    context.renderer.fillRect(rectangle);
+
+    context.renderer.setColor(0xFF, 0xFF, 0xFF);
+    context.renderer.drawLine(rectangle.x, rectangle.y, rectangle.x + rectangle.w, rectangle.y + rectangle.h);
+    context.renderer.drawLine(rectangle.x + rectangle.w, rectangle.y, rectangle.x, rectangle.y + rectangle.h);
+    context.renderer.drawRect(rectangle);
+}

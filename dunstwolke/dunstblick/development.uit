@@ -1,13 +1,13 @@
 /* this is a comment */
 StackLayout {
-  margins:         16, 16, 16, 16;
-  paddings:        8, 8, 8, 8;
+  margins: 16;
+  paddings: 8;
   stack-direction: horizontal;
 
   Button {
     horizontal-alignment: left;
     vertical-alignment:   top;
-    margins:              16, 16, 16, 16;
+    margins:              16;
 
     Label {
       font-family: sans;
@@ -18,7 +18,7 @@ StackLayout {
   Button {
     horizontal-alignment: center;
     vertical-alignment:   middle;
-    margins:              16, 16, 16, 16;
+    margins:              16;
 
     Label {
       font-family: sans;
@@ -29,7 +29,7 @@ StackLayout {
   Button {
     horizontal-alignment: right;
     vertical-alignment:   bottom;
-    margins:              16, 16, 16, 16;
+    margins:              16;
 
     Label {
       font-family: sans;
@@ -40,7 +40,7 @@ StackLayout {
   Button {
     horizontal-alignment: stretch;
     vertical-alignment:   stretch;
-    margins:              16, 16, 16, 16;
+    margins:              16;
 
     Label {
       font-family: sans;
@@ -51,7 +51,7 @@ StackLayout {
   Button {
     horizontal-alignment: stretch;
     vertical-alignment:   stretch;
-    margins:              16, 16, 16, 16;
+    margins:              16;
 
     Label {
       font-family: sans;

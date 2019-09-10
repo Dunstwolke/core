@@ -94,71 +94,6 @@ static void event(SDL_Event const & e)
     }
 }
 
-uint8_t const formData[] =
-    "\xFF" // StackLayout
-        "\x03\x10\x10\x10\x10" // margins, 16,16,16,16
-        "\x04\x08\x08\x08\x08" // paddings, 8,8,8,8
-        "\x05\x11" // direction = horizontal
-        "\x00" // end of properties
-        "\x01" // button widget
-            "\x01\x01" // horizontal alignment = left
-            "\x02\x04" // vertical alignment = top
-            "\x03\x10\x10\x10\x10" // margins, 16,16,16,16
-            "\x00" // end of properties
-            "\x02" // label
-                "\x09\x12" // font family =
-                "\x0A\x05Upper" // text = "Upper"
-                "\x00" // 0 end of properties
-                "\x00" // 0 end of children
-            "\x00" // end of children
-        "\x01" // spacer widget
-            "\x01\x02" // horizontal alignment = center
-            "\x02\x05" // vertical alignment = middle
-            "\x03\x10\x10\x10\x10" // margins, 16,16,16,16
-            "\x00" // 0 end of properties
-            "\x02" // label
-                "\x09\x12" // font family =
-                "\x0A\x06Middle" // text = "Middle"
-                "\x00" // 0 end of properties
-                "\x00" // 0 end of children
-            "\x00" // 0 end of children
-        "\x01" // spacer widget
-            "\x01\x03" // horizontal alignment = right
-            "\x02\x06" // vertical alignment = bottom
-            "\x03\x10\x10\x10\x10" // margins, 16,16,16,16
-            "\x00" // 0 end of properties
-            "\x02" // label
-                "\x09\x12" // font family =
-                "\x0A\x05Lower" // text = "Lower"
-                "\x00" // 0 end of properties
-                "\x00" // 0 end of children
-            "\x00" // 0 end of children
-        "\x01" // spacer widget
-            "\x01\x07" // horizontal alignment = stretch
-            "\x02\x07" // vertical alignment = stretch
-            "\x03\x10\x10\x10\x10" // margins, 16,16,16,16
-            "\x00" // 0 end of properties
-            "\x02" // label
-                "\x09\x12" // font family =
-                "\x0A\x07Stretch" // text = "Stretch"
-                "\x00" // end of properties
-                "\x00" // end of children
-            "\x00" // end of children
-        "\x01" // spacer widget
-            "\x01\x07" // horizontal alignment = stretch
-            "\x02\x07" // vertical alignment = stretch
-            "\x03\x10\x10\x10\x10" // margins, 16,16,16,16
-            "\x00" // 0 end of properties
-            "\x02" // label
-                "\x09\x12" // font family =
-                "\x0A\x0AMulti\nLine" // text = "Multi\nLine"
-                "\x00" // end of properties
-                "\x00" // end of children
-            "\x00" // end of children
-    "\x00" // end of children
-
-;
-
 UIType getPropertyType(UIProperty property)
 {
     switch(property)
@@ -229,8 +164,27 @@ std::unique_ptr<Widget> deserialize_widget(UIWidget widgetType, InputStream & st
     case UIWidget::spacer: widget = std::make_unique<Spacer>(); break;
     case UIWidget::button: widget = std::make_unique<Button>(); break;
     case UIWidget::label:  widget = std::make_unique<Label>(); break;
+    case UIWidget::combobox:  widget = std::make_unique<ComboBox>(); break;
+    case UIWidget::treeviewitem:  widget = std::make_unique<TreeViewItem>(); break;
+    case UIWidget::treeview:  widget = std::make_unique<TreeView>(); break;
+    case UIWidget::listboxitem:  widget = std::make_unique<ListBoxItem>(); break;
+    case UIWidget::listbox:  widget = std::make_unique<ListBox>(); break;
+    case UIWidget::drawing:  widget = std::make_unique<Drawing>(); break;
+    case UIWidget::picture:  widget = std::make_unique<Picture>(); break;
+    case UIWidget::textbox:  widget = std::make_unique<TextBox>(); break;
+    case UIWidget::checkbox:  widget = std::make_unique<CheckBox>(); break;
+    case UIWidget::radiobutton:  widget = std::make_unique<RadioButton>(); break;
+    case UIWidget::scrollview:  widget = std::make_unique<ScrollView>(); break;
+    case UIWidget::scrollbar:  widget = std::make_unique<ScrollBar>(); break;
+    case UIWidget::slider:  widget = std::make_unique<Slider>(); break;
+    case UIWidget::progressbar:  widget = std::make_unique<ProgressBar>(); break;
+    case UIWidget::spinedit:  widget = std::make_unique<SpinEdit>(); break;
+    case UIWidget::separator:  widget = std::make_unique<Separator>(); break;
 
 
+    case UIWidget::canvas_layout:  widget = std::make_unique<CanvasLayout>(); break;
+    case UIWidget::flow_layout:  widget = std::make_unique<FlowLayout>(); break;
+    case UIWidget::grid_layout:  widget = std::make_unique<GridLayout>(); break;
     case UIWidget::dock_layout: widget = std::make_unique<DockLayout>(); break;
     case UIWidget::stack_layout: widget = std::make_unique<StackLayout>(); break;
     default:
@@ -275,15 +229,10 @@ int main()
 
     std::ifstream input_src("./dunstblick/development.uit");
 
-    std::ofstream output_dst("/tmp/development.ui");
-
-    std::ofstream output_cmp("/tmp/development.ui.orig");
-    output_cmp.write((char const *)formData, sizeof(formData) - 1);
+    std::stringstream formDataBuffer;
 
     LayoutParser layout_parser;
-    layout_parser.compile(input_src, output_dst);
-
-    return 0;
+    layout_parser.compile(input_src, formDataBuffer);
 
     if(SDL_Init(SDL_INIT_EVERYTHING) < 0) {
         exit_sdl_error();
@@ -316,7 +265,10 @@ int main()
 
     render_context.renderer.setBlendMode(SDL_BLENDMODE_BLEND); // enable alpha blend
 
-    InputStream formStream(formData);
+
+
+    auto const formData = formDataBuffer.str();
+    InputStream formStream(reinterpret_cast<uint8_t const *>(formData.data()), formData.size());
 
     root_widget = deserialize_widget(formStream);
 
