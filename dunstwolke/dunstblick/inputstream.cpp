@@ -29,6 +29,16 @@ uint32_t InputStream::read_uint()
     return number;
 }
 
+float InputStream::read_float()
+{
+    uint8_t buf[4];
+    buf[0] = read_byte();
+    buf[1] = read_byte();
+    buf[2] = read_byte();
+    buf[3] = read_byte();
+    return *reinterpret_cast<float const*>(buf);
+}
+
 std::string_view InputStream::read_string()
 {
     auto const len = read_uint();

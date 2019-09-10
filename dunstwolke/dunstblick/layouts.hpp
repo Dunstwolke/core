@@ -3,9 +3,9 @@
 
 #include "widget.hpp"
 
-struct StackLayout : Widget
+struct StackLayout : WidgetIs<UIWidget::stack_layout>
 {
-    StackDirection direction;
+    property<StackDirection> direction;
 
     explicit StackLayout(StackDirection dir = StackDirection::vertical);
 
@@ -14,11 +14,9 @@ struct StackLayout : Widget
     void layoutChildren(SDL_Rect const & childArea) override;
 
     SDL_Size calculateWantedSize() override;
-
-    void setProperty(UIProperty property, UIValue value) override;
 };
 
-struct DockLayout : Widget
+struct DockLayout : WidgetIs<UIWidget::dock_layout>
 {
     std::vector<DockSite> dockSites;
 
@@ -31,8 +29,6 @@ struct DockLayout : Widget
     DockSite getDockSite(size_t index) const;
 
     void setDockSite(size_t index, DockSite site);
-
-    void setProperty(UIProperty property, UIValue value) override;
 };
 
 

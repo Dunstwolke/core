@@ -6,6 +6,12 @@
 /// Stage 1:
 /// Determine widget sizes
 
+Widget::Widget(UIWidget _type) :
+    type(_type)
+{
+
+}
+
 void Widget::updateWantedSize()
 {
     for(auto & child : children)
@@ -34,10 +40,10 @@ SDL_Size Widget::calculateWantedSize()
 void Widget::layout(SDL_Rect const & _bounds)
 {
     SDL_Rect const bounds = {
-        _bounds.x + margins.left,
-        _bounds.y + margins.top,
-        std::max(0, _bounds.w - margins.totalHorizontal()), // safety check against underflow
-        std::max(0, _bounds.h - margins.totalVertical()),
+        _bounds.x + margins->left,
+        _bounds.y + margins->top,
+        std::max(0, _bounds.w - margins->totalHorizontal()), // safety check against underflow
+        std::max(0, _bounds.h - margins->totalVertical()),
     };
 
     SDL_Rect target;
@@ -86,10 +92,10 @@ void Widget::layout(SDL_Rect const & _bounds)
     this->actual_bounds = target;
 
     SDL_Rect const childArea = {
-        this->actual_bounds.x + this->paddings.left,
-        this->actual_bounds.y + this->paddings.top,
-        this->actual_bounds.w - this->paddings.totalHorizontal(),
-        this->actual_bounds.h - this->paddings.totalVertical(),
+        this->actual_bounds.x + this->paddings->left,
+        this->actual_bounds.y + this->paddings->top,
+        this->actual_bounds.w - this->paddings->totalHorizontal(),
+        this->actual_bounds.h - this->paddings->totalVertical(),
     };
 
     this->layoutChildren(childArea);
@@ -122,31 +128,114 @@ void Widget::paint(RenderContext & context)
 SDL_Rect Widget::bounds_with_margins() const
 {
     return {
-        actual_bounds.x - margins.left,
-                actual_bounds.y - margins.top,
-                actual_bounds.w + margins.totalHorizontal(),
-                actual_bounds.h + margins.totalVertical(),
+        actual_bounds.x - margins->left,
+        actual_bounds.y - margins->top,
+        actual_bounds.w + margins->totalHorizontal(),
+        actual_bounds.h + margins->totalVertical(),
     };
 }
 
 SDL_Size Widget::wanted_size_with_margins() const
 {
     return {
-        wanted_size.w + margins.totalHorizontal(),
-        wanted_size.h + margins.totalVertical(),
+        wanted_size.w + margins->totalHorizontal(),
+        wanted_size.h + margins->totalVertical(),
     };
 }
 
 void Widget::setProperty(UIProperty property, UIValue value)
 {
-    switch(property)
+    auto & meta = MetaWidget::get(this->type);
+
+    if(auto it = meta.specializedProperties.find(property); it != meta.specializedProperties.end())
+        it->second(*this)->setValue(value);
+    else if(auto it = meta.defaultProperties.find(property); it != meta.defaultProperties.end())
+        it->second(*this)->setValue(value);
+    else
+        throw std::range_error("unknown property for this widget!");
+}
+
+BaseProperty::~BaseProperty()
+{
+
+}
+
+
+
+
+
+
+
+#include "widgets.hpp"
+#include "layouts.hpp"
+
+static std::map<UIProperty, GetPropertyFunction> Transpose(std::initializer_list<MetaProperty> props)
+{
+    std::map<UIProperty, GetPropertyFunction> properties;
+    for(auto const & item : props)
+        properties.emplace(item.name, item.getter);
+    return properties;
+}
+
+std::map<UIProperty, GetPropertyFunction> const MetaWidget::defaultProperties = Transpose(
+{
+    MetaProperty { UIProperty::margins, &Widget::margins },
+    MetaProperty { UIProperty::paddings, &Widget::paddings },
+    MetaProperty { UIProperty::horizontalAlignment, &Widget::horizontalAlignment },
+    MetaProperty { UIProperty::verticalAlignment, &Widget::verticalAlignment },
+    MetaProperty { UIProperty::visibility, &Widget::visibility },
+});
+
+std::map<UIWidget, MetaWidget> const metaWidgets
+{
     {
-    case UIProperty::verticalAlignment:   verticalAlignment   = VAlignment(std::get<uint8_t>(value)); break;
-    case UIProperty::horizontalAlignment: horizontalAlignment = HAlignment(std::get<uint8_t>(value)); break;
-    case UIProperty::visibility:          visibility          = Visibility(std::get<uint8_t>(value)); break;
-    case UIProperty::margins:             margins             = std::get<UIMargin>(value); break;
-    case UIProperty::paddings:            paddings            = std::get<UIMargin>(value); break;
-    default:
-        throw std::range_error("widget received unsupported property!");
-    }
+        UIWidget::label,
+        MetaWidget
+        {
+            MetaProperty { UIProperty::text, &Label::text },
+            MetaProperty { UIProperty::fontFamily, &Label::font },
+        }
+    },
+    {
+        UIWidget::spacer,
+        MetaWidget
+        {
+            MetaProperty { UIProperty::sizeHint, &Spacer::sizeHint },
+        }
+    },
+    {
+        UIWidget::progressbar,
+        MetaWidget
+        {
+            MetaProperty { UIProperty::minimum, &ProgressBar::minimum },
+            MetaProperty { UIProperty::maximum, &ProgressBar::maximum },
+            MetaProperty { UIProperty::value, &ProgressBar::value },
+            MetaProperty { UIProperty::displayProgressStyle, &ProgressBar::displayProgress },
+        }
+    },
+    {
+        UIWidget::stack_layout,
+        MetaWidget
+        {
+            MetaProperty { UIProperty::stackDirection, &StackLayout::direction },
+        }
+    },
+};
+
+
+
+const MetaWidget &MetaWidget::get(UIWidget type)
+{
+    static MetaWidget defaultWidget { };
+
+    if(auto it = metaWidgets.find(type); it != metaWidgets.end())
+        return it->second;
+    else
+        return defaultWidget;
+}
+
+MetaWidget::MetaWidget(std::initializer_list<MetaProperty> props)
+{
+    for(auto const & item : props)
+        specializedProperties.emplace(item.name, item.getter);
 }

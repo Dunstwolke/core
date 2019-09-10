@@ -30,6 +30,7 @@ const std::map<std::string, UIWidget> widgetTypes =
     { "SpinEdit", UIWidget::spinedit },
     { "Separator", UIWidget::separator },
     { "Spacer", UIWidget::spacer },
+    { "Panel", UIWidget::panel },
 
     // widgets go here ↑
     // layouts go here ↓
@@ -53,6 +54,10 @@ const std::map<std::string, UIProperty> properties =
     { "size-hint", UIProperty::sizeHint },
     { "font-family", UIProperty::fontFamily },
     { "text", UIProperty::text },
+    { "minimum", UIProperty::minimum },
+    { "maximum", UIProperty::maximum },
+    { "value",   UIProperty::value },
+    { "display-progress-style", UIProperty::displayProgressStyle },
 };
 
 const std::map<std::string, uint8_t> enumerations =
@@ -79,6 +84,8 @@ const std::map<std::string, uint8_t> enumerations =
     ENUM(sans),
     ENUM(serif),
     ENUM(monospace),
+    ENUM(absolute),
+    ENUM(percent),
 #undef ENUM
 };
 
@@ -128,10 +135,21 @@ static void write_string(std::ostream & output, std::string const & text)
     output.write(text.c_str(), text.size());
 }
 
+static void write_number(std::ostream & output, float value)
+{
+    output.write(reinterpret_cast<char const *>(&value), sizeof(value));
+}
+
 static int lex_int(FlexLexer * lexer)
 {
     auto text = Accept(lexer, LexerTokenType::integer);
     return strtol(text.c_str(), nullptr, 10);
+}
+
+static float lex_number(FlexLexer * lexer)
+{
+    auto text = Accept(lexer, LexerTokenType::number);
+    return strtof(text.c_str(), nullptr);
 }
 
 static void parse_and_translate(UIType type, FlexLexer * lexer, std::ostream &output)
@@ -139,9 +157,15 @@ static void parse_and_translate(UIType type, FlexLexer * lexer, std::ostream &ou
     switch(type)
     {
         case UIType::integer: {
-            auto text = Accept(lexer, LexerTokenType::integer);
-            write_varint(output, strtoul(text.c_str(), nullptr, 10));
+            auto value = lex_int(lexer);
+            write_varint(output, value);
+            Accept(lexer, LexerTokenType::semiColon);
+            return;
+        }
 
+        case UIType::number: {
+            auto value = lex_number(lexer);
+            write_number(output, value);
             Accept(lexer, LexerTokenType::semiColon);
             return;
         }

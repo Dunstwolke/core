@@ -3,38 +3,36 @@
 
 #include "widget.hpp"
 
-struct Spacer : Widget
+struct Spacer : WidgetIs<UIWidget::spacer>
 {
-    SDL_Size sizeHint = { 0, 0 };
+    property<SDL_Size> sizeHint = SDL_Size { 0, 0 };
 
     SDL_Size calculateWantedSize() override;
 
     void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
-
-    void setProperty(UIProperty property, UIValue value) override;
 };
 
-struct Button : Widget
+struct Button : WidgetIs<UIWidget::button>
 {
     void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
 };
 
-struct Label : Widget
+struct Label : WidgetIs<UIWidget::label>
 {
-    std::string text = "";
-    UIFont font = UIFont::sans;
+    property<std::string> text = std::string("");
+    property<UIFont> font = UIFont::sans;
 
     explicit Label();
 
     void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
 
     SDL_Size calculateWantedSize() override;
-
-    void setProperty(UIProperty property, UIValue value) override;
 };
 
-struct PlaceholderWidget : Widget
+struct PlaceholderWidget : WidgetIs<UIWidget::spacer>
 {
+    SDL_Size calculateWantedSize() override;
+
     void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
 };
 
@@ -51,9 +49,33 @@ struct PlaceholderWidget : Widget
 #define ScrollView PlaceholderWidget
 #define ScrollBar PlaceholderWidget
 #define Slider PlaceholderWidget
-#define ProgressBar PlaceholderWidget
+
+struct ProgressBar : WidgetIs<UIWidget::progressbar>
+{
+    property<float> minimum = 0.0f;
+    property<float> maximum = 100.0f;
+    property<float> value = 0.0f;
+    property<DisplayProgressStyle> displayProgress = DisplayProgressStyle::percent;
+
+    SDL_Size calculateWantedSize() override;
+
+    void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
+};
+
 #define SpinEdit PlaceholderWidget
-#define Separator PlaceholderWidget
+
+struct Separator : WidgetIs<UIWidget::separator>
+{
+    SDL_Size calculateWantedSize() override;
+
+    void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
+};
+
+
+struct Panel : WidgetIs<UIWidget::panel>
+{
+    void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
+};
 
 #define CanvasLayout StackLayout
 #define FlowLayout StackLayout

@@ -10,15 +10,6 @@ void Spacer::paintWidget(RenderContext &, const SDL_Rect &)
 
 }
 
-void Spacer::setProperty(UIProperty property, UIValue value)
-{
-    switch(property) {
-    case UIProperty::sizeHint: sizeHint = std::get<SDL_Size>(value); break;
-    default:
-        return Widget::setProperty(property, value);
-    }
-}
-
 void Button::paintWidget(RenderContext & context, const SDL_Rect &rectangle)
 {
     context.renderer.setColor(0x80, 0x80, 0x80);
@@ -28,7 +19,7 @@ void Button::paintWidget(RenderContext & context, const SDL_Rect &rectangle)
     context.renderer.drawRect(rectangle);
 }
 
-Label::Label() : Widget()
+Label::Label()
 {
     margins = UIMargin(8);
     horizontalAlignment = HAlignment::center;
@@ -54,14 +45,9 @@ SDL_Size Label::calculateWantedSize()
     return size;
 }
 
-void Label::setProperty(UIProperty property, UIValue value)
+SDL_Size PlaceholderWidget::calculateWantedSize()
 {
-    switch(property) {
-    case UIProperty::fontFamily: font = UIFont(std::get<uint8_t>(value)); break;
-    case UIProperty::text:         text = std::get<std::string>(value); break;
-    default:
-        return Widget::setProperty(property, value);
-    }
+    return { 32, 32 };
 }
 
 void PlaceholderWidget::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
@@ -73,4 +59,84 @@ void PlaceholderWidget::paintWidget(RenderContext &context, const SDL_Rect &rect
     context.renderer.drawLine(rectangle.x, rectangle.y, rectangle.x + rectangle.w, rectangle.y + rectangle.h);
     context.renderer.drawLine(rectangle.x + rectangle.w, rectangle.y, rectangle.x, rectangle.y + rectangle.h);
     context.renderer.drawRect(rectangle);
+}
+
+void Panel::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
+{
+    context.renderer.setColor(0x30, 0x00, 0x30);
+    context.renderer.fillRect(rectangle);
+
+    context.renderer.setColor(0xFF, 0xFF, 0xFF);
+    context.renderer.drawRect(rectangle);
+}
+
+SDL_Size Separator::calculateWantedSize()
+{
+    return { 5, 5 };
+}
+
+void Separator::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
+{
+    context.renderer.setColor(0xFF, 0xFF, 0xFF);
+    if(rectangle.w > rectangle.h)
+    {
+        int y = rectangle.y + rectangle.h / 2;
+        context.renderer.drawLine(rectangle.x, y, rectangle.x + rectangle.w, y);
+    }
+    else
+    {
+        int x = rectangle.x + rectangle.w / 2;
+        context.renderer.drawLine(x, rectangle.y, x, rectangle.y + rectangle.h);
+    }
+}
+
+SDL_Size ProgressBar::calculateWantedSize()
+{
+    return { 256, 32 };
+}
+
+void ProgressBar::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
+{
+    context.renderer.setColor(0x30, 0x00, 0x30);
+    context.renderer.fillRect(rectangle);
+
+    context.renderer.setColor(0xFF, 0xFF, 0xFF);
+    context.renderer.drawRect(rectangle);
+
+    SDL_Rect progressArea = {
+        rectangle.x + 1,
+        rectangle.y + 1,
+        int((value - minimum) * float(rectangle.w - 2) / (maximum - minimum) + 0.5f),
+        rectangle.h - 2
+    };
+
+    context.renderer.setColor(0x00, 0x00, 0xFF);
+    context.renderer.fillRect(progressArea);
+
+    std::string caption;
+    switch(displayProgress)
+    {
+    case DisplayProgressStyle::none:
+        caption = "";
+        break;
+    case DisplayProgressStyle::percent:
+        caption = std::to_string(int(100.0f * (value - minimum) / (maximum - minimum) + 0.5f)) + "%";
+        break;
+    case DisplayProgressStyle::absolute:
+        caption = std::to_string(int(value + 0.5f));
+        break;
+    }
+    if(not caption.empty())
+    {
+        auto * tex = context.getFont(UIFont::sans).render(caption);
+
+        int w,h;
+        SDL_QueryTexture(tex, nullptr, nullptr, &w, &h);
+        SDL_Rect label = {
+            rectangle.x + (rectangle.w - w) / 2,
+            rectangle.y + (rectangle.h - h) / 2,
+            w, h
+        };
+        context.renderer.copy(tex, label);
+    }
 }

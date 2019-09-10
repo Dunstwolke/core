@@ -40,33 +40,6 @@ static ColorScheme const defaultColorScheme;
 
 static std::unique_ptr<Widget> root_widget;
 
-struct DemoWidget : Widget
-{
-    int layer = 0;
-    static inline int next_layer = 0;
-
-    explicit DemoWidget() : layer(next_layer++) { }
-
-    void paintWidget(RenderContext & context, SDL_Rect const & rectangle) override
-    {
-        switch(layer % 3) {
-        case 0: context.renderer.setColor(0xFF, 0x00, 0x00); break;
-        case 1: context.renderer.setColor(0x00, 0xFF, 0x00); break;
-        case 2: context.renderer.setColor(0x00, 0x00, 0xFF); break;
-        }
-        context.renderer.fillRect(rectangle);
-
-        context.renderer.setColor(0xFF, 0xFF, 0xFF);
-        context.renderer.drawRect(rectangle);
-    }
-
-    SDL_Size calculateWantedSize() override
-    {
-        return { 64, 64 };
-    }
-};
-
-
 static void paint(RenderContext & context)
 {
     context.renderer.resetClipRect();
@@ -104,6 +77,7 @@ UIType getPropertyType(UIProperty property)
     case UIProperty::dockSites:
     case UIProperty::visibility:
     case UIProperty::fontFamily:
+    case UIProperty::displayProgressStyle:
         return UIType::enumeration;
 
     case UIProperty::margins:
@@ -115,6 +89,11 @@ UIType getPropertyType(UIProperty property)
 
     case UIProperty::text:
         return UIType::string;
+
+    case UIProperty::minimum:
+    case UIProperty::maximum:
+    case UIProperty::value:
+        return UIType::number;
 
     default: assert(false and "property type not in table yet!");
     }
@@ -129,6 +108,9 @@ UIValue deserialize_value(UIType type, InputStream & stream)
 
     case UIType::integer:
         return gsl::narrow<int>(stream.read_uint());
+
+    case UIType::number:
+        return gsl::narrow<float>(stream.read_float());
 
     case UIType::size:
     {
@@ -180,6 +162,7 @@ std::unique_ptr<Widget> deserialize_widget(UIWidget widgetType, InputStream & st
     case UIWidget::progressbar:  widget = std::make_unique<ProgressBar>(); break;
     case UIWidget::spinedit:  widget = std::make_unique<SpinEdit>(); break;
     case UIWidget::separator:  widget = std::make_unique<Separator>(); break;
+    case UIWidget::panel:  widget = std::make_unique<Panel>(); break;
 
 
     case UIWidget::canvas_layout:  widget = std::make_unique<CanvasLayout>(); break;

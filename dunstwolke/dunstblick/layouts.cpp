@@ -5,7 +5,6 @@
  ******************************************************************************/
 
 StackLayout::StackLayout(StackDirection dir) :
-    Widget(),
     direction(dir)
 {
 }
@@ -60,15 +59,6 @@ SDL_Size StackLayout::calculateWantedSize()
             size.h = std::max(size.h, child->wanted_size_with_margins().h);
         }
         return size;
-    }
-}
-
-void StackLayout::setProperty(UIProperty property, UIValue value)
-{
-    switch(property)
-    {
-    case UIProperty::stackDirection: direction = StackDirection(std::get<uint8_t>(value)); break;
-    default: return Widget::setProperty(property, value);
     }
 }
 
@@ -188,23 +178,4 @@ void DockLayout::setDockSite(size_t index, DockSite site)
 {
     dockSites.resize(children.size());
     dockSites.at(index) = site;
-}
-
-void DockLayout::setProperty(UIProperty property, UIValue value)
-{
-    switch(property)
-    {
-    case UIProperty::dockSites:
-    {
-        assert(false);
-//        auto const num = stream.read_uint();
-//        dockSites.resize(num);
-//        for(size_t i = 0; i < num; i++)
-//            dockSites[i] = stream.read_enum<DockSite>();
-//        break;
-    }
-    default:
-        Widget::setProperty(property, value);
-        break;
-    }
 }

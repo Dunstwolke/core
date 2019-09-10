@@ -38,6 +38,17 @@ struct UIMargin
 
     constexpr int totalHorizontal() const { return left + right; }
     constexpr int totalVertical() const { return top + bottom; }
+
+    bool operator== (UIMargin const & other) const {
+        return (left == other.left)
+           and (top == other.top)
+           and (bottom == other.bottom)
+           and (right == other.right)
+        ;
+    }
+    bool operator!= (UIMargin const & other) const {
+        return not (*this == other);
+    }
 };
 
 using UIValue = std::variant<

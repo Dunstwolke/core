@@ -10,7 +10,9 @@
 #include <vector>
 #include <memory>
 #include <variant>
+#include <functional>
 #include <sdl2++/renderer>
+
 
 // widget layouting algorithm:
 // stage 1:
@@ -18,18 +20,100 @@
 // stage 2:
 //   lay out top-to-bottom each widget into its parent container
 
+
+struct Widget;
+
+struct BaseProperty
+{
+    virtual ~BaseProperty();
+
+    virtual UIValue getValue() const = 0;
+
+    virtual void setValue(UIValue const & val) = 0;
+};
+
+template<typename T>
+struct property : BaseProperty
+{
+    T value;
+
+    property(T const & _default = T()) : value(_default) { }
+
+    UIValue getValue() const override {
+        if constexpr(std::is_enum_v<T>)
+            return uint8_t(value);
+        else
+            return value;
+    }
+
+    void setValue(const UIValue &val) override {
+        if constexpr(std::is_enum_v<T>)
+            value = T(std::get<uint8_t>(val));
+        else
+            value = std::get<T>(val);
+    }
+
+    property & operator= (T const & new_value) {
+        bool will_be_changed = (value != new_value);
+        value = new_value;
+        if(will_be_changed)
+            ; // TODO: trigger "value changed here"
+        return *this;
+    }
+
+    operator T() const {
+        return value;
+    }
+
+    T * operator-> () {
+        return &value;
+    }
+
+    T const * operator-> () const {
+        return &value;
+    }
+};
+
+using GetPropertyFunction = std::function<BaseProperty * (Widget &)>;
+
+struct MetaProperty
+{
+    UIProperty name;
+    GetPropertyFunction getter;
+
+    template<typename T, typename P>
+    MetaProperty(UIProperty _name, property<P> T::*member) :
+        name(_name),
+        getter([=](Widget & w) { return &(static_cast<T*>(&w)->*member); })
+    {
+
+    }
+};
+
+struct MetaWidget
+{
+    static std::map<UIProperty, GetPropertyFunction> const defaultProperties;
+    static MetaWidget const & get(UIWidget type);
+
+    std::map<UIProperty, GetPropertyFunction> specializedProperties;
+
+    MetaWidget(std::initializer_list<MetaProperty>);
+};
+
 struct Widget
 {
+public: // meta
+    UIWidget const type;
 public: // widget tree
     /// contains all child widgets
     std::vector<std::unique_ptr<Widget>> children;
 
 public: // deserializable properties
-    HAlignment horizontalAlignment = HAlignment::stretch;
-    VAlignment verticalAlignment = VAlignment::stretch;
-    Visibility visibility = Visibility::visible;
-    UIMargin margins = UIMargin(0);
-    UIMargin paddings = UIMargin(0);
+    property<HAlignment> horizontalAlignment = HAlignment::stretch;
+    property<VAlignment> verticalAlignment = VAlignment::stretch;
+    property<Visibility> visibility = Visibility::visible;
+    property<UIMargin> margins = UIMargin(0);
+    property<UIMargin> paddings = UIMargin(0);
 
 public: // layouting and rendering
     /// the space the widget says it needs to have.
@@ -40,6 +124,9 @@ public: // layouting and rendering
     /// the position of the widget on the screen after layouting
     /// NOTE: this does not include the margins of the widget!
     SDL_Rect actual_bounds;
+
+protected:
+    explicit Widget(UIWidget type);
 
 public:
     virtual ~Widget() = default;
@@ -63,7 +150,7 @@ public:
     SDL_Size wanted_size_with_margins() const;
 
     /// deserializes a single property or throws a "not supported exception"
-    virtual void setProperty(UIProperty property, UIValue value);
+    void setProperty(UIProperty property, UIValue value);
 
 protected:
     /// stage1: calculates the space this widget wants to take.
@@ -78,6 +165,16 @@ protected:
     virtual void layoutChildren(SDL_Rect const & childArea);
 
     virtual void paintWidget(RenderContext & context, SDL_Rect const & rectangle) = 0;
+};
+
+template<UIWidget Type>
+struct WidgetIs : Widget
+{
+    explicit WidgetIs() : Widget(Type) { }
+
+    MetaWidget const & metaWidget() {
+        return MetaWidget::get(Type);
+    }
 };
 
 #endif // WIDGET_HPP

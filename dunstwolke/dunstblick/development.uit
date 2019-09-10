@@ -1,61 +1,22 @@
-/* this is a comment */
-StackLayout {
-  margins: 16;
-  paddings: 8;
-  stack-direction: horizontal;
 
-  Button {
-    horizontal-alignment: left;
-    vertical-alignment:   top;
-    margins:              16;
-
+DockLayout
+{
+  Panel {
     Label {
-      font-family: sans;
-      text:        "Upper";
+      text: "top 1";
     }
   }
-
-  Button {
-    horizontal-alignment: center;
-    vertical-alignment:   middle;
-    margins:              16;
-
+  Panel {
     Label {
-      font-family: sans;
-      text:        "Middle";
+      text: "top 2";
     }
   }
-
-  Button {
-    horizontal-alignment: right;
-    vertical-alignment:   bottom;
-    margins:              16;
-
-    Label {
-      font-family: sans;
-      text:        "Lower";
-    }
+  ProgressBar {
+    value: 50.0;
   }
-
-  Button {
-    horizontal-alignment: stretch;
-    vertical-alignment:   stretch;
-    margins:              16;
-
+  Panel {
     Label {
-      font-family: sans;
-      text:        'Stretch';
-    }
-  }
-
-  Button {
-    horizontal-alignment: stretch;
-    vertical-alignment:   stretch;
-    margins:              16;
-
-    Label {
-      font-family: sans;
-      text:        "Multi\nLine";
+     text: "fill";
     }
   }
 }

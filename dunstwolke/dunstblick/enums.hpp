@@ -7,7 +7,7 @@
 /// used in the UI system.
 namespace UIEnum
 {
-    constexpr uint8_t none       = 0;  // ?
+    constexpr uint8_t none       = 0;  // display-progress-style
     constexpr uint8_t left       = 1;  // h-alignment
     constexpr uint8_t center     = 2;  // h-alignment
     constexpr uint8_t right      = 3;  // h-alignment
@@ -28,6 +28,8 @@ namespace UIEnum
     constexpr uint8_t sans       = 18; // uifont
     constexpr uint8_t serif      = 19; // uifont
     constexpr uint8_t monospace  = 20; // uifont
+    constexpr uint8_t percent    = 21; // display-progress-style
+    constexpr uint8_t absolute   = 22; // display-progress-style
 };
 
 enum class UIWidget : uint8_t
@@ -52,6 +54,7 @@ enum class UIWidget : uint8_t
     spinedit      = 17,
     separator     = 18,
     spacer        = 19,
+    panel         = 20,
 
     // widgets go here ↑
     // layouts go here ↓
@@ -76,6 +79,10 @@ enum class UIProperty : uint8_t
     sizeHint = 8,
     fontFamily = 9,
     text = 10,
+    minimum = 11,
+    maximum = 12,
+    value = 13,
+    displayProgressStyle = 14,
 
     // MAXMIMUM ALLOWED VALUE IS 127!
     // upper bit is used for marking value bindings
@@ -139,6 +146,13 @@ enum class DockSite : uint8_t
     bottom = UIEnum::bottom, ///< the widget will dock on the lower side
     left   = UIEnum::left,   ///< the widget will dock on the left side
     right  = UIEnum::right,  ///< the widget will dock on the right side
+};
+
+enum class DisplayProgressStyle : uint8_t
+{
+    none = UIEnum::none,
+    percent = UIEnum::percent,
+    absolute = UIEnum::absolute,
 };
 
 #endif // ENUMS_HPP

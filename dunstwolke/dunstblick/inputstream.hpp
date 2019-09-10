@@ -28,6 +28,8 @@ struct InputStream
 
     uint32_t read_uint(); // uses varint encoding
 
+    float read_float(); // uses ieee754 encoding
+
     std::string_view read_string();
 
     // enums are always 8-bit-sized
