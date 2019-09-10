@@ -18,7 +18,6 @@ const std::map<std::string, UIWidget> widgetTypes =
     { "TreeView", UIWidget::treeview },
     { "ListBoxItem", UIWidget::listboxitem },
     { "ListBox", UIWidget::listbox },
-    { "Drawing", UIWidget::drawing },
     { "Picture", UIWidget::picture },
     { "TextBox", UIWidget::textbox },
     { "CheckBox", UIWidget::checkbox },
@@ -58,6 +57,7 @@ const std::map<std::string, UIProperty> properties =
     { "maximum", UIProperty::maximum },
     { "value",   UIProperty::value },
     { "display-progress-style", UIProperty::displayProgressStyle },
+    { "is-checked", UIProperty::isChecked },
 };
 
 const std::map<std::string, uint8_t> enumerations =
@@ -184,6 +184,22 @@ static void parse_and_translate(UIType type, FlexLexer * lexer, std::ostream &ou
 
         case UIType::string: {
             write_string(output, Accept(lexer, LexerTokenType::string));
+            Accept(lexer, LexerTokenType::semiColon);
+            return;
+        }
+
+        case UIType::boolean: {
+            auto text = Accept(lexer, LexerTokenType::identifier);
+            char value;
+            if(text == "true" or text == "yes")
+                value = 1;
+            else if(text == "false" or text == "no")
+                value = 0;
+            else
+                throw std::runtime_error("invalid boolean value: " + text);
+
+            output.write(&value, 1);
+
             Accept(lexer, LexerTokenType::semiColon);
             return;
         }

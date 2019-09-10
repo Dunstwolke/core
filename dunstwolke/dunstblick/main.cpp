@@ -95,6 +95,9 @@ UIType getPropertyType(UIProperty property)
     case UIProperty::value:
         return UIType::number;
 
+    case UIProperty::isChecked:
+        return UIType::boolean;
+
     default: assert(false and "property type not in table yet!");
     }
 }
@@ -111,6 +114,9 @@ UIValue deserialize_value(UIType type, InputStream & stream)
 
     case UIType::number:
         return gsl::narrow<float>(stream.read_float());
+
+    case UIType::boolean:
+        return (stream.read_byte() != 0);
 
     case UIType::size:
     {
@@ -151,7 +157,6 @@ std::unique_ptr<Widget> deserialize_widget(UIWidget widgetType, InputStream & st
     case UIWidget::treeview:  widget = std::make_unique<TreeView>(); break;
     case UIWidget::listboxitem:  widget = std::make_unique<ListBoxItem>(); break;
     case UIWidget::listbox:  widget = std::make_unique<ListBox>(); break;
-    case UIWidget::drawing:  widget = std::make_unique<Drawing>(); break;
     case UIWidget::picture:  widget = std::make_unique<Picture>(); break;
     case UIWidget::textbox:  widget = std::make_unique<TextBox>(); break;
     case UIWidget::checkbox:  widget = std::make_unique<CheckBox>(); break;

@@ -42,7 +42,7 @@ enum class UIWidget : uint8_t
     treeview      = 5,
     listboxitem   = 6,
     listbox       = 7,
-    drawing       = 8,
+    /*            = 8,*/
     picture       = 9,
     textbox       = 10,
     checkbox      = 11,
@@ -83,6 +83,7 @@ enum class UIProperty : uint8_t
     maximum = 12,
     value = 13,
     displayProgressStyle = 14,
+    isChecked = 15,
 
     // MAXMIMUM ALLOWED VALUE IS 127!
     // upper bit is used for marking value bindings
@@ -100,6 +101,7 @@ enum class UIType : uint8_t
     size        = 7,
     point       = 8,
     resource    = 9,
+    boolean     = 10,
 };
 
 UIType getPropertyType(UIProperty property);

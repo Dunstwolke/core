@@ -2,12 +2,11 @@
 
 - Unterstützt nur Standard-Widgets
 	- [ ] Button
-	- [ ] Label
-	- [ ] RadioButton
-	- [ ] CheckBox
+	- [x] Label
+	- [x] RadioButton
+	- [x] CheckBox
 	- [ ] TextBox
-	- [ ] Picture (Bitmap-Grafik)
-	- [ ] Drawing (dynamisch, Vektor-Grafik)
+	- [ ] Picture (Bitmap-Grafik, Vektor-Grafik)
 	- [ ] ListBox
 	- [ ] ListBoxItem
 	- [ ] TreeView
@@ -15,16 +14,17 @@
 	- [ ] DataGrid
 	- [ ] ComboBox
 	- [ ] ScrollView
-	- [ ] Slider
-	- [ ] ProgressBar
+	- [x] Slider
+	- [x] ProgressBar
 	- [ ] NumberSpin
-	- [ ] Separator
+	- [x] Separator
 	- [x] StackLayout
-	- [ ] DockLayout
+	- [x] DockLayout
 	- [ ] CanvasLayout
 	- [ ] GridLayout
 	- [ ] FlowLayout
-	- [ ] Spacer
+	- [x] Spacer
+	- [x] Panel
 - Supported modale und nonmodale Dialoge/Kind-Fenster
 	- Dialoge wie ein "Inventarfenster" können geöffnet werden
 	- Dialoge sind immer floating

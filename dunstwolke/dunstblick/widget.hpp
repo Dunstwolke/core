@@ -112,7 +112,7 @@ public: // deserializable properties
     property<HAlignment> horizontalAlignment = HAlignment::stretch;
     property<VAlignment> verticalAlignment = VAlignment::stretch;
     property<Visibility> visibility = Visibility::visible;
-    property<UIMargin> margins = UIMargin(0);
+    property<UIMargin> margins = UIMargin(4);
     property<UIMargin> paddings = UIMargin(0);
     property<DockSite> dockSite = DockSite::top;
 

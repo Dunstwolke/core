@@ -1,10 +1,10 @@
 #include "fontcache.hpp"
 
 
-FontCache::FontCache(TTF_Font * font, sdl2::renderer * renderer) :
+FontCache::FontCache(TTF_Font * _font, sdl2::renderer * _renderer) :
     cache(),
-    font(font),
-    renderer(renderer)
+    font(_font),
+    renderer(_renderer)
 {
     assert(font);
     assert(renderer);

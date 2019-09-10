@@ -41,14 +41,45 @@ struct PlaceholderWidget : WidgetIs<UIWidget::spacer>
 #define TreeView PlaceholderWidget
 #define ListBoxItem PlaceholderWidget
 #define ListBox PlaceholderWidget
-#define Drawing PlaceholderWidget
 #define Picture PlaceholderWidget
 #define TextBox PlaceholderWidget
-#define CheckBox PlaceholderWidget
-#define RadioButton PlaceholderWidget
+
+struct CheckBox : WidgetIs<UIWidget::checkbox>
+{
+    property<bool> isChecked = false;
+
+    CheckBox();
+
+    SDL_Size calculateWantedSize() override;
+
+    void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
+};
+
+
+struct RadioButton : WidgetIs<UIWidget::checkbox>
+{
+    property<bool> isChecked = false;
+
+    RadioButton();
+
+    SDL_Size calculateWantedSize() override;
+
+    void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
+};
+
 #define ScrollView PlaceholderWidget
 #define ScrollBar PlaceholderWidget
-#define Slider PlaceholderWidget
+
+struct Slider : WidgetIs<UIWidget::progressbar>
+{
+    property<float> minimum = 0.0f;
+    property<float> maximum = 100.0f;
+    property<float> value = 0.0f;
+
+    SDL_Size calculateWantedSize() override;
+
+    void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
+};
 
 struct ProgressBar : WidgetIs<UIWidget::progressbar>
 {

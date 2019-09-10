@@ -215,10 +215,33 @@ std::map<UIWidget, MetaWidget> const metaWidgets
         }
     },
     {
+        UIWidget::slider,
+        MetaWidget
+        {
+            MetaProperty { UIProperty::minimum, &Slider::minimum },
+            MetaProperty { UIProperty::maximum, &Slider::maximum },
+            MetaProperty { UIProperty::value, &Slider::value },
+        }
+    },
+    {
         UIWidget::stack_layout,
         MetaWidget
         {
             MetaProperty { UIProperty::stackDirection, &StackLayout::direction },
+        }
+    },
+    {
+        UIWidget::checkbox,
+        MetaWidget
+        {
+            MetaProperty { UIProperty::isChecked, &CheckBox::isChecked },
+        }
+    },
+    {
+        UIWidget::radiobutton,
+        MetaWidget
+        {
+            MetaProperty { UIProperty::isChecked, &RadioButton::isChecked },
         }
     },
 };

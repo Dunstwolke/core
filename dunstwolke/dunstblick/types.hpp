@@ -61,7 +61,8 @@ using UIValue = std::variant<
     UIColor,
     SDL_Size,
     SDL_Point,
-    UIResourceID
+    UIResourceID,
+    bool
 >;
 
 static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::invalid),     UIValue>, std::monostate>);
@@ -74,6 +75,7 @@ static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::color),  
 static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::size),        UIValue>, SDL_Size>);
 static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::point),       UIValue>, SDL_Point>);
 static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::resource),    UIValue>, UIResourceID>);
+static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::boolean),     UIValue>, bool>);
 
 
 #endif // TYPES_HPP
