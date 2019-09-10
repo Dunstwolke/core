@@ -21,8 +21,8 @@ SDL_Size Widget::calculateWantedSize()
     SDL_Size size = { 0, 0 };
     for(auto & child : children)
     {
-        size.w = std::max(size.w, child->wanted_size.w);
-        size.h = std::max(size.h, child->wanted_size.h);
+        size.w = std::max(size.w, child->wanted_size_with_margins().w);
+        size.h = std::max(size.h, child->wanted_size_with_margins().h);
     }
     return size;
 }
@@ -117,6 +117,24 @@ void Widget::paint(RenderContext & context)
     context.renderer.resetClipRect();
     for(auto & child : children)
         child->paint(context);
+}
+
+SDL_Rect Widget::bounds_with_margins() const
+{
+    return {
+        actual_bounds.x - margins.left,
+                actual_bounds.y - margins.top,
+                actual_bounds.w + margins.totalHorizontal(),
+                actual_bounds.h + margins.totalVertical(),
+    };
+}
+
+SDL_Size Widget::wanted_size_with_margins() const
+{
+    return {
+        wanted_size.w + margins.totalHorizontal(),
+        wanted_size.h + margins.totalVertical(),
+    };
 }
 
 void Widget::setProperty(UIProperty property, UIValue value)

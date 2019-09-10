@@ -22,7 +22,7 @@ void StackLayout::layoutChildren(const SDL_Rect &_rect)
         SDL_Rect rect = _rect;
         for(auto & child : children)
         {
-            rect.h = child->wanted_size.h + child->margins.totalVertical();
+            rect.h = child->wanted_size_with_margins().h;
             child->layout(rect);
             rect.y += rect.h;
         }
@@ -32,7 +32,7 @@ void StackLayout::layoutChildren(const SDL_Rect &_rect)
         SDL_Rect rect = _rect;
         for(auto & child : children)
         {
-            rect.w = child->wanted_size.w + child->margins.totalHorizontal();
+            rect.w = child->wanted_size_with_margins().w;
             child->layout(rect);
             rect.x += rect.w;
         }
@@ -46,8 +46,8 @@ SDL_Size StackLayout::calculateWantedSize()
         SDL_Size size = { 0, 0 };
         for(auto & child : children)
         {
-            size.w = std::max(size.w, child->wanted_size.w + child->margins.totalHorizontal());
-            size.h += child->wanted_size.h + child->margins.totalVertical();
+            size.w = std::max(size.w, child->wanted_size_with_margins().w);
+            size.h += wanted_size_with_margins().h;
         }
         return size;
     }
@@ -56,8 +56,8 @@ SDL_Size StackLayout::calculateWantedSize()
         SDL_Size size = { 0, 0 };
         for(auto & child : children)
         {
-            size.w += child->wanted_size.w + child->margins.totalHorizontal();
-            size.h = std::max(size.h, child->wanted_size.h + child->margins.totalVertical());
+            size.w += child->wanted_size_with_margins().w;
+            size.h = std::max(size.h, child->wanted_size_with_margins().h);
         }
         return size;
     }
@@ -90,7 +90,7 @@ void DockLayout::layoutChildren(const SDL_Rect &_rect)
     for(size_t i = 0; i < children.size() - 1; i++)
     {
         auto const site = getDockSite(i);
-        auto const childSize = children[i]->wanted_size;
+        auto const childSize = children[i]->wanted_size_with_margins();
         switch(site)
         {
         case DockSite::top:
@@ -159,8 +159,8 @@ SDL_Size DockLayout::calculateWantedSize()
             // docking on either left or right side
             // will increase the width of the wanted size
             // and will max out the height
-            size.w += children[i]->wanted_size.w;
-            size.h = std::max(size.h, children[i]->wanted_size.h);
+            size.w += children[i]->wanted_size_with_margins().w;
+            size.h = std::max(size.h, children[i]->wanted_size_with_margins().h);
             break;
 
         case DockSite::top:
@@ -168,8 +168,8 @@ SDL_Size DockLayout::calculateWantedSize()
             // docking on either top or bottom side
             // will increase the height of the wanted size
             // and will max out the width
-            size.w = std::max(size.w, children[i]->wanted_size.w);
-            size.h += children[i]->wanted_size.h;
+            size.w = std::max(size.w, children[i]->wanted_size_with_margins().w);
+            size.h += children[i]->wanted_size_with_margins().h;
             break;
         }
     }

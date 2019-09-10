@@ -57,14 +57,10 @@ public:
     void paint(RenderContext & context);
 
     /// returns the bounds of the widget with margins
-    SDL_Rect bounds_with_margins() const {
-        return {
-            actual_bounds.x - margins.left,
-            actual_bounds.y - margins.top,
-            actual_bounds.w + margins.totalHorizontal(),
-            actual_bounds.h + margins.totalVertical(),
-        };
-    }
+    SDL_Rect bounds_with_margins() const;
+
+    /// returns the wanted_size of the widget with margins added
+    SDL_Size wanted_size_with_margins() const;
 
     /// deserializes a single property or throws a "not supported exception"
     virtual void setProperty(UIProperty property, UIValue value);
