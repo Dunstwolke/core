@@ -68,6 +68,8 @@ static CustomBuffer & BufferFromPtr(FlexLexer *);
 
 [A-Za-z]+(\-[A-Za-z]+)* { return int(LTT::identifier); }
 
+[0-9]+[ ]*\%            { return int(LTT::percentage); }
+
 [0-9]+\.[0-9]*          { return int(LTT::number); }
 
 [0-9]+                  { return int(LTT::integer); }

@@ -9,88 +9,9 @@
 #include "enums.hpp"
 #include "types.hpp"
 
-const std::map<std::string, UIWidget> widgetTypes =
-{
-    { "Button", UIWidget::button },
-    { "Label", UIWidget::label },
-    { "ComboBox", UIWidget::combobox },
-    { "TreeViewItem", UIWidget::treeviewitem },
-    { "TreeView", UIWidget::treeview },
-    { "ListBoxItem", UIWidget::listboxitem },
-    { "ListBox", UIWidget::listbox },
-    { "Picture", UIWidget::picture },
-    { "TextBox", UIWidget::textbox },
-    { "CheckBox", UIWidget::checkbox },
-    { "RadioButton", UIWidget::radiobutton },
-    { "ScrollView", UIWidget::scrollview },
-    { "ScrollBar", UIWidget::scrollbar },
-    { "Slider", UIWidget::slider },
-    { "ProgressBar", UIWidget::progressbar },
-    { "SpinEdit", UIWidget::spinedit },
-    { "Separator", UIWidget::separator },
-    { "Spacer", UIWidget::spacer },
-    { "Panel", UIWidget::panel },
-
-    // widgets go here ↑
-    // layouts go here ↓
-
-    { "TabLayout", UIWidget::tab_layout },
-    { "CanvasLayout", UIWidget::canvas_layout },
-    { "FlowLayout",   UIWidget::flow_layout },
-    { "GridLayout",   UIWidget::grid_layout },
-    { "DockLayout",   UIWidget::dock_layout },
-    { "StackLayout",  UIWidget::stack_layout },
-};
-
-const std::map<std::string, UIProperty> properties =
-{
-    { "horizontal-alignment", UIProperty::horizontalAlignment },
-    { "vertical-alignment", UIProperty::verticalAlignment },
-    { "margins", UIProperty::margins },
-    { "paddings", UIProperty::paddings },
-    { "stack-direction", UIProperty::stackDirection },
-    { "dock-site", UIProperty::dockSite },
-    { "visibility", UIProperty::visibility },
-    { "size-hint", UIProperty::sizeHint },
-    { "font-family", UIProperty::fontFamily },
-    { "text", UIProperty::text },
-    { "minimum", UIProperty::minimum },
-    { "maximum", UIProperty::maximum },
-    { "value",   UIProperty::value },
-    { "display-progress-style", UIProperty::displayProgressStyle },
-    { "is-checked", UIProperty::isChecked },
-    { "tab-title", UIProperty::tabTitle },
-    { "selected-index", UIProperty::selectedIndex },
-};
-
-const std::map<std::string, uint8_t> enumerations =
-{
-#define ENUM(_X) { #_X, UIEnum::_X }
-    ENUM(none),
-    ENUM(left),
-    ENUM(center),
-    ENUM(right),
-    ENUM(top),
-    ENUM(middle),
-    ENUM(bottom),
-    ENUM(stretch),
-    ENUM(expand),
-    { "auto", UIEnum::_auto },
-    ENUM(yesno),
-    ENUM(truefalse),
-    ENUM(onoff),
-    ENUM(visible),
-    ENUM(hidden),
-    ENUM(collapsed),
-    ENUM(vertical),
-    ENUM(horizontal),
-    ENUM(sans),
-    ENUM(serif),
-    ENUM(monospace),
-    ENUM(absolute),
-    ENUM(percent),
-#undef ENUM
-};
+#define INCLUDE_PARSER_FIELDS
+#include "parser-info.hpp"
+#undef INCLUDE_PARSER_FIELDS
 
 LayoutParser::LayoutParser()
 {
@@ -247,6 +168,76 @@ static void parse_and_translate(UIType type, FlexLexer * lexer, std::ostream &ou
 
             for(size_t i = 0; i < 4; i++)
                 write_varint(output, items[i]);
+
+            return;
+        }
+
+        case UIType::sizelist: {
+            auto lex_item = [&]() -> UISizeDef {
+                auto tok = LayoutParser::Lex(lexer);
+                if(not tok)
+                    throw std::runtime_error("unexpected end of file!");
+                if(tok->type == LexerTokenType::identifier) {
+                    if(tok->text == "auto")
+                        return UISizeAutoTag { };
+                    else if(tok->text == "expand")
+                        return UISizeExpandTag { };
+                    else
+                        throw std::runtime_error("unexpected identifier. must be auto or expand!");
+                }
+                else if(tok->type == LexerTokenType::integer) {
+                    return int(strtol(tok->text.c_str(), nullptr, 10));
+                }
+                else if(tok->type == LexerTokenType::percentage) {
+                    return 0.01f * strtof(tok->text.c_str(), nullptr);
+                }
+                else {
+                    throw std::runtime_error("unexpected token '" + tok->text + "'. expected on of 'auto', 'expand', integer or percentage!");
+                }
+            };
+
+            UISizeList list;
+            list.push_back(lex_item());
+            while(true)
+            {
+                auto next = LayoutParser::Lex(lexer);
+                if(not next)
+                    throw std::runtime_error("unexpected end of file!");
+                if(next->type == LexerTokenType::semiColon)
+                    break;
+                else if(next->type != LexerTokenType::comma)
+                    throw std::runtime_error("expected comma, got '" + next->text + "' instead!");
+                list.push_back(lex_item());
+            }
+
+            // size of the list
+            write_varint(output, list.size());
+
+            // bitmask containing two bits per entry:
+            // 00 = auto
+            // 01 = expand
+            // 10 = integer / pixels
+            // 11 = number / percentage
+            for(size_t i = 0; i < list.size(); i += 4)
+            {
+                uint8_t value = 0;
+                for(size_t j = 0; j < std::min(4UL, list.size() - i); j++)
+                    value |= (list[i + j].index() & 0x3) << (2 * j);
+                output.write(reinterpret_cast<char const *>(&value), 1);
+            }
+
+            for(size_t i = 0; i < list.size(); i++)
+            {
+                switch(list[i].index())
+                {
+                case 2: // pixels
+                    write_varint(output, std::get<int>(list[i]));
+                    break;
+                case 3: // percentage
+                    write_number(output, std::get<float>(list[i]));
+                    break;
+                }
+            }
 
             return;
         }

@@ -1,0 +1,82 @@
+#ifndef INCLUDE_PARSER_FIELDS
+#error "requires INCLUDE_PARSER_FIELDS to be defined!"
+#endif
+
+static const std::map<std::string, UIWidget> widgetTypes =
+{
+	 { "Button", UIWidget::button },
+	 { "Label", UIWidget::label },
+	 { "ComboBox", UIWidget::combobox },
+	 { "TreeViewItem", UIWidget::treeviewitem },
+	 { "TreeView", UIWidget::treeview },
+	 { "ListBoxItem", UIWidget::listboxitem },
+	 { "ListBox", UIWidget::listbox },
+	 { "Picture", UIWidget::picture },
+	 { "TextBox", UIWidget::textbox },
+	 { "CheckBox", UIWidget::checkbox },
+	 { "RadioButton", UIWidget::radiobutton },
+	 { "ScrollView", UIWidget::scrollview },
+	 { "ScrollBar", UIWidget::scrollbar },
+	 { "Slider", UIWidget::slider },
+	 { "ProgressBar", UIWidget::progressbar },
+	 { "SpinEdit", UIWidget::spinedit },
+	 { "Separator", UIWidget::separator },
+	 { "Spacer", UIWidget::spacer },
+	 { "Panel", UIWidget::panel },
+	 { "TabLayout", UIWidget::tab_layout },
+	 { "CanvasLayout", UIWidget::canvas_layout },
+	 { "FlowLayout", UIWidget::flow_layout },
+	 { "GridLayout", UIWidget::grid_layout },
+	 { "DockLayout", UIWidget::dock_layout },
+	 { "StackLayout", UIWidget::stack_layout },
+};
+
+static const std::map<std::string, UIProperty> properties =
+{
+	 { "horizontal-alignment", UIProperty::horizontalAlignment },
+	 { "vertical-alignment", UIProperty::verticalAlignment },
+	 { "margins", UIProperty::margins },
+	 { "paddings", UIProperty::paddings },
+	 { "stack-direction", UIProperty::stackDirection },
+	 { "dock-site", UIProperty::dockSite },
+	 { "visibility", UIProperty::visibility },
+	 { "size-hint", UIProperty::sizeHint },
+	 { "font-family", UIProperty::fontFamily },
+	 { "text", UIProperty::text },
+	 { "minimum", UIProperty::minimum },
+	 { "maximum", UIProperty::maximum },
+	 { "value", UIProperty::value },
+	 { "display-progress-style", UIProperty::displayProgressStyle },
+	 { "is-checked", UIProperty::isChecked },
+	 { "tab-title", UIProperty::tabTitle },
+	 { "selected-index", UIProperty::selectedIndex },
+	 { "columns", UIProperty::columns },
+	 { "rows", UIProperty::rows },
+};
+
+static const std::map<std::string, uint8_t> enumerations =
+{
+	 { "none", UIEnum::none },
+	 { "left", UIEnum::left },
+	 { "center", UIEnum::center },
+	 { "right", UIEnum::right },
+	 { "top", UIEnum::top },
+	 { "middle", UIEnum::middle },
+	 { "bottom", UIEnum::bottom },
+	 { "stretch", UIEnum::stretch },
+	 { "expand", UIEnum::expand },
+	 { "auto", UIEnum::_auto },
+	 { "yesno", UIEnum::yesno },
+	 { "truefalse", UIEnum::truefalse },
+	 { "onoff", UIEnum::onoff },
+	 { "visible", UIEnum::visible },
+	 { "hidden", UIEnum::hidden },
+	 { "collapsed", UIEnum::collapsed },
+	 { "vertical", UIEnum::vertical },
+	 { "horizontal", UIEnum::horizontal },
+	 { "sans", UIEnum::sans },
+	 { "serif", UIEnum::serif },
+	 { "monospace", UIEnum::monospace },
+	 { "percent", UIEnum::percent },
+	 { "absolute", UIEnum::absolute },
+};

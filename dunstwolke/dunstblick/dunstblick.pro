@@ -8,6 +8,7 @@ XQLIB += sdl2 sdl2_ttf network io
 include($$(XQLIB_ROOT)/xqlib.pri)
 
 SOURCES += \
+        enums.cpp \
         fontcache.cpp \
         inputstream.cpp \
         layoutparser.cpp \
@@ -16,6 +17,7 @@ SOURCES += \
         rendercontext.cpp \
         types.cpp \
         widget.cpp \
+        widget.create.cpp \
         widgets.cpp
 
 HEADERS += \
@@ -26,6 +28,7 @@ HEADERS += \
   layouts.hpp \
   rendercontext.hpp \
   types.hpp \
+  types.variant.hpp \
   widget.hpp \
   widgets.hpp
 
@@ -33,4 +36,6 @@ LEXSOURCES += \
   Layout.l
 
 DISTFILES += \
-  development.uit
+  definitions.lua \
+  development.uit \
+  generator.lua

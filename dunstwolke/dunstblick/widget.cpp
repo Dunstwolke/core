@@ -263,6 +263,14 @@ std::map<UIWidget, MetaWidget> const metaWidgets
             MetaProperty { UIProperty::selectedIndex, &TabLayout::selectedIndex },
         }
     },
+    {
+        UIWidget::grid_layout,
+        MetaWidget
+        {
+            MetaProperty { UIProperty::columns, &GridLayout::columns },
+            MetaProperty { UIProperty::rows, &GridLayout::rows },
+        }
+    },
 };
 
 

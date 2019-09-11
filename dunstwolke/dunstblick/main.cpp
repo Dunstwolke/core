@@ -67,42 +67,6 @@ static void event(SDL_Event const & e)
     }
 }
 
-UIType getPropertyType(UIProperty property)
-{
-    switch(property)
-    {
-    case UIProperty::horizontalAlignment:
-    case UIProperty::verticalAlignment:
-    case UIProperty::stackDirection:
-    case UIProperty::dockSite:
-    case UIProperty::visibility:
-    case UIProperty::fontFamily:
-    case UIProperty::displayProgressStyle:
-        return UIType::enumeration;
-
-    case UIProperty::margins:
-    case UIProperty::paddings:
-        return UIType::margins;
-
-    case UIProperty::sizeHint:
-        return UIType::size;
-
-    case UIProperty::text:
-    case UIProperty::tabTitle:
-        return UIType::string;
-
-    case UIProperty::minimum:
-    case UIProperty::maximum:
-    case UIProperty::value:
-        return UIType::number;
-
-    case UIProperty::isChecked:
-        return UIType::boolean;
-
-    default: assert(false and "property type not in table yet!");
-    }
-}
-
 UIValue deserialize_value(UIType type, InputStream & stream)
 {
     switch(type)
@@ -140,6 +104,43 @@ UIValue deserialize_value(UIType type, InputStream & stream)
         return margin;
     }
 
+    case UIType::sizelist:
+    {
+        UISizeList list;
+
+        auto len = stream.read_uint();
+
+        list.resize(len);
+        for(size_t i = 0; i < list.size(); i += 4)
+        {
+            uint8_t value = stream.read_byte();
+            for(size_t j = 0; j < std::min(4UL, list.size() - i); j++)
+            {
+                switch((value >> (2 * j)) & 0x3)
+                {
+                case 0: list[i + j] = UISizeAutoTag { }; break;
+                case 1: list[i + j] = UISizeExpandTag { }; break;
+                case 2: list[i + j] = 0; break;
+                case 3: list[i + j] = 1.0f; break;
+                }
+            }
+        }
+
+        for(size_t i = 0; i < list.size(); i++)
+        {
+            switch(list[i].index())
+            {
+            case 2: // pixels
+                list[i] = int(stream.read_uint());
+                break;
+            case 3: // percentage
+                list[i] = stream.read_float();
+                break;
+            }
+        }
+
+        return list;
+    }
 
     }
     assert(false and "property type not in table yet!");
@@ -147,39 +148,7 @@ UIValue deserialize_value(UIType type, InputStream & stream)
 
 std::unique_ptr<Widget> deserialize_widget(UIWidget widgetType, InputStream & stream)
 {
-    std::unique_ptr<Widget> widget;
-    switch(widgetType)
-    {
-    case UIWidget::spacer: widget = std::make_unique<Spacer>(); break;
-    case UIWidget::button: widget = std::make_unique<Button>(); break;
-    case UIWidget::label:  widget = std::make_unique<Label>(); break;
-    case UIWidget::combobox:  widget = std::make_unique<ComboBox>(); break;
-    case UIWidget::treeviewitem:  widget = std::make_unique<TreeViewItem>(); break;
-    case UIWidget::treeview:  widget = std::make_unique<TreeView>(); break;
-    case UIWidget::listboxitem:  widget = std::make_unique<ListBoxItem>(); break;
-    case UIWidget::listbox:  widget = std::make_unique<ListBox>(); break;
-    case UIWidget::picture:  widget = std::make_unique<Picture>(); break;
-    case UIWidget::textbox:  widget = std::make_unique<TextBox>(); break;
-    case UIWidget::checkbox:  widget = std::make_unique<CheckBox>(); break;
-    case UIWidget::radiobutton:  widget = std::make_unique<RadioButton>(); break;
-    case UIWidget::scrollview:  widget = std::make_unique<ScrollView>(); break;
-    case UIWidget::scrollbar:  widget = std::make_unique<ScrollBar>(); break;
-    case UIWidget::slider:  widget = std::make_unique<Slider>(); break;
-    case UIWidget::progressbar:  widget = std::make_unique<ProgressBar>(); break;
-    case UIWidget::spinedit:  widget = std::make_unique<SpinEdit>(); break;
-    case UIWidget::separator:  widget = std::make_unique<Separator>(); break;
-    case UIWidget::panel:  widget = std::make_unique<Panel>(); break;
-
-
-    case UIWidget::tab_layout:  widget = std::make_unique<TabLayout>(); break;
-    case UIWidget::canvas_layout:  widget = std::make_unique<CanvasLayout>(); break;
-    case UIWidget::flow_layout:  widget = std::make_unique<FlowLayout>(); break;
-    case UIWidget::grid_layout:  widget = std::make_unique<GridLayout>(); break;
-    case UIWidget::dock_layout: widget = std::make_unique<DockLayout>(); break;
-    case UIWidget::stack_layout: widget = std::make_unique<StackLayout>(); break;
-    default:
-        assert(false and "not implemented yet!");
-    }
+    auto widget = Widget::create(widgetType);
     assert(widget);
 
     UIProperty property;

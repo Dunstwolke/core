@@ -7,157 +7,152 @@
 /// used in the UI system.
 namespace UIEnum
 {
-    constexpr uint8_t none       = 0;  // display-progress-style
-    constexpr uint8_t left       = 1;  // h-alignment
-    constexpr uint8_t center     = 2;  // h-alignment
-    constexpr uint8_t right      = 3;  // h-alignment
-    constexpr uint8_t top        = 4;  // v-alignment
-    constexpr uint8_t middle     = 5;  // v-alignment
-    constexpr uint8_t bottom     = 6;  // v-alignment
-    constexpr uint8_t stretch    = 7;  // h-alignment, v-alignment
-    constexpr uint8_t expand     = 8;  // column-size, row-size
-    constexpr uint8_t _auto      = 9;  // column-size, row-size
-    constexpr uint8_t yesno      = 10; // boolean format
-    constexpr uint8_t truefalse  = 11; // boolean format
-    constexpr uint8_t onoff      = 12; // boolean format
-    constexpr uint8_t visible    = 13; // visibility
-    constexpr uint8_t hidden     = 14; // visibility
-    constexpr uint8_t collapsed  = 15; // visibility
-    constexpr uint8_t vertical   = 16; // stackdirection
-    constexpr uint8_t horizontal = 17; // stackdirection
-    constexpr uint8_t sans       = 18; // uifont
-    constexpr uint8_t serif      = 19; // uifont
-    constexpr uint8_t monospace  = 20; // uifont
-    constexpr uint8_t percent    = 21; // display-progress-style
-    constexpr uint8_t absolute   = 22; // display-progress-style
-};
+	constexpr uint8_t none = 0;
+	constexpr uint8_t left = 1;
+	constexpr uint8_t center = 2;
+	constexpr uint8_t right = 3;
+	constexpr uint8_t top = 4;
+	constexpr uint8_t middle = 5;
+	constexpr uint8_t bottom = 6;
+	constexpr uint8_t stretch = 7;
+	constexpr uint8_t expand = 8;
+	constexpr uint8_t _auto = 9;
+	constexpr uint8_t yesno = 10;
+	constexpr uint8_t truefalse = 11;
+	constexpr uint8_t onoff = 12;
+	constexpr uint8_t visible = 13;
+	constexpr uint8_t hidden = 14;
+	constexpr uint8_t collapsed = 15;
+	constexpr uint8_t vertical = 16;
+	constexpr uint8_t horizontal = 17;
+	constexpr uint8_t sans = 18;
+	constexpr uint8_t serif = 19;
+	constexpr uint8_t monospace = 20;
+	constexpr uint8_t percent = 21;
+	constexpr uint8_t absolute = 22;
+}
 
 enum class UIWidget : uint8_t
 {
-    invalid       = 0, // marks "end of children" in the binary format
-    button        = 1,
-    label         = 2,
-    combobox      = 3,
-    treeviewitem  = 4,
-    treeview      = 5,
-    listboxitem   = 6,
-    listbox       = 7,
-    /*            = 8,*/
-    picture       = 9,
-    textbox       = 10,
-    checkbox      = 11,
-    radiobutton   = 12,
-    scrollview    = 13,
-    scrollbar     = 14,
-    slider        = 15,
-    progressbar   = 16,
-    spinedit      = 17,
-    separator     = 18,
-    spacer        = 19,
-    panel         = 20,
-
-    // widgets go here ↑
-    // layouts go here ↓
-
-    tab_layout    = 250,
-    canvas_layout = 251,
-    flow_layout   = 252,
-    grid_layout   = 253,
-    dock_layout   = 254,
-    stack_layout  = 255,
+	invalid = 0, // marks "end of children" in the binary format
+	button = 1,
+	label = 2,
+	combobox = 3,
+	treeviewitem = 4,
+	treeview = 5,
+	listboxitem = 6,
+	listbox = 7,
+	picture = 9,
+	textbox = 10,
+	checkbox = 11,
+	radiobutton = 12,
+	scrollview = 13,
+	scrollbar = 14,
+	slider = 15,
+	progressbar = 16,
+	spinedit = 17,
+	separator = 18,
+	spacer = 19,
+	panel = 20,
+	tab_layout = 250,
+	canvas_layout = 251,
+	flow_layout = 252,
+	grid_layout = 253,
+	dock_layout = 254,
+	stack_layout = 255,
 };
 
 enum class UIProperty : uint8_t
 {
-    invalid = 0, // marks "end of properties" in the binary format
-    horizontalAlignment = 1,
-    verticalAlignment = 2,
-    margins = 3,
-    paddings = 4,
-    stackDirection = 5,
-    dockSite = 6,
-    visibility = 7,
-    sizeHint = 8,
-    fontFamily = 9,
-    text = 10,
-    minimum = 11,
-    maximum = 12,
-    value = 13,
-    displayProgressStyle = 14,
-    isChecked = 15,
-    tabTitle = 16,
-    selectedIndex = 17,
-
-    // MAXMIMUM ALLOWED VALUE IS 127!
-    // upper bit is used for marking value bindings
+	invalid = 0, // marks "end of properties" in the binary format
+	horizontalAlignment = 1,
+	verticalAlignment = 2,
+	margins = 3,
+	paddings = 4,
+	stackDirection = 5,
+	dockSite = 6,
+	visibility = 7,
+	sizeHint = 8,
+	fontFamily = 9,
+	text = 10,
+	minimum = 11,
+	maximum = 12,
+	value = 13,
+	displayProgressStyle = 14,
+	isChecked = 15,
+	tabTitle = 16,
+	selectedIndex = 17,
+	columns = 18,
+	rows = 19,
 };
 
 enum class UIType : uint8_t
 {
-    invalid     = 0,
-    integer     = 1,
-    number      = 2,
-    string      = 3,
-    enumeration = 4,
-    margins     = 5,
-    color       = 6,
-    size        = 7,
-    point       = 8,
-    resource    = 9,
-    boolean     = 10,
-};
-
-UIType getPropertyType(UIProperty property);
-
-enum class UIFont : uint8_t
-{
-    sans = UIEnum::sans,
-    serif = UIEnum::serif,
-    monospace = UIEnum::monospace,
-};
-
-enum class HAlignment : uint8_t
-{
-    stretch = UIEnum::stretch,
-    left = UIEnum::left,
-    center = UIEnum::center,
-    right = UIEnum::right,
-};
-
-enum class VAlignment : uint8_t
-{
-    stretch = UIEnum::stretch,
-    top = UIEnum::top,
-    middle = UIEnum::middle,
-    bottom = UIEnum::bottom,
-};
-
-enum class Visibility : uint8_t
-{
-    visible   = UIEnum::visible,   ///< visible
-    collapsed = UIEnum::collapsed, ///< not visible, also ignored in layouting
-    hidden    = UIEnum::hidden,    ///< not visible, but will be lay out.
+	invalid = 0,
+	integer = 1,
+	number = 2,
+	string = 3,
+	enumeration = 4,
+	margins = 5,
+	color = 6,
+	size = 7,
+	point = 8,
+	resource = 9,
+	boolean = 10,
+	sizelist = 11,
 };
 
 enum class StackDirection : uint8_t
 {
-    vertical   = UIEnum::vertical,   ///< vertical stacking is applied
-    horizontal = UIEnum::horizontal, ///< horizontal stacking is applied
-};
-
-enum class DockSite : uint8_t
-{
-    top    = UIEnum::top,    ///< the widget will dock on the upper side
-    bottom = UIEnum::bottom, ///< the widget will dock on the lower side
-    left   = UIEnum::left,   ///< the widget will dock on the left side
-    right  = UIEnum::right,  ///< the widget will dock on the right side
+	vertical = UIEnum::vertical,
+	horizontal = UIEnum::horizontal,
 };
 
 enum class DisplayProgressStyle : uint8_t
 {
-    none = UIEnum::none,
-    percent = UIEnum::percent,
-    absolute = UIEnum::absolute,
+	none = UIEnum::none,
+	percent = UIEnum::percent,
+	absolute = UIEnum::absolute,
 };
+
+enum class DockSite : uint8_t
+{
+	top = UIEnum::top,
+	bottom = UIEnum::bottom,
+	left = UIEnum::left,
+	right = UIEnum::right,
+};
+
+enum class UIFont : uint8_t
+{
+	sans = UIEnum::sans,
+	serif = UIEnum::serif,
+	monospace = UIEnum::monospace,
+};
+
+enum class VAlignment : uint8_t
+{
+	stretch = UIEnum::stretch,
+	top = UIEnum::top,
+	middle = UIEnum::middle,
+	bottom = UIEnum::bottom,
+};
+
+enum class Visibility : uint8_t
+{
+	visible = UIEnum::visible,
+	collapsed = UIEnum::collapsed,
+	hidden = UIEnum::hidden,
+};
+
+enum class HAlignment : uint8_t
+{
+	stretch = UIEnum::stretch,
+	left = UIEnum::left,
+	center = UIEnum::center,
+	right = UIEnum::right,
+};
+
+UIType getPropertyType(UIProperty property);
 
 #endif // ENUMS_HPP

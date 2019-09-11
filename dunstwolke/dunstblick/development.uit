@@ -1,25 +1,22 @@
-TabLayout
+GridLayout
 {
-  Panel {
-    tab-title: "Tab 1";
-    Label {
-      text: "Tab 1";
-    }
-  }
-  Panel {
-    tab-title: "Tab 2";
-    Label {
-      text: "Tab 2";
-    }
-  }
-  Panel {
-    tab-title: "Hidden Tab";
-    visibility: collapsed;
-  }
-  Panel {
-    tab-title: "Tab 3";
-    Label {
-      text: "Tab 3";
-    }
-  }
+	columns: auto, 25%, expand, 250;
+	rows: expand, expand, auto, auto;
+
+	Panel { Label { text: "1"; } }
+	Panel { Label { text: "2"; } }
+	Panel { Label { text: "3"; } }
+	Panel { Label { text: "4"; } }
+	Panel { Label { text: "5"; } }
+	Panel { Label { text: "6"; } }
+	Panel { Label { text: "7"; } }
+	Panel { Label { text: "8"; } }
+	Panel { Label { text: "9"; } }
+	Panel { Label { text: "10"; } }
+	Panel { Label { text: "11"; } }
+	Panel { Label { text: "12"; } }
+	Panel { Label { text: "13"; } }
+	Panel { Label { text: "14"; } }
+	Panel { Label { text: "15"; } }
+	Panel { Label { text: "16"; } }
 }

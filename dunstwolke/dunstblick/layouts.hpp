@@ -41,9 +41,28 @@ struct TabLayout : WidgetIs<UIWidget::tab_layout>
     SDL_Size calculateWantedSize() override;
 };
 
+struct GridLayout : WidgetIs<UIWidget::grid_layout>
+{
+    property<UISizeList> rows;
+    property<UISizeList> columns;
+
+    // gets calculated in calculateWantedSize
+    // and gets used in layoutChildren
+    // both store
+    std::vector<int> row_heights, column_widths;
+
+    void paintWidget(RenderContext &, const SDL_Rect &) override;
+
+    void layoutChildren(SDL_Rect const & childArea) override;
+
+    SDL_Size calculateWantedSize() override;
+
+    size_t getRowCount() const;
+    size_t getColumnCount() const;
+};
+
 #define CanvasLayout StackLayout
 #define FlowLayout StackLayout
-#define GridLayout StackLayout
 
 
 #endif // LAYOUTS_HPP

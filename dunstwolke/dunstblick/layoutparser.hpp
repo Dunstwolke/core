@@ -21,6 +21,7 @@ enum class LexerTokenType : int
     semiColon = 7,
     comma = 8,
     string = 9,
+    percentage = 10,
 };
 
 struct Token

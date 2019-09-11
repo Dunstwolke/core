@@ -178,6 +178,9 @@ protected:
     virtual void layoutChildren(SDL_Rect const & childArea);
 
     virtual void paintWidget(RenderContext & context, SDL_Rect const & rectangle) = 0;
+
+public:
+    static std::unique_ptr<Widget> create(UIWidget id);
 };
 
 template<UIWidget Type>
