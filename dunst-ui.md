@@ -1,7 +1,7 @@
 # Dunstwolke™ User Interface
 
 - Unterstützt nur Standard-Widgets
-	- [ ] Button
+	- [x] Button
 	- [x] Label
 	- [x] RadioButton
 	- [x] CheckBox
@@ -20,9 +20,9 @@
 	- [x] Separator
 	- [x] StackLayout
 	- [x] DockLayout
-	- [ ] CanvasLayout
-	- [ ] GridLayout
-	- [ ] FlowLayout
+	- [x] CanvasLayout
+	- [x] GridLayout
+	- [x] FlowLayout
 	- [x] Spacer
 	- [x] Panel
 	- [x] TabPanel

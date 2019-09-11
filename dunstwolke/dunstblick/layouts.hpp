@@ -71,7 +71,16 @@ struct CanvasLayout : WidgetIs<UIWidget::canvas_layout>
     SDL_Size calculateWantedSize() override;
 };
 
-#define FlowLayout StackLayout
+struct FlowLayout : WidgetIs<UIWidget::flow_layout>
+{
+    property<SDL_Size> sizeHint = SDL_Size { 256, 256 };
+
+    void paintWidget(RenderContext &, const SDL_Rect &) override;
+
+    void layoutChildren(SDL_Rect const & childArea) override;
+
+    SDL_Size calculateWantedSize() override;
+};
 
 
 #endif // LAYOUTS_HPP

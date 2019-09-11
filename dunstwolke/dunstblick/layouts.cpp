@@ -422,6 +422,8 @@ void CanvasLayout::layoutChildren(const SDL_Rect &childArea)
 {
     for(auto & child : this->children)
     {
+        if(child->visibility == Visibility::collapsed)
+            continue;
         child->layout({
             childArea.x + child->left,
             childArea.y +child->top,
@@ -436,9 +438,73 @@ SDL_Size CanvasLayout::calculateWantedSize()
     SDL_Size size = { 0, 0 };
     for(auto & child : this->children)
     {
+        if(child->visibility == Visibility::collapsed)
+            continue;
         auto cs = child->wanted_size_with_margins();
         size.w = std::max(size.w, child->left + cs.w);
         size.h = std::max(size.h, child->top + cs.h);
     }
     return size;
+}
+
+void FlowLayout::paintWidget(RenderContext &, const SDL_Rect &)
+{
+    /* nope */
+}
+
+void FlowLayout::layoutChildren(const SDL_Rect &childArea)
+{
+    SDL_Rect rect { childArea.x, childArea.y, 0, 0 };
+    int max_h = 0;
+    size_t i;
+    bool first_in_line = true;
+    for(i = 0; i < children.size(); i++)
+    {
+        if(children[i]->visibility == Visibility::collapsed)
+            continue;
+        auto size = children[i]->wanted_size_with_margins();
+        rect.w = size.w;
+        rect.h = size.h;
+
+        if(not first_in_line and rect.x + rect.w >= childArea.x + childArea.w)
+        {
+            // break here
+            rect.x = childArea.x;
+            rect.y += max_h;
+            max_h = 0;
+            first_in_line = true;
+            if(rect.y >= childArea.y + childArea.h) {
+                i += 1;
+                break;
+            }
+        }
+
+        children[i]->layout(rect);
+        first_in_line = false;
+
+        rect.x += rect.w;
+
+        max_h = std::max(max_h, rect.h);
+
+        if(rect.x >= childArea.x + childArea.w) {
+            rect.x = childArea.x;
+            rect.y += max_h;
+            max_h = 0;
+            first_in_line = true;
+            if(rect.y >= childArea.y + childArea.h) {
+                i += 1;
+                break;
+            }
+        }
+    }
+    for(/* i = from previous loop */; i < children.size(); i++)
+    {
+        children[i]->hidden_by_layout = true;
+    }
+}
+
+SDL_Size FlowLayout::calculateWantedSize()
+{
+    // todo: calculate height from sizeHint width
+    return sizeHint;
 }

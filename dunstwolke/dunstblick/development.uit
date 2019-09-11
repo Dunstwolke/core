@@ -1,19 +1,39 @@
-CanvasLayout
+FlowLayout
 {
 	Label {
-		text: "0,0";
+		text: "[= 1 =]";
 	}
 	Label {
-		left: 250;
-		text: "250,0";
+		text: "[== 2 ==]";
 	}
 	Label {
-		top: 250;
-		text: "0,250";
+		text: "[=== 3 ===]";
 	}
 	Label {
-		left: 250;
-		top: 250;
-		text: "250,250";
+		text: "[==== 4 ====]";
+	}
+	Label {
+		text: "[= 1 =]";
+	}
+	Label {
+		text: "[== 2 ==]";
+	}
+	Label {
+		text: "[=== 3 ===]";
+	}
+	Label {
+		text: "[==== 4 ====]";
+	}
+	Label {
+		text: "[= 1 =]";
+	}
+	Label {
+		text: "[== 2 ==]";
+	}
+	Label {
+		text: "[=== 3 ===]";
+	}
+	Label {
+		text: "[==== 4 ====]";
 	}
 }

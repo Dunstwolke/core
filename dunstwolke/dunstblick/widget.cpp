@@ -281,6 +281,13 @@ std::map<UIWidget, MetaWidget> const metaWidgets
             MetaProperty { UIProperty::rows, &GridLayout::rows },
         }
     },
+    {
+        UIWidget::flow_layout,
+        MetaWidget
+        {
+            MetaProperty { UIProperty::sizeHint, &FlowLayout::sizeHint },
+        }
+    },
 };
 
 
