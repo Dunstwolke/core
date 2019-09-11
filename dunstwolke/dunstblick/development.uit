@@ -1,76 +1,25 @@
-DockLayout
+TabLayout
 {
   Panel {
-    dock-site: top;
+    tab-title: "Tab 1";
     Label {
-      text: "top";
+      text: "Tab 1";
     }
   }
   Panel {
-    dock-site: left;
+    tab-title: "Tab 2";
     Label {
-      text: "left";
+      text: "Tab 2";
     }
   }
   Panel {
-    dock-site: bottom;
-    Label {
-      text: "bottom";
-    }
+    tab-title: "Hidden Tab";
+    visibility: collapsed;
   }
   Panel {
-    dock-site: right;
+    tab-title: "Tab 3";
     Label {
-      text: "right";
-    }
-  }
-  ProgressBar {
-    value: 25.0;
-    display-progress-style: none;
-  }
-  ProgressBar {
-    value: 50.0;
-    display-progress-style: percent;
-  }
-  ProgressBar {
-    value: 8.0;
-    maximum: 12.0;
-    display-progress-style: absolute;
-  }
-  Slider {
-    value: 25.0;
-  }
-  Separator { }
-  Slider {
-    value: 50.0;
-  }
-  Separator { }
-  Slider {
-    value: 8.0;
-    maximum: 12.0;
-  }
-  Slider {
-    dock-site: left;
-    value: 10.0;
-  }
-  Panel {
-    Label {
-     text: "fill";
-    }
-    StackLayout {
-      stack-direction: vertical;
-      CheckBox {
-        
-      }
-      CheckBox {
-        is-checked: true;
-      }
-      RadioButton {
-        
-      }
-      RadioButton {
-        is-checked: true;
-      }
+      text: "Tab 3";
     }
   }
 }

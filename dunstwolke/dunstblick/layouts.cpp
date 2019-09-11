@@ -21,6 +21,8 @@ void StackLayout::layoutChildren(const SDL_Rect &_rect)
         SDL_Rect rect = _rect;
         for(auto & child : children)
         {
+            if(child->getActualVisibility() == Visibility::collapsed)
+                continue;
             rect.h = child->wanted_size_with_margins().h;
             child->layout(rect);
             rect.y += rect.h;
@@ -31,6 +33,8 @@ void StackLayout::layoutChildren(const SDL_Rect &_rect)
         SDL_Rect rect = _rect;
         for(auto & child : children)
         {
+            if(child->getActualVisibility() == Visibility::collapsed)
+                continue;
             rect.w = child->wanted_size_with_margins().w;
             child->layout(rect);
             rect.x += rect.w;
@@ -45,6 +49,8 @@ SDL_Size StackLayout::calculateWantedSize()
         SDL_Size size = { 0, 0 };
         for(auto & child : children)
         {
+            if(child->getActualVisibility() == Visibility::collapsed)
+                continue;
             size.w = std::max(size.w, child->wanted_size_with_margins().w);
             size.h += wanted_size_with_margins().h;
         }
@@ -55,6 +61,8 @@ SDL_Size StackLayout::calculateWantedSize()
         SDL_Size size = { 0, 0 };
         for(auto & child : children)
         {
+            if(child->getActualVisibility() == Visibility::collapsed)
+                continue;
             size.w += child->wanted_size_with_margins().w;
             size.h = std::max(size.h, child->wanted_size_with_margins().h);
         }
@@ -79,6 +87,8 @@ void DockLayout::layoutChildren(const SDL_Rect &_rect)
     SDL_Rect childArea = _rect; // will decrease for each child until last.
     for(size_t i = 0; i < children.size() - 1; i++)
     {
+        if(children[i]->getActualVisibility() == Visibility::collapsed)
+            continue;
         auto const site = getDockSite(i);
         auto const childSize = children[i]->wanted_size_with_margins();
         switch(site)
@@ -141,6 +151,10 @@ SDL_Size DockLayout::calculateWantedSize()
     while(i > 0)
     {
         i -= 1;
+
+        if(children[i]->getActualVisibility() == Visibility::collapsed)
+            continue;
+
         auto site = getDockSite(i);
         switch(site)
         {
@@ -174,4 +188,85 @@ DockSite DockLayout::getDockSite(size_t index) const
 void DockLayout::setDockSite(size_t index, DockSite site)
 {
     children.at(index)->dockSite = site;
+}
+
+SDL_Size TabLayout::calculateWantedSize()
+{
+    SDL_Size size = { 0, 0 };
+    for(auto & child : children)
+    {
+        size.w = std::max(size.w, child->wanted_size_with_margins().w);
+        size.h = std::max(size.h, child->wanted_size_with_margins().h);
+    }
+    size.h += 32;
+    return size;
+}
+
+void TabLayout::layoutChildren(const SDL_Rect &childArea)
+{
+    auto area = childArea;
+    area.y += 32;
+    area.h -= 32;
+    for(size_t index = 0; index < children.size(); index++)
+    {
+        if(children[index]->visibility == Visibility::visible)
+            children[index]->hidden_by_layout = (index != size_t(selectedIndex.value));
+        else
+            children[index]->hidden_by_layout = false;
+        children[index]->layout(area);
+    }
+}
+
+void TabLayout::paintWidget(RenderContext & context, const SDL_Rect & rectangle)
+{
+    auto & ren = context.renderer;
+
+    ren.setColor(0x30, 0x30, 0x30);
+    ren.fillRect(rectangle);
+
+    SDL_Rect tab {
+        rectangle.x,
+        rectangle.y,
+        0,
+        32,
+    };
+
+    for(size_t index = 0; index < children.size(); index++)
+    {
+        if(not children[index]->hidden_by_layout and children[index]->getActualVisibility() != Visibility::visible)
+            continue;
+
+        auto * tex = context.getFont(UIFont::sans).render(children[index]->tabTitle);
+
+        int w = 0, h = 0;
+        if(tex != nullptr) {
+            SDL_QueryTexture(tex, nullptr, nullptr, &w, &h);
+        }
+        tab.w = w + 8;
+
+        if(index == gsl::narrow<size_t>(selectedIndex.value))
+            ren.setColor(0x30, 0x30, 0x60);
+        else
+            ren.setColor(0x30, 0x30, 0x30);
+        ren.fillRect(tab);
+
+        if(tex != nullptr) {
+            ren.copy(tex, {
+                tab.x + 4,
+                tab.y + (tab.h - h) / 2,
+                w,
+                h
+            });
+        }
+
+        ren.setColor(0xFF, 0xFF, 0xFF);
+        ren.drawRect(tab);
+
+        tab.x += tab.w;
+    }
+
+
+
+    ren.setColor(0xFF, 0xFF, 0xFF);
+    ren.drawRect(rectangle);
 }

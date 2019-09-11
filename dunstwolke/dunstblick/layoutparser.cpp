@@ -34,6 +34,7 @@ const std::map<std::string, UIWidget> widgetTypes =
     // widgets go here ↑
     // layouts go here ↓
 
+    { "TabLayout", UIWidget::tab_layout },
     { "CanvasLayout", UIWidget::canvas_layout },
     { "FlowLayout",   UIWidget::flow_layout },
     { "GridLayout",   UIWidget::grid_layout },
@@ -58,6 +59,8 @@ const std::map<std::string, UIProperty> properties =
     { "value",   UIProperty::value },
     { "display-progress-style", UIProperty::displayProgressStyle },
     { "is-checked", UIProperty::isChecked },
+    { "tab-title", UIProperty::tabTitle },
+    { "selected-index", UIProperty::selectedIndex },
 };
 
 const std::map<std::string, uint8_t> enumerations =

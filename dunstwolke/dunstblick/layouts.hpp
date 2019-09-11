@@ -30,5 +30,20 @@ struct DockLayout : WidgetIs<UIWidget::dock_layout>
 };
 
 
+struct TabLayout : WidgetIs<UIWidget::tab_layout>
+{
+    property<int> selectedIndex = 0;
+
+    void paintWidget(RenderContext &, const SDL_Rect &) override;
+
+    void layoutChildren(SDL_Rect const & childArea) override;
+
+    SDL_Size calculateWantedSize() override;
+};
+
+#define CanvasLayout StackLayout
+#define FlowLayout StackLayout
+#define GridLayout StackLayout
+
 
 #endif // LAYOUTS_HPP

@@ -108,8 +108,5 @@ struct Panel : WidgetIs<UIWidget::panel>
     void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
 };
 
-#define CanvasLayout StackLayout
-#define FlowLayout StackLayout
-#define GridLayout StackLayout
 
 #endif // WIDGETS_HPP

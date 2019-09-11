@@ -12,110 +12,93 @@ Object {
 	notes   = Type.string,  -- notes of the operator
 }
 
--- UI-Layout:
+/**
+ * models the following dialog:
+ * https://www.researchgate.net/profile/Richard_Kennard/publication/224517249/figure/fig1/AS:302832667381772@1449212342988/Example-UI-with-5-fields.png
+**/
 DockLayout {
-	verticalAlign = Enum.stretch,
-	horizontalAlign = Enum.stretch,
+	vertical-alignment: stretch;
+	horizontal-alignment: stretch;
 	
-	children = {
-		-- Contains the two buttons at the bottom
-		-- TODO: How to store "dock=bottom"?
-		-- thoughs: not as a child property, as  this
-		-- would destroy "inheritance"/code resuse
-		-- solution: Maybe as a second property "childAlignments"?
-		GridLayout {
-			columns = {
-				-- two columns, both take the same size
-				-- number of rows is inferred by
-				-- "rowcount = ceil(childcount / colcount)
-				-- when no row definition list is given.
-				Enum.expand,
-				Enum.expand
-			}
-			children = {
-				Button {
-					horizontalAlign = Enum.right,
-					verticalAlign = Enum.bottom,
-					children = {
-						Label {
-							text = "Save"
-						}
-					}
-				},
-				Button {
-					horizontalAlign = Enum.left,
-					verticalAlign = Enum.bottom,
-					children = {
-						Label {
-							text = "Delete"
-						}
-					}
-				}
-			}
-		}
-		-- Contains the main
-		GridLayout {
-			columns = {
-				-- two columns
-				Enum.auto, -- first takes minimum size
-				Enum.expand, -- second takes rest of the size
-			},
-			children = {
-				Label {
-					text = "Name*:",
-					horizontalAlign = Enum.right,
-				},
-				TextBox {
-					text = Binding("name");
-				},
-				Label {
-					text = "Age:",
-					horizontalAlign = Enum.right,
-				},
-				Slider {
-					value = Binding("age"),
-					step = 1,
-					minimum = 0,
-					maximum = 100,
-				},
-				Label {
-					text = "Gender:",
-					horizontalAlign = Enum.right,
-				},
-				ComboBox {
-					-- TODO: think about how to serialize
-					-- a known list here...
-					items = Binding("genders"),
-					-- TODO: think about how to return the
-					-- binding index instead of object id
-					selectedItem = Binding("gender"),
-					-- show ".title" of the gender object
-					textProperty = "title",
-				},
-				Label {
-					text = "Retired:",
-					horizontalAlign = Enum.right,
-				},
-				Label {
-					-- format allows defining the 
-					-- value formatting of a property
-					-- so it can be made human-readable
-					-- this allows also text boxes
-					-- to display and edit numeric types
-					-- or booleans!
-					text = Binding("retired", format=Enum.yesno),
-				},
-				Label {
-					text = "Notes:",
-					horizontalAlign = Enum.right,
-					verticalAlign = Enum.top,
-				},
-				TextBox {
-					multiline = true,
-					text = Binding("notes"),
-					horizontalAlign = Enum.stretch,
-				}
-			}
-		}
-	}
+  GridLayout {
+    /* this widget will layout at the bottom of the parent */
+    dock-site: bottom;
+    
+    /* two columns, both take the same size
+       number of rows is inferred by
+       "rowcount = ceil(childcount / colcount)
+       when no row definition list is given. */
+    columns: expand, expand;
+    
+    Button {
+      horizontal-alignment: right;
+      vertical-alignment: bottom;
+      Label {
+        text: "Save"
+      }
+    }
+    Button {
+      horizontal-alignment: left;
+      vertical-alignment: bottom;
+      Label {
+        text: "Delete"
+      }
+    }
+  }
+  /* Contains the main table */
+  GridLayout {
+    /* two columns */
+    columns: auto, expand; /* auto=minimum size, expand=take rest */
+    Label {
+      text: "Name*:";
+      horizontal-alignment: right;
+    }
+    TextBox {
+      text: bind("name");
+    }
+    Label {
+      text: "Age:";
+      horizontal-alignment: right;
+    }
+    Slider {
+      value: bind("age");
+      minimum: 0;
+      maximum: 100;
+    }
+    Label {
+      text: "Gender:";
+      horizontal-alignment: right,
+    },
+    ComboBox {
+      items: bind("genders"); /* load all possible values from .genders */
+      selected-item: bind("gender"); /* store the selected object into .gender */
+      /* show ".title" of the gender object */
+      text-property: "title";
+    },
+    Label {
+      text: "Retired:";
+      horizontal-alignment: right;
+    }
+    Label {
+      /*
+        format allows defining the 
+        value formatting of a property
+        so it can be made human-readable
+        this allows also text boxes
+        to display and edit numeric types
+        or booleans!
+      */
+      text: bind("retired", format=yesno),
+    }
+    Label {
+      text: "Notes:";
+      horizontal-alignment: right;
+      vertical-alignment: top;
+    }
+    TextBox {
+      multiline: true;
+      text: bind("notes");
+      horizontal-alignment: stretch;
+    }
+  }
 }

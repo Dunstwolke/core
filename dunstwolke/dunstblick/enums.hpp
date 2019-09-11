@@ -59,6 +59,7 @@ enum class UIWidget : uint8_t
     // widgets go here ↑
     // layouts go here ↓
 
+    tab_layout    = 250,
     canvas_layout = 251,
     flow_layout   = 252,
     grid_layout   = 253,
@@ -84,6 +85,8 @@ enum class UIProperty : uint8_t
     value = 13,
     displayProgressStyle = 14,
     isChecked = 15,
+    tabTitle = 16,
+    selectedIndex = 17,
 
     // MAXMIMUM ALLOWED VALUE IS 127!
     // upper bit is used for marking value bindings

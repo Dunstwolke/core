@@ -25,6 +25,7 @@
 	- [ ] FlowLayout
 	- [x] Spacer
 	- [x] Panel
+	- [x] TabPanel
 - Supported modale und nonmodale Dialoge/Kind-Fenster
 	- Dialoge wie ein "Inventarfenster" können geöffnet werden
 	- Dialoge sind immer floating

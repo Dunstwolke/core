@@ -25,6 +25,9 @@ struct Widget;
 
 struct BaseProperty
 {
+    BaseProperty() = default;
+    BaseProperty(BaseProperty const &) = delete;
+    BaseProperty(BaseProperty &&) = default;
     virtual ~BaseProperty();
 
     virtual UIValue getValue() const = 0;
@@ -115,6 +118,7 @@ public: // deserializable properties
     property<UIMargin> margins = UIMargin(4);
     property<UIMargin> paddings = UIMargin(0);
     property<DockSite> dockSite = DockSite::top;
+    property<std::string> tabTitle = std::string("Tab Page");
 
 public: // layouting and rendering
     /// the space the widget says it needs to have.
@@ -125,6 +129,10 @@ public: // layouting and rendering
     /// the position of the widget on the screen after layouting
     /// NOTE: this does not include the margins of the widget!
     SDL_Rect actual_bounds;
+
+    /// if set to `true`, this widget has been hidden by the
+    /// layout, not by the user.
+    bool hidden_by_layout = false;
 
 protected:
     explicit Widget(UIWidget type);
@@ -152,6 +160,10 @@ public:
 
     /// deserializes a single property or throws a "not supported exception"
     void setProperty(UIProperty property, UIValue value);
+
+    /// returns the actual visibility of this widget.
+    /// this takes user decision, layout and other stuff into account.
+    Visibility getActualVisibility() const;
 
 protected:
     /// stage1: calculates the space this widget wants to take.

@@ -88,6 +88,7 @@ UIType getPropertyType(UIProperty property)
         return UIType::size;
 
     case UIProperty::text:
+    case UIProperty::tabTitle:
         return UIType::string;
 
     case UIProperty::minimum:
@@ -170,6 +171,7 @@ std::unique_ptr<Widget> deserialize_widget(UIWidget widgetType, InputStream & st
     case UIWidget::panel:  widget = std::make_unique<Panel>(); break;
 
 
+    case UIWidget::tab_layout:  widget = std::make_unique<TabLayout>(); break;
     case UIWidget::canvas_layout:  widget = std::make_unique<CanvasLayout>(); break;
     case UIWidget::flow_layout:  widget = std::make_unique<FlowLayout>(); break;
     case UIWidget::grid_layout:  widget = std::make_unique<GridLayout>(); break;

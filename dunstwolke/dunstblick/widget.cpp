@@ -103,7 +103,6 @@ void Widget::layout(SDL_Rect const & _bounds)
 
 void Widget::layoutChildren(SDL_Rect const & rect)
 {
-
     for(auto & child : children)
         child->layout(rect);
 }
@@ -120,9 +119,14 @@ void Widget::paint(RenderContext & context)
     context.renderer.fillRect(actual_bounds);
 
     this->paintWidget(context, actual_bounds);
+
     context.renderer.resetClipRect();
     for(auto & child : children)
-        child->paint(context);
+    {
+        // only draw visible children
+        if(child->getActualVisibility() == Visibility::visible)
+            child->paint(context);
+    }
 }
 
 SDL_Rect Widget::bounds_with_margins() const
@@ -155,6 +159,13 @@ void Widget::setProperty(UIProperty property, UIValue value)
         throw std::range_error("unknown property for this widget!");
 }
 
+Visibility Widget::getActualVisibility() const
+{
+    if(hidden_by_layout)
+        return Visibility::collapsed;
+    return visibility;
+}
+
 BaseProperty::~BaseProperty()
 {
 
@@ -185,6 +196,7 @@ std::map<UIProperty, GetPropertyFunction> const MetaWidget::defaultProperties = 
     MetaProperty { UIProperty::verticalAlignment, &Widget::verticalAlignment },
     MetaProperty { UIProperty::visibility, &Widget::visibility },
     MetaProperty { UIProperty::dockSite, &Widget::dockSite },
+    MetaProperty { UIProperty::tabTitle, &Widget::tabTitle },
 });
 
 std::map<UIWidget, MetaWidget> const metaWidgets
@@ -242,6 +254,13 @@ std::map<UIWidget, MetaWidget> const metaWidgets
         MetaWidget
         {
             MetaProperty { UIProperty::isChecked, &RadioButton::isChecked },
+        }
+    },
+    {
+        UIWidget::tab_layout,
+        MetaWidget
+        {
+            MetaProperty { UIProperty::selectedIndex, &TabLayout::selectedIndex },
         }
     },
 };
