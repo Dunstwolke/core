@@ -61,7 +61,16 @@ struct GridLayout : WidgetIs<UIWidget::grid_layout>
     size_t getColumnCount() const;
 };
 
-#define CanvasLayout StackLayout
+
+struct CanvasLayout : WidgetIs<UIWidget::canvas_layout>
+{
+    void paintWidget(RenderContext &, const SDL_Rect &) override;
+
+    void layoutChildren(SDL_Rect const & childArea) override;
+
+    SDL_Size calculateWantedSize() override;
+};
+
 #define FlowLayout StackLayout
 
 

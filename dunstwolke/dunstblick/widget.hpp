@@ -112,13 +112,22 @@ public: // widget tree
     std::vector<std::unique_ptr<Widget>> children;
 
 public: // deserializable properties
+    // generic
     property<HAlignment> horizontalAlignment = HAlignment::stretch;
     property<VAlignment> verticalAlignment = VAlignment::stretch;
     property<Visibility> visibility = Visibility::visible;
     property<UIMargin> margins = UIMargin(4);
     property<UIMargin> paddings = UIMargin(0);
+
+    // dock layout
     property<DockSite> dockSite = DockSite::top;
+
+    // tab layout
     property<std::string> tabTitle = std::string("Tab Page");
+
+    // canvas layout
+    property<int> left = 0;
+    property<int> top = 0;
 
 public: // layouting and rendering
     /// the space the widget says it needs to have.

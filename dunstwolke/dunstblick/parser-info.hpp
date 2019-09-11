@@ -52,6 +52,8 @@ static const std::map<std::string, UIProperty> properties =
 	 { "selected-index", UIProperty::selectedIndex },
 	 { "columns", UIProperty::columns },
 	 { "rows", UIProperty::rows },
+	 { "left", UIProperty::left },
+	 { "top", UIProperty::top },
 };
 
 static const std::map<std::string, uint8_t> enumerations =

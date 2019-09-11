@@ -412,3 +412,33 @@ size_t GridLayout::getColumnCount() const
     else
         return (children.size() + rows->size() - 1) / rows->size();
 }
+
+void CanvasLayout::paintWidget(RenderContext &, const SDL_Rect &)
+{
+
+}
+
+void CanvasLayout::layoutChildren(const SDL_Rect &childArea)
+{
+    for(auto & child : this->children)
+    {
+        child->layout({
+            childArea.x + child->left,
+            childArea.y +child->top,
+            child->wanted_size_with_margins().w,
+            child->wanted_size_with_margins().h,
+        });
+    }
+}
+
+SDL_Size CanvasLayout::calculateWantedSize()
+{
+    SDL_Size size = { 0, 0 };
+    for(auto & child : this->children)
+    {
+        auto cs = child->wanted_size_with_margins();
+        size.w = std::max(size.w, child->left + cs.w);
+        size.h = std::max(size.h, child->top + cs.h);
+    }
+    return size;
+}

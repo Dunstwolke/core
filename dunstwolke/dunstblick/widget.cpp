@@ -205,6 +205,8 @@ std::map<UIProperty, GetPropertyFunction> const MetaWidget::defaultProperties = 
     MetaProperty { UIProperty::visibility, &Widget::visibility },
     MetaProperty { UIProperty::dockSite, &Widget::dockSite },
     MetaProperty { UIProperty::tabTitle, &Widget::tabTitle },
+    MetaProperty { UIProperty::left, &Widget::left },
+    MetaProperty { UIProperty::top, &Widget::top },
 });
 
 std::map<UIWidget, MetaWidget> const metaWidgets

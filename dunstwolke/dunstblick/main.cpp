@@ -25,19 +25,6 @@ static bool shutdown_app_requested = false;
     exit(1);
 }
 
-/// A color scheme for the UI system
-struct ColorScheme
-{
-    UIColor background    = { 0x40, 0x40, 0x40 };
-
-    UIColor borderDefault = { 0x00, 0x80, 0x00 };
-    UIColor borderHovered = { 0x00, 0xC0, 0x00 };
-    UIColor borderFocused = { 0x00, 0xFF, 0x00 };
-};
-
-
-static ColorScheme const defaultColorScheme;
-
 static std::unique_ptr<Widget> root_widget;
 
 static void paint(RenderContext & context)
@@ -67,7 +54,7 @@ static void event(SDL_Event const & e)
     }
 }
 
-UIValue deserialize_value(UIType type, InputStream & stream)
+static UIValue deserialize_value(UIType type, InputStream & stream)
 {
     switch(type)
     {
@@ -139,14 +126,14 @@ UIValue deserialize_value(UIType type, InputStream & stream)
             }
         }
 
-        return list;
+        return std::move(list);
     }
 
     }
     assert(false and "property type not in table yet!");
 }
 
-std::unique_ptr<Widget> deserialize_widget(UIWidget widgetType, InputStream & stream)
+static std::unique_ptr<Widget> deserialize_widget(UIWidget widgetType, InputStream & stream)
 {
     auto widget = Widget::create(widgetType);
     assert(widget);
@@ -173,7 +160,7 @@ std::unique_ptr<Widget> deserialize_widget(UIWidget widgetType, InputStream & st
     return widget;
 }
 
-std::unique_ptr<Widget> deserialize_widget(InputStream & stream)
+static std::unique_ptr<Widget> deserialize_widget(InputStream & stream)
 {
     auto const widgetType = stream.read_enum<UIWidget>();
     return deserialize_widget(widgetType, stream);

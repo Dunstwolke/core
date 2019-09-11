@@ -97,6 +97,8 @@ properties =
     {  17, "selectedIndex",        "selected-index",         "integer"     },
 	{  18, "columns",              "columns",                "sizelist"    },
 	{  19, "rows",                 "rows",                   "sizelist"    },
+	{  20, "left",                 "left",                   "integer"     },
+	{  21, "top",                  "top",                    "integer"     },
 },
 
 groups = 

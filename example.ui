@@ -1,24 +1,10 @@
--- Beispiel-Datei für ein Dunstwolke Template
-
--- Data-Layout:
-Object {
-	-- each object has an inherent
-    -- id   = Type.id,      -- the unique object identifier
-	name    = Type.string,  -- the name of the person
-	genders = Type.list,    -- all possible genders (id,name)
-	gender  = Type.id,      -- the selected gender
-	age     = Type.integer, -- age of the person in years
-	retired = Type.boolean, -- is the person already retired?
-	notes   = Type.string,  -- notes of the operator
-}
-
 /**
  * models the following dialog:
  * https://www.researchgate.net/profile/Richard_Kennard/publication/224517249/figure/fig1/AS:302832667381772@1449212342988/Example-UI-with-5-fields.png
 **/
 DockLayout {
-	vertical-alignment: stretch;
-	horizontal-alignment: stretch;
+  vertical-alignment: stretch;
+  horizontal-alignment: stretch;
 	
   GridLayout {
     /* this widget will layout at the bottom of the parent */
@@ -34,14 +20,14 @@ DockLayout {
       horizontal-alignment: right;
       vertical-alignment: bottom;
       Label {
-        text: "Save"
+        text: "Save";
       }
     }
     Button {
       horizontal-alignment: left;
       vertical-alignment: bottom;
       Label {
-        text: "Delete"
+        text: "Delete";
       }
     }
   }
@@ -49,46 +35,36 @@ DockLayout {
   GridLayout {
     /* two columns */
     columns: auto, expand; /* auto=minimum size, expand=take rest */
+	rows: auto, auto, auto, auto, expand;
     Label {
-      text: "Name*:";
+      text: "Name:";
       horizontal-alignment: right;
     }
     TextBox {
-      text: bind("name");
+      text: "$name";
     }
     Label {
       text: "Age:";
       horizontal-alignment: right;
     }
     Slider {
-      value: bind("age");
+      value: 60;
       minimum: 0;
       maximum: 100;
     }
     Label {
       text: "Gender:";
-      horizontal-alignment: right,
-    },
+      horizontal-alignment: right;
+    }
     ComboBox {
-      items: bind("genders"); /* load all possible values from .genders */
-      selected-item: bind("gender"); /* store the selected object into .gender */
-      /* show ".title" of the gender object */
-      text-property: "title";
-    },
+    }
     Label {
       text: "Retired:";
       horizontal-alignment: right;
     }
     Label {
-      /*
-        format allows defining the 
-        value formatting of a property
-        so it can be made human-readable
-        this allows also text boxes
-        to display and edit numeric types
-        or booleans!
-      */
-      text: bind("retired", format=yesno),
+      text: "Yes/No";
+      horizontal-alignment: left;
     }
     Label {
       text: "Notes:";
@@ -96,8 +72,8 @@ DockLayout {
       vertical-alignment: top;
     }
     TextBox {
-      multiline: true;
-      text: bind("notes");
+      /* multiline: true; */
+      text: "$notes";
       horizontal-alignment: stretch;
     }
   }

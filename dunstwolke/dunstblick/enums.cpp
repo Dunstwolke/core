@@ -24,6 +24,8 @@ UIType getPropertyType(UIProperty property)
 		case UIProperty::selectedIndex: return UIType::integer;
 		case UIProperty::columns: return UIType::sizelist;
 		case UIProperty::rows: return UIType::sizelist;
+		case UIProperty::left: return UIType::integer;
+		case UIProperty::top: return UIType::integer;
 	}
 	assert(false and "invalid property was passed to getPropertyType!");
 }
@@ -51,6 +53,8 @@ std::string to_string(UIProperty property)
 		case UIProperty::selectedIndex: return "selected-index";
 		case UIProperty::columns: return "columns";
 		case UIProperty::rows: return "rows";
+		case UIProperty::left: return "left";
+		case UIProperty::top: return "top";
 	}
 	return "property(" + std::to_string(int(property)) + ")";
 }
