@@ -18,11 +18,32 @@ LayoutParser::LayoutParser()
 
 }
 
+static std::string toString(LexerTokenType type)
+{
+    switch(type)
+    {
+    case LexerTokenType::identifier: return "identifier";
+    case LexerTokenType::integer: return "integer";
+    case LexerTokenType::number: return "number";
+    case LexerTokenType::openBrace: return "opening brace";
+    case LexerTokenType::closeBrace: return "closing brace";
+    case LexerTokenType::colon: return "colon";
+    case LexerTokenType::semiColon: return "semicolon";
+    case LexerTokenType::comma: return "comma";
+    case LexerTokenType::string: return "string";
+    case LexerTokenType::percentage: return "percentage";
+    }
+    return "???";
+}
+
 static std::string Accept(FlexLexer * lexer, LexerTokenType type)
 {
     auto tok = LayoutParser::Lex(lexer);
-    if(not tok or tok->type != type)
-        throw std::runtime_error("unexpected token!");
+    if(not tok or tok->type != type) {
+        if(not tok)
+            throw std::runtime_error("unexpected end of file!");
+        throw std::runtime_error("expected " + toString(type) + ", found: '" + tok->text + "'!");
+    }
     return tok->text;
 }
 
@@ -88,7 +109,19 @@ static void parse_and_translate(UIType type, FlexLexer * lexer, std::ostream &ou
         }
 
         case UIType::number: {
-            auto value = lex_number(lexer);
+            auto tok = LayoutParser::Lex(lexer);
+            if(not tok)
+                throw std::runtime_error("unexpected end of file!");
+            float value;
+            if(tok->type == LexerTokenType::integer) {
+                value = strtol(tok->text.c_str(), nullptr, 10);
+            }
+            else if(tok->type == LexerTokenType::number) {
+                value = strtof(tok->text.c_str(), nullptr);
+            }
+            else {
+                throw std::runtime_error("unexpected token. expected number or integer!");
+            }
             write_number(output, value);
             Accept(lexer, LexerTokenType::semiColon);
             return;
@@ -260,7 +293,7 @@ static void parse_and_translate(std::string const & widgetName, FlexLexer * lexe
     {
         auto tok = LayoutParser::Lex(lexer);
         if(not tok)
-            throw std::runtime_error("unexpected token!");
+            throw std::runtime_error("unexpected end of file!");
         if(tok->type == LexerTokenType::closeBrace)
         {
             break;
@@ -293,7 +326,7 @@ static void parse_and_translate(std::string const & widgetName, FlexLexer * lexe
         }
         else
         {
-            throw std::runtime_error("unexpected token!");
+            throw std::runtime_error("unexpected token: '" + tok->text + "'");
         }
     }
 

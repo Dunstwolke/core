@@ -6,6 +6,7 @@ local function genEnumHeader(f)
 #define ENUMS_HPP
 
 #include <cstdint>
+#include <string>
 
 /// combined enum containing all possible enumeration values
 /// used in the UI system.
@@ -65,6 +66,11 @@ enum class UIType : uint8_t
 	f:write [[
 UIType getPropertyType(UIProperty property);
 
+std::string to_string(UIProperty property);
+std::string to_string(UIWidget property);
+std::string to_enum_string(uint8_t enumValue);
+std::string to_string(UIType property);
+
 #endif // ENUMS_HPP
 ]]
 
@@ -87,6 +93,58 @@ UIType getPropertyType(UIProperty property)
 	f:write [[	}
 	assert(false and "invalid property was passed to getPropertyType!");
 }
+
+std::string to_string(UIProperty property)
+{
+	switch(property)
+	{
+]]
+	for i,v in ipairs(UI.properties) do
+		f:write("\t\tcase UIProperty::", v[2], ': return "', v[3], '";\n')
+	end
+
+	f:write [[	}
+	return "property(" + std::to_string(int(property)) + ")";
+}
+std::string to_string(UIWidget widget)
+{
+	switch(widget)
+	{
+]]
+	for i,v in ipairs(UI.widgets) do
+		f:write("\t\tcase UIWidget::", v[2], ': return "', v[3], '";\n')
+	end
+
+	f:write [[	}
+	return "widget(" + std::to_string(int(widget)) + ")";
+}
+
+std::string to_enum_string(uint8_t enumValue)
+{
+	switch(enumValue)
+	{
+]]
+	for i,v in ipairs(UI.identifiers) do
+		f:write("\t\tcase ", v[1], ': return "', v[2], '";\n')
+	end
+
+	f:write [[	}
+	return "enum(" + std::to_string(int(enumValue)) + ")";
+}
+
+std::string to_string(UIType type)
+{
+	switch(type)
+	{
+]]
+	for i,v in ipairs(UI.types) do
+		f:write("\t\tcase UIType::", v[2], ': return "', v[2], '";\n')
+	end
+
+	f:write [[	}
+	return "type(" + std::to_string(int(type)) + ")";
+}
+
 ]]
 	
 end

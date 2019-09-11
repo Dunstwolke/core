@@ -1,6 +1,9 @@
 #include "widget.hpp"
-
 #include <stdexcept>
+
+#ifdef DEBUG
+#include <iostream>
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Stage 1:
@@ -155,8 +158,13 @@ void Widget::setProperty(UIProperty property, UIValue value)
         it->second(*this)->setValue(value);
     else if(auto it = meta.defaultProperties.find(property); it != meta.defaultProperties.end())
         it->second(*this)->setValue(value);
-    else
-        throw std::range_error("unknown property for this widget!");
+    else {
+#ifdef DEBUG
+        std::cerr << "unknown property " + to_string(property) + " for widget " + to_string(this->type) + "!" << std::endl;
+#else
+        throw std::range_error("unknown property " + to_string(property) + " for widget " + to_string(this->type) + "!");
+#endif
+    }
 }
 
 Visibility Widget::getActualVisibility() const

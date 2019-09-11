@@ -2,6 +2,7 @@
 #define ENUMS_HPP
 
 #include <cstdint>
+#include <string>
 
 /// combined enum containing all possible enumeration values
 /// used in the UI system.
@@ -102,17 +103,19 @@ enum class UIType : uint8_t
 	sizelist = 11,
 };
 
-enum class StackDirection : uint8_t
-{
-	vertical = UIEnum::vertical,
-	horizontal = UIEnum::horizontal,
-};
-
 enum class DisplayProgressStyle : uint8_t
 {
 	none = UIEnum::none,
 	percent = UIEnum::percent,
 	absolute = UIEnum::absolute,
+};
+
+enum class HAlignment : uint8_t
+{
+	stretch = UIEnum::stretch,
+	left = UIEnum::left,
+	center = UIEnum::center,
+	right = UIEnum::right,
 };
 
 enum class DockSite : uint8_t
@@ -121,6 +124,19 @@ enum class DockSite : uint8_t
 	bottom = UIEnum::bottom,
 	left = UIEnum::left,
 	right = UIEnum::right,
+};
+
+enum class StackDirection : uint8_t
+{
+	vertical = UIEnum::vertical,
+	horizontal = UIEnum::horizontal,
+};
+
+enum class Visibility : uint8_t
+{
+	visible = UIEnum::visible,
+	collapsed = UIEnum::collapsed,
+	hidden = UIEnum::hidden,
 };
 
 enum class UIFont : uint8_t
@@ -138,21 +154,11 @@ enum class VAlignment : uint8_t
 	bottom = UIEnum::bottom,
 };
 
-enum class Visibility : uint8_t
-{
-	visible = UIEnum::visible,
-	collapsed = UIEnum::collapsed,
-	hidden = UIEnum::hidden,
-};
-
-enum class HAlignment : uint8_t
-{
-	stretch = UIEnum::stretch,
-	left = UIEnum::left,
-	center = UIEnum::center,
-	right = UIEnum::right,
-};
-
 UIType getPropertyType(UIProperty property);
+
+std::string to_string(UIProperty property);
+std::string to_string(UIWidget property);
+std::string to_enum_string(uint8_t enumValue);
+std::string to_string(UIType property);
 
 #endif // ENUMS_HPP
