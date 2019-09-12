@@ -29,7 +29,9 @@
 - Supported modale und nonmodale Dialoge/Kind-Fenster
 	- Dialoge wie ein "Inventarfenster" können geöffnet werden
 	- Dialoge sind immer floating
-	- 
+- Layouts ermöglichen Bindings auf Listen
+	- Angabe von Template-ID + List-Binding
+	- Instanzen von Templates werden wiederverwendet (korrektes insert/remove-verhalten)
 - Widgets können Tastatur-Filter haben
 	- Widget verschickt *alle* Tastatur-Events
 	- Widget verschickt nur Accelerators (Hotkeys)
