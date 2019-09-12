@@ -9,8 +9,6 @@ struct StackLayout : WidgetIs<UIWidget::stack_layout>
 
     explicit StackLayout(StackDirection dir = StackDirection::vertical);
 
-    void paintWidget(RenderContext &, const SDL_Rect &) override;
-
     void layoutChildren(SDL_Rect const & childArea) override;
 
     SDL_Size calculateWantedSize() override;
@@ -18,8 +16,6 @@ struct StackLayout : WidgetIs<UIWidget::stack_layout>
 
 struct DockLayout : WidgetIs<UIWidget::dock_layout>
 {
-    void paintWidget(RenderContext &, const SDL_Rect &) override;
-
     void layoutChildren(SDL_Rect const & childArea) override;
 
     SDL_Size calculateWantedSize() override;
@@ -34,7 +30,7 @@ struct TabLayout : WidgetIs<UIWidget::tab_layout>
 {
     property<int> selectedIndex = 0;
 
-    void paintWidget(RenderContext &, const SDL_Rect &) override;
+    void paintWidget(const SDL_Rect &) override;
 
     void layoutChildren(SDL_Rect const & childArea) override;
 
@@ -51,8 +47,6 @@ struct GridLayout : WidgetIs<UIWidget::grid_layout>
     // both store
     std::vector<int> row_heights, column_widths;
 
-    void paintWidget(RenderContext &, const SDL_Rect &) override;
-
     void layoutChildren(SDL_Rect const & childArea) override;
 
     SDL_Size calculateWantedSize() override;
@@ -64,8 +58,6 @@ struct GridLayout : WidgetIs<UIWidget::grid_layout>
 
 struct CanvasLayout : WidgetIs<UIWidget::canvas_layout>
 {
-    void paintWidget(RenderContext &, const SDL_Rect &) override;
-
     void layoutChildren(SDL_Rect const & childArea) override;
 
     SDL_Size calculateWantedSize() override;
@@ -74,8 +66,6 @@ struct CanvasLayout : WidgetIs<UIWidget::canvas_layout>
 struct FlowLayout : WidgetIs<UIWidget::flow_layout>
 {
     property<SDL_Size> sizeHint = SDL_Size { 256, 256 };
-
-    void paintWidget(RenderContext &, const SDL_Rect &) override;
 
     void layoutChildren(SDL_Rect const & childArea) override;
 

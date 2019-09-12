@@ -118,6 +118,7 @@ public: // deserializable properties
     property<Visibility> visibility = Visibility::visible;
     property<UIMargin> margins = UIMargin(4);
     property<UIMargin> paddings = UIMargin(0);
+    property<bool> enabled = true;
 
     // dock layout
     property<DockSite> dockSite = DockSite::top;
@@ -159,7 +160,7 @@ public:
     void layout(SDL_Rect const & bounds);
 
     /// draws the widget
-    void paint(RenderContext & context);
+    void paint();
 
     /// returns the bounds of the widget with margins
     SDL_Rect bounds_with_margins() const;
@@ -186,7 +187,7 @@ protected:
     /// @param childArea the area where the children will be positioned in
     virtual void layoutChildren(SDL_Rect const & childArea);
 
-    virtual void paintWidget(RenderContext & context, SDL_Rect const & rectangle) = 0;
+    virtual void paintWidget(SDL_Rect const & rectangle);
 
 public:
     static std::unique_ptr<Widget> create(UIWidget id);

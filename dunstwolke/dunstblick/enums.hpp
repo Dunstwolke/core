@@ -87,6 +87,7 @@ enum class UIProperty : uint8_t
 	rows = 19,
 	left = 20,
 	top = 21,
+	enabled = 22,
 };
 
 enum class UIType : uint8_t
@@ -112,21 +113,6 @@ enum class UIFont : uint8_t
 	monospace = UIEnum::monospace,
 };
 
-enum class VAlignment : uint8_t
-{
-	stretch = UIEnum::stretch,
-	top = UIEnum::top,
-	middle = UIEnum::middle,
-	bottom = UIEnum::bottom,
-};
-
-enum class DisplayProgressStyle : uint8_t
-{
-	none = UIEnum::none,
-	percent = UIEnum::percent,
-	absolute = UIEnum::absolute,
-};
-
 enum class HAlignment : uint8_t
 {
 	stretch = UIEnum::stretch,
@@ -135,12 +121,11 @@ enum class HAlignment : uint8_t
 	right = UIEnum::right,
 };
 
-enum class DockSite : uint8_t
+enum class DisplayProgressStyle : uint8_t
 {
-	top = UIEnum::top,
-	bottom = UIEnum::bottom,
-	left = UIEnum::left,
-	right = UIEnum::right,
+	none = UIEnum::none,
+	percent = UIEnum::percent,
+	absolute = UIEnum::absolute,
 };
 
 enum class Visibility : uint8_t
@@ -154,6 +139,22 @@ enum class StackDirection : uint8_t
 {
 	vertical = UIEnum::vertical,
 	horizontal = UIEnum::horizontal,
+};
+
+enum class DockSite : uint8_t
+{
+	top = UIEnum::top,
+	bottom = UIEnum::bottom,
+	left = UIEnum::left,
+	right = UIEnum::right,
+};
+
+enum class VAlignment : uint8_t
+{
+	stretch = UIEnum::stretch,
+	top = UIEnum::top,
+	middle = UIEnum::middle,
+	bottom = UIEnum::bottom,
 };
 
 UIType getPropertyType(UIProperty property);

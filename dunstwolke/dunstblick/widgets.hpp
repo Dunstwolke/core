@@ -9,12 +9,12 @@ struct Spacer : WidgetIs<UIWidget::spacer>
 
     SDL_Size calculateWantedSize() override;
 
-    void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect &rectangle) override;
 };
 
 struct Button : WidgetIs<UIWidget::button>
 {
-    void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect &rectangle) override;
 };
 
 struct Label : WidgetIs<UIWidget::label>
@@ -24,7 +24,7 @@ struct Label : WidgetIs<UIWidget::label>
 
     explicit Label();
 
-    void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect &rectangle) override;
 
     SDL_Size calculateWantedSize() override;
 };
@@ -33,7 +33,7 @@ struct PlaceholderWidget : WidgetIs<UIWidget::spacer>
 {
     SDL_Size calculateWantedSize() override;
 
-    void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect &rectangle) override;
 };
 
 #define ComboBox PlaceholderWidget
@@ -52,7 +52,7 @@ struct CheckBox : WidgetIs<UIWidget::checkbox>
 
     SDL_Size calculateWantedSize() override;
 
-    void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect &rectangle) override;
 };
 
 
@@ -64,7 +64,7 @@ struct RadioButton : WidgetIs<UIWidget::checkbox>
 
     SDL_Size calculateWantedSize() override;
 
-    void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect &rectangle) override;
 };
 
 #define ScrollView PlaceholderWidget
@@ -78,7 +78,7 @@ struct Slider : WidgetIs<UIWidget::progressbar>
 
     SDL_Size calculateWantedSize() override;
 
-    void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect &rectangle) override;
 };
 
 struct ProgressBar : WidgetIs<UIWidget::progressbar>
@@ -90,7 +90,7 @@ struct ProgressBar : WidgetIs<UIWidget::progressbar>
 
     SDL_Size calculateWantedSize() override;
 
-    void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect &rectangle) override;
 };
 
 #define SpinEdit PlaceholderWidget
@@ -99,13 +99,13 @@ struct Separator : WidgetIs<UIWidget::separator>
 {
     SDL_Size calculateWantedSize() override;
 
-    void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect &rectangle) override;
 };
 
 
 struct Panel : WidgetIs<UIWidget::panel>
 {
-    void paintWidget(RenderContext & context, const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect &rectangle) override;
 };
 
 

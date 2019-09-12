@@ -5,18 +5,18 @@ SDL_Size Spacer::calculateWantedSize()
     return sizeHint;
 }
 
-void Spacer::paintWidget(RenderContext &, const SDL_Rect &)
+void Spacer::paintWidget(const SDL_Rect &)
 {
 
 }
 
-void Button::paintWidget(RenderContext & context, const SDL_Rect &rectangle)
+void Button::paintWidget(const SDL_Rect &rectangle)
 {
-    context.renderer.setColor(0x80, 0x80, 0x80);
-    context.renderer.fillRect(rectangle);
+    context().renderer.setColor(0x80, 0x80, 0x80);
+    context().renderer.fillRect(rectangle);
 
-    context.renderer.setColor(0xFF, 0xFF, 0xFF);
-    context.renderer.drawRect(rectangle);
+    context().renderer.setColor(0xFF, 0xFF, 0xFF);
+    context().renderer.drawRect(rectangle);
 }
 
 Label::Label()
@@ -26,17 +26,17 @@ Label::Label()
     verticalAlignment = VAlignment::middle;
 }
 
-void Label::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
+void Label::paintWidget(const SDL_Rect &rectangle)
 {
-    auto & fc = RenderContext::current().getFont(font);
+    auto & fc = context().getFont(font);
     auto * tex = fc.render(text);
 
-    context.renderer.copy(tex, rectangle); // stretch for now...
+    context().renderer.copy(tex, rectangle); // stretch for now...
 }
 
 SDL_Size Label::calculateWantedSize()
 {
-    auto & fc = RenderContext::current().getFont(font);
+    auto & fc = context().getFont(font);
     auto * tex = fc.render(text);
     if(not tex)
         return { 0, TTF_FontHeight(fc.font.get()) };
@@ -50,24 +50,24 @@ SDL_Size PlaceholderWidget::calculateWantedSize()
     return { 32, 32 };
 }
 
-void PlaceholderWidget::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
+void PlaceholderWidget::paintWidget(const SDL_Rect &rectangle)
 {
-    context.renderer.setColor(0xFF, 0x00, 0xFF);
-    context.renderer.fillRect(rectangle);
+    context().renderer.setColor(0xFF, 0x00, 0xFF);
+    context().renderer.fillRect(rectangle);
 
-    context.renderer.setColor(0xFF, 0xFF, 0xFF);
-    context.renderer.drawLine(rectangle.x, rectangle.y, rectangle.x + rectangle.w, rectangle.y + rectangle.h);
-    context.renderer.drawLine(rectangle.x + rectangle.w, rectangle.y, rectangle.x, rectangle.y + rectangle.h);
-    context.renderer.drawRect(rectangle);
+    context().renderer.setColor(0xFF, 0xFF, 0xFF);
+    context().renderer.drawLine(rectangle.x, rectangle.y, rectangle.x + rectangle.w, rectangle.y + rectangle.h);
+    context().renderer.drawLine(rectangle.x + rectangle.w, rectangle.y, rectangle.x, rectangle.y + rectangle.h);
+    context().renderer.drawRect(rectangle);
 }
 
-void Panel::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
+void Panel::paintWidget(const SDL_Rect &rectangle)
 {
-    context.renderer.setColor(0x30, 0x00, 0x30);
-    context.renderer.fillRect(rectangle);
+    context().renderer.setColor(0x30, 0x00, 0x30);
+    context().renderer.fillRect(rectangle);
 
-    context.renderer.setColor(0xFF, 0xFF, 0xFF);
-    context.renderer.drawRect(rectangle);
+    context().renderer.setColor(0xFF, 0xFF, 0xFF);
+    context().renderer.drawRect(rectangle);
 }
 
 SDL_Size Separator::calculateWantedSize()
@@ -75,18 +75,18 @@ SDL_Size Separator::calculateWantedSize()
     return { 5, 5 };
 }
 
-void Separator::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
+void Separator::paintWidget(const SDL_Rect &rectangle)
 {
-    context.renderer.setColor(0xFF, 0xFF, 0xFF);
+    context().renderer.setColor(0xFF, 0xFF, 0xFF);
     if(rectangle.w > rectangle.h)
     {
         int y = rectangle.y + rectangle.h / 2;
-        context.renderer.drawLine(rectangle.x, y, rectangle.x + rectangle.w, y);
+        context().renderer.drawLine(rectangle.x, y, rectangle.x + rectangle.w, y);
     }
     else
     {
         int x = rectangle.x + rectangle.w / 2;
-        context.renderer.drawLine(x, rectangle.y, x, rectangle.y + rectangle.h);
+        context().renderer.drawLine(x, rectangle.y, x, rectangle.y + rectangle.h);
     }
 }
 
@@ -95,13 +95,13 @@ SDL_Size ProgressBar::calculateWantedSize()
     return { 256, 32 };
 }
 
-void ProgressBar::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
+void ProgressBar::paintWidget(const SDL_Rect &rectangle)
 {
-    context.renderer.setColor(0x30, 0x30, 0x30);
-    context.renderer.fillRect(rectangle);
+    context().renderer.setColor(0x30, 0x30, 0x30);
+    context().renderer.fillRect(rectangle);
 
-    context.renderer.setColor(0xFF, 0xFF, 0xFF);
-    context.renderer.drawRect(rectangle);
+    context().renderer.setColor(0xFF, 0xFF, 0xFF);
+    context().renderer.drawRect(rectangle);
 
     SDL_Rect progressArea = {
         rectangle.x + 1,
@@ -110,8 +110,8 @@ void ProgressBar::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
         rectangle.h - 2
     };
 
-    context.renderer.setColor(0x00, 0x00, 0xFF);
-    context.renderer.fillRect(progressArea);
+    context().renderer.setColor(0x00, 0x00, 0xFF);
+    context().renderer.fillRect(progressArea);
 
     std::string caption;
     switch(displayProgress)
@@ -128,7 +128,7 @@ void ProgressBar::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
     }
     if(not caption.empty())
     {
-        auto * tex = context.getFont(UIFont::sans).render(caption);
+        auto * tex = context().getFont(UIFont::sans).render(caption);
 
         int w,h;
         SDL_QueryTexture(tex, nullptr, nullptr, &w, &h);
@@ -137,7 +137,7 @@ void ProgressBar::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
             rectangle.y + (rectangle.h - h) / 2,
             w, h
         };
-        context.renderer.copy(tex, label);
+        context().renderer.copy(tex, label);
     }
 }
 
@@ -152,25 +152,25 @@ SDL_Size CheckBox::calculateWantedSize()
     return { 32, 32 };
 }
 
-void CheckBox::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
+void CheckBox::paintWidget(const SDL_Rect &rectangle)
 {
-    context.renderer.setColor(0x30, 0x30, 0x30);
-    context.renderer.fillRect(rectangle);
+    context().renderer.setColor(0x30, 0x30, 0x30);
+    context().renderer.fillRect(rectangle);
 
     if(isChecked)
-        context.renderer.setColor(0xD0, 0xD0, 0xD0);
+        context().renderer.setColor(0xD0, 0xD0, 0xD0);
     else
-        context.renderer.setColor(0x40, 0x40, 0x40);
+        context().renderer.setColor(0x40, 0x40, 0x40);
 
-    context.renderer.fillRect({
+    context().renderer.fillRect({
         rectangle.x + 6,
         rectangle.y + 6,
         rectangle.w - 12,
         rectangle.h - 12,
     });
 
-    context.renderer.setColor(0xFF, 0xFF, 0xFF);
-    context.renderer.drawRect(rectangle);
+    context().renderer.setColor(0xFF, 0xFF, 0xFF);
+    context().renderer.drawRect(rectangle);
 }
 
 RadioButton::RadioButton()
@@ -184,7 +184,7 @@ SDL_Size RadioButton::calculateWantedSize()
     return { 32, 32 };
 }
 
-void RadioButton::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
+void RadioButton::paintWidget(const SDL_Rect &rectangle)
 {
     int centerX = rectangle.x + rectangle.w / 2;
     int centerY = rectangle.y + rectangle.h / 2;
@@ -202,14 +202,14 @@ void RadioButton::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
     }
 
     if(isChecked)
-        context.renderer.setColor(0xD0, 0xD0, 0xD0);
+        context().renderer.setColor(0xD0, 0xD0, 0xD0);
     else
-        context.renderer.setColor(0x40, 0x40, 0x40);
+        context().renderer.setColor(0x40, 0x40, 0x40);
 
-    context.renderer.drawLines(circleB, 36);
+    context().renderer.drawLines(circleB, 36);
 
-    context.renderer.setColor(0xFF, 0xFF, 0xFF);
-    context.renderer.drawLines(circleA, 36);
+    context().renderer.setColor(0xFF, 0xFF, 0xFF);
+    context().renderer.drawLines(circleA, 36);
 }
 
 SDL_Size Slider::calculateWantedSize()
@@ -217,7 +217,7 @@ SDL_Size Slider::calculateWantedSize()
     return { 32, 32 };
 }
 
-void Slider::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
+void Slider::paintWidget(const SDL_Rect &rectangle)
 {
     int const knobThick = 12;
 
@@ -227,8 +227,8 @@ void Slider::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
 
         int y = rectangle.y + rectangle.h / 2;
 
-        context.renderer.setColor(0xFF, 0xFF, 0xFF);
-        context.renderer.drawLine(
+        context().renderer.setColor(0xFF, 0xFF, 0xFF);
+        context().renderer.drawLine(
             rectangle.x + knobThick / 2,
             y,
             rectangle.x + rectangle.w - knobThick / 2,
@@ -242,11 +242,11 @@ void Slider::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
             rectangle.h
         };
 
-        context.renderer.setColor(0xC0, 0xC0, 0xC0);
-        context.renderer.fillRect(knob);
+        context().renderer.setColor(0xC0, 0xC0, 0xC0);
+        context().renderer.fillRect(knob);
 
-        context.renderer.setColor(0xFF, 0xFF, 0xFF);
-        context.renderer.drawRect(knob);
+        context().renderer.setColor(0xFF, 0xFF, 0xFF);
+        context().renderer.drawRect(knob);
     }
     else
     {
@@ -254,8 +254,8 @@ void Slider::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
 
         int x = rectangle.x + rectangle.w / 2;
 
-        context.renderer.setColor(0xFF, 0xFF, 0xFF);
-        context.renderer.drawLine(
+        context().renderer.setColor(0xFF, 0xFF, 0xFF);
+        context().renderer.drawLine(
             x,
             rectangle.y + knobThick / 2,
             x,
@@ -269,10 +269,10 @@ void Slider::paintWidget(RenderContext &context, const SDL_Rect &rectangle)
             knobThick,
         };
 
-        context.renderer.setColor(0xC0, 0xC0, 0xC0);
-        context.renderer.fillRect(knob);
+        context().renderer.setColor(0xC0, 0xC0, 0xC0);
+        context().renderer.fillRect(knob);
 
-        context.renderer.setColor(0xFF, 0xFF, 0xFF);
-        context.renderer.drawRect(knob);
+        context().renderer.setColor(0xFF, 0xFF, 0xFF);
+        context().renderer.drawRect(knob);
     }
 }

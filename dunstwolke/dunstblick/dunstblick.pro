@@ -15,6 +15,7 @@ SOURCES += \
         layouts.cpp \
         main.cpp \
         rendercontext.cpp \
+        resources.cpp \
         types.cpp \
         widget.cpp \
         widget.create.cpp \
@@ -27,6 +28,7 @@ HEADERS += \
   layoutparser.hpp \
   layouts.hpp \
   rendercontext.hpp \
+  resources.hpp \
   types.hpp \
   types.variant.hpp \
   widget.hpp \

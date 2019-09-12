@@ -14,13 +14,8 @@ struct RenderContext
     explicit RenderContext(sdl2::renderer && ren, char const * sansTTF, char const * serifTTF, char const * monoTTF);
 
     FontCache & getFont(UIFont font);
-
-public:
-    static inline RenderContext * _current = nullptr;
-
-    static void setCurrent(RenderContext * ctx);
-
-    static RenderContext & current();
 };
+
+RenderContext & context();
 
 #endif // RENDERCONTEXT_HPP

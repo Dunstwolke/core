@@ -9,11 +9,6 @@ StackLayout::StackLayout(StackDirection dir) :
 {
 }
 
-void StackLayout::paintWidget(RenderContext &, const SDL_Rect &)
-{
-    // layouts don't have visuals
-}
-
 void StackLayout::layoutChildren(const SDL_Rect &_rect)
 {
     if(direction == StackDirection::vertical)
@@ -73,11 +68,6 @@ SDL_Size StackLayout::calculateWantedSize()
 /*******************************************************************************
  * Dock  Layout                                                                *
  ******************************************************************************/
-
-void DockLayout::paintWidget(RenderContext &, const SDL_Rect &)
-{
-    // layouts don't have visuals
-}
 
 void DockLayout::layoutChildren(const SDL_Rect &_rect)
 {
@@ -217,9 +207,9 @@ void TabLayout::layoutChildren(const SDL_Rect &childArea)
     }
 }
 
-void TabLayout::paintWidget(RenderContext & context, const SDL_Rect & rectangle)
+void TabLayout::paintWidget(const SDL_Rect & rectangle)
 {
-    auto & ren = context.renderer;
+    auto & ren = context().renderer;
 
     ren.setColor(0x30, 0x30, 0x30);
     ren.fillRect(rectangle);
@@ -236,7 +226,7 @@ void TabLayout::paintWidget(RenderContext & context, const SDL_Rect & rectangle)
         if(not children[index]->hidden_by_layout and children[index]->getActualVisibility() != Visibility::visible)
             continue;
 
-        auto * tex = context.getFont(UIFont::sans).render(children[index]->tabTitle);
+        auto * tex = context().getFont(UIFont::sans).render(children[index]->tabTitle);
 
         int w = 0, h = 0;
         if(tex != nullptr) {
@@ -269,11 +259,6 @@ void TabLayout::paintWidget(RenderContext & context, const SDL_Rect & rectangle)
 
     ren.setColor(0xFF, 0xFF, 0xFF);
     ren.drawRect(rectangle);
-}
-
-void GridLayout::paintWidget(RenderContext &, const SDL_Rect &)
-{
-    /* wellp */
 }
 
 void GridLayout::layoutChildren(const SDL_Rect &childArea)
@@ -413,11 +398,6 @@ size_t GridLayout::getColumnCount() const
         return (children.size() + rows->size() - 1) / rows->size();
 }
 
-void CanvasLayout::paintWidget(RenderContext &, const SDL_Rect &)
-{
-
-}
-
 void CanvasLayout::layoutChildren(const SDL_Rect &childArea)
 {
     for(auto & child : this->children)
@@ -445,11 +425,6 @@ SDL_Size CanvasLayout::calculateWantedSize()
         size.h = std::max(size.h, child->top + cs.h);
     }
     return size;
-}
-
-void FlowLayout::paintWidget(RenderContext &, const SDL_Rect &)
-{
-    /* nope */
 }
 
 void FlowLayout::layoutChildren(const SDL_Rect &childArea)

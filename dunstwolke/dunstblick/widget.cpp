@@ -107,28 +107,33 @@ void Widget::layout(SDL_Rect const & _bounds)
 void Widget::layoutChildren(SDL_Rect const & rect)
 {
     for(auto & child : children)
-        child->layout(rect);
+			child->layout(rect);
+}
+
+void Widget::paintWidget(const SDL_Rect & rectangle)
+{
+	/* draw nothing by default */
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Stage 3:
 /// Rendering
 
-void Widget::paint(RenderContext & context)
+void Widget::paint()
 {
-    context.renderer.setClipRect(actual_bounds);
+    context().renderer.setClipRect(actual_bounds);
 
-    context.renderer.setColor(0xFF, 0x00, 0xFF, 0x40);
-    context.renderer.fillRect(actual_bounds);
+    context().renderer.setColor(0xFF, 0x00, 0xFF, 0x40);
+    context().renderer.fillRect(actual_bounds);
 
-    this->paintWidget(context, actual_bounds);
+    this->paintWidget(actual_bounds);
 
-    context.renderer.resetClipRect();
+    context().renderer.resetClipRect();
     for(auto & child : children)
     {
         // only draw visible children
         if(child->getActualVisibility() == Visibility::visible)
-            child->paint(context);
+            child->paint();
     }
 }
 
@@ -207,6 +212,7 @@ std::map<UIProperty, GetPropertyFunction> const MetaWidget::defaultProperties = 
     MetaProperty { UIProperty::tabTitle, &Widget::tabTitle },
     MetaProperty { UIProperty::left, &Widget::left },
     MetaProperty { UIProperty::top, &Widget::top },
+    MetaProperty { UIProperty::enabled, &Widget::enabled },
 });
 
 std::map<UIWidget, MetaWidget> const metaWidgets

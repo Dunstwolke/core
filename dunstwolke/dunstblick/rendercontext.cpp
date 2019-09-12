@@ -18,13 +18,3 @@ FontCache & RenderContext::getFont(UIFont font)
     case UIFont::monospace: return monospaceFont;
     }
 }
-
-void RenderContext::setCurrent(RenderContext *ctx)
-{
-    _current = ctx;
-}
-
-RenderContext &RenderContext::current()
-{
-    return *_current;
-}

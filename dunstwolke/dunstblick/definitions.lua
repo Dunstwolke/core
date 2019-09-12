@@ -99,6 +99,7 @@ properties =
 	{  19, "rows",                 "rows",                   "sizelist"    },
 	{  20, "left",                 "left",                   "integer"     },
 	{  21, "top",                  "top",                    "integer"     },
+	{  22, "enabled",              "enabled",                "boolean"     },
 },
 
 groups = 

@@ -54,6 +54,7 @@ static const std::map<std::string, UIProperty> properties =
 	 { "rows", UIProperty::rows },
 	 { "left", UIProperty::left },
 	 { "top", UIProperty::top },
+	 { "enabled", UIProperty::enabled },
 };
 
 static const std::map<std::string, uint8_t> enumerations =

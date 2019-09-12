@@ -26,6 +26,7 @@ UIType getPropertyType(UIProperty property)
 		case UIProperty::rows: return UIType::sizelist;
 		case UIProperty::left: return UIType::integer;
 		case UIProperty::top: return UIType::integer;
+		case UIProperty::enabled: return UIType::boolean;
 	}
 	assert(false and "invalid property was passed to getPropertyType!");
 }
@@ -55,6 +56,7 @@ std::string to_string(UIProperty property)
 		case UIProperty::rows: return "rows";
 		case UIProperty::left: return "left";
 		case UIProperty::top: return "top";
+		case UIProperty::enabled: return "enabled";
 	}
 	return "property(" + std::to_string(int(property)) + ")";
 }
