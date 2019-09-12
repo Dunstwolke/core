@@ -24,6 +24,9 @@ identifiers = {
 	{  20, "monospace",  nil    },
 	{  21, "percent",    nil    },
 	{  22, "absolute",   nil    },
+	{  23, "zoom",       nil    },
+	{  24, "contain",    nil    },
+	{  25, "cover",      nil    },
 },
 
 widgets = {
@@ -100,6 +103,8 @@ properties =
 	{  20, "left",                 "left",                   "integer"     },
 	{  21, "top",                  "top",                    "integer"     },
 	{  22, "enabled",              "enabled",                "boolean"     },
+    {  23, "imageScaling",         "image-scaling",          "enumeration" },
+    {  24, "image",                "image",                  "resource"    },
 },
 
 groups = 
@@ -111,6 +116,7 @@ groups =
 	["StackDirection"]       = { "vertical", "horizontal" },
 	["DockSite"]             = { "top", "bottom", "left", "right" },
 	["DisplayProgressStyle"] = { "none", "percent", "absolute" },
+	["ImageScaling"]         = { "none", "center", "stretch", "zoom", "contain", "cover" },
 },
 
 };

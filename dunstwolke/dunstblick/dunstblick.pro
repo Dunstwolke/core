@@ -3,7 +3,7 @@ CONFIG += console c++17
 CONFIG -= app_bundle
 CONFIG -= qt
 
-XQLIB += sdl2 sdl2_ttf network io
+XQLIB += sdl2 sdl2_image sdl2_ttf network io
 
 include($$(XQLIB_ROOT)/xqlib.pri)
 

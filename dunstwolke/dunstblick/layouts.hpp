@@ -65,11 +65,7 @@ struct CanvasLayout : WidgetIs<UIWidget::canvas_layout>
 
 struct FlowLayout : WidgetIs<UIWidget::flow_layout>
 {
-    property<SDL_Size> sizeHint = SDL_Size { 256, 256 };
-
     void layoutChildren(SDL_Rect const & childArea) override;
-
-    SDL_Size calculateWantedSize() override;
 };
 
 

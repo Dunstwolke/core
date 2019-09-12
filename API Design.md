@@ -9,4 +9,5 @@ data = raw data
 - UploadResource(rid, data)
 - SetView(rid)
 - SetRoot(obj)
-- SetProperty(oid, 
+- SetProperty(oid, idx, type, value)
+

@@ -64,6 +64,14 @@ struct property : BaseProperty
         return *this;
     }
 
+		T & operator* () {
+			return value;
+		}
+
+		T const & operator* () const {
+			return value;
+		}
+
     operator T() const {
         return value;
     }
@@ -119,6 +127,7 @@ public: // deserializable properties
     property<UIMargin> margins = UIMargin(4);
     property<UIMargin> paddings = UIMargin(0);
     property<bool> enabled = true;
+		property<SDL_Size> sizeHint = SDL_Size { 0, 0 };
 
     // dock layout
     property<DockSite> dockSite = DockSite::top;
@@ -129,6 +138,7 @@ public: // deserializable properties
     // canvas layout
     property<int> left = 0;
     property<int> top = 0;
+
 
 public: // layouting and rendering
     /// the space the widget says it needs to have.

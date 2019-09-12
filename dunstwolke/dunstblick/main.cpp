@@ -1,4 +1,5 @@
 #include <SDL.h>
+#include <SDL_image.h>
 #include <sdl2++/renderer>
 #include <vector>
 #include <filesystem>
@@ -6,6 +7,7 @@
 #include "widget.hpp"
 #include "layouts.hpp"
 #include "widgets.hpp"
+#include "resources.hpp"
 
 #include "inputstream.hpp"
 
@@ -41,6 +43,9 @@ static UIValue deserialize_value(UIType type, InputStream & stream)
 
 		case UIType::integer:
 			return gsl::narrow<int>(stream.read_uint());
+
+		case UIType::resource:
+			return UIResourceID(stream.read_uint());
 
 		case UIType::number:
 			return gsl::narrow<float>(stream.read_float());
@@ -144,20 +149,54 @@ static std::unique_ptr<Widget> deserialize_widget(InputStream & stream)
 	return deserialize_widget(widgetType, stream);
 }
 
+static std::map<UIResourceID, Resource> resources;
+
+xstd::optional<Resource const &> find_resource(UIResourceID id)
+{
+	if(auto it = resources.find(id); it != resources.end())
+		return it->second;
+	else
+		return xstd::nullopt;
+}
+
+void set_resource(UIResourceID id, Resource && resource)
+{
+	if(auto it = resources.find(id); it != resources.end())
+		it->second = std::move(resource);
+	else
+		resources.emplace(id, std::move(resource));
+}
+
+static SDL_Rect screen_rect = { 0, 0, 0, 0 };
+
+static void update_layout()
+{
+	root_widget->updateWantedSize();
+	root_widget->layout(screen_rect);
+}
+
+static void set_ui_root(UIResourceID id)
+{
+	if(auto resource = find_resource(id); resource)
+	{
+		if(resource->index() != int(ResourceKind::layout))
+			throw std::runtime_error("invalid resource: wrong kind!");
+
+		auto const & layout = std::get<LayoutResource>(*resource);
+
+		InputStream stream = layout.get_stream();
+
+		root_widget = deserialize_widget(stream);
+
+		update_layout();
+	}
+}
+
 #include <fstream>
 
 int main()
 {
-	printf("cwd = %s\n", std::filesystem::current_path().c_str());
-	fflush(stdout);
-
-	std::ifstream input_src("./dunstblick/development.uit");
-
-	std::stringstream formDataBuffer;
-
-	LayoutParser layout_parser;
-	layout_parser.compile(input_src, formDataBuffer);
-
+	//////////////////////////////////////////////////////////////////////////////
 	if(SDL_Init(SDL_INIT_EVERYTHING) < 0) {
 		exit_sdl_error();
 	}
@@ -167,6 +206,13 @@ int main()
 		exit_sdl_error();
 	}
 	atexit(TTF_Quit);
+
+	if(IMG_Init(IMG_INIT_PNG) < 0) {
+		exit_sdl_error();
+	}
+	atexit(IMG_Quit);
+
+	//////////////////////////////////////////////////////////////////////////////
 
 	SDL_Window * window = SDL_CreateWindow(
 	      "DunstBlick Frontend",
@@ -178,6 +224,8 @@ int main()
 		exit_sdl_error();
 	}
 
+	SDL_GetWindowSize(window, &screen_rect.w, &screen_rect.h);
+
 	current_rc = std::make_unique<RenderContext>(
 		sdl2::renderer { window },
 		"./fonts/Roboto-Regular.ttf",
@@ -187,25 +235,31 @@ int main()
 
 	context().renderer.setBlendMode(SDL_BLENDMODE_BLEND); // enable alpha blend
 
+	//////////////////////////////////////////////////////////////////////////////
 
 
-	auto const formData = formDataBuffer.str();
-	InputStream formStream(reinterpret_cast<uint8_t const *>(formData.data()), formData.size());
-
-	root_widget = deserialize_widget(formStream);
-
-	auto layout_ui = [&](int w, int h)
-	{
-		SDL_Rect screen_rect = { 0, 0, w, h };
-
-		root_widget->updateWantedSize();
-		root_widget->layout(screen_rect);
-	};
 
 
-	int w, h;
-	SDL_GetWindowSize(window, &w, &h);
-	layout_ui(w, h);
+	printf("cwd = %s\n", std::filesystem::current_path().c_str());
+	fflush(stdout);
+
+	std::ifstream input_src("./dunstblick/development.uit");
+
+	std::stringstream formDataBuffer;
+
+	LayoutParser layout_parser;
+	layout_parser.compile(input_src, formDataBuffer);
+
+	auto formData = formDataBuffer.str();
+	set_resource(UIResourceID(1), LayoutResource(reinterpret_cast<uint8_t const *>(formData.data()), formData.size()));
+
+	auto * tex = IMG_LoadTexture(context().renderer, "./images/small-test.png");
+
+	set_resource(UIResourceID(2), BitmapResource(sdl2::texture(std::move(tex))));
+
+	//////////////////////////////////////////////////////////////////////////////
+
+	set_ui_root(UIResourceID(1));
 
 	while(not shutdown_app_requested)
 	{
@@ -224,7 +278,9 @@ int main()
 					switch(e.window.event)
 					{
 						case SDL_WINDOWEVENT_RESIZED:
-							layout_ui(e.window.data1, e.window.data2);
+							screen_rect.w = e.window.data1;
+							screen_rect.h = e.window.data2;
+							update_layout();
 							break;
 					}
 					break;

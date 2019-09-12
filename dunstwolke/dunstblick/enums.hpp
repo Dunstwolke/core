@@ -31,6 +31,9 @@ namespace UIEnum
 	constexpr uint8_t monospace = 20;
 	constexpr uint8_t percent = 21;
 	constexpr uint8_t absolute = 22;
+	constexpr uint8_t zoom = 23;
+	constexpr uint8_t contain = 24;
+	constexpr uint8_t cover = 25;
 }
 
 enum class UIWidget : uint8_t
@@ -88,6 +91,8 @@ enum class UIProperty : uint8_t
 	left = 20,
 	top = 21,
 	enabled = 22,
+	imageScaling = 23,
+	image = 24,
 };
 
 enum class UIType : uint8_t
@@ -106,6 +111,52 @@ enum class UIType : uint8_t
 	sizelist = 11,
 };
 
+enum class VAlignment : uint8_t
+{
+	stretch = UIEnum::stretch,
+	top = UIEnum::top,
+	middle = UIEnum::middle,
+	bottom = UIEnum::bottom,
+};
+
+enum class Visibility : uint8_t
+{
+	visible = UIEnum::visible,
+	collapsed = UIEnum::collapsed,
+	hidden = UIEnum::hidden,
+};
+
+enum class ImageScaling : uint8_t
+{
+	none = UIEnum::none,
+	center = UIEnum::center,
+	stretch = UIEnum::stretch,
+	zoom = UIEnum::zoom,
+	contain = UIEnum::contain,
+	cover = UIEnum::cover,
+};
+
+enum class DisplayProgressStyle : uint8_t
+{
+	none = UIEnum::none,
+	percent = UIEnum::percent,
+	absolute = UIEnum::absolute,
+};
+
+enum class DockSite : uint8_t
+{
+	top = UIEnum::top,
+	bottom = UIEnum::bottom,
+	left = UIEnum::left,
+	right = UIEnum::right,
+};
+
+enum class StackDirection : uint8_t
+{
+	vertical = UIEnum::vertical,
+	horizontal = UIEnum::horizontal,
+};
+
 enum class UIFont : uint8_t
 {
 	sans = UIEnum::sans,
@@ -119,42 +170,6 @@ enum class HAlignment : uint8_t
 	left = UIEnum::left,
 	center = UIEnum::center,
 	right = UIEnum::right,
-};
-
-enum class DisplayProgressStyle : uint8_t
-{
-	none = UIEnum::none,
-	percent = UIEnum::percent,
-	absolute = UIEnum::absolute,
-};
-
-enum class Visibility : uint8_t
-{
-	visible = UIEnum::visible,
-	collapsed = UIEnum::collapsed,
-	hidden = UIEnum::hidden,
-};
-
-enum class StackDirection : uint8_t
-{
-	vertical = UIEnum::vertical,
-	horizontal = UIEnum::horizontal,
-};
-
-enum class DockSite : uint8_t
-{
-	top = UIEnum::top,
-	bottom = UIEnum::bottom,
-	left = UIEnum::left,
-	right = UIEnum::right,
-};
-
-enum class VAlignment : uint8_t
-{
-	stretch = UIEnum::stretch,
-	top = UIEnum::top,
-	middle = UIEnum::middle,
-	bottom = UIEnum::bottom,
 };
 
 UIType getPropertyType(UIProperty property);

@@ -477,14 +477,3 @@ void FlowLayout::layoutChildren(const SDL_Rect &childArea)
         children[i]->hidden_by_layout = true;
     }
 }
-
-SDL_Size FlowLayout::calculateWantedSize()
-{
-    auto size = Widget::calculateWantedSize();
-
-    size.w = std::max(size.w, sizeHint->w);
-    size.h = std::max(size.h, sizeHint->h);
-
-    // todo: calculate height from sizeHint width
-    return sizeHint;
-}

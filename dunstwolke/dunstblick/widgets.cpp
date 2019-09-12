@@ -1,9 +1,5 @@
 #include "widgets.hpp"
-
-SDL_Size Spacer::calculateWantedSize()
-{
-    return sizeHint;
-}
+#include "resources.hpp"
 
 void Spacer::paintWidget(const SDL_Rect &)
 {
@@ -275,4 +271,120 @@ void Slider::paintWidget(const SDL_Rect &rectangle)
         context().renderer.setColor(0xFF, 0xFF, 0xFF);
         context().renderer.drawRect(knob);
     }
+}
+
+void Picture::paintWidget(const SDL_Rect & rectangle)
+{
+	if(auto bmp = get_resource<BitmapResource>(image); bmp)
+	{
+		auto const [ format, access, w, h ] = bmp->texture.query();
+
+		float targetAspect = float(rectangle.w) / float(rectangle.h);
+		float sourceAspect = float(w) / float(h);
+
+		switch(*scaling)
+		{
+			case ImageScaling::none:
+			{
+				int clipped_w = std::min(w, rectangle.w);
+				int clipped_h = std::min(h, rectangle.h);
+				context().renderer.copy(
+					bmp->texture,
+					SDL_Rect { rectangle.x, rectangle.y, clipped_w, clipped_h },
+					SDL_Rect { 0, 0, clipped_w, clipped_h }
+				);
+				break;
+			}
+			case ImageScaling::stretch:
+				context().renderer.copy(bmp->texture, rectangle);
+				break;
+			case ImageScaling::center:
+			{
+				context().renderer.copy(bmp->texture, {
+					rectangle.x + (rectangle.w - w) / 2,
+					rectangle.y + (rectangle.h - h) / 2,
+					w,
+					h
+				});
+				break;
+			}
+
+			case ImageScaling::contain:
+			{
+				float scale;
+				if(w <= rectangle.w and h <= rectangle.h)
+				{
+					scale = 1.0f;
+				}
+				else
+				{
+					// scale down the image to fit
+					scale = (sourceAspect > targetAspect) ? float(rectangle.w) / float(w) : float(rectangle.h) / float(h);
+				}
+
+				int scaled_w = int(scale * w + 0.5f);
+				int scaled_h = int(scale * h + 0.5f);
+
+				// just center the image as it is contained
+				context().renderer.copy(bmp->texture, {
+					rectangle.x + (rectangle.w - scaled_w) / 2,
+					rectangle.y + (rectangle.h - scaled_h) / 2,
+					scaled_w,
+					scaled_h
+				});
+				break;
+			}
+
+			case ImageScaling::zoom:
+			{
+				float scale = (sourceAspect > targetAspect) ? float(rectangle.w) / float(w) : float(rectangle.h) / float(h);
+
+				int scaled_w = int(scale * w + 0.5f);
+				int scaled_h = int(scale * h + 0.5f);
+
+				// just center the image as it is contained
+				context().renderer.copy(bmp->texture, {
+					rectangle.x + (rectangle.w - scaled_w) / 2,
+					rectangle.y + (rectangle.h - scaled_h) / 2,
+					scaled_w,
+					scaled_h
+				});
+				break;
+			}
+
+
+			case ImageScaling::cover:
+			{
+				float scale = (sourceAspect < targetAspect) ? float(rectangle.w) / float(w) : float(rectangle.h) / float(h);
+
+				int scaled_w = int(scale * w + 0.5f);
+				int scaled_h = int(scale * h + 0.5f);
+
+				// just center the image as it is contained
+				context().renderer.copy(bmp->texture, {
+					rectangle.x + (rectangle.w - scaled_w) / 2,
+					rectangle.y + (rectangle.h - scaled_h) / 2,
+					scaled_w,
+					scaled_h
+				});
+				break;
+			}
+
+			default:
+				assert(false and "not implemented yet!");
+		}
+	}
+}
+
+SDL_Size Picture::calculateWantedSize()
+{
+	if(auto res = find_resource(image); res and is_bitmap(*res))
+	{
+		auto [ format, access, w, h ] = std::get<BitmapResource>(*res).texture.query();
+		return { w, h };
+	}
+	else
+	{
+		return Widget::calculateWantedSize();
+	}
 }

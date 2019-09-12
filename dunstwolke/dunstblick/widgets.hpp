@@ -5,10 +5,6 @@
 
 struct Spacer : WidgetIs<UIWidget::spacer>
 {
-    property<SDL_Size> sizeHint = SDL_Size { 0, 0 };
-
-    SDL_Size calculateWantedSize() override;
-
     void paintWidget(const SDL_Rect &rectangle) override;
 };
 
@@ -41,7 +37,17 @@ struct PlaceholderWidget : WidgetIs<UIWidget::spacer>
 #define TreeView PlaceholderWidget
 #define ListBoxItem PlaceholderWidget
 #define ListBox PlaceholderWidget
-#define Picture PlaceholderWidget
+
+struct Picture : WidgetIs<UIWidget::picture>
+{
+    property<UIResourceID> image;
+		property<ImageScaling> scaling = ImageScaling::stretch;
+
+    void paintWidget(const SDL_Rect &rectangle) override;
+
+    SDL_Size calculateWantedSize() override;
+};
+
 #define TextBox PlaceholderWidget
 
 struct CheckBox : WidgetIs<UIWidget::checkbox>

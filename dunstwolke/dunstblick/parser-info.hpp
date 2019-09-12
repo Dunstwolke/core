@@ -55,6 +55,8 @@ static const std::map<std::string, UIProperty> properties =
 	 { "left", UIProperty::left },
 	 { "top", UIProperty::top },
 	 { "enabled", UIProperty::enabled },
+	 { "image-scaling", UIProperty::imageScaling },
+	 { "image", UIProperty::image },
 };
 
 static const std::map<std::string, uint8_t> enumerations =
@@ -82,4 +84,7 @@ static const std::map<std::string, uint8_t> enumerations =
 	 { "monospace", UIEnum::monospace },
 	 { "percent", UIEnum::percent },
 	 { "absolute", UIEnum::absolute },
+	 { "zoom", UIEnum::zoom },
+	 { "contain", UIEnum::contain },
+	 { "cover", UIEnum::cover },
 };

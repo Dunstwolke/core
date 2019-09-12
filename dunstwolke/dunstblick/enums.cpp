@@ -27,6 +27,8 @@ UIType getPropertyType(UIProperty property)
 		case UIProperty::left: return UIType::integer;
 		case UIProperty::top: return UIType::integer;
 		case UIProperty::enabled: return UIType::boolean;
+		case UIProperty::imageScaling: return UIType::enumeration;
+		case UIProperty::image: return UIType::resource;
 	}
 	assert(false and "invalid property was passed to getPropertyType!");
 }
@@ -57,6 +59,8 @@ std::string to_string(UIProperty property)
 		case UIProperty::left: return "left";
 		case UIProperty::top: return "top";
 		case UIProperty::enabled: return "enabled";
+		case UIProperty::imageScaling: return "image-scaling";
+		case UIProperty::image: return "image";
 	}
 	return "property(" + std::to_string(int(property)) + ")";
 }
@@ -120,6 +124,9 @@ std::string to_enum_string(uint8_t enumValue)
 		case 20: return "monospace";
 		case 21: return "percent";
 		case 22: return "absolute";
+		case 23: return "zoom";
+		case 24: return "contain";
+		case 25: return "cover";
 	}
 	return "enum(" + std::to_string(int(enumValue)) + ")";
 }
