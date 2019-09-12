@@ -266,6 +266,9 @@ int main()
 
 	}
 
+	root_widget.reset();
+	current_rc.reset();
+
 	SDL_DestroyWindow(window);
 
 	return 0;
