@@ -29,7 +29,53 @@ static bool shutdown_app_requested = false;
 
 static std::unique_ptr<Widget> root_widget;
 static std::unique_ptr<RenderContext> current_rc;
+
+static Widget * keyboard_focused_widget = nullptr;
+static Widget * mouse_focused_widget = nullptr;
+
+static SDL_Rect screen_rect = { 0, 0, 0, 0 };
+
 static ObjectRef root_object;
+
+static void ui_set_keyboard_focus(Widget * widget)
+{
+	if(keyboard_focused_widget == widget)
+		return;
+
+	if(keyboard_focused_widget != nullptr) {
+		SDL_Event e;
+		e.type = UI_EVENT_LOST_KEYBOARD_FOCUS;
+		e.common.timestamp = SDL_GetTicks();
+		keyboard_focused_widget->processEvent(e);
+	}
+	keyboard_focused_widget = widget;
+	if(keyboard_focused_widget != nullptr) {
+		SDL_Event e;
+		e.type = UI_EVENT_GOT_KEYBOARD_FOCUS;
+		e.common.timestamp = SDL_GetTicks();
+		keyboard_focused_widget->processEvent(e);
+	}
+}
+
+static void ui_set_mouse_focus(Widget * widget)
+{
+	if(mouse_focused_widget == widget)
+		return;
+
+	if(mouse_focused_widget != nullptr) {
+		SDL_Event e;
+		e.type = UI_EVENT_LOST_MOUSE_FOCUS;
+		e.common.timestamp = SDL_GetTicks();
+		mouse_focused_widget->processEvent(e);
+	}
+	mouse_focused_widget = widget;
+	if(mouse_focused_widget != nullptr) {
+		SDL_Event e;
+		e.type = UI_EVENT_GOT_MOUSE_FOCUS;
+		e.common.timestamp = SDL_GetTicks();
+		mouse_focused_widget->processEvent(e);
+	}
+}
 
 RenderContext & context() {
 	return *current_rc;
@@ -179,9 +225,6 @@ static std::unique_ptr<Widget> deserialize_widget(InputStream & stream)
 }
 
 
-static SDL_Rect screen_rect = { 0, 0, 0, 0 };
-
-
 
 static void update_layout()
 {
@@ -203,6 +246,10 @@ static void set_ui_root(UIResourceID id)
 
 		root_widget = deserialize_widget(stream);
 
+		// focused widgets are destroyed, so remove the reference here!
+		keyboard_focused_widget = nullptr;
+		mouse_focused_widget = nullptr;
+
 		update_layout();
 	}
 }
@@ -221,6 +268,7 @@ static void set_object_root(UIResourceID id)
 }
 
 #include <fstream>
+#include <iostream>
 
 int main()
 {
@@ -296,7 +344,7 @@ int main()
 
 	auto & prop2 = root_obj.add(PropertyName(23), ObjectRef { Object { } });
 
-	std::get<ObjectRef>(prop2.value)->add(PropertyName(42), 25.0f);
+	std::get<ObjectRef>(prop2.value)->add(PropertyName(42), 25);
 
 	//////////////////////////////////////////////////////////////////////////////
 	// emulate some API calls here
@@ -317,10 +365,6 @@ int main()
 				case SDL_QUIT:
 					shutdown_app_requested = true;
 					break;
-				case SDL_KEYDOWN:
-					if(e.key.keysym.sym == SDLK_ESCAPE)
-						shutdown_app_requested = true;
-					break;
 				case SDL_WINDOWEVENT:
 					switch(e.window.event)
 					{
@@ -331,6 +375,70 @@ int main()
 							break;
 					}
 					break;
+
+				// keyboard events:
+				case SDL_KEYDOWN:
+				case SDL_KEYUP:
+				case SDL_TEXTEDITING:
+				case SDL_TEXTINPUT:
+				case SDL_KEYMAPCHANGED:
+				{
+					if(keyboard_focused_widget != nullptr)
+					{
+						keyboard_focused_widget->processEvent(e);
+					}
+					break;
+				}
+
+				// mouse events:
+				case SDL_MOUSEMOTION:
+				{
+					if(auto * child = root_widget->hitTest(e.motion.x, e.motion.y); child != nullptr)
+					{
+						ui_set_mouse_focus(child);
+
+						// adjust event
+						e.motion.x -= child->actual_bounds.x;
+						e.motion.y -= child->actual_bounds.y;
+
+						child->processEvent(e);
+					}
+					break;
+				}
+
+				case SDL_MOUSEBUTTONUP:
+				case SDL_MOUSEBUTTONDOWN:
+				{
+					if(auto * child = root_widget->hitTest(e.button.x, e.button.y); child != nullptr)
+					{
+						ui_set_mouse_focus(child);
+
+						if((e.type == SDL_MOUSEBUTTONUP) and (e.button.button == SDL_BUTTON_LEFT))
+							ui_set_keyboard_focus(child);
+
+						// adjust event
+						e.button.x -= child->actual_bounds.x;
+						e.button.y -= child->actual_bounds.y;
+
+						child->processEvent(e);
+					}
+					break;
+				}
+
+				case SDL_MOUSEWHEEL:
+				{
+					if(auto * child = root_widget->hitTest(e.wheel.x, e.wheel.y); child != nullptr)
+					{
+						ui_set_mouse_focus(child);
+
+						// adjust event
+						e.wheel.x -= child->actual_bounds.x;
+						e.wheel.y -= child->actual_bounds.y;
+
+						child->processEvent(e);
+					}
+					break;
+				}
 			}
 		}
 
@@ -357,10 +465,16 @@ int main()
 			int mx, my;
 			SDL_GetMouseState(&mx, &my);
 
-			if(auto * child = root_widget->hitTest(mx, my); child != nullptr)
+			if(mouse_focused_widget != nullptr)
 			{
-				context().renderer.setColor(0xFF, 0x00, 0xFF);
-				context().renderer.drawRect(child->actual_bounds);
+				context().renderer.setColor(0xFF, 0x00, 0x00);
+				context().renderer.drawRect(mouse_focused_widget->actual_bounds);
+			}
+
+			if(keyboard_focused_widget != nullptr)
+			{
+				context().renderer.setColor(0x00, 0xFF, 0x00);
+				context().renderer.drawRect(keyboard_focused_widget->actual_bounds);
 			}
 
 			context().renderer.present();

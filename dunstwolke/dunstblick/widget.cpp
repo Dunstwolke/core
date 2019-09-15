@@ -263,6 +263,12 @@ Widget * Widget::hitTest(int ssx, int ssy)
 	return this;
 }
 
+bool Widget::processEvent(const SDL_Event &)
+{
+	// we don't do events by default
+	return false;
+}
+
 BaseProperty::~BaseProperty()
 {
 

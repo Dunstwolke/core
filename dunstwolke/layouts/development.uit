@@ -8,7 +8,6 @@ StackLayout {
 		text: bind("sinewave");
 	}
 	DockLayout { 
-		stack-direction: horizontal;
 		binding-context: bind("child");
 		Label {
 			dock-site: left;
@@ -22,6 +21,10 @@ StackLayout {
 			dock-site: right;
 			horizontal-alignment: right;
 			image: resource("house.png");
+		}
+		Slider {
+			dock-site: left;
+			value: bind("sinewave");
 		}
 		Slider {
 			value: bind("sinewave");

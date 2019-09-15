@@ -4,6 +4,14 @@
 /* use c++ scanner for reentrance */
 %option c++
 
+%top{
+#pragma clang diagnostic ignored "-Wunused-macros"
+#pragma clang diagnostic ignored "-Wold-style-cast"
+#pragma clang diagnostic ignored "-Wzero-as-null-pointer-constant"
+#pragma clang diagnostic ignored "-Wimplicit-fallthrough"
+#pragma clang diagnostic ignored "-Wextra-semi-stmt"
+}
+
 %{
 #include "layoutparser.hpp"
 
@@ -20,10 +28,6 @@ static CustomBuffer & BufferFromPtr(FlexLexer *);
 %}
 
 %%
-
-%{
-  int something;
-%}
 
 "/*"                    { // parse a comment
                           int c;
@@ -58,7 +62,7 @@ static CustomBuffer & BufferFromPtr(FlexLexer *);
                             }
                             else if(c == eos)
                               break;
-                            result.append(1, c);
+                            result.append(1, char(c));
                           }
                           BufferFromPtr(this).stringContent = result;
                           return int((c == 0) ? LTT::eof : LTT::string);
@@ -96,7 +100,7 @@ FlexLexer * LayoutParser::AllocLexer(std::istream * input)
   lexer->switch_streams(input, nullptr);
 
   auto * cb = new (&bytes[sizeof(LayoutFlexLexer)]) CustomBuffer;
-
+  (void)cb;
   return lexer;
 }
 

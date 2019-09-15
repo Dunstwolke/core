@@ -13,6 +13,7 @@
 #include <functional>
 #include <sdl2++/renderer>
 
+// #include <SDL.h>
 
 // widget layouting algorithm:
 // stage 1:
@@ -20,6 +21,12 @@
 // stage 2:
 //   lay out top-to-bottom each widget into its parent container
 
+// SDL_USEREVENT    = 0x8000,
+
+#define UI_EVENT_GOT_MOUSE_FOCUS     (0x8000 + 0x1000)
+#define UI_EVENT_LOST_MOUSE_FOCUS    (0x8000 + 0x1001)
+#define UI_EVENT_GOT_KEYBOARD_FOCUS  (0x8000 + 0x1002)
+#define UI_EVENT_LOST_KEYBOARD_FOCUS (0x8000 + 0x1003)
 
 struct Widget;
 
@@ -84,7 +91,10 @@ struct MetaProperty
 	template<typename T, typename P, bool B>
 	MetaProperty(UIProperty _name, property<P,B> T::*member) :
 	    name(_name),
-	    getter([=](Widget & w) { return &(static_cast<T*>(&w)->*member); })
+	    getter([=](Widget & w) {
+			auto val = &(static_cast<T*>(&w)->*member);
+			return val;
+		})
 	{
 
 	}
@@ -197,6 +207,11 @@ public:
 	/// @param ssx x coordinate in screen space coordinates
 	/// @param ssy y coordinate in screen space coordinates
 	Widget * hitTest(int ssx, int ssy);
+
+	/// processes an SDL event that has been adjusted for this widget
+	/// @param event the event that should be processed
+	/// @returns true if the event was processed, false otherwise.
+	virtual bool processEvent(SDL_Event const & event);
 
 protected:
 	/// stage1: calculates the space this widget wants to take.

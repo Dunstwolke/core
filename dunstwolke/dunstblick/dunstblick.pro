@@ -41,5 +41,4 @@ LEXSOURCES += \
 
 DISTFILES += \
   definitions.lua \
-  development.uit \
   generator.lua

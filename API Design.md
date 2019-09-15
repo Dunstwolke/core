@@ -62,4 +62,3 @@ problem für die zukunft: template selector für versch. untertypen?!
 - SetRoot(obj)
 - SetProperty(oid, idx, type, value)
 
-

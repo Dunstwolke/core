@@ -8,14 +8,16 @@
 	- [ ] Deserialize Objects
 	- [ ] Refresh objects
 	- [ ] Propagate property changes back
-- [ ] Input Routing
-	- [ ] Mouse
-	- [ ] Keyboard
+- [x] Input Routing
+	- [x] Mouse
+	- [x] Keyboard
+	- [ ] Tab Switch
+	- [ ] Filter keyboard for widgets with tab stop
 - [ ] Add "deferModalDrawing" to render context
 	- allow rendering stuff *after* everything else
 	- required for tooltips and combo boxes
 - [ ] Command API
 	- [ ] Define commands/api/messages
-- [ ] Property bindings
+- [x] Property bindings
 - [ ] implement tool tips
 

@@ -232,7 +232,7 @@ void Slider::paintWidget(const SDL_Rect &rectangle)
         );
 
         SDL_Rect knob {
-            rectangle.x + knobThick / 2 + int((rectangle.w - knobThick) * (value.get(this) - minimum.get(this)) / (maximum.get(this) - minimum.get(this)) + 0.5f) - knobThick / 2,
+            rectangle.x + int((rectangle.w - knobThick - 1) * (value.get(this) - minimum.get(this)) / (maximum.get(this) - minimum.get(this)) + 0.5f),
             rectangle.y,
             knobThick,
             rectangle.h
@@ -260,7 +260,7 @@ void Slider::paintWidget(const SDL_Rect &rectangle)
 
         SDL_Rect knob {
             rectangle.x,
-            rectangle.y + int((rectangle.h - knobThick) * (value.get(this) - minimum.get(this)) / (maximum.get(this) - minimum.get(this)) + 0.5f) - knobThick / 2 ,
+            rectangle.y + int((rectangle.h - knobThick - 1) * (value.get(this) - minimum.get(this)) / (maximum.get(this) - minimum.get(this)) + 0.5f),
             rectangle.w,
             knobThick,
         };
@@ -270,7 +270,60 @@ void Slider::paintWidget(const SDL_Rect &rectangle)
 
         context().renderer.setColor(0xFF, 0xFF, 0xFF);
         context().renderer.drawRect(knob);
-    }
+	}
+}
+
+bool Slider::processEvent(const SDL_Event & ev)
+{
+	int const knobThick = 12;
+	bool const isHorizontal = (actual_bounds.w > actual_bounds.h);
+
+	auto setSlider = [&](int x, int y)
+	{
+		float v;
+		if(isHorizontal)
+		{
+			int pos = std::clamp(x - knobThick / 2, 0, actual_bounds.w - knobThick - 1);
+			v = float(pos) / float(actual_bounds.w - knobThick - 1);
+		}
+		else
+		{
+			int pos = std::clamp(y - knobThick / 2, 0, actual_bounds.h - knobThick - 1);
+			v = float(pos) / float(actual_bounds.h - knobThick - 1);
+		}
+
+		float const min = minimum.get(this);
+		float const max = maximum.get(this);
+
+		value.set(this, min + v * (max - min));
+	};
+
+	switch(ev.type)
+	{
+		case SDL_MOUSEBUTTONDOWN:
+			if(ev.button.button == SDL_BUTTON_LEFT)
+			{
+				is_taking_input = true;
+				setSlider(ev.button.x, ev.button.y);
+			}
+			break;
+
+		case SDL_MOUSEMOTION:
+			if(is_taking_input)
+				setSlider(ev.motion.x, ev.motion.y);
+			break;
+
+		case SDL_MOUSEBUTTONUP:
+			if(ev.button.button == SDL_BUTTON_LEFT)
+				is_taking_input = false;
+			break;
+
+		case UI_EVENT_LOST_MOUSE_FOCUS:
+			is_taking_input = false;
+			break;
+	}
+
+	return Widget::processEvent(ev);
 }
 
 void Picture::paintWidget(const SDL_Rect & rectangle)

@@ -78,13 +78,17 @@ struct RadioButton : WidgetIs<UIWidget::checkbox>
 
 struct Slider : WidgetIs<UIWidget::progressbar>
 {
-    property<float> minimum = 0.0f;
+	property<float> minimum = 0.0f;
     property<float> maximum = 100.0f;
     property<float> value = 0.0f;
+
+	bool is_taking_input = false;
 
     SDL_Size calculateWantedSize() override;
 
     void paintWidget(const SDL_Rect &rectangle) override;
+
+	bool processEvent(SDL_Event const & ev) override;
 };
 
 struct ProgressBar : WidgetIs<UIWidget::progressbar>
