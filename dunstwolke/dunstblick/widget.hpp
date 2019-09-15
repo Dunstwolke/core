@@ -25,192 +25,231 @@ struct Widget;
 
 struct BaseProperty
 {
-    BaseProperty() = default;
-    BaseProperty(BaseProperty const &) = delete;
-    BaseProperty(BaseProperty &&) = default;
-    virtual ~BaseProperty();
+	std::optional<PropertyName> binding;
 
-    virtual UIValue getValue() const = 0;
+	BaseProperty() = default;
+	BaseProperty(BaseProperty const &) = delete;
+	BaseProperty(BaseProperty &&) = default;
+	virtual ~BaseProperty();
 
-    virtual void setValue(UIValue const & val) = 0;
+	virtual UIType type() const = 0;
+
+	/// NOTE: this ignores the binding!
+	virtual UIValue getValue() const = 0;
+
+	/// NOTE: this ignores the binding!
+	virtual void setValue(UIValue const & val) = 0;
 };
 
-template<typename T>
+template<typename T, bool UseBindings = true>
 struct property : BaseProperty
 {
-    T value;
+private:
+	T value;
+public:
 
-    property(T const & _default = T()) : value(_default) { }
+	property(T const & _default = T()) : value(_default) { }
 
-    UIValue getValue() const override {
-        if constexpr(std::is_enum_v<T>)
-            return uint8_t(value);
-        else
-            return value;
-    }
-
-    void setValue(const UIValue &val) override {
-        if constexpr(std::is_enum_v<T>)
-            value = T(std::get<uint8_t>(val));
-        else
-            value = std::get<T>(val);
-    }
-
-    property & operator= (T const & new_value) {
-        bool will_be_changed = (value != new_value);
-        value = new_value;
-        if(will_be_changed)
-            ; // TODO: trigger "value changed here"
-        return *this;
-    }
-
-		T & operator* () {
+	UIValue getValue() const override {
+		if constexpr(std::is_enum_v<T>)
+			return uint8_t(value);
+		else
 			return value;
-		}
+	}
 
-		T const & operator* () const {
-			return value;
-		}
+	void setValue(const UIValue &val) override {
+		if constexpr(std::is_enum_v<T>)
+			value = T(std::get<uint8_t>(val));
+		else
+			value = std::get<T>(val);
+	}
 
-    operator T() const {
-        return value;
-    }
+	UIType type() const override {
+		return getUITypeFromType<T>();
+	}
 
-    T * operator-> () {
-        return &value;
-    }
+	// enforce "getter" everywhere
+	T get(Widget const * w) const;
 
-    T const * operator-> () const {
-        return &value;
-    }
+	void set(Widget * w, T const & value);
 };
 
 using GetPropertyFunction = std::function<BaseProperty * (Widget &)>;
 
 struct MetaProperty
 {
-    UIProperty name;
-    GetPropertyFunction getter;
+	UIProperty name;
+	GetPropertyFunction getter;
 
-    template<typename T, typename P>
-    MetaProperty(UIProperty _name, property<P> T::*member) :
-        name(_name),
-        getter([=](Widget & w) { return &(static_cast<T*>(&w)->*member); })
-    {
+	template<typename T, typename P, bool B>
+	MetaProperty(UIProperty _name, property<P,B> T::*member) :
+	    name(_name),
+	    getter([=](Widget & w) { return &(static_cast<T*>(&w)->*member); })
+	{
 
-    }
+	}
 };
 
 struct MetaWidget
 {
-    static std::map<UIProperty, GetPropertyFunction> const defaultProperties;
-    static MetaWidget const & get(UIWidget type);
+	static std::map<UIProperty, GetPropertyFunction> const defaultProperties;
+	static MetaWidget const & get(UIWidget type);
 
-    std::map<UIProperty, GetPropertyFunction> specializedProperties;
+	std::map<UIProperty, GetPropertyFunction> specializedProperties;
 
-    MetaWidget(std::initializer_list<MetaProperty>);
+	MetaWidget(std::initializer_list<MetaProperty>);
 };
 
 struct Widget
 {
 public: // meta
-    UIWidget const type;
+	UIWidget const type;
 public: // widget tree
-    /// contains all child widgets
-    std::vector<std::unique_ptr<Widget>> children;
+	/// contains all child widgets
+	std::vector<std::unique_ptr<Widget>> children;
 
 public: // deserializable properties
-    // generic
-    property<HAlignment> horizontalAlignment = HAlignment::stretch;
-    property<VAlignment> verticalAlignment = VAlignment::stretch;
-    property<Visibility> visibility = Visibility::visible;
-    property<UIMargin> margins = UIMargin(4);
-    property<UIMargin> paddings = UIMargin(0);
-    property<bool> enabled = true;
-		property<SDL_Size> sizeHint = SDL_Size { 0, 0 };
+	// generic
+	property<HAlignment> horizontalAlignment = HAlignment::stretch;
+	property<VAlignment> verticalAlignment = VAlignment::stretch;
+	property<Visibility> visibility = Visibility::visible;
+	property<UIMargin> margins = UIMargin(4);
+	property<UIMargin> paddings = UIMargin(0);
+	property<bool> enabled = true;
+	property<SDL_Size> sizeHint = SDL_Size { 0, 0 };
 
-    // dock layout
-    property<DockSite> dockSite = DockSite::top;
+	/// stores either a ResourceID or a property binding
+	/// for the bindingSource. If the property is bound,
+	/// it will bind to the parent bindingSource instead
+	/// of the own bindingSource.
+	/// see the implementation of @ref updateBindings
+	property<UIResourceID, false> bindingContext;
 
-    // tab layout
-    property<std::string> tabTitle = std::string("Tab Page");
+	// dock layout
+	property<DockSite> dockSite = DockSite::top;
 
-    // canvas layout
-    property<int> left = 0;
-    property<int> top = 0;
+	// tab layout
+	property<std::string> tabTitle = std::string("Tab Page");
 
+	// canvas layout
+	property<int> left = 0;
+	property<int> top = 0;
 
 public: // layouting and rendering
-    /// the space the widget says it needs to have.
-    /// this is a hint to each layouting algorithm to auto-size the widget
-    /// accordingly.
-    SDL_Size wanted_size;
+	/// the space the widget says it needs to have.
+	/// this is a hint to each layouting algorithm to auto-size the widget
+	/// accordingly.
+	SDL_Size wanted_size;
 
-    /// the position of the widget on the screen after layouting
-    /// NOTE: this does not include the margins of the widget!
-    SDL_Rect actual_bounds;
+	/// the position of the widget on the screen after layouting
+	/// NOTE: this does not include the margins of the widget!
+	SDL_Rect actual_bounds;
 
-    /// if set to `true`, this widget has been hidden by the
-    /// layout, not by the user.
-    bool hidden_by_layout = false;
+	/// if set to `true`, this widget has been hidden by the
+	/// layout, not by the user.
+	bool hidden_by_layout = false;
 
-protected:
-    explicit Widget(UIWidget type);
-
-public:
-    virtual ~Widget() = default;
-
-    /// stage1: calculates recursively the wanted size of all widgets.
-    void updateWantedSize();
-
-    /// stage2: recursivly lays out this widget and all child widgets.
-    /// @param bounds the rectangle this widget should reside in.
-    ///        These bounds will be reduced by the margins of the widget.
-    ///        the widget will be positioned according to its alignments into this layout
-    void layout(SDL_Rect const & bounds);
-
-    /// draws the widget
-    void paint();
-
-    /// returns the bounds of the widget with margins
-    SDL_Rect bounds_with_margins() const;
-
-    /// returns the wanted_size of the widget with margins added
-    SDL_Size wanted_size_with_margins() const;
-
-    /// deserializes a single property or throws a "not supported exception"
-    void setProperty(UIProperty property, UIValue value);
-
-    /// returns the actual visibility of this widget.
-    /// this takes user decision, layout and other stuff into account.
-    Visibility getActualVisibility() const;
+public: // binding system
+	/// stores the object/ref to which properties will bind
+	ObjectRef bindingSource;
 
 protected:
-    /// stage1: calculates the space this widget wants to take.
-    /// MUST refresh `wanted_size` field!
-    /// the default is the maximum size of all its children combined
-    virtual SDL_Size calculateWantedSize();
-
-    /// stage2: recursively lays out all child elements to the widgets layout.
-    /// the default layouting is "all children get their wanted size with alignment".
-    /// note: this method should call layout(rect) on all its children!
-    /// @param childArea the area where the children will be positioned in
-    virtual void layoutChildren(SDL_Rect const & childArea);
-
-    virtual void paintWidget(SDL_Rect const & rectangle);
+	explicit Widget(UIWidget type);
 
 public:
-    static std::unique_ptr<Widget> create(UIWidget id);
+	virtual ~Widget() = default;
+
+	/// stage0: update widget bindings and property references
+	void updateBindings(ObjectRef & parentBindingSource);
+
+	/// stage1: calculates recursively the wanted size of all widgets.
+	void updateWantedSize();
+
+	/// stage2: recursivly lays out this widget and all child widgets.
+	/// @param bounds the rectangle this widget should reside in.
+	///        These bounds will be reduced by the margins of the widget.
+	///        the widget will be positioned according to its alignments into this layout
+	void layout(SDL_Rect const & bounds);
+
+	/// draws the widget
+	void paint();
+
+	/// returns the bounds of the widget with margins
+	SDL_Rect bounds_with_margins() const;
+
+	/// returns the wanted_size of the widget with margins added
+	SDL_Size wanted_size_with_margins() const;
+
+	/// deserializes a single property or throws a "not supported exception"
+	void setProperty(UIProperty property, UIValue value);
+
+	/// returns the actual visibility of this widget.
+	/// this takes user decision, layout and other stuff into account.
+	Visibility getActualVisibility() const;
+
+protected:
+	/// stage1: calculates the space this widget wants to take.
+	/// MUST refresh `wanted_size` field!
+	/// the default is the maximum size of all its children combined
+	virtual SDL_Size calculateWantedSize();
+
+	/// stage2: recursively lays out all child elements to the widgets layout.
+	/// the default layouting is "all children get their wanted size with alignment".
+	/// note: this method should call layout(rect) on all its children!
+	/// @param childArea the area where the children will be positioned in
+	virtual void layoutChildren(SDL_Rect const & childArea);
+
+	virtual void paintWidget(SDL_Rect const & rectangle);
+
+public:
+	static std::unique_ptr<Widget> create(UIWidget id);
 };
 
 template<UIWidget Type>
 struct WidgetIs : Widget
 {
-    explicit WidgetIs() : Widget(Type) { }
+	explicit WidgetIs() : Widget(Type) { }
 
-    MetaWidget const & metaWidget() {
-        return MetaWidget::get(Type);
-    }
+	MetaWidget const & metaWidget() {
+		return MetaWidget::get(Type);
+	}
 };
+
+
+template<typename T, bool UseBindings>
+T property<T, UseBindings>::get(const Widget * w) const
+{
+	if constexpr (UseBindings) {
+		if(binding and w->bindingSource.has_value()) {
+			if(auto prop = w->bindingSource->get(*binding); prop) {
+				auto const converted = convertTo(prop->value, getUITypeFromType<T>());
+				if constexpr (std::is_enum_v<T>)
+					return T(std::get<uint8_t>(converted));
+				else
+					return std::get<T>(converted);
+			}
+		}
+	}
+	return value;
+}
+
+template<typename T, bool UseBindings>
+void property<T, UseBindings>::set(Widget * w, const T & new_value)
+{
+	if constexpr (UseBindings) {
+		if(binding and w->bindingSource.has_value()) {
+			if(auto prop = w->bindingSource->get(*binding); prop) {
+				UIValue to_convert;
+				if constexpr (std::is_enum_v<T>)
+					to_convert = std::uint8_t(new_value);
+				else
+					to_convert = UIValue(new_value);
+				prop->value = convertTo(to_convert, prop->type);
+				return;
+			}
+		}
+	}
+	this->value = new_value;
+}
 
 #endif // WIDGET_HPP

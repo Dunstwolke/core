@@ -29,6 +29,10 @@ UIType getPropertyType(UIProperty property)
 		case UIProperty::enabled: return UIType::boolean;
 		case UIProperty::imageScaling: return UIType::enumeration;
 		case UIProperty::image: return UIType::resource;
+		case UIProperty::bindingContext: return UIType::resource;
+		case UIProperty::childSource: return UIType::objectlist;
+		case UIProperty::childTemplate: return UIType::resource;
+		case UIProperty::toolTip: return UIType::string;
 	}
 	assert(false and "invalid property was passed to getPropertyType!");
 }
@@ -61,6 +65,10 @@ std::string to_string(UIProperty property)
 		case UIProperty::enabled: return "enabled";
 		case UIProperty::imageScaling: return "image-scaling";
 		case UIProperty::image: return "image";
+		case UIProperty::bindingContext: return "binding-context";
+		case UIProperty::childSource: return "child-source";
+		case UIProperty::childTemplate: return "child-template";
+		case UIProperty::toolTip: return "tool-tip";
 	}
 	return "property(" + std::to_string(int(property)) + ")";
 }
@@ -147,6 +155,8 @@ std::string to_string(UIType type)
 		case UIType::resource: return "resource";
 		case UIType::boolean: return "boolean";
 		case UIType::sizelist: return "sizelist";
+		case UIType::object: return "object";
+		case UIType::objectlist: return "objectlist";
 	}
 	return "type(" + std::to_string(int(type)) + ")";
 }

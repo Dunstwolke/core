@@ -29,6 +29,7 @@ static bool shutdown_app_requested = false;
 
 static std::unique_ptr<Widget> root_widget;
 static std::unique_ptr<RenderContext> current_rc;
+static ObjectRef root_object;
 
 RenderContext & context() {
 	return *current_rc;
@@ -38,6 +39,10 @@ static UIValue deserialize_value(UIType type, InputStream & stream)
 {
 	switch(type)
 	{
+		case UIType::invalid: throw std::runtime_error("Invalid property serialization: 'invalid' object discovered.");
+		case UIType::object: throw std::runtime_error("Invalid property serialization: 'object' object discovered.");
+		case UIType::objectlist: throw std::runtime_error("Invalid property serialization: 'objectlist' object discovered.");
+
 		case UIType::enumeration:
 			return stream.read_byte();
 
@@ -53,12 +58,30 @@ static UIValue deserialize_value(UIType type, InputStream & stream)
 		case UIType::boolean:
 			return (stream.read_byte() != 0);
 
+		case UIType::color:
+		{
+			UIColor color;
+			color.r = stream.read_byte();
+			color.g = stream.read_byte();
+			color.b = stream.read_byte();
+			color.a = stream.read_byte();
+			return color;
+		}
+
 		case UIType::size:
 		{
 			SDL_Size size;
 			size.w = gsl::narrow<int>(stream.read_uint());
 			size.h = gsl::narrow<int>(stream.read_uint());
 			return size;
+		}
+
+		case UIType::point:
+		{
+			SDL_Point pos;
+			pos.x = gsl::narrow<int>(stream.read_uint());
+			pos.y = gsl::narrow<int>(stream.read_uint());
+			return pos;
 		}
 
 		case UIType::string:
@@ -149,28 +172,14 @@ static std::unique_ptr<Widget> deserialize_widget(InputStream & stream)
 	return deserialize_widget(widgetType, stream);
 }
 
-static std::map<UIResourceID, Resource> resources;
-
-xstd::optional<Resource const &> find_resource(UIResourceID id)
-{
-	if(auto it = resources.find(id); it != resources.end())
-		return it->second;
-	else
-		return xstd::nullopt;
-}
-
-void set_resource(UIResourceID id, Resource && resource)
-{
-	if(auto it = resources.find(id); it != resources.end())
-		it->second = std::move(resource);
-	else
-		resources.emplace(id, std::move(resource));
-}
 
 static SDL_Rect screen_rect = { 0, 0, 0, 0 };
 
+
+
 static void update_layout()
 {
+	root_widget->updateBindings(root_object);
 	root_widget->updateWantedSize();
 	root_widget->layout(screen_rect);
 }
@@ -187,6 +196,19 @@ static void set_ui_root(UIResourceID id)
 		InputStream stream = layout.get_stream();
 
 		root_widget = deserialize_widget(stream);
+
+		update_layout();
+	}
+}
+
+static void set_object_root(UIResourceID id)
+{
+	if(auto resource = find_resource(id); resource)
+	{
+		if(resource->index() != int(ResourceKind::object))
+			throw std::runtime_error("invalid resource: wrong kind!");
+
+		root_object = ObjectRef(&const_cast<Object&>(std::get<Object>(*resource)));
 
 		update_layout();
 	}
@@ -236,14 +258,12 @@ int main()
 	context().renderer.setBlendMode(SDL_BLENDMODE_BLEND); // enable alpha blend
 
 	//////////////////////////////////////////////////////////////////////////////
-
-
-
+	// prepare system for development here
 
 	printf("cwd = %s\n", std::filesystem::current_path().c_str());
 	fflush(stdout);
 
-	std::ifstream input_src("./dunstblick/development.uit");
+	std::ifstream input_src("./layouts/development.uit");
 
 	std::stringstream formDataBuffer;
 
@@ -257,9 +277,25 @@ int main()
 
 	set_resource(UIResourceID(2), BitmapResource(sdl2::texture(std::move(tex))));
 
+	set_resource(UIResourceID(3), Object { });
+
+	auto & prop1 = get_object(UIResourceID(3))->add(PropertyName(42), 0.0f);
+
 	//////////////////////////////////////////////////////////////////////////////
+	// emulate some API calls here
 
 	set_ui_root(UIResourceID(1));
+	set_object_root(UIResourceID(3));
+
+	//////////////////////////////////////////////////////////////////////////////
+	// fake some bindings here
+
+	reinterpret_cast<Slider*>(root_widget->children.at(0).get())->value.binding = PropertyName(42);
+	reinterpret_cast<Label*>(root_widget->children.at(1).get())->text.binding = PropertyName(42);
+
+	//////////////////////////////////////////////////////////////////////////////
+
+	auto const startup = SDL_GetTicks();
 
 	while(not shutdown_app_requested)
 	{
@@ -286,6 +322,10 @@ int main()
 					break;
 			}
 		}
+
+		auto const time = SDL_GetTicks() - startup;
+
+		prop1.value = 50.0f + 50.0f * sin(0.001f * float(time));
 
 		auto const windowFlags = SDL_GetWindowFlags(window);
 

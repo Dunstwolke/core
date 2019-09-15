@@ -16,6 +16,7 @@ enum class ResourceKind : uint8_t
 	layout  = 0,
 	bitmap  = 1,
 	drawing = 2,
+	object = 3,
 };
 
 struct BitmapResource
@@ -39,11 +40,12 @@ struct LayoutResource
 	InputStream get_stream() const;
 };
 
-using Resource = std::variant<LayoutResource, BitmapResource, DrawingResource>;
+using Resource = std::variant<LayoutResource, BitmapResource, DrawingResource, Object>;
 
 static_assert(std::is_same_v<std::variant_alternative_t<size_t(ResourceKind::layout),  Resource>, LayoutResource>);
 static_assert(std::is_same_v<std::variant_alternative_t<size_t(ResourceKind::bitmap),  Resource>, BitmapResource>);
 static_assert(std::is_same_v<std::variant_alternative_t<size_t(ResourceKind::drawing), Resource>, DrawingResource>);
+static_assert(std::is_same_v<std::variant_alternative_t<size_t(ResourceKind::object),  Resource>, Object>);
 
 xstd::optional<Resource const &> find_resource(UIResourceID id);
 
@@ -59,6 +61,10 @@ inline bool is_layout(Resource const & r) {
 	return r.index() == size_t(ResourceKind::layout);
 }
 
+inline bool is_object(Resource const & r) {
+	return r.index() == size_t(ResourceKind::object);
+}
+
 template<typename T>
 xstd::optional<T const &> get_resource(UIResourceID id)
 {
@@ -67,5 +73,9 @@ xstd::optional<T const &> get_resource(UIResourceID id)
 	else
 		return xstd::nullopt;
 }
+
+xstd::optional<Object &> get_object(UIResourceID id);
+
+void set_resource(UIResourceID id, Resource && resource);
 
 #endif // RESOURCES_HPP

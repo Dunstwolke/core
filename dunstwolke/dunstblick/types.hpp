@@ -4,9 +4,12 @@
 #include <cstdint>
 #include <SDL.h>
 #include <variant>
+#include <map>
 #include <string>
 #include <vector>
 #include <xstd/unique_id>
+#include <xstd/flexref>
+#include <xstd/optional>
 
 #include "enums.hpp"
 
@@ -63,6 +66,56 @@ static_assert(std::is_same_v<std::variant_alternative_t<3, UISizeDef>, float>);
 
 using UISizeList = std::vector<UISizeDef>;
 
+using ObjectID = xstd::unique_id<struct Object>;
+using PropertyName = xstd::unique_id<struct ObjectProperty>;
+
+struct ObjectProperty;
+struct Object
+{
+	ObjectID id;
+	std::map<PropertyName, ObjectProperty> properties;
+
+	ObjectProperty & add(PropertyName, UIType type);
+
+	template<typename T>
+	ObjectProperty & add(PropertyName name, T const & value);
+
+	xstd::optional<ObjectProperty&> get(PropertyName property);
+
+	xstd::optional<ObjectProperty const &> get(PropertyName property) const;
+};
+
+using ObjectRef = xstd::flexref<Object>;
+
+using ObjectList = std::vector<ObjectRef>;
+
+
+template<typename T>
+constexpr UIType getUITypeFromType();
+
+// include generated code
 #include "types.variant.hpp"
+
+struct ObjectProperty
+{
+	UIType type;
+	UIValue value;
+};
+
+struct ConversionOptions
+{
+	BooleanFormat booleanFormat = BooleanFormat::truefalse;
+};
+
+UIValue convertTo(UIValue const & value, UIType type, ConversionOptions const & options = { });
+
+
+template<typename T>
+ObjectProperty & Object::add(PropertyName name, const T & value)
+{
+	auto & prop = add(name, getUITypeFromType<T>());
+	prop.value = value;
+	return prop;
+}
 
 #endif // TYPES_HPP

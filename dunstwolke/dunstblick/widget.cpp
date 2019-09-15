@@ -1,4 +1,5 @@
 #include "widget.hpp"
+#include "resources.hpp"
 #include <stdexcept>
 
 #ifdef DEBUG
@@ -15,6 +16,46 @@ Widget::Widget(UIWidget _type) :
 
 }
 
+void Widget::updateBindings(ObjectRef & parentBindingSource)
+{
+	// if we have a bindingSource of the parent available:
+	if(parentBindingSource.has_value() and this->bindingContext.binding)
+	{
+		// check if the parent source has the property
+		// we bind our bindingContext to and if yes,
+		// bind to it
+		if(auto prop = parentBindingSource->get(*this->bindingContext.binding); prop)
+		{
+			this->bindingSource = std::get<ObjectRef>(convertTo(prop->value, UIType::object));
+		}
+		else
+		{
+			this->bindingSource = ObjectRef();
+		}
+	}
+	else
+	{
+		// otherwise check if our bindingContext has a valid resourceID and
+		// load that resource reference:
+		auto resourceID = this->bindingContext.get(this);
+		if(not resourceID.is_null())
+		{
+			// if a resource is bound, load that resource:
+			if(auto objref = get_object(resourceID); objref)
+				this->bindingSource = ObjectRef(&objref.value());
+			else
+				this->bindingSource = ObjectRef(); // no binding source if resource ist not found
+		}
+		else
+		{
+			this->bindingSource = parentBindingSource;
+		}
+	}
+
+	for(auto & child : children)
+		child->updateBindings(this->bindingSource);
+}
+
 void Widget::updateWantedSize()
 {
 	for(auto & child : children)
@@ -28,7 +69,7 @@ void Widget::updateWantedSize()
 SDL_Size Widget::calculateWantedSize()
 {
 	if(children.empty())
-		return sizeHint;
+		return sizeHint.get(this);
 
 	SDL_Size size = { 0, 0 };
 	for(auto & child : children)
@@ -46,14 +87,14 @@ SDL_Size Widget::calculateWantedSize()
 void Widget::layout(SDL_Rect const & _bounds)
 {
 	SDL_Rect const bounds = {
-	  _bounds.x + margins->left,
-	  _bounds.y + margins->top,
-	  std::max(0, _bounds.w - margins->totalHorizontal()), // safety check against underflow
-	  std::max(0, _bounds.h - margins->totalVertical()),
+	  _bounds.x + margins.get(this).left,
+	  _bounds.y + margins.get(this).top,
+	  std::max(0, _bounds.w - margins.get(this).totalHorizontal()), // safety check against underflow
+	  std::max(0, _bounds.h - margins.get(this).totalVertical()),
 	};
 
 	SDL_Rect target;
-	switch(horizontalAlignment)
+	switch(horizontalAlignment.get(this))
 	{
 		case HAlignment::stretch:
 			target.w = bounds.w;
@@ -74,7 +115,7 @@ void Widget::layout(SDL_Rect const & _bounds)
 	}
 	target.x += bounds.x;
 
-	switch(verticalAlignment)
+	switch(verticalAlignment.get(this))
 	{
 		case VAlignment::stretch:
 			target.h = bounds.h;
@@ -98,10 +139,10 @@ void Widget::layout(SDL_Rect const & _bounds)
 	this->actual_bounds = target;
 
 	SDL_Rect const childArea = {
-	  this->actual_bounds.x + this->paddings->left,
-	  this->actual_bounds.y + this->paddings->top,
-	  this->actual_bounds.w - this->paddings->totalHorizontal(),
-	  this->actual_bounds.h - this->paddings->totalVertical(),
+	  this->actual_bounds.x + this->paddings.get(this).left,
+	  this->actual_bounds.y + this->paddings.get(this).top,
+	  this->actual_bounds.w - this->paddings.get(this).totalHorizontal(),
+	  this->actual_bounds.h - this->paddings.get(this).totalVertical(),
 	};
 
 	this->layoutChildren(childArea);
@@ -113,7 +154,7 @@ void Widget::layoutChildren(SDL_Rect const & rect)
 		child->layout(rect);
 }
 
-void Widget::paintWidget(const SDL_Rect & rectangle)
+void Widget::paintWidget(const SDL_Rect &)
 {
 	/* draw nothing by default */
 }
@@ -143,18 +184,18 @@ void Widget::paint()
 SDL_Rect Widget::bounds_with_margins() const
 {
 	return {
-		actual_bounds.x - margins->left,
-		    actual_bounds.y - margins->top,
-		    actual_bounds.w + margins->totalHorizontal(),
-		    actual_bounds.h + margins->totalVertical(),
+		actual_bounds.x - margins.get(this).left,
+		    actual_bounds.y - margins.get(this).top,
+		    actual_bounds.w + margins.get(this).totalHorizontal(),
+		    actual_bounds.h + margins.get(this).totalVertical(),
 	};
 }
 
 SDL_Size Widget::wanted_size_with_margins() const
 {
 	return {
-		wanted_size.w + margins->totalHorizontal(),
-		    wanted_size.h + margins->totalVertical(),
+		wanted_size.w + margins.get(this).totalHorizontal(),
+		    wanted_size.h + margins.get(this).totalVertical(),
 	};
 }
 
@@ -162,10 +203,10 @@ void Widget::setProperty(UIProperty property, UIValue value)
 {
 	auto & meta = MetaWidget::get(this->type);
 
-	if(auto it = meta.specializedProperties.find(property); it != meta.specializedProperties.end())
-		it->second(*this)->setValue(value);
-	else if(auto it = meta.defaultProperties.find(property); it != meta.defaultProperties.end())
-		it->second(*this)->setValue(value);
+	if(auto it1 = meta.specializedProperties.find(property); it1 != meta.specializedProperties.end())
+		it1->second(*this)->setValue(value);
+	else if(auto it2 = meta.defaultProperties.find(property); it2 != meta.defaultProperties.end())
+		it2->second(*this)->setValue(value);
 	else {
 #ifdef DEBUG
 		std::cerr << "unknown property " + to_string(property) + " for widget " + to_string(this->type) + "!" << std::endl;
@@ -179,7 +220,7 @@ Visibility Widget::getActualVisibility() const
 {
 	if(hidden_by_layout)
 		return Visibility::collapsed;
-	return visibility;
+	return visibility.get(this);
 }
 
 BaseProperty::~BaseProperty()
@@ -206,18 +247,19 @@ static std::map<UIProperty, GetPropertyFunction> Transpose(std::initializer_list
 
 std::map<UIProperty, GetPropertyFunction> const MetaWidget::defaultProperties = Transpose(
 {
-        MetaProperty { UIProperty::margins, &Widget::margins },
-        MetaProperty { UIProperty::paddings, &Widget::paddings },
-        MetaProperty { UIProperty::horizontalAlignment, &Widget::horizontalAlignment },
-        MetaProperty { UIProperty::verticalAlignment, &Widget::verticalAlignment },
-        MetaProperty { UIProperty::visibility, &Widget::visibility },
-        MetaProperty { UIProperty::dockSite, &Widget::dockSite },
-        MetaProperty { UIProperty::tabTitle, &Widget::tabTitle },
-        MetaProperty { UIProperty::left, &Widget::left },
-        MetaProperty { UIProperty::top, &Widget::top },
-        MetaProperty { UIProperty::enabled, &Widget::enabled },
-        MetaProperty { UIProperty::sizeHint, &Widget::sizeHint },
-      });
+	MetaProperty { UIProperty::margins, &Widget::margins },
+	MetaProperty { UIProperty::paddings, &Widget::paddings },
+	MetaProperty { UIProperty::horizontalAlignment, &Widget::horizontalAlignment },
+	MetaProperty { UIProperty::verticalAlignment, &Widget::verticalAlignment },
+	MetaProperty { UIProperty::visibility, &Widget::visibility },
+	MetaProperty { UIProperty::dockSite, &Widget::dockSite },
+	MetaProperty { UIProperty::tabTitle, &Widget::tabTitle },
+	MetaProperty { UIProperty::left, &Widget::left },
+	MetaProperty { UIProperty::top, &Widget::top },
+	MetaProperty { UIProperty::enabled, &Widget::enabled },
+	MetaProperty { UIProperty::sizeHint, &Widget::sizeHint },
+	MetaProperty { UIProperty::bindingContext, &Widget::bindingContext },
+});
 
 std::map<UIWidget, MetaWidget> const metaWidgets
 {

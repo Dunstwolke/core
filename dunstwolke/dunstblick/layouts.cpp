@@ -11,7 +11,7 @@ StackLayout::StackLayout(StackDirection dir) :
 
 void StackLayout::layoutChildren(const SDL_Rect &_rect)
 {
-    if(direction == StackDirection::vertical)
+    if(direction.get(this) == StackDirection::vertical)
     {
         SDL_Rect rect = _rect;
         for(auto & child : children)
@@ -39,7 +39,7 @@ void StackLayout::layoutChildren(const SDL_Rect &_rect)
 
 SDL_Size StackLayout::calculateWantedSize()
 {
-    if(direction == StackDirection::vertical)
+    if(direction.get(this) == StackDirection::vertical)
     {
         SDL_Size size = { 0, 0 };
         for(auto & child : children)
@@ -172,12 +172,12 @@ SDL_Size DockLayout::calculateWantedSize()
 
 DockSite DockLayout::getDockSite(size_t index) const
 {
-    return children.at(index)->dockSite;
+    return children.at(index)->dockSite.get(this);
 }
 
 void DockLayout::setDockSite(size_t index, DockSite site)
 {
-    children.at(index)->dockSite = site;
+    children.at(index)->dockSite.set(this, site);
 }
 
 SDL_Size TabLayout::calculateWantedSize()
@@ -199,8 +199,8 @@ void TabLayout::layoutChildren(const SDL_Rect &childArea)
     area.h -= 32;
     for(size_t index = 0; index < children.size(); index++)
     {
-        if(children[index]->visibility == Visibility::visible)
-            children[index]->hidden_by_layout = (index != size_t(selectedIndex.value));
+        if(children[index]->visibility.get(this) == Visibility::visible)
+            children[index]->hidden_by_layout = (index != size_t(selectedIndex.get(this)));
         else
             children[index]->hidden_by_layout = false;
         children[index]->layout(area);
@@ -226,7 +226,7 @@ void TabLayout::paintWidget(const SDL_Rect & rectangle)
         if(not children[index]->hidden_by_layout and children[index]->getActualVisibility() != Visibility::visible)
             continue;
 
-        auto * tex = context().getFont(UIFont::sans).render(children[index]->tabTitle);
+        auto * tex = context().getFont(UIFont::sans).render(children[index]->tabTitle.get(this));
 
         int w = 0, h = 0;
         if(tex != nullptr) {
@@ -234,7 +234,7 @@ void TabLayout::paintWidget(const SDL_Rect & rectangle)
         }
         tab.w = w + 8;
 
-        if(index == gsl::narrow<size_t>(selectedIndex.value))
+        if(index == gsl::narrow<size_t>(selectedIndex.get(this)))
             ren.setColor(0x30, 0x30, 0x60);
         else
             ren.setColor(0x30, 0x30, 0x30);
@@ -292,8 +292,8 @@ void GridLayout::layoutChildren(const SDL_Rect &childArea)
         }
     };
 
-    calculate_sizes(column_widths, columns, childArea.w);
-    calculate_sizes(row_heights, rows, childArea.h);
+    calculate_sizes(column_widths, columns.get(this), childArea.w);
+    calculate_sizes(row_heights, rows.get(this), childArea.h);
 
     size_t row = 0;
     size_t col = 0;
@@ -308,7 +308,7 @@ void GridLayout::layoutChildren(const SDL_Rect &childArea)
     for(index = 0; index < children.size(); index++)
     {
         children[index]->hidden_by_layout = false;
-        if(children[index]->visibility == Visibility::collapsed)
+        if(children[index]->visibility.get(this) == Visibility::collapsed)
             continue;
 
         cursor.w = column_widths[col];
@@ -347,7 +347,7 @@ SDL_Size GridLayout::calculateWantedSize()
     size_t col = 0;
     for(auto & child : children)
     {
-        if(child->visibility == Visibility::collapsed)
+        if(child->visibility.get(this) == Visibility::collapsed)
             continue;
 
         auto const childSize = child->wanted_size_with_margins();
@@ -364,16 +364,16 @@ SDL_Size GridLayout::calculateWantedSize()
         }
     }
 
-    for(size_t i = 0; i < columns->size(); i++)
+    for(size_t i = 0; i < columns.get(this).size(); i++)
     {
-        if(columns.value[i].index() == 2) // absolute column
-            column_widths[i] = std::get<int>(columns.value[i]);
+        if(columns.get(this)[i].index() == 2) // absolute column
+            column_widths[i] = std::get<int>(columns.get(this)[i]);
     }
 
-    for(size_t i = 0; i < rows->size(); i++)
+    for(size_t i = 0; i < rows.get(this).size(); i++)
     {
-        if(rows.value[i].index() == 2) // absolute column
-            row_heights[i] = std::get<int>(rows.value[i]);
+        if(rows.get(this)[i].index() == 2) // absolute column
+            row_heights[i] = std::get<int>(rows.get(this)[i]);
     }
 
     return {
@@ -384,29 +384,29 @@ SDL_Size GridLayout::calculateWantedSize()
 
 size_t GridLayout::getRowCount() const
 {
-    if(rows->size() != 0)
-        return rows->size();
+    if(rows.get(this).size() != 0)
+        return rows.get(this).size();
     else
-        return (children.size() + columns->size() - 1) / columns->size();
+        return (children.size() + columns.get(this).size() - 1) / columns.get(this).size();
 }
 
 size_t GridLayout::getColumnCount() const
 {
-    if(columns->size() != 0)
-        return columns->size();
+    if(columns.get(this).size() != 0)
+        return columns.get(this).size();
     else
-        return (children.size() + rows->size() - 1) / rows->size();
+        return (children.size() + rows.get(this).size() - 1) / rows.get(this).size();
 }
 
 void CanvasLayout::layoutChildren(const SDL_Rect &childArea)
 {
     for(auto & child : this->children)
     {
-        if(child->visibility == Visibility::collapsed)
+        if(child->visibility.get(this) == Visibility::collapsed)
             continue;
         child->layout({
-            childArea.x + child->left,
-            childArea.y +child->top,
+            childArea.x + child->left.get(this),
+            childArea.y +child->top.get(this),
             child->wanted_size_with_margins().w,
             child->wanted_size_with_margins().h,
         });
@@ -418,11 +418,11 @@ SDL_Size CanvasLayout::calculateWantedSize()
     SDL_Size size = { 0, 0 };
     for(auto & child : this->children)
     {
-        if(child->visibility == Visibility::collapsed)
+        if(child->visibility.get(this) == Visibility::collapsed)
             continue;
         auto cs = child->wanted_size_with_margins();
-        size.w = std::max(size.w, child->left + cs.w);
-        size.h = std::max(size.h, child->top + cs.h);
+        size.w = std::max(size.w, child->left.get(this) + cs.w);
+        size.h = std::max(size.h, child->top.get(this) + cs.h);
     }
     return size;
 }
@@ -435,7 +435,7 @@ void FlowLayout::layoutChildren(const SDL_Rect &childArea)
     bool first_in_line = true;
     for(i = 0; i < children.size(); i++)
     {
-        if(children[i]->visibility == Visibility::collapsed)
+        if(children[i]->visibility.get(this) == Visibility::collapsed)
             continue;
         auto size = children[i]->wanted_size_with_margins();
         rect.w = size.w;

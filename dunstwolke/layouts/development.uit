@@ -1,0 +1,16 @@
+StackLayout {
+	Slider {
+		value: 0.0;
+		minimum: 0.0;
+		maximum: 100.0;
+	}
+	Label {
+		text: "<not bound>";
+	}
+	/*
+	AnyWidget {
+		child-source: bind(…);
+		child-template: resource(…);
+	}
+	*/
+}

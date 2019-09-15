@@ -14,6 +14,7 @@ SOURCES += \
         layoutparser.cpp \
         layouts.cpp \
         main.cpp \
+        object.cpp \
         rendercontext.cpp \
         resources.cpp \
         types.cpp \
@@ -27,6 +28,7 @@ HEADERS += \
   inputstream.hpp \
   layoutparser.hpp \
   layouts.hpp \
+  object.hpp \
   rendercontext.hpp \
   resources.hpp \
   types.hpp \

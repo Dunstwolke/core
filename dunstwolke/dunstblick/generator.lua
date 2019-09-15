@@ -190,14 +190,16 @@ local function genCreateWidgetSource(f)
 
 	f:write [[#include "widgets.hpp"
 #include "layouts.hpp"
+#include <stdexcept>
 
 std::unique_ptr<Widget> Widget::create(UIWidget id)
 {
 	switch(id)
 	{
+		case UIWidget::invalid: throw std::runtime_error("cannot instantiate widget of type 'invalid'");
 ]]
 	for i,v in ipairs(UI.widgets) do
-		f:write("\tcase UIWidget::", v[2], ": return std::make_unique<", v[3], ">();\n") 
+		f:write("\t\tcase UIWidget::", v[2], ": return std::make_unique<", v[3], ">();\n") 
 	end
 
 	f:write [[	}
@@ -222,6 +224,23 @@ local function genVariantHeader(f)
 
 	for i,v in ipairs(UI.types) do
 		f:write("static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::", v[2], "),     UIValue>, ", v[3], ">);\n")
+	end
+
+	f:write '\n\n'
+
+	for i,v in ipairs(UI.types) do
+		f:write("template<> constexpr UIType getUITypeFromType<", v[3], ">() { return UIType::", v[2], "; }\n");
+	end
+	for name, contents in pairs(UI.groups) do
+		f:write("template<> constexpr UIType getUITypeFromType<", name, ">() { return UIType::enumeration; }\n");
+	end
+	f:write '\n\n'
+
+	for i,v in ipairs(UI.types) do
+		f:write("static_assert(getUITypeFromType<", v[3], ">() == UIType::", v[2], ");\n")
+	end
+	for name, contents in pairs(UI.groups) do
+		f:write("static_assert(getUITypeFromType<", name, ">() == UIType::enumeration);\n")
 	end
 end
 

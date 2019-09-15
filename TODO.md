@@ -1,16 +1,20 @@
-- [ ] Resource System
-	- [ ] Bitmap
+- [x] Resource System
+	- [x] Bitmap
 	- [ ] Vector Drawing
-	- [ ] UI Template
+	- [x] UI Template
 - [ ] Object System
-	- [ ] Define possible object properties
+	- [ ] Define possible object property types
 	- [ ] Deserialize Objects
 	- [ ] Refresh objects
 	- [ ] Propagate property changes back
+- [ ] Add "deferModalDrawing" to render context
+	- allow rendering stuff *after* everything else
+	- required for tooltips and combo boxes
 - [ ] Command API
 	- [ ] Define commands/api/messages
 - [ ] Input Routing
 	- [ ] Mouse
 	- [ ] Keyboard
 - [ ] Property bindings
+- [ ] implement tool tips
 

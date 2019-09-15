@@ -17,23 +17,23 @@ void Button::paintWidget(const SDL_Rect &rectangle)
 
 Label::Label()
 {
-    margins = UIMargin(8);
-    horizontalAlignment = HAlignment::center;
-    verticalAlignment = VAlignment::middle;
+    margins.set(this, UIMargin(8));
+    horizontalAlignment.set(this, HAlignment::center);
+    verticalAlignment.set(this, VAlignment::middle);
 }
 
 void Label::paintWidget(const SDL_Rect &rectangle)
 {
-    auto & fc = context().getFont(font);
-    auto * tex = fc.render(text);
+    auto & fc = context().getFont(font.get(this));
+    auto * tex = fc.render(text.get(this));
 
     context().renderer.copy(tex, rectangle); // stretch for now...
 }
 
 SDL_Size Label::calculateWantedSize()
 {
-    auto & fc = context().getFont(font);
-    auto * tex = fc.render(text);
+    auto & fc = context().getFont(font.get(this));
+    auto * tex = fc.render(text.get(this));
     if(not tex)
         return { 0, TTF_FontHeight(fc.font.get()) };
     SDL_Size size;
@@ -102,7 +102,7 @@ void ProgressBar::paintWidget(const SDL_Rect &rectangle)
     SDL_Rect progressArea = {
         rectangle.x + 1,
         rectangle.y + 1,
-        int((value - minimum) * float(rectangle.w - 2) / (maximum - minimum) + 0.5f),
+        int((value.get(this) - minimum.get(this)) * float(rectangle.w - 2) / (maximum.get(this) - minimum.get(this)) + 0.5f),
         rectangle.h - 2
     };
 
@@ -110,16 +110,16 @@ void ProgressBar::paintWidget(const SDL_Rect &rectangle)
     context().renderer.fillRect(progressArea);
 
     std::string caption;
-    switch(displayProgress)
+    switch(displayProgress.get(this))
     {
     case DisplayProgressStyle::none:
         caption = "";
         break;
     case DisplayProgressStyle::percent:
-        caption = std::to_string(int(100.0f * (value - minimum) / (maximum - minimum) + 0.5f)) + "%";
+        caption = std::to_string(int(100.0f * (value.get(this) - minimum.get(this)) / (maximum.get(this) - minimum.get(this)) + 0.5f)) + "%";
         break;
     case DisplayProgressStyle::absolute:
-        caption = std::to_string(int(value + 0.5f));
+        caption = std::to_string(int(value.get(this) + 0.5f));
         break;
     }
     if(not caption.empty())
@@ -139,8 +139,8 @@ void ProgressBar::paintWidget(const SDL_Rect &rectangle)
 
 CheckBox::CheckBox()
 {
-    horizontalAlignment = HAlignment::left;
-    verticalAlignment = VAlignment::middle;
+    horizontalAlignment.set(this, HAlignment::left);
+    verticalAlignment.set(this, VAlignment::middle);
 }
 
 SDL_Size CheckBox::calculateWantedSize()
@@ -153,7 +153,7 @@ void CheckBox::paintWidget(const SDL_Rect &rectangle)
     context().renderer.setColor(0x30, 0x30, 0x30);
     context().renderer.fillRect(rectangle);
 
-    if(isChecked)
+    if(isChecked.get(this))
         context().renderer.setColor(0xD0, 0xD0, 0xD0);
     else
         context().renderer.setColor(0x40, 0x40, 0x40);
@@ -171,8 +171,8 @@ void CheckBox::paintWidget(const SDL_Rect &rectangle)
 
 RadioButton::RadioButton()
 {
-    horizontalAlignment = HAlignment::left;
-    verticalAlignment = VAlignment::middle;
+    horizontalAlignment.set(this, HAlignment::left);
+    verticalAlignment.set(this, VAlignment::middle);
 }
 
 SDL_Size RadioButton::calculateWantedSize()
@@ -197,7 +197,7 @@ void RadioButton::paintWidget(const SDL_Rect &rectangle)
         circleB[i].y = int(centerY + radiusB * cos(M_PI * i / 18.0));
     }
 
-    if(isChecked)
+    if(isChecked.get(this))
         context().renderer.setColor(0xD0, 0xD0, 0xD0);
     else
         context().renderer.setColor(0x40, 0x40, 0x40);
@@ -232,7 +232,7 @@ void Slider::paintWidget(const SDL_Rect &rectangle)
         );
 
         SDL_Rect knob {
-            rectangle.x + knobThick / 2 + int((rectangle.w - knobThick) * (value - minimum) / (maximum - minimum) + 0.5f),
+            rectangle.x + knobThick / 2 + int((rectangle.w - knobThick) * (value.get(this) - minimum.get(this)) / (maximum.get(this) - minimum.get(this)) + 0.5f) - knobThick / 2,
             rectangle.y,
             knobThick,
             rectangle.h
@@ -260,7 +260,7 @@ void Slider::paintWidget(const SDL_Rect &rectangle)
 
         SDL_Rect knob {
             rectangle.x,
-            rectangle.y + knobThick / 2 + int((rectangle.h - knobThick) * (value - minimum) / (maximum - minimum) + 0.5f),
+            rectangle.y + int((rectangle.h - knobThick) * (value.get(this) - minimum.get(this)) / (maximum.get(this) - minimum.get(this)) + 0.5f) - knobThick / 2 ,
             rectangle.w,
             knobThick,
         };
@@ -275,14 +275,14 @@ void Slider::paintWidget(const SDL_Rect &rectangle)
 
 void Picture::paintWidget(const SDL_Rect & rectangle)
 {
-	if(auto bmp = get_resource<BitmapResource>(image); bmp)
+	if(auto bmp = get_resource<BitmapResource>(image.get(this)); bmp)
 	{
 		auto const [ format, access, w, h ] = bmp->texture.query();
 
 		float targetAspect = float(rectangle.w) / float(rectangle.h);
 		float sourceAspect = float(w) / float(h);
 
-		switch(*scaling)
+		switch(scaling.get(this))
 		{
 			case ImageScaling::none:
 			{
@@ -369,16 +369,13 @@ void Picture::paintWidget(const SDL_Rect & rectangle)
 				});
 				break;
 			}
-
-			default:
-				assert(false and "not implemented yet!");
 		}
 	}
 }
 
 SDL_Size Picture::calculateWantedSize()
 {
-	if(auto res = find_resource(image); res and is_bitmap(*res))
+	if(auto res = find_resource(image.get(this)); res and is_bitmap(*res))
 	{
 		auto [ format, access, w, h ] = std::get<BitmapResource>(*res).texture.query();
 		return { w, h };

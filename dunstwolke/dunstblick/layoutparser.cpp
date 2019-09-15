@@ -32,6 +32,8 @@ static std::string toString(LexerTokenType type)
 		case LexerTokenType::comma: return "comma";
 		case LexerTokenType::string: return "string";
 		case LexerTokenType::percentage: return "percentage";
+		case LexerTokenType::eof: return "<end of file>";
+		case LexerTokenType::invalid: return "<invalid token>";
 	}
 	return "???";
 }
@@ -76,8 +78,8 @@ static void write_enum(std::ostream &output, T const & value)
 
 static void write_string(std::ostream & output, std::string const & text)
 {
-	write_varint(output, text.size());
-	output.write(text.c_str(), text.size());
+	write_varint(output, gsl::narrow<uint32_t>(text.size()));
+	output.write(text.c_str(), gsl::narrow<std::streamsize>(text.size()));
 }
 
 static void write_number(std::ostream & output, float value)
@@ -88,14 +90,14 @@ static void write_number(std::ostream & output, float value)
 static int lex_int(FlexLexer * lexer)
 {
 	auto text = Accept(lexer, LexerTokenType::integer);
-	return strtol(text.c_str(), nullptr, 10);
+	return gsl::narrow<int>(strtol(text.c_str(), nullptr, 10));
 }
 
-static float lex_number(FlexLexer * lexer)
-{
-	auto text = Accept(lexer, LexerTokenType::number);
-	return strtof(text.c_str(), nullptr);
-}
+//static float lex_number(FlexLexer * lexer)
+//{
+//	auto text = Accept(lexer, LexerTokenType::number);
+//	return strtof(text.c_str(), nullptr);
+//}
 
 static void parse_and_translate(UIType type, FlexLexer * lexer, std::ostream &output)
 {
@@ -103,7 +105,7 @@ static void parse_and_translate(UIType type, FlexLexer * lexer, std::ostream &ou
 	{
 		case UIType::integer: {
 			auto value = lex_int(lexer);
-			write_varint(output, value);
+			write_varint(output, gsl::narrow<uint32_t>(value));
 			Accept(lexer, LexerTokenType::semiColon);
 			return;
 		}
@@ -200,7 +202,7 @@ static void parse_and_translate(UIType type, FlexLexer * lexer, std::ostream &ou
 			assert(items.size() == 4);
 
 			for(size_t i = 0; i < 4; i++)
-				write_varint(output, items[i]);
+				write_varint(output, gsl::narrow<uint32_t>(items[i]));
 
 			return;
 		}
@@ -244,7 +246,7 @@ static void parse_and_translate(UIType type, FlexLexer * lexer, std::ostream &ou
 			}
 
 			// size of the list
-			write_varint(output, list.size());
+			write_varint(output, gsl::narrow<uint32_t>(list.size()));
 
 			// bitmask containing two bits per entry:
 			// 00 = auto
@@ -264,7 +266,7 @@ static void parse_and_translate(UIType type, FlexLexer * lexer, std::ostream &ou
 				switch(list[i].index())
 				{
 					case 2: // pixels
-						write_varint(output, std::get<int>(list[i]));
+						write_varint(output, gsl::narrow<uint32_t>(std::get<int>(list[i])));
 						break;
 					case 3: // percentage
 						write_number(output, std::get<float>(list[i]));
@@ -279,7 +281,7 @@ static void parse_and_translate(UIType type, FlexLexer * lexer, std::ostream &ou
 		{
 			// TODO: Insert improved resource compiling here later
 			// resource("this is my file");
-			write_varint(output, lex_int(lexer));
+			write_varint(output, gsl::narrow<uint32_t>(lex_int(lexer)));
 			Accept(lexer, LexerTokenType::semiColon);
 			return;
 		}
@@ -308,19 +310,19 @@ static void parse_and_translate(std::string const & widgetName, FlexLexer * lexe
 		}
 		else if(tok->type == LexerTokenType::identifier)
 		{
-			if(auto it = properties.find(tok->text); it != properties.end())
+			if(auto it1 = properties.find(tok->text); it1 != properties.end())
 			{
 				if(isReadingChildren)
 					throw std::runtime_error("property definitions are only allowed before child widgets!!");
 				Accept(lexer, LexerTokenType::colon);
 
-				write_enum(output, it->second);
+				write_enum(output, it1->second);
 
-				auto propertyType = getPropertyType(it->second);
+				auto propertyType = getPropertyType(it1->second);
 
 				parse_and_translate(propertyType, lexer, output);
 			}
-			else if(auto it = widgetTypes.find(tok->text); it != widgetTypes.end())
+			else if(auto it2 = widgetTypes.find(tok->text); it2 != widgetTypes.end())
 			{
 				if(not isReadingChildren)
 					write_enum(output, UIProperty::invalid); // end of properties

@@ -1,5 +1,34 @@
 #include "resources.hpp"
 
+static std::map<UIResourceID, Resource> resources;
+
+xstd::optional<Object &> get_object(UIResourceID id)
+{
+	if(auto it = resources.find(id); (it != resources.end()) and std::holds_alternative<Object>(it->second))
+		return std::get<Object>(it->second);
+	else
+		return xstd::nullopt;
+}
+
+xstd::optional<Resource const &> find_resource(UIResourceID id)
+{
+	if(auto it = resources.find(id); it != resources.end())
+		return it->second;
+	else
+		return xstd::nullopt;
+}
+
+void set_resource(UIResourceID id, Resource && resource)
+{
+	if(auto it = resources.find(id); it != resources.end())
+		it->second = std::move(resource);
+	else
+		resources.emplace(id, std::move(resource));
+}
+
+
+
+
 
 BitmapResource::BitmapResource(sdl2::texture && _tex) :
   texture(std::move(_tex))

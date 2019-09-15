@@ -65,18 +65,20 @@ widgets = {
 
 types = 
 {--   ID,  Name,         C++ Type
-	{   0, "invalid",     "std::monostate" },
-    {   1, "integer",     "int"            },
-    {   2, "number",      "float"          },
-    {   3, "string",      "std::string"    },
-    {   4, "enumeration", "uint8_t"        },
-    {   5, "margins",     "UIMargin"       },
-    {   6, "color",       "UIColor"        },
-    {   7, "size",        "SDL_Size"       },
-    {   8, "point",       "SDL_Point"      }, 
-    {   9, "resource",    "UIResourceID"   },
-    {  10, "boolean",     "bool"           },
-	{  11, "sizelist",    "UISizeList"     },
+	{   0, "invalid",     "std::monostate"        },
+    {   1, "integer",     "int"                   },
+    {   2, "number",      "float"                 },
+    {   3, "string",      "std::string"           },
+    {   4, "enumeration", "uint8_t"               },
+    {   5, "margins",     "UIMargin"              },
+    {   6, "color",       "UIColor"               },
+    {   7, "size",        "SDL_Size"              },
+    {   8, "point",       "SDL_Point"             }, 
+    {   9, "resource",    "UIResourceID"          },
+    {  10, "boolean",     "bool"                  },
+	{  11, "sizelist",    "UISizeList"            },
+	{  12, "object",      "ObjectRef"             },
+	{  13, "objectlist",  "ObjectList"            },
 },
 
 properties = 
@@ -105,6 +107,10 @@ properties =
 	{  22, "enabled",              "enabled",                "boolean"     },
     {  23, "imageScaling",         "image-scaling",          "enumeration" },
     {  24, "image",                "image",                  "resource"    },
+    {  25, "bindingContext",       "binding-context",        "resource"    },
+	{  26, "childSource",          "child-source",           "objectlist"  },
+	{  27, "childTemplate",        "child-template",         "resource"    },
+    {  28, "toolTip",              "tool-tip",               "string"      },
 },
 
 groups = 
@@ -117,6 +123,7 @@ groups =
 	["DockSite"]             = { "top", "bottom", "left", "right" },
 	["DisplayProgressStyle"] = { "none", "percent", "absolute" },
 	["ImageScaling"]         = { "none", "center", "stretch", "zoom", "contain", "cover" },
+	["BooleanFormat"]        = { "truefalse", "yesno", "onoff" },
 },
 
 };
