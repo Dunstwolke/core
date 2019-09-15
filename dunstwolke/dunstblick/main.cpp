@@ -147,11 +147,17 @@ static std::unique_ptr<Widget> deserialize_widget(UIWidget widgetType, InputStre
 	UIProperty property;
 	do
 	{
-		property = stream.read_enum<UIProperty>();
+		bool isBinding;
+		std::tie(property, isBinding) = stream.read_property_enum();
 		if(property != UIProperty::invalid)
 		{
-			auto const value = deserialize_value(getPropertyType(property), stream);
-			widget->setProperty(property, value);
+			if(isBinding) {
+				auto const name = PropertyName(stream.read_uint());
+				widget->setPropertyBinding(property, name);
+			} else {
+				auto const value = deserialize_value(getPropertyType(property), stream);
+				widget->setProperty(property, value);
+			}
 		}
 	} while(property != UIProperty::invalid);
 
@@ -268,6 +274,7 @@ int main()
 	std::stringstream formDataBuffer;
 
 	LayoutParser layout_parser;
+	layout_parser.knownProperties.emplace("sinewave", PropertyName(42));
 	layout_parser.compile(input_src, formDataBuffer);
 
 	auto formData = formDataBuffer.str();

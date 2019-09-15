@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <string_view>
 
+#include "types.hpp"
+
 // varint encoding:
 // numbers are encoded with a 7 bit big endian code
 // each byte that has the MSB set notes that there
@@ -39,6 +41,8 @@ struct InputStream
         static_assert(sizeof(T) == 1);
         return T(read_byte());
     }
+
+	std::tuple<UIProperty, bool> read_property_enum();
 };
 
 #endif // INPUTSTREAM_HPP

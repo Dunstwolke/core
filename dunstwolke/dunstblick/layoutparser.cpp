@@ -6,6 +6,8 @@
 #include <string>
 #include <gsl/gsl>
 #include <stdexcept>
+#include <xstd/resource>
+
 #include "enums.hpp"
 #include "types.hpp"
 
@@ -13,10 +15,6 @@
 #include "parser-info.hpp"
 #undef INCLUDE_PARSER_FIELDS
 
-LayoutParser::LayoutParser()
-{
-
-}
 
 static std::string toString(LexerTokenType type)
 {
@@ -27,6 +25,8 @@ static std::string toString(LexerTokenType type)
 		case LexerTokenType::number: return "number";
 		case LexerTokenType::openBrace: return "opening brace";
 		case LexerTokenType::closeBrace: return "closing brace";
+		case LexerTokenType::openParens: return "opening parens";
+		case LexerTokenType::closeParens: return "closing parens";
 		case LexerTokenType::colon: return "colon";
 		case LexerTokenType::semiColon: return "semicolon";
 		case LexerTokenType::comma: return "comma";
@@ -38,15 +38,60 @@ static std::string toString(LexerTokenType type)
 	return "???";
 }
 
-static std::string Accept(FlexLexer * lexer, LexerTokenType type)
+LayoutParser::LayoutParser()
 {
-	auto tok = LayoutParser::Lex(lexer);
-	if(not tok or tok->type != type) {
-		if(not tok)
-			throw std::runtime_error("unexpected end of file!");
-		throw std::runtime_error("expected " + toString(type) + ", found: '" + tok->text + "'!");
+
+}
+
+struct Lexer
+{
+	xstd::resource<FlexLexer*, LayoutParser::FreeLexer> lexer;
+
+	std::optional<Token> peeked_token; // 0…1 element buffer
+
+	Lexer(std::istream & input) :
+	    lexer(LayoutParser::AllocLexer(&input))
+	{
+		assert(lexer != nullptr);
 	}
-	return tok->text;
+
+	std::optional<Token> peek()
+	{
+		if(peeked_token)
+			return peeked_token;
+		peeked_token = LayoutParser::Lex(lexer.get());
+		return peeked_token;
+	}
+
+	std::optional<Token> lex()
+	{
+		if(peeked_token) {
+			auto result = peeked_token;
+			peeked_token.reset();
+			return result;
+		}
+		return LayoutParser::Lex(lexer.get());
+	}
+
+
+
+	std::string accept(LexerTokenType type)
+	{
+		auto tok = lex();
+		if(not tok or tok->type != type) {
+			if(not tok)
+				throw std::runtime_error("unexpected end of file!");
+			throw std::runtime_error("expected " + toString(type) + ", found: '" + tok->text + "'!");
+		}
+		return tok->text;
+	}
+
+};
+
+static int lex_int(Lexer & lexer)
+{
+	auto text = lexer.accept(LexerTokenType::integer);
+	return gsl::narrow<int>(strtol(text.c_str(), nullptr, 10));
 }
 
 static void write_varint(std::ostream &output, uint32_t value)
@@ -87,11 +132,6 @@ static void write_number(std::ostream & output, float value)
 	output.write(reinterpret_cast<char const *>(&value), sizeof(value));
 }
 
-static int lex_int(FlexLexer * lexer)
-{
-	auto text = Accept(lexer, LexerTokenType::integer);
-	return gsl::narrow<int>(strtol(text.c_str(), nullptr, 10));
-}
 
 //static float lex_number(FlexLexer * lexer)
 //{
@@ -99,19 +139,19 @@ static int lex_int(FlexLexer * lexer)
 //	return strtof(text.c_str(), nullptr);
 //}
 
-static void parse_and_translate(UIType type, FlexLexer * lexer, std::ostream &output)
+static void parse_and_translate(UIType type, Lexer & lexer, std::ostream &output)
 {
 	switch(type)
 	{
 		case UIType::integer: {
 			auto value = lex_int(lexer);
 			write_varint(output, gsl::narrow<uint32_t>(value));
-			Accept(lexer, LexerTokenType::semiColon);
+			lexer.accept(LexerTokenType::semiColon);
 			return;
 		}
 
 		case UIType::number: {
-			auto tok = LayoutParser::Lex(lexer);
+			auto tok = lexer.lex();
 			if(not tok)
 				throw std::runtime_error("unexpected end of file!");
 			float value;
@@ -125,30 +165,30 @@ static void parse_and_translate(UIType type, FlexLexer * lexer, std::ostream &ou
 				throw std::runtime_error("unexpected token. expected number or integer!");
 			}
 			write_number(output, value);
-			Accept(lexer, LexerTokenType::semiColon);
+			lexer.accept(LexerTokenType::semiColon);
 			return;
 		}
 
 		case UIType::enumeration: {
-			auto text = Accept(lexer, LexerTokenType::identifier);
+			auto text = lexer.accept(LexerTokenType::identifier);
 
 			if(auto it = enumerations.find(text); it != enumerations.end())
 				write_enum(output, it->second);
 			else
 				throw std::runtime_error("unknown enumeration value: " + text);
 
-			Accept(lexer, LexerTokenType::semiColon);
+			lexer.accept(LexerTokenType::semiColon);
 			return;
 		}
 
 		case UIType::string: {
-			write_string(output, Accept(lexer, LexerTokenType::string));
-			Accept(lexer, LexerTokenType::semiColon);
+			write_string(output, lexer.accept(LexerTokenType::string));
+			lexer.accept(LexerTokenType::semiColon);
 			return;
 		}
 
 		case UIType::boolean: {
-			auto text = Accept(lexer, LexerTokenType::identifier);
+			auto text = lexer.accept(LexerTokenType::identifier);
 			char value;
 			if(text == "true" or text == "yes")
 				value = 1;
@@ -159,7 +199,7 @@ static void parse_and_translate(UIType type, FlexLexer * lexer, std::ostream &ou
 
 			output.write(&value, 1);
 
-			Accept(lexer, LexerTokenType::semiColon);
+			lexer.accept(LexerTokenType::semiColon);
 			return;
 		}
 
@@ -168,7 +208,7 @@ static void parse_and_translate(UIType type, FlexLexer * lexer, std::ostream &ou
 			items.push_back(lex_int(lexer));
 			while(items.size() < 4)
 			{
-				auto next = LayoutParser::Lex(lexer);
+				auto next = lexer.lex();
 				if(not next)
 					throw std::runtime_error("unexpected end of file!");
 				if(next->type == LexerTokenType::semiColon)
@@ -178,7 +218,7 @@ static void parse_and_translate(UIType type, FlexLexer * lexer, std::ostream &ou
 				items.push_back(lex_int(lexer));
 			}
 			if(items.size() == 4)
-				Accept(lexer, LexerTokenType::semiColon);
+				lexer.accept(LexerTokenType::semiColon);
 			switch(items.size())
 			{
 				case 1:
@@ -209,7 +249,7 @@ static void parse_and_translate(UIType type, FlexLexer * lexer, std::ostream &ou
 
 		case UIType::sizelist: {
 			auto lex_item = [&]() -> UISizeDef {
-			    auto tok = LayoutParser::Lex(lexer);
+			    auto tok = lexer.lex();
 			    if(not tok)
 			    throw std::runtime_error("unexpected end of file!");
 			    if(tok->type == LexerTokenType::identifier) {
@@ -235,7 +275,7 @@ static void parse_and_translate(UIType type, FlexLexer * lexer, std::ostream &ou
 			list.push_back(lex_item());
 			while(true)
 			{
-				auto next = LayoutParser::Lex(lexer);
+				auto next = lexer.lex();
 				if(not next)
 					throw std::runtime_error("unexpected end of file!");
 				if(next->type == LexerTokenType::semiColon)
@@ -282,7 +322,7 @@ static void parse_and_translate(UIType type, FlexLexer * lexer, std::ostream &ou
 			// TODO: Insert improved resource compiling here later
 			// resource("this is my file");
 			write_varint(output, gsl::narrow<uint32_t>(lex_int(lexer)));
-			Accept(lexer, LexerTokenType::semiColon);
+			lexer.accept(LexerTokenType::semiColon);
 			return;
 		}
 
@@ -290,9 +330,9 @@ static void parse_and_translate(UIType type, FlexLexer * lexer, std::ostream &ou
 	assert(false and "not supported type!");
 }
 
-static void parse_and_translate(std::string const & widgetName, FlexLexer * lexer, std::ostream &output)
+static void parse_and_translate(LayoutParser const & parser, std::string const & widgetName, Lexer & lexer, std::ostream &output)
 {
-	Accept(lexer, LexerTokenType::openBrace);
+	lexer.accept(LexerTokenType::openBrace);
 
 	auto const widgetType = widgetTypes.at(widgetName);
 	write_enum(output, widgetType);
@@ -301,7 +341,7 @@ static void parse_and_translate(std::string const & widgetName, FlexLexer * lexe
 
 	while(true)
 	{
-		auto tok = LayoutParser::Lex(lexer);
+		auto tok = lexer.lex();
 		if(not tok)
 			throw std::runtime_error("unexpected end of file!");
 		if(tok->type == LexerTokenType::closeBrace)
@@ -314,20 +354,50 @@ static void parse_and_translate(std::string const & widgetName, FlexLexer * lexe
 			{
 				if(isReadingChildren)
 					throw std::runtime_error("property definitions are only allowed before child widgets!!");
-				Accept(lexer, LexerTokenType::colon);
+				lexer.accept(LexerTokenType::colon);
 
-				write_enum(output, it1->second);
+				char propId = char(it1->second);
+				assert((propId & ~0x7F) == 0);
 
-				auto propertyType = getPropertyType(it1->second);
+				auto const propertyType = getPropertyType(it1->second);
 
-				parse_and_translate(propertyType, lexer, output);
+				if(auto bindTok = lexer.peek(); bindTok and (bindTok->type == LexerTokenType::identifier) and (bindTok->text == "bind"))
+				{
+					// this is a binding
+					propId |= 0x80; // set "is property bit"
+
+					output.write(&propId, 1);
+
+					lexer.accept(LexerTokenType::identifier);
+					lexer.accept(LexerTokenType::openParens);
+
+					auto const propertyName = lexer.accept(LexerTokenType::string);
+
+					lexer.accept(LexerTokenType::closeParens);
+					lexer.accept(LexerTokenType::semiColon);
+
+					auto it3 = parser.knownProperties.find(propertyName);
+					if(it3 == parser.knownProperties.end())
+						throw std::runtime_error("unknown property: " + propertyName);
+
+					auto const propertyKey = gsl::narrow<uint32_t>(it3->second.value);
+
+					write_varint(output, propertyKey);
+				}
+				else
+				{
+
+					write_enum(output, it1->second);
+
+					parse_and_translate(propertyType, lexer, output);
+				}
 			}
 			else if(auto it2 = widgetTypes.find(tok->text); it2 != widgetTypes.end())
 			{
 				if(not isReadingChildren)
 					write_enum(output, UIProperty::invalid); // end of properties
 				isReadingChildren = true;
-				parse_and_translate(tok->text, lexer, output);
+				parse_and_translate(parser, tok->text, lexer, output);
 			}
 			else
 			{
@@ -345,15 +415,15 @@ static void parse_and_translate(std::string const & widgetName, FlexLexer * lexe
 	write_enum(output, UIWidget::invalid); // end of children
 }
 
-static void parse_and_translate(FlexLexer * lexer, std::ostream &output)
+static void parse_and_translate(LayoutParser const & parser, Lexer & lexer, std::ostream &output)
 {
-	auto const widgetName = Accept(lexer, LexerTokenType::identifier);
-	parse_and_translate(widgetName, lexer, output);
+	auto const widgetName = lexer.accept(LexerTokenType::identifier);
+	parse_and_translate(parser, widgetName, lexer, output);
 }
 
 void LayoutParser::compile(std::istream &input, std::ostream &output)
 {
-	xstd::resource<FlexLexer*, FreeLexer> lexer(AllocLexer(&input));
+	Lexer lexer { input };
 
-	parse_and_translate(lexer.get(), output);
+	parse_and_translate(*this, lexer, output);
 }

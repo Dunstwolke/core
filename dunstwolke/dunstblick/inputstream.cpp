@@ -46,5 +46,11 @@ std::string_view InputStream::read_string()
         throw std::out_of_range("stream is out of bytes!");
     std::string_view result(reinterpret_cast<char const *>(data + offset), len);
     offset += len;
-    return result;
+	return result;
+}
+
+std::tuple<UIProperty, bool> InputStream::read_property_enum()
+{
+	auto value = read_byte();
+	return std::make_tuple(UIProperty(value & 0x7F), (value & 0x80) != 0);
 }

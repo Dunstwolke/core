@@ -216,6 +216,23 @@ void Widget::setProperty(UIProperty property, UIValue value)
 	}
 }
 
+void Widget::setPropertyBinding(UIProperty property, xstd::optional<PropertyName> name)
+{
+	auto & meta = MetaWidget::get(this->type);
+
+	if(auto it1 = meta.specializedProperties.find(property); it1 != meta.specializedProperties.end())
+		it1->second(*this)->binding = name;
+	else if(auto it2 = meta.defaultProperties.find(property); it2 != meta.defaultProperties.end())
+		it2->second(*this)->binding = name;
+	else {
+#ifdef DEBUG
+		std::cerr << "unknown property " + to_string(property) + " for widget " + to_string(this->type) + "!" << std::endl;
+#else
+		throw std::range_error("unknown property " + to_string(property) + " for widget " + to_string(this->type) + "!");
+#endif
+	}
+}
+
 Visibility Widget::getActualVisibility() const
 {
 	if(hidden_by_layout)

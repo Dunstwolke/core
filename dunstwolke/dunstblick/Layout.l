@@ -76,6 +76,8 @@ static CustomBuffer & BufferFromPtr(FlexLexer *);
 
 \{                      { return int(LTT::openBrace); }
 \}                      { return int(LTT::closeBrace); }
+\(                      { return int(LTT::openParens); }
+\)                      { return int(LTT::closeParens); }
 \:                      { return int(LTT::colon); }
 \;                      { return int(LTT::semiColon); }
 \,                      { return int(LTT::comma); }

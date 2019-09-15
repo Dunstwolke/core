@@ -1,11 +1,11 @@
 StackLayout {
 	Slider {
-		value: 0.0;
+		value: bind("sinewave");
 		minimum: 0.0;
 		maximum: 100.0;
 	}
 	Label {
-		text: "<not bound>";
+		text: bind("sinewave");
 	}
 	/*
 	AnyWidget {

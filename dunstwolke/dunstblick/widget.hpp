@@ -25,7 +25,7 @@ struct Widget;
 
 struct BaseProperty
 {
-	std::optional<PropertyName> binding;
+	xstd::optional<PropertyName> binding;
 
 	BaseProperty() = default;
 	BaseProperty(BaseProperty const &) = delete;
@@ -180,8 +180,11 @@ public:
 	/// returns the wanted_size of the widget with margins added
 	SDL_Size wanted_size_with_margins() const;
 
-	/// deserializes a single property or throws a "not supported exception"
+	/// sets a widget property or ignores the value if the property does not exist
 	void setProperty(UIProperty property, UIValue value);
+
+	/// sets the binding of a widget property
+	void setPropertyBinding(UIProperty property, xstd::optional<PropertyName> name);
 
 	/// returns the actual visibility of this widget.
 	/// this takes user decision, layout and other stuff into account.
