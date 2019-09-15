@@ -139,7 +139,7 @@ static void write_number(std::ostream & output, float value)
 //	return strtof(text.c_str(), nullptr);
 //}
 
-static void parse_and_translate(UIType type, Lexer & lexer, std::ostream &output)
+static void parse_and_translate(LayoutParser const & parser, UIType type, Lexer & lexer, std::ostream &output)
 {
 	switch(type)
 	{
@@ -319,10 +319,23 @@ static void parse_and_translate(UIType type, Lexer & lexer, std::ostream &output
 
 		case UIType::resource:
 		{
-			// TODO: Insert improved resource compiling here later
-			// resource("this is my file");
-			write_varint(output, gsl::narrow<uint32_t>(lex_int(lexer)));
+			auto const tokResource = lexer.accept(LexerTokenType::identifier);
+			if(tokResource != "resource")
+				throw std::runtime_error("expected 'resource', found " + tokResource + " instead!");
+
+			lexer.accept(LexerTokenType::openParens);
+
+			auto const resourceName = lexer.accept(LexerTokenType::string);
+
+			lexer.accept(LexerTokenType::closeParens);
+
 			lexer.accept(LexerTokenType::semiColon);
+
+			if(auto it = parser.knownResources.find(resourceName); it == parser.knownResources.end())
+				throw std::runtime_error("unknown resource: '" + resourceName + "'!");
+			else
+				write_varint(output, gsl::narrow<uint32_t>(it->second.value));
+
 			return;
 		}
 
@@ -386,10 +399,9 @@ static void parse_and_translate(LayoutParser const & parser, std::string const &
 				}
 				else
 				{
-
 					write_enum(output, it1->second);
 
-					parse_and_translate(propertyType, lexer, output);
+					parse_and_translate(parser, propertyType, lexer, output);
 				}
 			}
 			else if(auto it2 = widgetTypes.find(tok->text); it2 != widgetTypes.end())

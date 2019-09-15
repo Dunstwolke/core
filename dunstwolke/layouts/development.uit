@@ -7,6 +7,9 @@ StackLayout {
 	Label {
 		text: bind("sinewave");
 	}
+	Picture {
+		image: resource("house.png");
+	}
 	/*
 	AnyWidget {
 		child-source: bind(…);

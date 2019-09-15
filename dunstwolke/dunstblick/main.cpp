@@ -275,6 +275,9 @@ int main()
 
 	LayoutParser layout_parser;
 	layout_parser.knownProperties.emplace("sinewave", PropertyName(42));
+	layout_parser.knownResources.emplace("root_layout", UIResourceID(1));
+	layout_parser.knownResources.emplace("house.png", UIResourceID(2));
+	layout_parser.knownResources.emplace("root_object", UIResourceID(3));
 	layout_parser.compile(input_src, formDataBuffer);
 
 	auto formData = formDataBuffer.str();
@@ -293,12 +296,6 @@ int main()
 
 	set_ui_root(UIResourceID(1));
 	set_object_root(UIResourceID(3));
-
-	//////////////////////////////////////////////////////////////////////////////
-	// fake some bindings here
-
-	reinterpret_cast<Slider*>(root_widget->children.at(0).get())->value.binding = PropertyName(42);
-	reinterpret_cast<Label*>(root_widget->children.at(1).get())->text.binding = PropertyName(42);
 
 	//////////////////////////////////////////////////////////////////////////////
 

@@ -41,6 +41,7 @@ struct LayoutParser
     static std::optional<Token> Lex(FlexLexer*);
 
 	std::map<std::string, PropertyName> knownProperties;
+	std::map<std::string, UIResourceID> knownResources;
 
     LayoutParser();
 
