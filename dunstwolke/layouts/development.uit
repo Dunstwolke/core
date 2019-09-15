@@ -7,8 +7,26 @@ StackLayout {
 	Label {
 		text: bind("sinewave");
 	}
-	Picture {
-		image: resource("house.png");
+	DockLayout { 
+		stack-direction: horizontal;
+		binding-context: bind("child");
+		Label {
+			dock-site: left;
+			text: "Value (child):";
+		}
+		Label {
+			dock-site: left;
+			text: bind("sinewave");
+		}
+		Picture {
+			dock-site: right;
+			horizontal-alignment: right;
+			image: resource("house.png");
+		}
+		Slider {
+			value: bind("sinewave");
+			vertical-alignment: middle;
+		}
 	}
 	/*
 	AnyWidget {

@@ -274,6 +274,7 @@ int main()
 	std::stringstream formDataBuffer;
 
 	LayoutParser layout_parser;
+	layout_parser.knownProperties.emplace("child", PropertyName(23));
 	layout_parser.knownProperties.emplace("sinewave", PropertyName(42));
 	layout_parser.knownResources.emplace("root_layout", UIResourceID(1));
 	layout_parser.knownResources.emplace("house.png", UIResourceID(2));
@@ -289,7 +290,13 @@ int main()
 
 	set_resource(UIResourceID(3), Object { });
 
-	auto & prop1 = get_object(UIResourceID(3))->add(PropertyName(42), 0.0f);
+	auto & root_obj	= *get_object(UIResourceID(3));
+
+	auto & prop1 = root_obj.add(PropertyName(42), 0.0f);
+
+	auto & prop2 = root_obj.add(PropertyName(23), ObjectRef { Object { } });
+
+	std::get<ObjectRef>(prop2.value)->add(PropertyName(42), 25.0f);
 
 	//////////////////////////////////////////////////////////////////////////////
 	// emulate some API calls here
@@ -342,8 +349,19 @@ int main()
 			context().renderer.setColor(0x00, 0x00, 0x00, 0xFF);
 			context().renderer.fillRect(context().renderer.getViewport());
 
+			update_layout();
+
 			if(root_widget)
 				root_widget->paint();
+
+			int mx, my;
+			SDL_GetMouseState(&mx, &my);
+
+			if(auto * child = root_widget->hitTest(mx, my); child != nullptr)
+			{
+				context().renderer.setColor(0xFF, 0x00, 0xFF);
+				context().renderer.drawRect(child->actual_bounds);
+			}
 
 			context().renderer.present();
 

@@ -111,6 +111,7 @@ properties =
 	{  26, "childSource",          "child-source",           "objectlist"  },
 	{  27, "childTemplate",        "child-template",         "resource"    },
     {  28, "toolTip",              "tool-tip",               "string"      },
+	{  29, "hitTestVisible",       "hit-test-visible",       "boolean"     },
 },
 
 groups = 

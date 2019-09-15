@@ -240,6 +240,29 @@ Visibility Widget::getActualVisibility() const
 	return visibility.get(this);
 }
 
+static inline bool contains(SDL_Rect const & rect, int x, int y)
+{
+	return (x >= rect.x)
+	   and (y >= rect.y)
+	   and (x < rect.x + rect.w)
+	   and (y < rect.y + rect.h)
+	;
+}
+
+Widget * Widget::hitTest(int ssx, int ssy)
+{
+	if(not this->hitTestVisible.get(this))
+		return nullptr;
+	if(not contains(actual_bounds, ssx, ssy))
+		return nullptr;
+	for(auto it = children.rbegin(); it != children.rend(); it++)
+	{
+		if(auto * child = (*it)->hitTest(ssx, ssy); child != nullptr)
+			return child;
+	}
+	return this;
+}
+
 BaseProperty::~BaseProperty()
 {
 
@@ -276,6 +299,7 @@ std::map<UIProperty, GetPropertyFunction> const MetaWidget::defaultProperties = 
 	MetaProperty { UIProperty::enabled, &Widget::enabled },
 	MetaProperty { UIProperty::sizeHint, &Widget::sizeHint },
 	MetaProperty { UIProperty::bindingContext, &Widget::bindingContext },
+	MetaProperty { UIProperty::hitTestVisible, &Widget::hitTestVisible },
 });
 
 std::map<UIWidget, MetaWidget> const metaWidgets

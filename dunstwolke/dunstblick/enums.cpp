@@ -33,6 +33,7 @@ UIType getPropertyType(UIProperty property)
 		case UIProperty::childSource: return UIType::objectlist;
 		case UIProperty::childTemplate: return UIType::resource;
 		case UIProperty::toolTip: return UIType::string;
+		case UIProperty::hitTestVisible: return UIType::boolean;
 	}
 	assert(false and "invalid property was passed to getPropertyType!");
 }
@@ -69,6 +70,7 @@ std::string to_string(UIProperty property)
 		case UIProperty::childSource: return "child-source";
 		case UIProperty::childTemplate: return "child-template";
 		case UIProperty::toolTip: return "tool-tip";
+		case UIProperty::hitTestVisible: return "hit-test-visible";
 	}
 	return "property(" + std::to_string(int(property)) + ")";
 }

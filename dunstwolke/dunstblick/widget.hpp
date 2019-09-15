@@ -117,6 +117,7 @@ public: // deserializable properties
 	property<UIMargin> paddings = UIMargin(0);
 	property<bool> enabled = true;
 	property<SDL_Size> sizeHint = SDL_Size { 0, 0 };
+	property<bool> hitTestVisible = true;
 
 	/// stores either a ResourceID or a property binding
 	/// for the bindingSource. If the property is bound,
@@ -189,6 +190,13 @@ public:
 	/// returns the actual visibility of this widget.
 	/// this takes user decision, layout and other stuff into account.
 	Visibility getActualVisibility() const;
+
+	/// performs a hit test against this widget and all
+	/// possible children.
+	/// @returns the widget hit.
+	/// @param ssx x coordinate in screen space coordinates
+	/// @param ssy y coordinate in screen space coordinates
+	Widget * hitTest(int ssx, int ssy);
 
 protected:
 	/// stage1: calculates the space this widget wants to take.

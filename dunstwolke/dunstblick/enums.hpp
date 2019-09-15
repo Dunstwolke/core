@@ -97,6 +97,7 @@ enum class UIProperty : uint8_t
 	childSource = 26,
 	childTemplate = 27,
 	toolTip = 28,
+	hitTestVisible = 29,
 };
 
 enum class UIType : uint8_t
@@ -117,25 +118,10 @@ enum class UIType : uint8_t
 	objectlist = 13,
 };
 
-enum class UIFont : uint8_t
-{
-	sans = UIEnum::sans,
-	serif = UIEnum::serif,
-	monospace = UIEnum::monospace,
-};
-
 enum class StackDirection : uint8_t
 {
 	vertical = UIEnum::vertical,
 	horizontal = UIEnum::horizontal,
-};
-
-enum class VAlignment : uint8_t
-{
-	stretch = UIEnum::stretch,
-	top = UIEnum::top,
-	middle = UIEnum::middle,
-	bottom = UIEnum::bottom,
 };
 
 enum class Visibility : uint8_t
@@ -143,6 +129,36 @@ enum class Visibility : uint8_t
 	visible = UIEnum::visible,
 	collapsed = UIEnum::collapsed,
 	hidden = UIEnum::hidden,
+};
+
+enum class UIFont : uint8_t
+{
+	sans = UIEnum::sans,
+	serif = UIEnum::serif,
+	monospace = UIEnum::monospace,
+};
+
+enum class HAlignment : uint8_t
+{
+	stretch = UIEnum::stretch,
+	left = UIEnum::left,
+	center = UIEnum::center,
+	right = UIEnum::right,
+};
+
+enum class DockSite : uint8_t
+{
+	top = UIEnum::top,
+	bottom = UIEnum::bottom,
+	left = UIEnum::left,
+	right = UIEnum::right,
+};
+
+enum class DisplayProgressStyle : uint8_t
+{
+	none = UIEnum::none,
+	percent = UIEnum::percent,
+	absolute = UIEnum::absolute,
 };
 
 enum class ImageScaling : uint8_t
@@ -155,14 +171,6 @@ enum class ImageScaling : uint8_t
 	cover = UIEnum::cover,
 };
 
-enum class DockSite : uint8_t
-{
-	top = UIEnum::top,
-	bottom = UIEnum::bottom,
-	left = UIEnum::left,
-	right = UIEnum::right,
-};
-
 enum class BooleanFormat : uint8_t
 {
 	truefalse = UIEnum::truefalse,
@@ -170,19 +178,12 @@ enum class BooleanFormat : uint8_t
 	onoff = UIEnum::onoff,
 };
 
-enum class DisplayProgressStyle : uint8_t
-{
-	none = UIEnum::none,
-	percent = UIEnum::percent,
-	absolute = UIEnum::absolute,
-};
-
-enum class HAlignment : uint8_t
+enum class VAlignment : uint8_t
 {
 	stretch = UIEnum::stretch,
-	left = UIEnum::left,
-	center = UIEnum::center,
-	right = UIEnum::right,
+	top = UIEnum::top,
+	middle = UIEnum::middle,
+	bottom = UIEnum::bottom,
 };
 
 UIType getPropertyType(UIProperty property);

@@ -1,0 +1,6 @@
+examples:
+- calculator
+- text editor
+- chat application
+- option menu
+- adressbook
