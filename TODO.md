@@ -2,8 +2,8 @@
 	- [x] Bitmap
 	- [ ] Vector Drawing
 	- [x] UI Template
-	- [x] Objects
 - [ ] Object System
+	- [x] Object Registry
 	- [x] Define possible object property types
 	- [ ] Deserialize Objects
 	- [ ] Refresh objects
@@ -13,7 +13,7 @@
 	- [x] Keyboard
 	- [ ] Tab Switch
 	- [ ] Filter keyboard for widgets with tab stop
-- [ ] Add "deferModalDrawing" to render context
+- [ ] Add "deferModalDrawing" to render/ui context
 	- allow rendering stuff *after* everything else
 	- required for tooltips and combo boxes
 - [ ] Command API

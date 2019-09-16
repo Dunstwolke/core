@@ -95,7 +95,7 @@ UIValue convertTo(UIValue const & value, UIType type, ConversionOptions const & 
 			return convertToNumber(value, opts);
 
 		default:
-			throw std::runtime_error("unsupported conversion target!");
+			throw std::runtime_error("cannot convert from " + to_string(UIType(value.index())) + " to " + to_string(type) +  "!");
 	}
 }
 
@@ -113,7 +113,7 @@ ObjectRef::ObjectRef(ObjectID _id) :
 }
 
 ObjectRef::ObjectRef(const Object & obj) :
-    id(obj.id)
+    id(obj.get_id())
 {
 
 }

@@ -29,6 +29,13 @@ public:
 		return _id;
 	}
 
+	ObjectProperty & add(PropertyName name, UIValue value)
+	{
+		auto & prop = add(name, UIType(value.index()));
+		prop.value = std::move(value);
+		return prop;
+	}
+
 	template<typename T>
 	ObjectProperty & add(PropertyName name, T const & value)
 	{

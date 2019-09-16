@@ -87,7 +87,6 @@ static UIValue deserialize_value(UIType type, InputStream & stream)
 	switch(type)
 	{
 		case UIType::invalid: throw std::runtime_error("Invalid property serialization: 'invalid' object discovered.");
-		case UIType::object: throw std::runtime_error("Invalid property serialization: 'object' object discovered.");
 		case UIType::objectlist: throw std::runtime_error("Invalid property serialization: 'objectlist' object discovered.");
 
 		case UIType::enumeration:
@@ -98,6 +97,9 @@ static UIValue deserialize_value(UIType type, InputStream & stream)
 
 		case UIType::resource:
 			return UIResourceID(stream.read_uint());
+
+		case UIType::object: // objects are always references!
+			return ObjectRef { ObjectID(stream.read_uint()) };
 
 		case UIType::number:
 			return gsl::narrow<float>(stream.read_float());
@@ -264,8 +266,40 @@ static void set_object_root(ObjectID id)
 	}
 }
 
+static Object deserialize_object(InputStream & stream)
+{
+	ObjectID id = ObjectID(stream.read_uint());
+	Object obj { id };
+	while(true)
+	{
+		auto const type = stream.read_enum<UIType>();
+		if(type == UIType::invalid)
+			break;
+		auto const name = PropertyName(stream.read_uint());
+
+		UIValue const value = deserialize_value(type, stream);
+
+		obj.add(name, std::move(value));
+	}
+	return obj;
+}
+
 #include <fstream>
 #include <iostream>
+
+uint8_t const serdata_object1[] =
+	"\x01" // object-id : varint
+	// property name : varint, type : u8, value : TypeFor(type)
+	"\x0C\x17\x02" // ObjectRef, 23, 2
+	"\x01\x2A\x19" // Integer, 42, 25
+	"\x00" // end of properties
+;
+
+uint8_t const serdata_object2[] =
+	"\x02" // object-id 2
+	"\x01\x2A\x32" // integer, 42, 50
+	"\x00" // end of properties
+;
 
 int main()
 {
@@ -333,20 +367,16 @@ int main()
 
 	set_resource(UIResourceID(2), BitmapResource(sdl2::texture(std::move(tex))));
 
-	auto & root_obj = add_or_update_object(Object { ObjectID(1) });
-	root_obj.add(PropertyName(42), 0.0f);
-
-	auto & child = add_or_update_object(Object { ObjectID(2) });
-
-	auto & prop2 = root_obj.add(PropertyName(23), ObjectRef { child });
-
-	std::get<ObjectRef>(prop2.value)->add(PropertyName(42), 25);
+	InputStream istream1(serdata_object1);
+	InputStream istream2(serdata_object2);
+	add_or_update_object(deserialize_object(istream1));
+	add_or_update_object(deserialize_object(istream2));
 
 	//////////////////////////////////////////////////////////////////////////////
 	// emulate some API calls here
 
 	set_ui_root(UIResourceID(1));
-	set_object_root(root_obj.get_id());
+	set_object_root(ObjectID(1));
 
 	//////////////////////////////////////////////////////////////////////////////
 

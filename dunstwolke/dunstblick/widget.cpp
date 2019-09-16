@@ -26,7 +26,7 @@ void Widget::updateBindings(ObjectRef parentBindingSource)
 		// bind to it
 		if(auto prop = parentBindingSource->get(*this->bindingContext.binding); prop)
 		{
-			this->bindingSource = std::get<ObjectRef>(convertTo(prop->value, UIType::object));
+			this->bindingSource = std::get<ObjectRef>(prop->value);
 		}
 		else
 		{
