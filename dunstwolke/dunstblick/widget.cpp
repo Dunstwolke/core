@@ -16,10 +16,10 @@ Widget::Widget(UIWidget _type) :
 
 }
 
-void Widget::updateBindings(ObjectRef & parentBindingSource)
+void Widget::updateBindings(ObjectRef parentBindingSource)
 {
 	// if we have a bindingSource of the parent available:
-	if(parentBindingSource.has_value() and this->bindingContext.binding)
+	if(parentBindingSource and this->bindingContext.binding)
 	{
 		// check if the parent source has the property
 		// we bind our bindingContext to and if yes,
@@ -30,21 +30,17 @@ void Widget::updateBindings(ObjectRef & parentBindingSource)
 		}
 		else
 		{
-			this->bindingSource = ObjectRef();
+			this->bindingSource = ObjectRef(nullptr);
 		}
 	}
 	else
 	{
 		// otherwise check if our bindingContext has a valid resourceID and
 		// load that resource reference:
-		auto resourceID = this->bindingContext.get(this);
-		if(not resourceID.is_null())
+		auto objectID = this->bindingContext.get(this);
+		if(objectID.is_resolvable())
 		{
-			// if a resource is bound, load that resource:
-			if(auto objref = get_object(resourceID); objref)
-				this->bindingSource = ObjectRef(&objref.value());
-			else
-				this->bindingSource = ObjectRef(); // no binding source if resource ist not found
+			this->bindingSource = objectID;
 		}
 		else
 		{

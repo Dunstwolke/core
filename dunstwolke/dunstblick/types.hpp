@@ -69,26 +69,48 @@ using UISizeList = std::vector<UISizeDef>;
 using ObjectID = xstd::unique_id<struct Object>;
 using PropertyName = xstd::unique_id<struct ObjectProperty>;
 
-struct ObjectProperty;
-struct Object
+struct Object;
+
+struct ObjectRef
 {
 	ObjectID id;
-	std::map<PropertyName, ObjectProperty> properties;
 
-	ObjectProperty & add(PropertyName, UIType type);
+	explicit ObjectRef(std::nullptr_t);
 
-	template<typename T>
-	ObjectProperty & add(PropertyName name, T const & value);
+	explicit ObjectRef(ObjectID id);
 
-	xstd::optional<ObjectProperty&> get(PropertyName property);
+	explicit ObjectRef(Object const & obj);
 
-	xstd::optional<ObjectProperty const &> get(PropertyName property) const;
+	xstd::optional<Object&> try_resolve();
+	xstd::optional<Object const&> try_resolve() const;
+
+	bool is_resolvable() const;
+
+	Object & resolve();
+	Object const & resolve() const;
+
+	Object * operator -> () {
+		return &resolve();
+	}
+
+	Object const * operator -> () const {
+		return &resolve();
+	}
+
+	Object & operator * () {
+		return resolve();
+	}
+
+	Object const & operator * () const {
+		return resolve();
+	}
+
+	operator bool() const {
+		return is_resolvable();
+	}
 };
 
-using ObjectRef = xstd::flexref<Object>;
-
 using ObjectList = std::vector<ObjectRef>;
-
 
 template<typename T>
 constexpr UIType getUITypeFromType();
@@ -96,11 +118,6 @@ constexpr UIType getUITypeFromType();
 // include generated code
 #include "types.variant.hpp"
 
-struct ObjectProperty
-{
-	UIType type;
-	UIValue value;
-};
 
 struct ConversionOptions
 {
@@ -109,13 +126,5 @@ struct ConversionOptions
 
 UIValue convertTo(UIValue const & value, UIType type, ConversionOptions const & options = { });
 
-
-template<typename T>
-ObjectProperty & Object::add(PropertyName name, const T & value)
-{
-	auto & prop = add(name, getUITypeFromType<T>());
-	prop.value = value;
-	return prop;
-}
 
 #endif // TYPES_HPP

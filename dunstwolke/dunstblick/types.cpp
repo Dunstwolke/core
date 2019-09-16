@@ -1,4 +1,5 @@
 #include "types.hpp"
+#include "object.hpp"
 #include <stdexcept>
 #include <xstd/format>
 #include <gsl/gsl>
@@ -98,26 +99,22 @@ UIValue convertTo(UIValue const & value, UIType type, ConversionOptions const & 
 	}
 }
 
-ObjectProperty & Object::add(PropertyName name, UIType type)
+
+ObjectRef::ObjectRef(std::nullptr_t) :
+    id()
 {
-	auto [ it, emplaced ] = properties.emplace(name, ObjectProperty { type, UIValue { } });
-	if(not emplaced)
-		throw std::runtime_error("object already has this property!");
-	return it->second;
+
 }
 
-xstd::optional<ObjectProperty &> Object::get(PropertyName property)
+ObjectRef::ObjectRef(ObjectID _id) :
+    id(_id)
 {
-	if(auto it = properties.find(property); it != properties.end())
-		return it->second;
-	else
-		return xstd::nullopt;
+
 }
 
-xstd::optional<const ObjectProperty &> Object::get(PropertyName property) const
+ObjectRef::ObjectRef(const Object & obj) :
+    id(obj.id)
 {
-	if(auto it = properties.find(property); it != properties.end())
-		return it->second;
-	else
-		return xstd::nullopt;
+
 }
+

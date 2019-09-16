@@ -4,6 +4,7 @@
 #include <vector>
 #include <filesystem>
 
+#include "types.hpp"
 #include "widget.hpp"
 #include "layouts.hpp"
 #include "widgets.hpp"
@@ -35,7 +36,7 @@ static Widget * mouse_focused_widget = nullptr;
 
 static SDL_Rect screen_rect = { 0, 0, 0, 0 };
 
-static ObjectRef root_object;
+static ObjectRef root_object = ObjectRef(nullptr);
 
 static void ui_set_keyboard_focus(Widget * widget)
 {
@@ -254,15 +255,11 @@ static void set_ui_root(UIResourceID id)
 	}
 }
 
-static void set_object_root(UIResourceID id)
+static void set_object_root(ObjectID id)
 {
-	if(auto resource = find_resource(id); resource)
-	{
-		if(resource->index() != int(ResourceKind::object))
-			throw std::runtime_error("invalid resource: wrong kind!");
-
-		root_object = ObjectRef(&const_cast<Object&>(std::get<Object>(*resource)));
-
+	auto ref = ObjectRef { id };
+	if(ref) {
+		root_object = ref;
 		update_layout();
 	}
 }
@@ -336,13 +333,12 @@ int main()
 
 	set_resource(UIResourceID(2), BitmapResource(sdl2::texture(std::move(tex))));
 
-	set_resource(UIResourceID(3), Object { });
+	auto & root_obj = add_or_update_object(Object { ObjectID(1) });
+	root_obj.add(PropertyName(42), 0.0f);
 
-	auto & root_obj	= *get_object(UIResourceID(3));
+	auto & child = add_or_update_object(Object { ObjectID(2) });
 
-	auto & prop1 = root_obj.add(PropertyName(42), 0.0f);
-
-	auto & prop2 = root_obj.add(PropertyName(23), ObjectRef { Object { } });
+	auto & prop2 = root_obj.add(PropertyName(23), ObjectRef { child });
 
 	std::get<ObjectRef>(prop2.value)->add(PropertyName(42), 25);
 
@@ -350,7 +346,7 @@ int main()
 	// emulate some API calls here
 
 	set_ui_root(UIResourceID(1));
-	set_object_root(UIResourceID(3));
+	set_object_root(root_obj.get_id());
 
 	//////////////////////////////////////////////////////////////////////////////
 
@@ -443,8 +439,6 @@ int main()
 		}
 
 		auto const time = SDL_GetTicks() - startup;
-
-		prop1.value = 50.0f + 50.0f * sin(0.001f * float(time));
 
 		auto const windowFlags = SDL_GetWindowFlags(window);
 

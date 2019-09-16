@@ -3,6 +3,7 @@
 
 #include "enums.hpp"
 #include "types.hpp"
+#include "object.hpp"
 
 #include "inputstream.hpp"
 #include "rendercontext.hpp"
@@ -134,7 +135,7 @@ public: // deserializable properties
 	/// it will bind to the parent bindingSource instead
 	/// of the own bindingSource.
 	/// see the implementation of @ref updateBindings
-	property<UIResourceID, false> bindingContext;
+	property<ObjectRef, false> bindingContext = ObjectRef(nullptr);
 
 	// dock layout
 	property<DockSite> dockSite = DockSite::top;
@@ -162,7 +163,7 @@ public: // layouting and rendering
 
 public: // binding system
 	/// stores the object/ref to which properties will bind
-	ObjectRef bindingSource;
+	ObjectRef bindingSource = ObjectRef(nullptr);
 
 protected:
 	explicit Widget(UIWidget type);
@@ -171,7 +172,7 @@ public:
 	virtual ~Widget() = default;
 
 	/// stage0: update widget bindings and property references
-	void updateBindings(ObjectRef & parentBindingSource);
+	void updateBindings(ObjectRef parentBindingSource);
 
 	/// stage1: calculates recursively the wanted size of all widgets.
 	void updateWantedSize();
@@ -246,7 +247,7 @@ template<typename T, bool UseBindings>
 T property<T, UseBindings>::get(const Widget * w) const
 {
 	if constexpr (UseBindings) {
-		if(binding and w->bindingSource.has_value()) {
+		if(binding and w->bindingSource.is_resolvable()) {
 			if(auto prop = w->bindingSource->get(*binding); prop) {
 				auto const converted = convertTo(prop->value, getUITypeFromType<T>());
 				if constexpr (std::is_enum_v<T>)
@@ -263,7 +264,7 @@ template<typename T, bool UseBindings>
 void property<T, UseBindings>::set(Widget * w, const T & new_value)
 {
 	if constexpr (UseBindings) {
-		if(binding and w->bindingSource.has_value()) {
+		if(binding and w->bindingSource.is_resolvable()) {
 			if(auto prop = w->bindingSource->get(*binding); prop) {
 				UIValue to_convert;
 				if constexpr (std::is_enum_v<T>)

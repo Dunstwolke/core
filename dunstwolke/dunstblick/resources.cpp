@@ -2,13 +2,6 @@
 
 static std::map<UIResourceID, Resource> resources;
 
-xstd::optional<Object &> get_object(UIResourceID id)
-{
-	if(auto it = resources.find(id); (it != resources.end()) and std::holds_alternative<Object>(it->second))
-		return std::get<Object>(it->second);
-	else
-		return xstd::nullopt;
-}
 
 xstd::optional<Resource const &> find_resource(UIResourceID id)
 {

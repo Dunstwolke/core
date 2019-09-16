@@ -4,3 +4,4 @@ examples:
 - chat application
 - option menu
 - adressbook
+- media player
