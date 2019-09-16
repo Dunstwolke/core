@@ -1,11 +1,14 @@
 - [x] Resource System
 	- [x] Bitmap
+		- [ ] Deserialize Bitmaps
 	- [ ] Vector Drawing
+		- [ ] Deserialize Vectors
 	- [x] UI Template
+		- [x] Deserialize Templates
 - [ ] Object System
 	- [x] Object Registry
 	- [x] Define possible object property types
-	- [ ] Deserialize Objects
+	- [x] Deserialize Objects
 	- [ ] Refresh objects
 	- [ ] Propagate property changes back
 - [x] Input Routing
@@ -13,6 +16,10 @@
 	- [x] Keyboard
 	- [ ] Tab Switch
 	- [ ] Filter keyboard for widgets with tab stop
+- [ ] Widget
+	- [ ] Bindable child lists
+		- [ ] Observere list/children
+		- [ ] Auto-instantiation of children
 - [ ] Add "deferModalDrawing" to render/ui context
 	- allow rendering stuff *after* everything else
 	- required for tooltips and combo boxes

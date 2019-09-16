@@ -86,8 +86,21 @@ static UIValue deserialize_value(UIType type, InputStream & stream)
 {
 	switch(type)
 	{
-		case UIType::invalid: throw std::runtime_error("Invalid property serialization: 'invalid' object discovered.");
-		case UIType::objectlist: throw std::runtime_error("Invalid property serialization: 'objectlist' object discovered.");
+		case UIType::invalid:
+			throw std::runtime_error("Invalid property serialization: 'invalid' object discovered.");
+
+		case UIType::objectlist:
+		{
+			ObjectList list;
+			while(true)
+			{
+				ObjectID id(stream.read_uint());
+				if(id.is_null())
+					break;
+				list.push_back(ObjectRef { id });
+			}
+			return list;
+		}
 
 		case UIType::enumeration:
 			return stream.read_byte();
