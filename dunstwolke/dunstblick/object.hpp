@@ -48,8 +48,11 @@ public:
 
 	xstd::optional<ObjectProperty const &> get(PropertyName property) const;
 };
+
 Object & add_or_get_object(ObjectID id);
 
 Object & add_or_update_object(Object && obj);
+
+void destroy_object(ObjectID id);
 
 #endif // OBJECT_HPP

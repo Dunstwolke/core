@@ -7,6 +7,7 @@
 		- [x] Deserialize Templates
 - [ ] Object System
 	- [x] Object Registry
+	- [ ] Make object properties mark if they have feedback to the client
 	- [x] Define possible object property types
 	- [x] Deserialize Objects
 	- [ ] Refresh objects

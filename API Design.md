@@ -1,8 +1,4 @@
 # Common
-rid  = resource id
-oid  = object id
-obj  = object data
-data = raw data
 
 # Types
 - string
@@ -54,11 +50,31 @@ an eine liste gebunden sind. für jedes kind wird das
 template instanziert.
 problem für die zukunft: template selector für versch. untertypen?!
 
+# Messages
 
-# Client Commands
+rid   = resource id
+oid   = object id
+obj   = object data
+data  = raw data
+eid   = event id
+value = One possible value of an UIValue. Must have a known type to deserialize
+type  = UIType enumeration
+
+## Client Messages
 
 - UploadResource(rid, data)
+- AddOrUpdateObject(obj)
+- RemoveObject(oid)
 - SetView(rid)
-- SetRoot(obj)
-- SetProperty(oid, idx, type, value)
+- SetRoot(oid)
+- SetProperty(oid, name, value) // "unsafe command", uses the serverside object type or fails of property does not exist
+- Clear(oid, name)
+- InsertRange(oid, name, index, count, value …) // manipulate lists
+- RemoveRange(oid, name, index, count) // manipulate lists
+- MoveRange(oid, name, indexFrom, indexTo, count) // manipulate lists
+
+# Server Messages
+
+- EventCallback(eid)
+- PropertyChanged(oid, name, value)
 

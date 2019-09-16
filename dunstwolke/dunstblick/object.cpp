@@ -100,3 +100,8 @@ Object & add_or_get_object(ObjectID id)
 	assert(emplaced);
 	return it->second;
 }
+
+void destroy_object(ObjectID id)
+{
+	object_registry.erase(id);
+}
