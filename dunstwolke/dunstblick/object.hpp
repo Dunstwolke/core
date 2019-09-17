@@ -55,4 +55,6 @@ Object & add_or_update_object(Object && obj);
 
 void destroy_object(ObjectID id);
 
+std::map<ObjectID, Object> const & get_object_registry();
+
 #endif // OBJECT_HPP

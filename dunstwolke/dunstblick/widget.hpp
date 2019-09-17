@@ -97,7 +97,7 @@ struct MetaProperty
 			return val;
 		})
 	{
-
+		assert(getUITypeFromType<P>() == getPropertyType(_name));
 	}
 };
 
@@ -114,7 +114,12 @@ struct MetaWidget
 struct Widget
 {
 public: // meta
+	/// the type of the widget
 	UIWidget const type;
+
+	/// gets set by the deserializer on the root widget
+	/// to the resource this widget was loaded from.
+	std::optional<UIResourceID> templateID;
 public: // widget tree
 	/// contains all child widgets
 	std::vector<std::unique_ptr<Widget>> children;
@@ -129,6 +134,9 @@ public: // deserializable properties
 	property<bool> enabled = true;
 	property<SDL_Size> sizeHint = SDL_Size { 0, 0 };
 	property<bool> hitTestVisible = true;
+
+	property<ObjectList> childSource;
+	property<UIResourceID> childTemplate;
 
 	/// stores either a ResourceID or a property binding
 	/// for the bindingSource. If the property is bound,
@@ -171,7 +179,8 @@ protected:
 public:
 	virtual ~Widget() = default;
 
-	/// stage0: update widget bindings and property references
+	/// stage0: update widget bindings and property references.
+	/// also updates child widgets if there are is a child source bound.
 	void updateBindings(ObjectRef parentBindingSource);
 
 	/// stage1: calculates recursively the wanted size of all widgets.
@@ -241,6 +250,9 @@ struct WidgetIs : Widget
 		return MetaWidget::get(Type);
 	}
 };
+
+/// loads a widget from a given resource ID or throws.
+std::unique_ptr<Widget> load_widget(UIResourceID id);
 
 
 template<typename T, bool UseBindings>

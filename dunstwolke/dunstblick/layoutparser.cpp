@@ -433,7 +433,7 @@ static void parse_and_translate(LayoutParser const & parser, Lexer & lexer, std:
 	parse_and_translate(parser, widgetName, lexer, output);
 }
 
-void LayoutParser::compile(std::istream &input, std::ostream &output)
+void LayoutParser::compile(std::istream &input, std::ostream &output) const
 {
 	Lexer lexer { input };
 

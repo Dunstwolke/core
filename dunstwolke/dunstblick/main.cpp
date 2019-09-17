@@ -249,7 +249,7 @@ static void update_layout()
 	root_widget->layout(screen_rect);
 }
 
-static void set_ui_root(UIResourceID id)
+std::unique_ptr<Widget> load_widget(UIResourceID id)
 {
 	if(auto resource = find_resource(id); resource)
 	{
@@ -260,14 +260,25 @@ static void set_ui_root(UIResourceID id)
 
 		InputStream stream = layout.get_stream();
 
-		root_widget = deserialize_widget(stream);
-
-		// focused widgets are destroyed, so remove the reference here!
-		keyboard_focused_widget = nullptr;
-		mouse_focused_widget = nullptr;
-
-		update_layout();
+		auto widget = deserialize_widget(stream);
+		widget->templateID = id;
+		return widget;
 	}
+	else
+	{
+		throw std::runtime_error("could not find the right resource!");
+	}
+}
+
+static void set_ui_root(UIResourceID id)
+{
+	root_widget = load_widget(id);
+
+	// focused widgets are destroyed, so remove the reference here!
+	keyboard_focused_widget = nullptr;
+	mouse_focused_widget = nullptr;
+
+	update_layout();
 }
 
 static void set_object_root(ObjectID id)
@@ -300,6 +311,17 @@ static Object deserialize_object(InputStream & stream)
 #include <fstream>
 #include <iostream>
 
+static LayoutResource load_and_compile(LayoutParser const & parser, std::string const & fileName)
+{
+	std::ifstream input_src(fileName);
+
+	std::stringstream formDataBuffer;
+	parser.compile(input_src, formDataBuffer);
+
+	auto formData = formDataBuffer.str();
+	return LayoutResource(reinterpret_cast<uint8_t const *>(formData.data()), formData.size());
+}
+
 uint8_t const serdata_object1[] =
 	"\x01" // object-id : varint
 	// property name : varint, type : u8, value : TypeFor(type)
@@ -313,6 +335,82 @@ uint8_t const serdata_object2[] =
 	"\x01\x2A\x32" // integer, 42, 50
 	"\x00" // end of properties
 ;
+
+static std::ostream & operator<< (std::ostream & stream, std::monostate)
+{
+	stream << "<NULL>";
+	return stream;
+}
+
+static std::ostream & operator<< (std::ostream & stream, ObjectRef ref)
+{
+	stream << "→[" << ref.id.value << "]";
+	return stream;
+}
+
+
+static std::ostream & operator<< (std::ostream & stream, ObjectList const & list)
+{
+	stream << "[";
+	for(auto const & val : list) {
+		stream << " " << val;
+	}
+	stream << " ]";
+	return stream;
+}
+
+static std::ostream & operator<< (std::ostream & stream, UIMargin)
+{
+	stream << "<margin>";
+	return stream;
+}
+
+
+static std::ostream & operator<< (std::ostream & stream, UIColor col)
+{
+	stream << std::setw(2) << std::hex << "r=" << col.r << ", g=" << col.g << ", b=" << col.b << ", a=" << col.a;
+	return stream;
+}
+
+
+static std::ostream & operator<< (std::ostream & stream, SDL_Size val)
+{
+	stream << val.w << " × " << val.h;
+	return stream;
+}
+
+
+static std::ostream & operator<< (std::ostream & stream, SDL_Point val)
+{
+	stream << val.x << ", " << val.y;
+	return stream;
+}
+
+
+static std::ostream & operator<< (std::ostream & stream, UIResourceID)
+{
+	stream << "<ui resource id>";
+	return stream;
+}
+
+static std::ostream & operator<< (std::ostream & stream, UISizeList)
+{
+	stream << "<ui size list>";
+	return stream;
+}
+
+static void dump_object(Object const & obj)
+{
+	std::cout << "Object[" << obj.get_id().value << "]" << std::endl;
+	for(auto const & prop : obj.properties)
+	{
+		std::cout << "\t[" << prop.first.value << "] : " << to_string(prop.second.type) << " = ";
+		std::visit([](auto const & val) {
+			std::cout << val;
+		}, prop.second.value);
+		std::cout << std::endl;
+	}
+}
 
 int main()
 {
@@ -361,24 +459,36 @@ int main()
 	printf("cwd = %s\n", std::filesystem::current_path().c_str());
 	fflush(stdout);
 
-	std::ifstream input_src("./layouts/development.uit");
-
-	std::stringstream formDataBuffer;
-
 	LayoutParser layout_parser;
 	layout_parser.knownProperties.emplace("child", PropertyName(23));
 	layout_parser.knownProperties.emplace("sinewave", PropertyName(42));
+	layout_parser.knownProperties.emplace("profile-picture", PropertyName(1));
+	layout_parser.knownProperties.emplace("name", PropertyName(2));
+	layout_parser.knownProperties.emplace("contacts", PropertyName(3));
+
 	layout_parser.knownResources.emplace("root_layout", UIResourceID(1));
 	layout_parser.knownResources.emplace("house.png", UIResourceID(2));
-	layout_parser.knownResources.emplace("root_object", UIResourceID(3));
-	layout_parser.compile(input_src, formDataBuffer);
+	layout_parser.knownResources.emplace("person-male-01.png", UIResourceID(3));
+	layout_parser.knownResources.emplace("person-female-01.png", UIResourceID(4));
+	layout_parser.knownResources.emplace("contact-item", UIResourceID(5));
 
-	auto formData = formDataBuffer.str();
-	set_resource(UIResourceID(1), LayoutResource(reinterpret_cast<uint8_t const *>(formData.data()), formData.size()));
+	set_resource(UIResourceID(1), load_and_compile(layout_parser, "./layouts/development.uit"));
+	set_resource(UIResourceID(5), load_and_compile(layout_parser, "./layouts/contact.uit"));
 
-	auto * tex = IMG_LoadTexture(context().renderer, "./images/small-test.png");
+	{
+		auto * tex = IMG_LoadTexture(context().renderer, "./images/small-test.png");
+		set_resource(UIResourceID(2), BitmapResource(sdl2::texture(std::move(tex))));
+	}
 
-	set_resource(UIResourceID(2), BitmapResource(sdl2::texture(std::move(tex))));
+	{
+		auto * tex = IMG_LoadTexture(context().renderer, "./images/person-male-01.png");
+		set_resource(UIResourceID(3), BitmapResource(sdl2::texture(std::move(tex))));
+	}
+
+	{
+		auto * tex = IMG_LoadTexture(context().renderer, "./images/person-female-01.png");
+		set_resource(UIResourceID(4), BitmapResource(sdl2::texture(std::move(tex))));
+	}
 
 	InputStream istream1(serdata_object1);
 	InputStream istream2(serdata_object2);
@@ -391,6 +501,25 @@ int main()
 	set_ui_root(UIResourceID(1));
 	set_object_root(ObjectID(1));
 
+	//////////////////////////////////////////////////////////////////////////////
+	{
+		auto & list_prop = root_object->add(PropertyName(3), ObjectList { });
+
+		auto & list = std::get<ObjectList>(list_prop.value);
+
+		for(size_t i = 0; i < 10; i++)
+		{
+			Object obj { ObjectID(100 + i) };
+
+			obj.add(PropertyName(1), (rand() % 2) ? UIResourceID(4) : UIResourceID(3));
+			obj.add(PropertyName(2), "Object " + std::to_string(i));
+
+			list.emplace_back(ObjectRef { add_or_update_object(std::move(obj)) });
+		}
+
+		for(auto const & obj : get_object_registry())
+			dump_object(obj.second);
+	}
 	//////////////////////////////////////////////////////////////////////////////
 
 	auto const startup = SDL_GetTicks();

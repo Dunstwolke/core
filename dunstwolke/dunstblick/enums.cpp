@@ -29,7 +29,7 @@ UIType getPropertyType(UIProperty property)
 		case UIProperty::enabled: return UIType::boolean;
 		case UIProperty::imageScaling: return UIType::enumeration;
 		case UIProperty::image: return UIType::resource;
-		case UIProperty::bindingContext: return UIType::resource;
+		case UIProperty::bindingContext: return UIType::object;
 		case UIProperty::childSource: return UIType::objectlist;
 		case UIProperty::childTemplate: return UIType::resource;
 		case UIProperty::toolTip: return UIType::string;

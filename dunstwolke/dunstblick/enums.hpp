@@ -124,26 +124,20 @@ enum class StackDirection : uint8_t
 	horizontal = UIEnum::horizontal,
 };
 
-enum class Visibility : uint8_t
-{
-	visible = UIEnum::visible,
-	collapsed = UIEnum::collapsed,
-	hidden = UIEnum::hidden,
-};
-
-enum class UIFont : uint8_t
-{
-	sans = UIEnum::sans,
-	serif = UIEnum::serif,
-	monospace = UIEnum::monospace,
-};
-
 enum class HAlignment : uint8_t
 {
 	stretch = UIEnum::stretch,
 	left = UIEnum::left,
 	center = UIEnum::center,
 	right = UIEnum::right,
+};
+
+enum class VAlignment : uint8_t
+{
+	stretch = UIEnum::stretch,
+	top = UIEnum::top,
+	middle = UIEnum::middle,
+	bottom = UIEnum::bottom,
 };
 
 enum class DockSite : uint8_t
@@ -161,6 +155,13 @@ enum class DisplayProgressStyle : uint8_t
 	absolute = UIEnum::absolute,
 };
 
+enum class Visibility : uint8_t
+{
+	visible = UIEnum::visible,
+	collapsed = UIEnum::collapsed,
+	hidden = UIEnum::hidden,
+};
+
 enum class ImageScaling : uint8_t
 {
 	none = UIEnum::none,
@@ -171,19 +172,18 @@ enum class ImageScaling : uint8_t
 	cover = UIEnum::cover,
 };
 
+enum class UIFont : uint8_t
+{
+	sans = UIEnum::sans,
+	serif = UIEnum::serif,
+	monospace = UIEnum::monospace,
+};
+
 enum class BooleanFormat : uint8_t
 {
 	truefalse = UIEnum::truefalse,
 	yesno = UIEnum::yesno,
 	onoff = UIEnum::onoff,
-};
-
-enum class VAlignment : uint8_t
-{
-	stretch = UIEnum::stretch,
-	top = UIEnum::top,
-	middle = UIEnum::middle,
-	bottom = UIEnum::bottom,
 };
 
 UIType getPropertyType(UIProperty property);

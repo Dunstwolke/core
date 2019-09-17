@@ -107,7 +107,7 @@ properties =
 	{  22, "enabled",              "enabled",                "boolean"     },
     {  23, "imageScaling",         "image-scaling",          "enumeration" },
     {  24, "image",                "image",                  "resource"    },
-    {  25, "bindingContext",       "binding-context",        "resource"    },
+    {  25, "bindingContext",       "binding-context",        "object"    },
 	{  26, "childSource",          "child-source",           "objectlist"  },
 	{  27, "childTemplate",        "child-template",         "resource"    },
     {  28, "toolTip",              "tool-tip",               "string"      },

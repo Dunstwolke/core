@@ -105,3 +105,8 @@ void destroy_object(ObjectID id)
 {
 	object_registry.erase(id);
 }
+
+const std::map<ObjectID, Object> & get_object_registry()
+{
+	return object_registry;
+}

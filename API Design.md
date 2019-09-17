@@ -5,9 +5,8 @@
 - integer
 - number
 - boolean
-- object (locally stored object, has no id)
 - object-id (references globally known object)
-- list<object | object-id>
+- list<object-id>
 - resource-id
 
 object = [](key,type,value)

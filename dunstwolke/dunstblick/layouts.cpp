@@ -47,7 +47,7 @@ SDL_Size StackLayout::calculateWantedSize()
             if(child->getActualVisibility() == Visibility::collapsed)
                 continue;
             size.w = std::max(size.w, child->wanted_size_with_margins().w);
-            size.h += wanted_size_with_margins().h;
+            size.h += child->wanted_size_with_margins().h;
         }
         return size;
     }

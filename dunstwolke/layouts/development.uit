@@ -1,9 +1,20 @@
 StackLayout {
-	Slider {
-		value: bind("sinewave");
-		minimum: 0.0;
-		maximum: 100.0;
+	DockLayout {
+		Label {
+			dock-site: left;
+			text: "Child Count:";
+		}
+		Slider {
+			value: bind("sinewave");
+			minimum: 0.0;
+			maximum: 100.0;
+		}
 	}
+	StackLayout {
+		child-source: bind("contacts");
+		child-template: resource("contact-item");
+	}
+	/*
 	Label {
 		text: bind("sinewave");
 	}
@@ -31,6 +42,7 @@ StackLayout {
 			vertical-alignment: middle;
 		}
 	}
+	*/
 	/*
 	AnyWidget {
 		child-source: bind(…);

@@ -18,6 +18,8 @@ Widget::Widget(UIWidget _type) :
 
 void Widget::updateBindings(ObjectRef parentBindingSource)
 {
+	// STAGE 1: Update the current binding source
+
 	// if we have a bindingSource of the parent available:
 	if(parentBindingSource and this->bindingContext.binding)
 	{
@@ -48,8 +50,34 @@ void Widget::updateBindings(ObjectRef parentBindingSource)
 		}
 	}
 
-	for(auto & child : children)
-		child->updateBindings(this->bindingSource);
+	// STAGE 2: Update child widgets.
+	if(auto ct = childTemplate.get(this); not ct.is_null())
+	{
+		// if we have a child binding, update the child list
+		auto list = childSource.get(this);
+		if(this->children.size() != list.size())
+			this->children.resize(list.size());
+		for(size_t i = 0; i < list.size(); i++)
+		{
+			auto & child = this->children[i];
+			if(not child or (child->templateID != ct)) {
+				child = load_widget(ct);
+			}
+
+			// update the children with the list as
+			// parent item:
+			// this rebinds the logic such that each child
+			// will bind to the list item instead
+			// of the actual binding context :)
+			child->updateBindings(list[i]);
+		}
+	}
+	else
+	{
+		// if not, just update all children regulary
+		for(auto & child : children)
+			child->updateBindings(this->bindingSource);
+	}
 }
 
 void Widget::updateWantedSize()
@@ -302,6 +330,8 @@ std::map<UIProperty, GetPropertyFunction> const MetaWidget::defaultProperties = 
 	MetaProperty { UIProperty::sizeHint, &Widget::sizeHint },
 	MetaProperty { UIProperty::bindingContext, &Widget::bindingContext },
 	MetaProperty { UIProperty::hitTestVisible, &Widget::hitTestVisible },
+	MetaProperty { UIProperty::childSource, &Widget::childSource },
+	MetaProperty { UIProperty::childTemplate, &Widget::childTemplate },
 });
 
 std::map<UIWidget, MetaWidget> const metaWidgets
