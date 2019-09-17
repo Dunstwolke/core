@@ -18,9 +18,9 @@
 	- [ ] Tab Switch
 	- [ ] Filter keyboard for widgets with tab stop
 - [ ] Widget
-	- [ ] Bindable child lists
-		- [ ] Observere list/children
-		- [ ] Auto-instantiation of children
+	- [x] Bindable child lists
+		- [x] Observere list/children
+		- [x] Auto-instantiation of children
 - [ ] Add "deferModalDrawing" to render/ui context
 	- allow rendering stuff *after* everything else
 	- required for tooltips and combo boxes
@@ -28,4 +28,16 @@
 	- [ ] Define commands/api/messages
 - [x] Property bindings
 - [ ] implement tool tips
+- [ ] Transitions between widgets
+	- [ ] Ease-in
+	- [ ] Ease-out
+	- [ ] Transition between two layouts
+- Improved text rendering API
+	- [ ] Rich text
+	- [ ] Full unicode
+	- [ ] Multi-Line Rendering
+		- [ ] Left-align
+		- [ ] Right-align
+		- [ ] Center
+		- [ ] 
 

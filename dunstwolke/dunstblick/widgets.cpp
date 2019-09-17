@@ -1,6 +1,11 @@
 #include "widgets.hpp"
 #include "resources.hpp"
 
+Spacer::Spacer()
+{
+	hitTestVisible.set(this, false);
+}
+
 void Spacer::paintWidget(const SDL_Rect &)
 {
 
@@ -12,7 +17,18 @@ void Button::paintWidget(const SDL_Rect &rectangle)
     context().renderer.fillRect(rectangle);
 
     context().renderer.setColor(0xFF, 0xFF, 0xFF);
-    context().renderer.drawRect(rectangle);
+	context().renderer.drawRect(rectangle);
+}
+
+Button::Button() :
+    ClickableWidget(UIWidget::button)
+{
+
+}
+
+void Button::onClick()
+{
+
 }
 
 Label::Label()
@@ -20,6 +36,8 @@ Label::Label()
     margins.set(this, UIMargin(8));
     horizontalAlignment.set(this, HAlignment::center);
     verticalAlignment.set(this, VAlignment::middle);
+
+	hitTestVisible.set(this, false);
 }
 
 void Label::paintWidget(const SDL_Rect &rectangle)
@@ -137,10 +155,17 @@ void ProgressBar::paintWidget(const SDL_Rect &rectangle)
     }
 }
 
-CheckBox::CheckBox()
+CheckBox::CheckBox() :
+    ClickableWidget(UIWidget::checkbox)
 {
     horizontalAlignment.set(this, HAlignment::left);
-    verticalAlignment.set(this, VAlignment::middle);
+	verticalAlignment.set(this, VAlignment::middle);
+}
+
+void CheckBox::onClick()
+{
+	// TODO: Implement correct radio logic!
+	isChecked.set(this, not isChecked.get(this));
 }
 
 SDL_Size CheckBox::calculateWantedSize()
@@ -169,10 +194,17 @@ void CheckBox::paintWidget(const SDL_Rect &rectangle)
     context().renderer.drawRect(rectangle);
 }
 
-RadioButton::RadioButton()
+RadioButton::RadioButton() :
+    ClickableWidget(UIWidget::radiobutton)
 {
     horizontalAlignment.set(this, HAlignment::left);
-    verticalAlignment.set(this, VAlignment::middle);
+	verticalAlignment.set(this, VAlignment::middle);
+}
+
+void RadioButton::onClick()
+{
+	// TODO: Implement correct radio logic!
+	isChecked.set(this, not isChecked.get(this));
 }
 
 SDL_Size RadioButton::calculateWantedSize()
@@ -437,4 +469,20 @@ SDL_Size Picture::calculateWantedSize()
 	{
 		return Widget::calculateWantedSize();
 	}
+}
+
+ClickableWidget::ClickableWidget(UIWidget _type) :
+    Widget(_type)
+{
+
+}
+
+bool ClickableWidget::isKeyboardFocusable() const
+{
+	return true;
+}
+
+SDL_SystemCursor ClickableWidget::getCursor() const
+{
+		return SDL_SYSTEM_CURSOR_HAND;
 }

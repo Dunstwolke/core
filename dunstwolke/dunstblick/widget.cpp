@@ -191,8 +191,8 @@ void Widget::paint()
 {
 	context().renderer.setClipRect(actual_bounds);
 
-	context().renderer.setColor(0xFF, 0x00, 0xFF, 0x40);
-	context().renderer.fillRect(actual_bounds);
+	// context().renderer.setColor(0xFF, 0x00, 0xFF, 0x40);
+	// context().renderer.fillRect(actual_bounds);
 
 	this->paintWidget(actual_bounds);
 
@@ -291,6 +291,16 @@ bool Widget::processEvent(const SDL_Event &)
 {
 	// we don't do events by default
 	return false;
+}
+
+bool Widget::isKeyboardFocusable() const
+{
+	return false;
+}
+
+SDL_SystemCursor Widget::getCursor() const
+{
+	return SDL_SYSTEM_CURSOR_ARROW;
 }
 
 BaseProperty::~BaseProperty()

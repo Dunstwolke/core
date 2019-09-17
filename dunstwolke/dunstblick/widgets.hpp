@@ -5,11 +5,28 @@
 
 struct Spacer : WidgetIs<UIWidget::spacer>
 {
+	Spacer();
+
     void paintWidget(const SDL_Rect &rectangle) override;
 };
 
-struct Button : WidgetIs<UIWidget::button>
+struct ClickableWidget : Widget
 {
+	explicit ClickableWidget(UIWidget type);
+
+	bool isKeyboardFocusable() const override;
+
+	SDL_SystemCursor getCursor() const override;
+
+	virtual void onClick() = 0;
+};
+
+struct Button : ClickableWidget
+{
+	Button();
+
+	void onClick() override;
+
     void paintWidget(const SDL_Rect &rectangle) override;
 };
 
@@ -50,11 +67,13 @@ struct Picture : WidgetIs<UIWidget::picture>
 
 #define TextBox PlaceholderWidget
 
-struct CheckBox : WidgetIs<UIWidget::checkbox>
+struct CheckBox  : ClickableWidget
 {
-    property<bool> isChecked = false;
+	property<bool> isChecked = false;
 
     CheckBox();
+
+	void onClick() override;
 
     SDL_Size calculateWantedSize() override;
 
@@ -62,11 +81,13 @@ struct CheckBox : WidgetIs<UIWidget::checkbox>
 };
 
 
-struct RadioButton : WidgetIs<UIWidget::checkbox>
+struct RadioButton : ClickableWidget
 {
     property<bool> isChecked = false;
 
     RadioButton();
+
+	void onClick() override;
 
     SDL_Size calculateWantedSize() override;
 
@@ -89,6 +110,14 @@ struct Slider : WidgetIs<UIWidget::progressbar>
     void paintWidget(const SDL_Rect &rectangle) override;
 
 	bool processEvent(SDL_Event const & ev) override;
+
+	bool isKeyboardFocusable() const override {
+		return true;
+	}
+
+	SDL_SystemCursor getCursor() const override {
+		return SDL_SYSTEM_CURSOR_HAND;
+	}
 };
 
 struct ProgressBar : WidgetIs<UIWidget::progressbar>

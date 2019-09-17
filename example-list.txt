@@ -1,7 +1,26 @@
-examples:
-- calculator
-- text editor
-- chat application
-- option menu
-- adressbook
-- media player
+# Example Projects
+
+Each project includes a set of challenges this project
+solves.
+
+- Calculator
+	- Basic UI Layout
+	- Forward/Backward Communication
+- Adressbook
+	- Complex / Grid Layout
+- Text Editor
+	- Text Editing
+	- Scrolling
+- Media Player
+	- Icons Rendering
+	- Dynamic image updates
+- Chat Application
+	- Dynamic lists
+	- Lots of status change
+	- Rich text
+- Settings Menu / Game Menu
+	- Special Styles
+	- Transitions
+	- Animations
+	- Transparent UI
+	- Foreign-Context rendering

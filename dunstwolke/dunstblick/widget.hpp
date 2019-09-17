@@ -223,6 +223,12 @@ public:
 	/// @returns true if the event was processed, false otherwise.
 	virtual bool processEvent(SDL_Event const & event);
 
+	/// returns true if the widget can be focused by keyboard selection
+	virtual bool isKeyboardFocusable() const;
+
+	/// returns the cursor for this widget
+	virtual SDL_SystemCursor getCursor() const;
+
 protected:
 	/// stage1: calculates the space this widget wants to take.
 	/// MUST refresh `wanted_size` field!

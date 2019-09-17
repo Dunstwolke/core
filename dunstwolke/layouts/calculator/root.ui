@@ -1,0 +1,104 @@
+DockLayout
+{
+	Panel
+	{
+		dock-site: top;
+		Label
+		{
+			text: "10,00";
+			horizontal-alignment: right;
+		}
+	}
+	GridLayout
+	{
+		margins: 0;
+		columns: expand, expand, expand, expand;
+		rows: expand, expand, expand, expand, expand;
+
+		/* row 1 */
+		Button
+		{
+			Label { text: "C"; }
+		}
+		Button
+		{
+			Label { text: "CE"; }
+		}
+		Spacer { }
+
+		Button
+		{
+			Label { text: "÷"; }
+		}
+
+		/* row 2 */
+		Button
+		{
+			Label { text: "7"; }
+		}
+		Button
+		{
+			Label { text: "8"; }
+		}
+		Button
+		{
+			Label { text: "9"; }
+		}
+		Button
+		{
+			Label { text: "×"; }
+		}
+
+		/* row 3 */
+		Button
+		{
+			Label { text: "4"; }
+		}
+		Button
+		{
+			Label { text: "5"; }
+		}
+		Button
+		{
+			Label { text: "6"; }
+		}
+		Button
+		{
+			Label { text: "-"; }
+		}
+
+		/* row 4 */
+		Button
+		{
+			Label { text: "1"; }
+		}
+		Button
+		{
+			Label { text: "2"; }
+		}
+		Button
+		{
+			Label { text: "3"; }
+		}
+		Button
+		{
+			Label { text: "+"; }
+		}
+
+
+		/* row 5 */
+		Button
+		{
+			Label { text: "0"; }
+		}
+		Button
+		{
+			Label { text: ","; }
+		}
+		Spacer { }
+		Button
+		{
+			Label { text: "="; }
+		}
+	}
+}

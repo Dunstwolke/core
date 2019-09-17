@@ -58,6 +58,7 @@ data  = raw data
 eid   = event id
 value = One possible value of an UIValue. Must have a known type to deserialize
 type  = UIType enumeration
+name  = property name 
 
 ## Client Messages
 

@@ -472,7 +472,7 @@ int main()
 	layout_parser.knownResources.emplace("person-female-01.png", UIResourceID(4));
 	layout_parser.knownResources.emplace("contact-item", UIResourceID(5));
 
-	set_resource(UIResourceID(1), load_and_compile(layout_parser, "./layouts/development.uit"));
+	set_resource(UIResourceID(1), load_and_compile(layout_parser, "./layouts/calculator/root.ui"));
 	set_resource(UIResourceID(5), load_and_compile(layout_parser, "./layouts/contact.uit"));
 
 	{
@@ -523,6 +523,16 @@ int main()
 	//////////////////////////////////////////////////////////////////////////////
 
 	auto const startup = SDL_GetTicks();
+
+	xstd::resource<SDL_Cursor*, SDL_FreeCursor> cursors[SDL_NUM_SYSTEM_CURSORS];
+	for(size_t i = 0; i < SDL_NUM_SYSTEM_CURSORS; i++)
+	{
+		cursors[i].reset(SDL_CreateSystemCursor(SDL_SystemCursor(i)));
+		assert(cursors[i] != nullptr);
+	}
+
+	SDL_SystemCursor currentCursor = SDL_SYSTEM_CURSOR_ARROW;
+	SDL_SetCursor(cursors[currentCursor].get());
 
 	while(not shutdown_app_requested)
 	{
@@ -581,7 +591,7 @@ int main()
 					{
 						ui_set_mouse_focus(child);
 
-						if((e.type == SDL_MOUSEBUTTONUP) and (e.button.button == SDL_BUTTON_LEFT))
+						if((e.type == SDL_MOUSEBUTTONUP) and (e.button.button == SDL_BUTTON_LEFT) and child->isKeyboardFocusable())
 							ui_set_keyboard_focus(child);
 
 						// adjust event
@@ -609,6 +619,19 @@ int main()
 				}
 			}
 		}
+
+		SDL_SystemCursor nextCursor;
+		if(mouse_focused_widget)
+			nextCursor = mouse_focused_widget->getCursor();
+		else
+			nextCursor = SDL_SYSTEM_CURSOR_ARROW;
+
+		if(nextCursor != currentCursor)
+		{
+			currentCursor = nextCursor;
+			SDL_SetCursor(cursors[currentCursor].get());
+		}
+
 
 		auto const time = SDL_GetTicks() - startup;
 
