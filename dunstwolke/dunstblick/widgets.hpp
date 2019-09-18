@@ -18,6 +18,8 @@ struct ClickableWidget : Widget
 
 	SDL_SystemCursor getCursor() const override;
 
+	bool processEvent(const SDL_Event &event) override;
+
 	virtual void onClick() = 0;
 };
 

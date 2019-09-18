@@ -22,7 +22,7 @@ void API::uploadResource(UIResourceID id, ResourceKind kind, const void * data, 
 
 		case ResourceKind::bitmap:
 		{
-			auto * tex = IMG_LoadTexture_RW(context().renderer, SDL_RWFromConstMem(data, len), 1);
+			auto * tex = IMG_LoadTexture_RW(context().renderer, SDL_RWFromConstMem(data, gsl::narrow<int>(len)), 1);
 
 			if(tex == nullptr) {
 				xlog::log(xlog::error) << "could not load bitmap for resource " << id.value << ": " << SDL_GetError();

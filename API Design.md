@@ -59,10 +59,11 @@ eid   = event id
 value = One possible value of an UIValue. Must have a known type to deserialize
 type  = UIType enumeration
 name  = property name 
+kind  = resource kind
 
 ## Client Messages
 
-- UploadResource(rid, data)
+- UploadResource(rid, kind, data)
 - AddOrUpdateObject(obj)
 - RemoveObject(oid)
 - SetView(rid)

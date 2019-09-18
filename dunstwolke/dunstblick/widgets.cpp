@@ -1,6 +1,8 @@
 #include "widgets.hpp"
 #include "resources.hpp"
 
+#include <xlog>
+
 Spacer::Spacer()
 {
 	hitTestVisible.set(this, false);
@@ -484,5 +486,16 @@ bool ClickableWidget::isKeyboardFocusable() const
 
 SDL_SystemCursor ClickableWidget::getCursor() const
 {
-		return SDL_SYSTEM_CURSOR_HAND;
+	return SDL_SYSTEM_CURSOR_HAND;
+}
+
+bool ClickableWidget::processEvent(const SDL_Event & event)
+{
+	if((event.type == SDL_MOUSEBUTTONUP) and (event.button.button == SDL_BUTTON_LEFT))
+	{
+		onClick();
+		xlog::log(xlog::verbose) << "clicked on a " << to_string(type) << " widget!";
+		return true;
+	}
+	return Widget::processEvent(event);
 }
