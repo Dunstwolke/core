@@ -1,10 +1,8 @@
 #include "widget.hpp"
 #include "resources.hpp"
-#include <stdexcept>
 
-#ifdef DEBUG
-#include <iostream>
-#endif
+#include <stdexcept>
+#include <xlog>
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Stage 1:
@@ -232,11 +230,7 @@ void Widget::setProperty(UIProperty property, UIValue value)
 	else if(auto it2 = meta.defaultProperties.find(property); it2 != meta.defaultProperties.end())
 		it2->second(*this)->setValue(value);
 	else {
-#ifdef DEBUG
-		std::cerr << "unknown property " + to_string(property) + " for widget " + to_string(this->type) + "!" << std::endl;
-#else
-		throw std::range_error("unknown property " + to_string(property) + " for widget " + to_string(this->type) + "!");
-#endif
+		xlog::log(xlog::error) << "unknown property " + to_string(property) + " for widget " + to_string(this->type) + "!";
 	}
 }
 
@@ -249,11 +243,7 @@ void Widget::setPropertyBinding(UIProperty property, xstd::optional<PropertyName
 	else if(auto it2 = meta.defaultProperties.find(property); it2 != meta.defaultProperties.end())
 		it2->second(*this)->binding = name;
 	else {
-#ifdef DEBUG
-		std::cerr << "unknown property " + to_string(property) + " for widget " + to_string(this->type) + "!" << std::endl;
-#else
-		throw std::range_error("unknown property " + to_string(property) + " for widget " + to_string(this->type) + "!");
-#endif
+		xlog::log(xlog::error) << "unknown property " + to_string(property) + " for widget " + to_string(this->type) + "!";
 	}
 }
 

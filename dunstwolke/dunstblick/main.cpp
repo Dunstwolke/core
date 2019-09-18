@@ -82,125 +82,6 @@ RenderContext & context() {
 	return *current_rc;
 }
 
-static UIValue deserialize_value(UIType type, InputStream & stream)
-{
-	switch(type)
-	{
-		case UIType::invalid:
-			throw std::runtime_error("Invalid property serialization: 'invalid' object discovered.");
-
-		case UIType::objectlist:
-		{
-			ObjectList list;
-			while(true)
-			{
-				ObjectID id(stream.read_uint());
-				if(id.is_null())
-					break;
-				list.push_back(ObjectRef { id });
-			}
-			return list;
-		}
-
-		case UIType::enumeration:
-			return stream.read_byte();
-
-		case UIType::integer:
-			return gsl::narrow<int>(stream.read_uint());
-
-		case UIType::resource:
-			return UIResourceID(stream.read_uint());
-
-		case UIType::object: // objects are always references!
-			return ObjectRef { ObjectID(stream.read_uint()) };
-
-		case UIType::number:
-			return gsl::narrow<float>(stream.read_float());
-
-		case UIType::boolean:
-			return (stream.read_byte() != 0);
-
-		case UIType::color:
-		{
-			UIColor color;
-			color.r = stream.read_byte();
-			color.g = stream.read_byte();
-			color.b = stream.read_byte();
-			color.a = stream.read_byte();
-			return color;
-		}
-
-		case UIType::size:
-		{
-			SDL_Size size;
-			size.w = gsl::narrow<int>(stream.read_uint());
-			size.h = gsl::narrow<int>(stream.read_uint());
-			return size;
-		}
-
-		case UIType::point:
-		{
-			SDL_Point pos;
-			pos.x = gsl::narrow<int>(stream.read_uint());
-			pos.y = gsl::narrow<int>(stream.read_uint());
-			return pos;
-		}
-
-		case UIType::string:
-			return std::string(stream.read_string());
-
-		case UIType::margins:
-		{
-			UIMargin margin(0);
-			margin.left = gsl::narrow<int>(stream.read_uint());
-			margin.top = gsl::narrow<int>(stream.read_uint());
-			margin.right = gsl::narrow<int>(stream.read_uint());
-			margin.bottom = gsl::narrow<int>(stream.read_uint());
-			return margin;
-		}
-
-		case UIType::sizelist:
-		{
-			UISizeList list;
-
-			auto len = stream.read_uint();
-
-			list.resize(len);
-			for(size_t i = 0; i < list.size(); i += 4)
-			{
-				uint8_t value = stream.read_byte();
-				for(size_t j = 0; j < std::min(4UL, list.size() - i); j++)
-				{
-					switch((value >> (2 * j)) & 0x3)
-					{
-						case 0: list[i + j] = UISizeAutoTag { }; break;
-						case 1: list[i + j] = UISizeExpandTag { }; break;
-						case 2: list[i + j] = 0; break;
-						case 3: list[i + j] = 1.0f; break;
-					}
-				}
-			}
-
-			for(size_t i = 0; i < list.size(); i++)
-			{
-				switch(list[i].index())
-				{
-					case 2: // pixels
-						list[i] = int(stream.read_uint());
-						break;
-					case 3: // percentage
-						list[i] = stream.read_float();
-						break;
-				}
-			}
-
-			return std::move(list);
-		}
-
-	}
-	assert(false and "property type not in table yet!");
-}
-
 static std::unique_ptr<Widget> deserialize_widget(UIWidget widgetType, InputStream & stream)
 {
 	auto widget = Widget::create(widgetType);
@@ -217,7 +98,7 @@ static std::unique_ptr<Widget> deserialize_widget(UIWidget widgetType, InputStre
 				auto const name = PropertyName(stream.read_uint());
 				widget->setPropertyBinding(property, name);
 			} else {
-				auto const value = deserialize_value(getPropertyType(property), stream);
+				auto const value = stream.read_value(getPropertyType(property));
 				widget->setProperty(property, value);
 			}
 		}
@@ -270,7 +151,7 @@ std::unique_ptr<Widget> load_widget(UIResourceID id)
 	}
 }
 
-static void set_ui_root(UIResourceID id)
+void set_ui_root(UIResourceID id)
 {
 	root_widget = load_widget(id);
 
@@ -281,31 +162,13 @@ static void set_ui_root(UIResourceID id)
 	update_layout();
 }
 
-static void set_object_root(ObjectID id)
+void set_object_root(ObjectID id)
 {
 	auto ref = ObjectRef { id };
 	if(ref) {
 		root_object = ref;
 		update_layout();
 	}
-}
-
-static Object deserialize_object(InputStream & stream)
-{
-	ObjectID id = ObjectID(stream.read_uint());
-	Object obj { id };
-	while(true)
-	{
-		auto const type = stream.read_enum<UIType>();
-		if(type == UIType::invalid)
-			break;
-		auto const name = PropertyName(stream.read_uint());
-
-		UIValue const value = deserialize_value(type, stream);
-
-		obj.add(name, std::move(value));
-	}
-	return obj;
 }
 
 #include <fstream>
@@ -490,10 +353,8 @@ int main()
 		set_resource(UIResourceID(4), BitmapResource(sdl2::texture(std::move(tex))));
 	}
 
-	InputStream istream1(serdata_object1);
-	InputStream istream2(serdata_object2);
-	add_or_update_object(deserialize_object(istream1));
-	add_or_update_object(deserialize_object(istream2));
+	add_or_update_object(InputStream(serdata_object1).read_object());
+	add_or_update_object(InputStream(serdata_object2).read_object());
 
 	//////////////////////////////////////////////////////////////////////////////
 	// emulate some API calls here

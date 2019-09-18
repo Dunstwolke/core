@@ -6,6 +6,7 @@
 #include <string_view>
 
 #include "types.hpp"
+#include "object.hpp"
 
 // varint encoding:
 // numbers are encoded with a 7 bit big endian code
@@ -42,7 +43,20 @@ struct InputStream
         return T(read_byte());
     }
 
+	template<typename T>
+	static constexpr bool check_is_uniqueid(xstd::unique_id<T>) { return true; }
+
+	template<typename T>
+	T read_id() {
+		static_assert(check_is_uniqueid(T()) == true);
+		return T(read_uint());
+	}
+
 	std::tuple<UIProperty, bool> read_property_enum();
+
+	Object read_object();
+
+	UIValue read_value(UIType type);
 };
 
 #endif // INPUTSTREAM_HPP

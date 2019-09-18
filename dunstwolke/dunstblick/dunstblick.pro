@@ -8,6 +8,7 @@ XQLIB += sdl2 sdl2_image sdl2_ttf network io
 include($$(XQLIB_ROOT)/xqlib.pri)
 
 SOURCES += \
+        api.cpp \
         enums.cpp \
         fontcache.cpp \
         inputstream.cpp \
@@ -15,6 +16,7 @@ SOURCES += \
         layouts.cpp \
         main.cpp \
         object.cpp \
+        protocol.cpp \
         rendercontext.cpp \
         resources.cpp \
         types.cpp \
@@ -23,12 +25,14 @@ SOURCES += \
         widgets.cpp
 
 HEADERS += \
+  api.hpp \
   enums.hpp \
   fontcache.hpp \
   inputstream.hpp \
   layoutparser.hpp \
   layouts.hpp \
   object.hpp \
+  protocol.hpp \
   rendercontext.hpp \
   resources.hpp \
   types.hpp \
