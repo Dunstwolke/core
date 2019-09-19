@@ -1,52 +1,7 @@
-StackLayout {
-	DockLayout {
-		Label {
-			dock-site: left;
-			text: "Child Count:";
-		}
-		Slider {
-			value: bind("sinewave");
-			minimum: 0.0;
-			maximum: 100.0;
-		}
-	}
-	StackLayout {
-		child-source: bind("contacts");
-		child-template: resource("contact-item");
-	}
-	/*
+Panel {
+	vertical-alignment: middle;
+	horizontal-alignment: center;
 	Label {
-		text: bind("sinewave");
+		text: "Hello, World!";
 	}
-	DockLayout { 
-		binding-context: bind("child");
-		Label {
-			dock-site: left;
-			text: "Value (child):";
-		}
-		Label {
-			dock-site: left;
-			text: bind("sinewave");
-		}
-		Picture {
-			dock-site: right;
-			horizontal-alignment: right;
-			image: resource("house.png");
-		}
-		Slider {
-			dock-site: left;
-			value: bind("sinewave");
-		}
-		Slider {
-			value: bind("sinewave");
-			vertical-alignment: middle;
-		}
-	}
-	*/
-	/*
-	AnyWidget {
-		child-source: bind(…);
-		child-template: resource(…);
-	}
-	*/
 }

@@ -7,7 +7,7 @@
 enum class ClientMessageType : uint8_t
 {
 	invalid = 0,
-	uploadResource = 1, // (rid, data)
+	uploadResource = 1, // (rid, kind, data)
 	addOrUpdateObject = 2, // (obj)
 	removeObject = 3, // (oid)
 	setView = 4, // (rid)
@@ -32,7 +32,7 @@ struct ProtocolAdapter
 	std::optional<Packet> (*receive)(void * context);
 
 	template<typename T>
-	ProtocolAdapter createFrom(T & implementor)
+	static ProtocolAdapter createFrom(T & implementor)
 	{
 		ProtocolAdapter adapter;
 		adapter.send = [](std::uint8_t const * payload, size_t len, void * _context)

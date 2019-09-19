@@ -19,6 +19,7 @@ SOURCES += \
         protocol.cpp \
         rendercontext.cpp \
         resources.cpp \
+        tcphost.cpp \
         types.cpp \
         widget.cpp \
         widget.create.cpp \
@@ -35,6 +36,7 @@ HEADERS += \
   protocol.hpp \
   rendercontext.hpp \
   resources.hpp \
+  tcphost.hpp \
   types.hpp \
   types.variant.hpp \
   widget.hpp \

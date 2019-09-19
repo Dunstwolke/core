@@ -31,11 +31,14 @@ static void parse_and_exec_msg(Packet const & msg)
 	auto const msgType = ClientMessageType(stream.read_byte());
 	switch(msgType)
 	{
-		case ClientMessageType::uploadResource: // (rid, data)
+		case ClientMessageType::uploadResource: // (rid, kind, data)
 		{
 			auto resource = stream.read_id<UIResourceID>();
 			auto kind = stream.read_enum<ResourceKind>();
-			API::uploadResource(resource, kind, msg.data() + 2, msg.size() - 2);
+
+			auto const [ data, len ] = stream.read_to_end();
+
+			API::uploadResource(resource, kind, data, len);
 			break;
 		}
 

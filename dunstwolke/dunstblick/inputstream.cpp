@@ -192,3 +192,18 @@ UIValue InputStream::read_value(UIType type)
 	}
 	assert(false and "property type not in table yet!");
 }
+
+std::tuple<const void *, size_t> InputStream::read_data(size_t len)
+{
+	if(offset + len > length)
+        throw std::out_of_range("stream is out of bytes");
+
+	void const * start = &data[offset];
+	offset += len;
+	return std::make_tuple(start, len);
+}
+
+std::tuple<const void *, size_t> InputStream::read_to_end()
+{
+	return read_data(length - offset);
+}

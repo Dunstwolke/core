@@ -57,6 +57,9 @@ struct InputStream
 	Object read_object();
 
 	UIValue read_value(UIType type);
+
+	std::tuple<void const *, size_t> read_data(size_t len);
+	std::tuple<void const *, size_t> read_to_end();
 };
 
 #endif // INPUTSTREAM_HPP

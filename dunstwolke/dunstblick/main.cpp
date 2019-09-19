@@ -14,6 +14,10 @@
 
 #include "layoutparser.hpp"
 
+#include "api.hpp"
+
+#include "tcphost.hpp"
+
 static bool shutdown_app_requested = false;
 
 [[noreturn]] static void exit_sdl_error(char const * msg = nullptr) {
@@ -125,6 +129,8 @@ static std::unique_ptr<Widget> deserialize_widget(InputStream & stream)
 
 static void update_layout()
 {
+	if(not root_widget)
+		return;
 	root_widget->updateBindings(root_object);
 	root_widget->updateWantedSize();
 	root_widget->layout(screen_rect);
@@ -298,7 +304,7 @@ int main()
 	SDL_Window * window = SDL_CreateWindow(
 	      "DunstBlick Frontend",
 	      SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-	      1280, 720,
+	      800, 600,
 	      SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE
 	      );
 	if(window == nullptr) {
@@ -319,6 +325,7 @@ int main()
 	//////////////////////////////////////////////////////////////////////////////
 	// prepare system for development here
 
+
 	printf("cwd = %s\n", std::filesystem::current_path().c_str());
 	fflush(stdout);
 
@@ -335,9 +342,16 @@ int main()
 	layout_parser.knownResources.emplace("person-female-01.png", UIResourceID(4));
 	layout_parser.knownResources.emplace("contact-item", UIResourceID(5));
 
+	{
+		auto layout = load_and_compile(layout_parser, "./layouts/development.uit");
+		std::ofstream out("/tmp/layout.bin");
+		out.write((char const *)layout.layout_data.data(), layout.layout_data.size());
+		out.flush();
+	}
+
 	set_resource(UIResourceID(1), load_and_compile(layout_parser, "./layouts/calculator/root.ui"));
 	set_resource(UIResourceID(5), load_and_compile(layout_parser, "./layouts/contact.uit"));
-
+	/*
 	{
 		auto * tex = IMG_LoadTexture(context().renderer, "./images/small-test.png");
 		set_resource(UIResourceID(2), BitmapResource(sdl2::texture(std::move(tex))));
@@ -356,11 +370,8 @@ int main()
 	add_or_update_object(InputStream(serdata_object1).read_object());
 	add_or_update_object(InputStream(serdata_object2).read_object());
 
-	//////////////////////////////////////////////////////////////////////////////
-	// emulate some API calls here
-
-	set_ui_root(UIResourceID(1));
-	set_object_root(ObjectID(1));
+	API::setView(UIResourceID(1));
+	API::setRoot(ObjectID(1));
 
 	//////////////////////////////////////////////////////////////////////////////
 	{
@@ -381,6 +392,7 @@ int main()
 		for(auto const & obj : get_object_registry())
 			dump_object(obj.second);
 	}
+	*/
 	//////////////////////////////////////////////////////////////////////////////
 
 	auto const startup = SDL_GetTicks();
@@ -395,8 +407,14 @@ int main()
 	SDL_SystemCursor currentCursor = SDL_SYSTEM_CURSOR_ARROW;
 	SDL_SetCursor(cursors[currentCursor].get());
 
+	TcpHost tcpHost { 1309 };
+
+	set_protocol_adapter(ProtocolAdapter::createFrom(tcpHost));
+
 	while(not shutdown_app_requested)
 	{
+		do_communication();
+
 		SDL_Event e;
 		while(SDL_PollEvent(&e))
 		{
@@ -432,6 +450,8 @@ int main()
 				// mouse events:
 				case SDL_MOUSEMOTION:
 				{
+					if(not root_widget)
+						break;
 					if(auto * child = root_widget->hitTest(e.motion.x, e.motion.y); child != nullptr)
 					{
 						ui_set_mouse_focus(child);
@@ -448,6 +468,8 @@ int main()
 				case SDL_MOUSEBUTTONUP:
 				case SDL_MOUSEBUTTONDOWN:
 				{
+					if(not root_widget)
+						break;
 					if(auto * child = root_widget->hitTest(e.button.x, e.button.y); child != nullptr)
 					{
 						ui_set_mouse_focus(child);
@@ -466,6 +488,8 @@ int main()
 
 				case SDL_MOUSEWHEEL:
 				{
+					if(not root_widget)
+						break;
 					if(auto * child = root_widget->hitTest(e.wheel.x, e.wheel.y); child != nullptr)
 					{
 						ui_set_mouse_focus(child);
@@ -545,7 +569,6 @@ int main()
 			// slow update loop when window is not visible
 			SDL_Delay(100);
 		}
-
 	}
 
 	root_widget.reset();
