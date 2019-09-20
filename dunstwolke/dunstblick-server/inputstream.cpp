@@ -43,7 +43,7 @@ float InputStream::read_float()
 std::string_view InputStream::read_string()
 {
     auto const len = read_uint();
-    if(offset + len >= length)
+    if(offset + len > length)
         throw std::out_of_range("stream is out of bytes!");
     std::string_view result(reinterpret_cast<char const *>(data + offset), len);
     offset += len;

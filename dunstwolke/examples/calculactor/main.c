@@ -74,8 +74,8 @@ int main()
 			return 1;
 		}
 		dunstblick_Value result = {
-		    .type = DUNSTBLICK_TYPE_NUMBER,
-		    .number = 0.0f,
+		    .type = DUNSTBLICK_TYPE_STRING,
+		    .string = "0",
 		};
 
 		DBCHECKED(dunstblick_SetObjectProperty(root_obj, PROP_RESULT, &result));
@@ -85,14 +85,16 @@ int main()
 	DBCHECKED(dunstblick_SetView(con, 1));
 	DBCHECKED(dunstblick_SetRoot(con, OBJ_ROOT));
 
-
-	for(size_t i = 1; i <= 10; i++)
+	for(int i = 1; i <= 10; i++)
 	{
 		sleep(1);
 
+		char buf[64];
+		sprintf(buf, "%d", i);
+
 		dunstblick_Value result = {
-		    .type = DUNSTBLICK_TYPE_NUMBER,
-		    .number = i,
+		    .type = DUNSTBLICK_TYPE_STRING,
+		    .string = buf,
 		};
 
 		DBCHECKED(dunstblick_SetProperty(con, OBJ_ROOT, PROP_RESULT, &result));
