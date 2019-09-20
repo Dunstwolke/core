@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <dunstblick.h>
 #include <unistd.h>
@@ -49,13 +50,138 @@ bool load_file(char const * fileName, void ** buffer, size_t * len)
 	return true;
 }
 
-void onCallback(dunstblick_CallbackID cid, void * context)
+enum MathCommand { COPY=0, ADD, SUBTRACT, MULTIPLY, DIVIDE };
+
+static float current_value = 0.0f;
+static char current_input[64] = "";
+static bool shows_result = false;
+static enum MathCommand next_command = COPY;
+
+static void refresh_screen(dunstblick_Connection * con)
 {
-	printf("got callback: %d\n", cid);
-	fflush(stdout);
+	dunstblick_Value result = {
+	    .type = DUNSTBLICK_TYPE_STRING,
+	    .string = current_input,
+	};
+
+	dunstblick_Error error = dunstblick_SetProperty(con, OBJ_ROOT, PROP_RESULT, &result);
+	if(error != DUNSTBLICK_ERROR_NONE)
+		printf("failed to refresh screen: %d\n", error);
 }
 
-void onPropertyChanged(dunstblick_ObjectID oid, dunstblick_PropertyName property, dunstblick_Value const * value)
+static void enter_char(char c)
+{
+	if(shows_result)
+		strcpy(current_input, "");
+
+	char buf[2] = { c ,0 };
+	strcat(current_input, buf);
+	shows_result = false;
+}
+
+static void execute_command()
+{
+	float val = strtof(current_input, NULL);
+	switch(next_command)
+	{
+		case COPY:
+			current_value = val;
+			break;
+		case ADD:
+			current_value += val;
+			break;
+		case SUBTRACT:
+			current_value -= val;
+			break;
+		case MULTIPLY:
+			current_value *= val;
+			break;
+		case DIVIDE:
+			current_value /= val;
+			break;
+	}
+	shows_result = true;
+}
+
+static void onCallback(dunstblick_CallbackID cid, void * context)
+{
+	switch(cid)
+	{
+		case 1:
+		case 2:
+		case 3:
+		case 4:
+		case 5:
+		case 6:
+		case 7:
+		case 8:
+		case 9:
+		case 10:
+		{
+			int number = cid % 10;
+			enter_char((char)('0' + number));
+			break;
+		}
+
+		case 11: // "+"
+			execute_command();
+			next_command = ADD;
+			break;
+
+		case 12: // "-"
+			execute_command();
+			next_command = SUBTRACT;
+			break;
+
+		case 13: // "*"
+			execute_command();
+			next_command = MULTIPLY;
+			break;
+
+		case 14: // "/"
+			execute_command();
+			next_command = DIVIDE;
+			break;
+
+		case 15: // "C"
+			strcpy(current_input, "0");
+			current_value = 0.0f;
+			shows_result = false;
+			next_command = COPY;
+			break;
+
+		case 16: // "CE"
+			strcpy(current_input, "");
+			shows_result = false;
+			break;
+
+		case 17: // ','
+		{
+			if(strchr(current_input, '.') == NULL)
+				enter_char('.');
+			break;
+		}
+
+		case 18: // "="
+		{
+			execute_command();
+			next_command = COPY;
+			break;
+		}
+
+		default:
+			printf("got handled callback: %d\n", cid);
+			fflush(stdout);
+			break;
+	}
+
+	if(shows_result)
+		sprintf(current_input, "%f", (double)current_value);
+
+	refresh_screen(context);
+}
+
+static void onPropertyChanged(dunstblick_ObjectID oid, dunstblick_PropertyName property, dunstblick_Value const * value)
 {
 	printf("property changed: oid=%d, property=%d, value(type)=%d\n", oid, property, value->type);
 }
