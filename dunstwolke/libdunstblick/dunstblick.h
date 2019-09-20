@@ -3,19 +3,20 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-enum dunstblick_ResourceKind
+typedef enum dunstblick_ResourceKind
 {
 	DUNSTBLICK_RESOURCE_LAYOUT  = 0,
 	DUNSTBLICK_RESOURCE_BITMAP  = 1,
 	DUNSTBLICK_RESOURCE_DRAWING = 2,
-};
+} dunstblick_ResourceKind;
 
-enum dunstblick_Type
+typedef enum dunstblick_Type
 {
 	DUNSTBLICK_TYPE_INTEGER = 1,
 	DUNSTBLICK_TYPE_NUMBER = 2,
@@ -27,19 +28,37 @@ enum dunstblick_Type
 	DUNSTBLICK_TYPE_POINT = 8,
 	DUNSTBLICK_TYPE_RESOURCE = 9,
 	DUNSTBLICK_TYPE_BOOLEAN = 10,
-	DUNSTBLICK_TYPE_SIZELIST = 11,
 	DUNSTBLICK_TYPE_OBJECT = 12,
 	DUNSTBLICK_TYPE_OBJECTLIST = 13,
-};
+} dunstblick_Type;
 
-enum dunstblick_Error
+typedef enum dunstblick_Error
 {
 	DUNSTBLICK_ERROR_NONE = 0,
-};
+	DUNSTBLICK_ERROR_INVALID_ARG = 1,
+	DUNSTBLICK_ERROR_NETWORK = 2,
+	DUNSTBLICK_ERROR_INVALID_TYPE = 3,
+} dunstblick_Error;
 
 typedef uint32_t dunstblick_ResourceID;
 typedef uint32_t dunstblick_ObjectID;
 typedef uint32_t dunstblick_PropertyName;
+
+typedef struct dunstblick_Color {
+	uint8_t r, g, b, a;
+} dunstblick_Color;
+
+typedef struct dunstblick_Point {
+	int x, y;
+} dunstblick_Point;
+
+typedef struct dunstblick_Size {
+	int w, h;
+} dunstblick_Size;
+
+typedef struct dunstblick_Margins {
+	int left, top, right, bottom;
+} dunstblick_Margins;
 
 typedef struct dunstblick_Value
 {
@@ -51,12 +70,21 @@ typedef struct dunstblick_Value
 		char const * string;
 		dunstblick_ResourceID resource;
 		dunstblick_ObjectID object;
+		dunstblick_Color color;
+		dunstblick_Size size;
+		dunstblick_Point point;
+		dunstblick_Margins margins;
+		bool boolean;
 	};
 } dunstblick_Value;
 
 typedef struct dunstblick_Connection dunstblick_Connection;
 
-// basic API
+typedef struct dunstblick_Object dunstblick_Object;
+
+/*******************************************************************************
+* Connection API
+*******************************************************************************/
 
 /// Opens a connection to a dunstblick server.
 /// @returns pointer to a connection handle
@@ -70,7 +98,10 @@ void dunstblick_Close(
 	dunstblick_Connection * ///< The connection that should be closed.
 );
 
-// client-to-server API
+
+/*******************************************************************************
+* Client-To-Server API
+*******************************************************************************/
 
 /// Uploads a certain resource to the server.
 dunstblick_Error dunstblick_UploadResource(
@@ -83,9 +114,12 @@ dunstblick_Error dunstblick_UploadResource(
 
 /// Uploads an object. The object will either be added to the list of objects
 /// or, if an object with the same ID already exists, will replace that object.
-dunstblick_Error dunstblick_AddOrUpdateObject(
+///
+/// @returns Handle to the object that should be uploaded. Close or cancel this handle to finalize this transaction.
+/// @see dunstblick_CloseObject, dunstblick_CancelObject, dunstblick_SetObjectProperty
+dunstblick_Object * dunstblick_AddOrUpdateObject(
 	dunstblick_Connection *, ///< The connection where the action should be applied.
-	obj
+	dunstblick_ObjectID id
 );
 
 /// Removes a previously uploaded object.
@@ -153,7 +187,31 @@ dunstblick_Error dunstblick_MoveRange(
 	size_t indexFrom,
 	size_t indexTo,
 	size_t count
-); // manipulate lists
+);
+
+
+/*******************************************************************************
+* Object Write API
+*******************************************************************************/
+
+/// Sets a property on the given object.
+/// The third parameter depends on the given type parameter.
+dunstblick_Error  dunstblick_SetObjectProperty(
+	dunstblick_Object *,           ///< object of which a property should be set.
+	dunstblick_PropertyName,       ///< name of the property
+	dunstblick_Value const * value ///< the value of the property
+);
+
+/// Closes the object and starts the upload process.
+dunstblick_Error dunstblick_CloseObject(
+	dunstblick_Object *
+);
+
+/// Closes the object and cancels the upload process.
+void dunstblick_CancelObject(
+	dunstblick_Object *
+);
+
 
 #ifdef __cplusplus
 }

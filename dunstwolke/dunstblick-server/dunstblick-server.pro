@@ -12,7 +12,6 @@ SOURCES += \
         enums.cpp \
         fontcache.cpp \
         inputstream.cpp \
-        layoutparser.cpp \
         layouts.cpp \
         main.cpp \
         object.cpp \
@@ -41,9 +40,6 @@ HEADERS += \
   types.variant.hpp \
   widget.hpp \
   widgets.hpp
-
-LEXSOURCES += \
-  Layout.l
 
 DISTFILES += \
   definitions.lua \

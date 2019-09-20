@@ -1,8 +1,11 @@
 #ifndef TYPES_HPP
 #define TYPES_HPP
 
-#include <cstdint>
+#ifndef DUNSTBLICK_COMPILER
 #include <SDL.h>
+#endif
+
+#include <cstdint>
 #include <variant>
 #include <map>
 #include <string>
@@ -15,6 +18,10 @@
 
 using UIResourceID = xstd::unique_id<struct UIResourceID_tag>;
 
+#ifdef DUNSTBLICK_COMPILER
+struct SDL_Point { int x, y; };
+#endif
+
 struct SDL_Size { int w, h; };
 
 /// RGB color structure
@@ -25,9 +32,11 @@ struct UIColor
     uint8_t b = 0x00;
     uint8_t a = 0xFF;
 
+#ifndef DUNSTBLICK_COMPILER
     operator SDL_Color () const {
         return { r, g, b, a };
     }
+#endif
 };
 
 struct UIMargin

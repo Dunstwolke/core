@@ -5,7 +5,7 @@ DockLayout
 		dock-site: top;
 		Label
 		{
-			text: "10,00";
+			text: bind("result");
 			horizontal-alignment: right;
 		}
 	}

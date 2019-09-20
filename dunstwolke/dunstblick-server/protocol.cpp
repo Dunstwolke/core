@@ -74,24 +74,10 @@ static void parse_and_exec_msg(Packet const & msg)
 		{
 			auto const oid = stream.read_id<ObjectID>();
 			auto const propName = stream.read_id<PropertyName>();
+			auto const type = stream.read_enum<UIType>();
+			auto const value = stream.read_value(type);
 
-			if(auto obj = ObjectRef { oid }.try_resolve(); obj)
-			{
-				if(auto prop = obj->get(propName); prop)
-				{
-					auto const value = stream.read_value(prop->type);
-					API::setProperty(oid, propName, value);
-				}
-				else
-				{
-					xlog::log(xlog::error) << "object " << oid.value << " does not have the property " << propName.value << "!";
-				}
-			}
-			else
-			{
-				xlog::log(xlog::error) << "object " << oid.value << " does not exist!";
-			}
-
+			API::setProperty(oid, propName, value);
 			break;
 		}
 

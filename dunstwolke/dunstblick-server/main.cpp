@@ -12,8 +12,6 @@
 
 #include "inputstream.hpp"
 
-#include "layoutparser.hpp"
-
 #include "api.hpp"
 
 #include "tcphost.hpp"
@@ -177,19 +175,7 @@ void set_object_root(ObjectID id)
 	}
 }
 
-#include <fstream>
 #include <iostream>
-
-static LayoutResource load_and_compile(LayoutParser const & parser, std::string const & fileName)
-{
-	std::ifstream input_src(fileName);
-
-	std::stringstream formDataBuffer;
-	parser.compile(input_src, formDataBuffer);
-
-	auto formData = formDataBuffer.str();
-	return LayoutResource(reinterpret_cast<uint8_t const *>(formData.data()), formData.size());
-}
 
 static std::ostream & operator<< (std::ostream & stream, std::monostate)
 {
@@ -308,79 +294,6 @@ int main()
 
 	context().renderer.setBlendMode(SDL_BLENDMODE_BLEND); // enable alpha blend
 
-	//////////////////////////////////////////////////////////////////////////////
-	// prepare system for development here
-
-
-	printf("cwd = %s\n", std::filesystem::current_path().c_str());
-	fflush(stdout);
-
-	LayoutParser layout_parser;
-	layout_parser.knownProperties.emplace("child", PropertyName(23));
-	layout_parser.knownProperties.emplace("sinewave", PropertyName(42));
-	layout_parser.knownProperties.emplace("profile-picture", PropertyName(1));
-	layout_parser.knownProperties.emplace("name", PropertyName(2));
-	layout_parser.knownProperties.emplace("contacts", PropertyName(3));
-
-	layout_parser.knownResources.emplace("root_layout", UIResourceID(1));
-	layout_parser.knownResources.emplace("house.png", UIResourceID(2));
-	layout_parser.knownResources.emplace("person-male-01.png", UIResourceID(3));
-	layout_parser.knownResources.emplace("person-female-01.png", UIResourceID(4));
-	layout_parser.knownResources.emplace("contact-item", UIResourceID(5));
-
-	{
-		auto layout = load_and_compile(layout_parser, "./layouts/development.uit");
-		std::ofstream out("/tmp/layout.bin");
-		out.write((char const *)layout.layout_data.data(), gsl::narrow<std::streamsize>(layout.layout_data.size()));
-		out.flush();
-	}
-
-	set_resource(UIResourceID(1), load_and_compile(layout_parser, "./layouts/calculator/root.ui"));
-	set_resource(UIResourceID(5), load_and_compile(layout_parser, "./layouts/contact.uit"));
-	/*
-	{
-		auto * tex = IMG_LoadTexture(context().renderer, "./images/small-test.png");
-		set_resource(UIResourceID(2), BitmapResource(sdl2::texture(std::move(tex))));
-	}
-
-	{
-		auto * tex = IMG_LoadTexture(context().renderer, "./images/person-male-01.png");
-		set_resource(UIResourceID(3), BitmapResource(sdl2::texture(std::move(tex))));
-	}
-
-	{
-		auto * tex = IMG_LoadTexture(context().renderer, "./images/person-female-01.png");
-		set_resource(UIResourceID(4), BitmapResource(sdl2::texture(std::move(tex))));
-	}
-
-	add_or_update_object(InputStream(serdata_object1).read_object());
-	add_or_update_object(InputStream(serdata_object2).read_object());
-
-	API::setView(UIResourceID(1));
-	API::setRoot(ObjectID(1));
-
-	//////////////////////////////////////////////////////////////////////////////
-	{
-		auto & list_prop = root_object->add(PropertyName(3), ObjectList { });
-
-		auto & list = std::get<ObjectList>(list_prop.value);
-
-		for(size_t i = 0; i < 10; i++)
-		{
-			Object obj { ObjectID(100 + i) };
-
-			obj.add(PropertyName(1), (rand() % 2) ? UIResourceID(4) : UIResourceID(3));
-			obj.add(PropertyName(2), "Object " + std::to_string(i));
-
-			list.emplace_back(ObjectRef { add_or_update_object(std::move(obj)) });
-		}
-
-		for(auto const & obj : get_object_registry())
-			dump_object(obj.second);
-	}
-	*/
-	//////////////////////////////////////////////////////////////////////////////
-
 	auto const startup = SDL_GetTicks();
 
 	xstd::resource<SDL_Cursor*, SDL_FreeCursor> cursors[SDL_NUM_SYSTEM_CURSORS];
@@ -393,6 +306,7 @@ int main()
 	SDL_SystemCursor currentCursor = SDL_SYSTEM_CURSOR_ARROW;
 	SDL_SetCursor(cursors[currentCursor].get());
 
+	// right now, serve with TCP:1309
 	TcpHost tcpHost { 1309 };
 
 	set_protocol_adapter(ProtocolAdapter::createFrom(tcpHost));
