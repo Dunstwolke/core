@@ -12,7 +12,8 @@ using UIValue = std::variant<
 	bool,
 	UISizeList,
 	ObjectRef,
-	ObjectList
+	ObjectList,
+	CallbackID
 >;
 
 static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::invalid),     UIValue>, std::monostate>);
@@ -29,6 +30,7 @@ static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::boolean),
 static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::sizelist),     UIValue>, UISizeList>);
 static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::object),     UIValue>, ObjectRef>);
 static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::objectlist),     UIValue>, ObjectList>);
+static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::callback),     UIValue>, CallbackID>);
 
 
 template<> constexpr UIType getUITypeFromType<std::monostate>() { return UIType::invalid; }
@@ -45,15 +47,16 @@ template<> constexpr UIType getUITypeFromType<bool>() { return UIType::boolean; 
 template<> constexpr UIType getUITypeFromType<UISizeList>() { return UIType::sizelist; }
 template<> constexpr UIType getUITypeFromType<ObjectRef>() { return UIType::object; }
 template<> constexpr UIType getUITypeFromType<ObjectList>() { return UIType::objectlist; }
-template<> constexpr UIType getUITypeFromType<StackDirection>() { return UIType::enumeration; }
+template<> constexpr UIType getUITypeFromType<CallbackID>() { return UIType::callback; }
+template<> constexpr UIType getUITypeFromType<BooleanFormat>() { return UIType::enumeration; }
 template<> constexpr UIType getUITypeFromType<HAlignment>() { return UIType::enumeration; }
 template<> constexpr UIType getUITypeFromType<VAlignment>() { return UIType::enumeration; }
-template<> constexpr UIType getUITypeFromType<DockSite>() { return UIType::enumeration; }
-template<> constexpr UIType getUITypeFromType<DisplayProgressStyle>() { return UIType::enumeration; }
 template<> constexpr UIType getUITypeFromType<Visibility>() { return UIType::enumeration; }
-template<> constexpr UIType getUITypeFromType<ImageScaling>() { return UIType::enumeration; }
+template<> constexpr UIType getUITypeFromType<DockSite>() { return UIType::enumeration; }
+template<> constexpr UIType getUITypeFromType<StackDirection>() { return UIType::enumeration; }
 template<> constexpr UIType getUITypeFromType<UIFont>() { return UIType::enumeration; }
-template<> constexpr UIType getUITypeFromType<BooleanFormat>() { return UIType::enumeration; }
+template<> constexpr UIType getUITypeFromType<ImageScaling>() { return UIType::enumeration; }
+template<> constexpr UIType getUITypeFromType<DisplayProgressStyle>() { return UIType::enumeration; }
 
 
 static_assert(getUITypeFromType<std::monostate>() == UIType::invalid);
@@ -70,12 +73,13 @@ static_assert(getUITypeFromType<bool>() == UIType::boolean);
 static_assert(getUITypeFromType<UISizeList>() == UIType::sizelist);
 static_assert(getUITypeFromType<ObjectRef>() == UIType::object);
 static_assert(getUITypeFromType<ObjectList>() == UIType::objectlist);
-static_assert(getUITypeFromType<StackDirection>() == UIType::enumeration);
+static_assert(getUITypeFromType<CallbackID>() == UIType::callback);
+static_assert(getUITypeFromType<BooleanFormat>() == UIType::enumeration);
 static_assert(getUITypeFromType<HAlignment>() == UIType::enumeration);
 static_assert(getUITypeFromType<VAlignment>() == UIType::enumeration);
-static_assert(getUITypeFromType<DockSite>() == UIType::enumeration);
-static_assert(getUITypeFromType<DisplayProgressStyle>() == UIType::enumeration);
 static_assert(getUITypeFromType<Visibility>() == UIType::enumeration);
-static_assert(getUITypeFromType<ImageScaling>() == UIType::enumeration);
+static_assert(getUITypeFromType<DockSite>() == UIType::enumeration);
+static_assert(getUITypeFromType<StackDirection>() == UIType::enumeration);
 static_assert(getUITypeFromType<UIFont>() == UIType::enumeration);
-static_assert(getUITypeFromType<BooleanFormat>() == UIType::enumeration);
+static_assert(getUITypeFromType<ImageScaling>() == UIType::enumeration);
+static_assert(getUITypeFromType<DisplayProgressStyle>() == UIType::enumeration);

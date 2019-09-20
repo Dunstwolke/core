@@ -98,6 +98,7 @@ enum class UIProperty : uint8_t
 	childTemplate = 27,
 	toolTip = 28,
 	hitTestVisible = 29,
+	onClick = 30,
 };
 
 enum class UIType : uint8_t
@@ -116,12 +117,14 @@ enum class UIType : uint8_t
 	sizelist = 11,
 	object = 12,
 	objectlist = 13,
+	callback = 14,
 };
 
-enum class StackDirection : uint8_t
+enum class BooleanFormat : uint8_t
 {
-	vertical = UIEnum::vertical,
-	horizontal = UIEnum::horizontal,
+	truefalse = UIEnum::truefalse,
+	yesno = UIEnum::yesno,
+	onoff = UIEnum::onoff,
 };
 
 enum class HAlignment : uint8_t
@@ -140,6 +143,13 @@ enum class VAlignment : uint8_t
 	bottom = UIEnum::bottom,
 };
 
+enum class Visibility : uint8_t
+{
+	visible = UIEnum::visible,
+	collapsed = UIEnum::collapsed,
+	hidden = UIEnum::hidden,
+};
+
 enum class DockSite : uint8_t
 {
 	top = UIEnum::top,
@@ -148,18 +158,17 @@ enum class DockSite : uint8_t
 	right = UIEnum::right,
 };
 
-enum class DisplayProgressStyle : uint8_t
+enum class StackDirection : uint8_t
 {
-	none = UIEnum::none,
-	percent = UIEnum::percent,
-	absolute = UIEnum::absolute,
+	vertical = UIEnum::vertical,
+	horizontal = UIEnum::horizontal,
 };
 
-enum class Visibility : uint8_t
+enum class UIFont : uint8_t
 {
-	visible = UIEnum::visible,
-	collapsed = UIEnum::collapsed,
-	hidden = UIEnum::hidden,
+	sans = UIEnum::sans,
+	serif = UIEnum::serif,
+	monospace = UIEnum::monospace,
 };
 
 enum class ImageScaling : uint8_t
@@ -172,18 +181,11 @@ enum class ImageScaling : uint8_t
 	cover = UIEnum::cover,
 };
 
-enum class UIFont : uint8_t
+enum class DisplayProgressStyle : uint8_t
 {
-	sans = UIEnum::sans,
-	serif = UIEnum::serif,
-	monospace = UIEnum::monospace,
-};
-
-enum class BooleanFormat : uint8_t
-{
-	truefalse = UIEnum::truefalse,
-	yesno = UIEnum::yesno,
-	onoff = UIEnum::onoff,
+	none = UIEnum::none,
+	percent = UIEnum::percent,
+	absolute = UIEnum::absolute,
 };
 
 UIType getPropertyType(UIProperty property);

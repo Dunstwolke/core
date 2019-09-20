@@ -67,7 +67,7 @@ int main(int argc, char * const * argv)
 		{
 			for(auto it = props.value().begin(); it != props.value().end(); it++)
 			{
-				layout_parser.knownProperties.emplace(it.key(), PropertyName(it.value().get<int>()));
+				layout_parser.knownProperties.emplace(it.key(), PropertyName(it.value().get<unsigned int>()));
 			}
 		}
 
@@ -75,17 +75,17 @@ int main(int argc, char * const * argv)
 		{
 			for(auto it = props.value().begin(); it != props.value().end(); it++)
 			{
-				layout_parser.knownResources.emplace(it.key(), PropertyName(it.value().get<int>()));
+				layout_parser.knownResources.emplace(it.key(), UIResourceID(it.value().get<unsigned int>()));
 			}
 		}
 
-//		if(auto props = json.find("properties"); props != json.end())
-//		{
-//			for(auto it = props.value().begin(); it != props.value().end(); it++)
-//			{
-//				layout_parser.knownProperties.emplace(it.key(), PropertyName(it.value().get<int>()));
-//			}
-//		}
+		if(auto props = json.find("callbacks"); props != json.end())
+		{
+			for(auto it = props.value().begin(); it != props.value().end(); it++)
+			{
+				layout_parser.knownCallbacks.emplace(it.key(), CallbackID(it.value().get<unsigned int>()));
+			}
+		}
 	}
 
 	std::ifstream input_src(srcFile);

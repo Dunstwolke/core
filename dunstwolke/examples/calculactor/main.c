@@ -49,6 +49,17 @@ bool load_file(char const * fileName, void ** buffer, size_t * len)
 	return true;
 }
 
+void onCallback(dunstblick_CallbackID cid, void * context)
+{
+	printf("got callback: %d\n", cid);
+	fflush(stdout);
+}
+
+void onPropertyChanged(dunstblick_ObjectID oid, dunstblick_PropertyName property, dunstblick_Value const * value)
+{
+	printf("property changed: oid=%d, property=%d, value(type)=%d\n", oid, property, value->type);
+}
+
 int main()
 {
 	void * root_layout;
@@ -58,6 +69,11 @@ int main()
 		printf("failed to load layout file!\n");
 		return 1;
 	}
+
+	dunstblick_EventHandler events = {
+		.onCallback = &onCallback,
+		.onPropertyChanged = &onPropertyChanged,
+	};
 
 	dunstblick_Connection * con = dunstblick_Open("127.0.0.1", 1309);
 	if(con == NULL) {
@@ -85,19 +101,12 @@ int main()
 	DBCHECKED(dunstblick_SetView(con, 1));
 	DBCHECKED(dunstblick_SetRoot(con, OBJ_ROOT));
 
-	for(int i = 1; i <= 10; i++)
+	bool running = true;
+	while(running)
 	{
-		sleep(1);
+		DBCHECKED(dunstblick_PumpEvents(con, &events, con));
 
-		char buf[64];
-		sprintf(buf, "%d", i);
-
-		dunstblick_Value result = {
-		    .type = DUNSTBLICK_TYPE_STRING,
-		    .string = buf,
-		};
-
-		DBCHECKED(dunstblick_SetProperty(con, OBJ_ROOT, PROP_RESULT, &result));
+		usleep(10000);
 	}
 
 	dunstblick_Close(con);

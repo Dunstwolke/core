@@ -4,6 +4,9 @@
 #include <vector>
 #include <optional>
 
+#include "../dunstblick-common/data-writer.hpp"
+
+/*
 enum class ClientMessageType : uint8_t
 {
 	invalid = 0,
@@ -18,6 +21,7 @@ enum class ClientMessageType : uint8_t
 	removeRange = 9, // (oid, name, index, count) // manipulate lists
 	moveRange = 10, // (oid, name, indexFrom, indexTo, count) // manipulate lists
 };
+*/
 
 using Packet = std::vector<std::uint8_t>;
 
@@ -51,5 +55,7 @@ struct ProtocolAdapter
 void set_protocol_adapter(ProtocolAdapter const & adapter);
 
 void do_communication();
+
+void send_message(CommandBuffer const & buffer);
 
 #endif // PROTOCOL_HPP

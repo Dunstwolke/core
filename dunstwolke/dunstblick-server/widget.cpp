@@ -407,6 +407,13 @@ std::map<UIWidget, MetaWidget> const metaWidgets
 			MetaProperty { UIProperty::imageScaling, &Picture::scaling },
 		}
 	},
+	{
+		UIWidget::button,
+		    MetaWidget
+		{
+			MetaProperty { UIProperty::onClick, &Button::onClickEvent },
+		}
+	},
 };
 
 

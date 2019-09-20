@@ -297,4 +297,6 @@ void property<T, UseBindings>::set(Widget * w, const T & new_value)
 	this->value = new_value;
 }
 
+extern void trigger(CallbackID);
+
 #endif // WIDGET_HPP

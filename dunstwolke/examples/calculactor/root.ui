@@ -18,70 +18,85 @@ DockLayout
 		/* row 1 */
 		Button
 		{
+			on-click: callback("C");
 			Label { text: "C"; }
 		}
 		Button
 		{
+			on-click: callback("CE");
 			Label { text: "CE"; }
 		}
 		Spacer { }
 
 		Button
 		{
+			on-click: callback("/");
 			Label { text: "÷"; }
 		}
 
 		/* row 2 */
 		Button
 		{
+			on-click: callback("7");
 			Label { text: "7"; }
 		}
 		Button
 		{
+			on-click: callback("8");
 			Label { text: "8"; }
 		}
 		Button
 		{
+			on-click: callback("9");
 			Label { text: "9"; }
 		}
 		Button
 		{
+			on-click: callback("*");
 			Label { text: "×"; }
 		}
 
 		/* row 3 */
 		Button
 		{
+			on-click: callback("4");
 			Label { text: "4"; }
 		}
 		Button
 		{
+			on-click: callback("5");
 			Label { text: "5"; }
 		}
 		Button
 		{
+			on-click: callback("6");
 			Label { text: "6"; }
 		}
 		Button
 		{
+			on-click: callback("-");
 			Label { text: "-"; }
 		}
 
 		/* row 4 */
 		Button
 		{
+			on-click: callback("1");
 			Label { text: "1"; }
 		}
 		Button
 		{
+			on-click: callback("2");
 			Label { text: "2"; }
 		}
 		Button
 		{
+			on-click: callback("3");
 			Label { text: "3"; }
 		}
 		Button
 		{
+			on-click: callback("+");
 			Label { text: "+"; }
 		}
 
@@ -89,15 +104,18 @@ DockLayout
 		/* row 5 */
 		Button
 		{
+			on-click: callback("0");
 			Label { text: "0"; }
 		}
 		Button
 		{
+			on-click: callback(",");
 			Label { text: ","; }
 		}
 		Spacer { }
 		Button
 		{
+			on-click: callback("=");
 			Label { text: "="; }
 		}
 	}

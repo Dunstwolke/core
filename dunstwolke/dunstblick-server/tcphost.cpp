@@ -82,9 +82,14 @@ void TcpHost::thread_worker()
 		catch(xcept::end_of_stream const &)
 		{
 			// client closed connection...
+			XLOG_MSG() << "TCP Client disconnected!";
+		}
+		catch(xcept::io_error const & error)
+		{
+			// client closed connection...
+			XLOG_ERROR() << "TCP Client failed: " << error.what();
 		}
 
-		XLOG_MSG() << "TCP Client disconnected!";
 
 		this->client.reset();
 	}

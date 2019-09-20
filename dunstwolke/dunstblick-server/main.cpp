@@ -13,6 +13,7 @@
 #include "inputstream.hpp"
 
 #include "api.hpp"
+#include "protocol.hpp"
 
 #include "tcphost.hpp"
 
@@ -189,6 +190,11 @@ static std::ostream & operator<< (std::ostream & stream, ObjectRef ref)
 	return stream;
 }
 
+static std::ostream & operator<< (std::ostream & stream, CallbackID cb)
+{
+	stream << "{" << cb.value << "}";
+	return stream;
+}
 
 static std::ostream & operator<< (std::ostream & stream, ObjectList const & list)
 {
@@ -251,6 +257,17 @@ static void dump_object(Object const & obj)
 		}, prop.second.value);
 		std::cout << std::endl;
 	}
+}
+
+void trigger(CallbackID cid)
+{
+	if(cid.is_null()) // ignore empty callbacks
+		return;
+
+	CommandBuffer buffer { ServerMessageType::eventCallback };
+	buffer.write_id(cid.value);
+
+	send_message(buffer);
 }
 
 int main()

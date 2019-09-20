@@ -43,6 +43,7 @@ typedef enum dunstblick_Error
 typedef uint32_t dunstblick_ResourceID;
 typedef uint32_t dunstblick_ObjectID;
 typedef uint32_t dunstblick_PropertyName;
+typedef uint32_t dunstblick_CallbackID;
 
 typedef struct dunstblick_Color {
 	uint8_t r, g, b, a;
@@ -82,6 +83,11 @@ typedef struct dunstblick_Connection dunstblick_Connection;
 
 typedef struct dunstblick_Object dunstblick_Object;
 
+typedef struct dunstblick_EventHandler {
+	void (*onCallback)(dunstblick_CallbackID cid, void * context);
+	void (*onPropertyChanged)(dunstblick_ObjectID oid, dunstblick_PropertyName property, dunstblick_Value const * value);
+} dunstblick_EventHandler;
+
 /*******************************************************************************
 * Connection API
 *******************************************************************************/
@@ -92,6 +98,15 @@ dunstblick_Connection * dunstblick_Open(
 	char const * host, ///< Host name or address of the dunstblick server
 	int portNumber     ///< Port number of the dunstblick server. Usually 1309
 );
+
+/// Pumps incoming events from the connection.
+/// This allows synchronous event handling with the calling thread.
+dunstblick_Error dunstblick_PumpEvents(
+	dunstblick_Connection *, ///< The connection for which events should be pumped.
+	dunstblick_EventHandler const *, ///< The event pump that will receive the pumped events.
+	void * context           ///< Custom parameter that will be passed to the event handler
+);
+
 
 /// Closes an established connection to a dunstblick server.
 void dunstblick_Close(

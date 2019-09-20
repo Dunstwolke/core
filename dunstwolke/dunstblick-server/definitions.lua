@@ -79,6 +79,7 @@ types =
 	{  11, "sizelist",    "UISizeList"            },
 	{  12, "object",      "ObjectRef"             },
 	{  13, "objectlist",  "ObjectList"            },
+	{  14, "callback",    "CallbackID"            },
 },
 
 properties = 
@@ -107,11 +108,12 @@ properties =
 	{  22, "enabled",              "enabled",                "boolean"     },
     {  23, "imageScaling",         "image-scaling",          "enumeration" },
     {  24, "image",                "image",                  "resource"    },
-    {  25, "bindingContext",       "binding-context",        "object"    },
+    {  25, "bindingContext",       "binding-context",        "object"      },
 	{  26, "childSource",          "child-source",           "objectlist"  },
 	{  27, "childTemplate",        "child-template",         "resource"    },
     {  28, "toolTip",              "tool-tip",               "string"      },
 	{  29, "hitTestVisible",       "hit-test-visible",       "boolean"     },
+	{  30, "onClick",              "on-click",               "callback"    },
 },
 
 groups = 

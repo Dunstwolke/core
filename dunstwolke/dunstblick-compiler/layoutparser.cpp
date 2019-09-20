@@ -339,6 +339,28 @@ static void parse_and_translate(LayoutParser const & parser, UIType type, Lexer 
 			return;
 		}
 
+		case UIType::callback:
+		{
+			auto const tokResource = lexer.accept(LexerTokenType::identifier);
+			if(tokResource != "callback")
+				throw std::runtime_error("expected 'callback', found " + tokResource + " instead!");
+
+			lexer.accept(LexerTokenType::openParens);
+
+			auto const callbackName = lexer.accept(LexerTokenType::string);
+
+			lexer.accept(LexerTokenType::closeParens);
+
+			lexer.accept(LexerTokenType::semiColon);
+
+			if(auto it = parser.knownCallbacks.find(callbackName); it == parser.knownCallbacks.end())
+				throw std::runtime_error("unknown callback: '" + callbackName + "'!");
+			else
+				write_varint(output, gsl::narrow<uint32_t>(it->second.value));
+
+			return;
+		}
+
 	}
 	assert(false and "not supported type!");
 }

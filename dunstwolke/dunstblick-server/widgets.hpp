@@ -25,6 +25,8 @@ struct ClickableWidget : Widget
 
 struct Button : ClickableWidget
 {
+	property<CallbackID> onClickEvent;
+
 	Button();
 
 	void onClick() override;

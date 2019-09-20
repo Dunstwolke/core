@@ -138,3 +138,8 @@ void do_communication()
 		parse_and_exec_msg(*msg);
 	}
 }
+
+void send_message(CommandBuffer const & buffer)
+{
+	msg_send(reinterpret_cast<uint8_t const *>(buffer.buffer.data()), buffer.buffer.size());
+}

@@ -25,6 +25,8 @@ SOURCES += \
         widgets.cpp
 
 HEADERS += \
+  ../dunstblick-common/data-reader.hpp \
+  ../dunstblick-common/data-writer.hpp \
   api.hpp \
   enums.hpp \
   fontcache.hpp \

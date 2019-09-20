@@ -42,6 +42,7 @@ struct LayoutParser
 
 	std::map<std::string, PropertyName> knownProperties;
 	std::map<std::string, UIResourceID> knownResources;
+	std::map<std::string, CallbackID>   knownCallbacks;
 
     LayoutParser();
 

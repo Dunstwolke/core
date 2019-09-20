@@ -17,6 +17,7 @@
 #include "enums.hpp"
 
 using UIResourceID = xstd::unique_id<struct UIResourceID_tag>;
+using CallbackID = xstd::unique_id<struct CallbackID_tag>;
 
 #ifdef DUNSTBLICK_COMPILER
 struct SDL_Point { int x, y; };

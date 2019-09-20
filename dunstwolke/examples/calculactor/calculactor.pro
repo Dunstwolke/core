@@ -6,6 +6,8 @@ CONFIG -= qt
 SOURCES += \
         main.c
 
+LIBS += -lpthread
+
 win32:CONFIG(release, debug|release): LIBS += -L$$OUT_PWD/../../libdunstblick/release/ -llibdunstblick
 else:win32:CONFIG(debug, debug|release): LIBS += -L$$OUT_PWD/../../libdunstblick/debug/ -llibdunstblick
 else:unix: LIBS += -L$$OUT_PWD/../../libdunstblick/ -llibdunstblick

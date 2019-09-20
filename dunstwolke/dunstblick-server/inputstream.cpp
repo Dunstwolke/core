@@ -4,50 +4,9 @@
 
 
 InputStream::InputStream(const uint8_t *_data, size_t _length) :
-    data(_data), length(_length), offset(0)
+    DataReader(_data, _length)
 {
 
-}
-
-uint8_t InputStream::read_byte()
-{
-    if(offset >= length)
-        throw std::out_of_range("stream is out of bytes");
-    return data[offset++];
-}
-
-uint32_t InputStream::read_uint()
-{
-    uint32_t number = 0;
-
-    uint8_t value;
-    do {
-        value = read_byte();
-        number <<= 7;
-        number |= value & 0x7F;
-    } while((value & 0x80) != 0);
-
-    return number;
-}
-
-float InputStream::read_float()
-{
-    uint8_t buf[4];
-    buf[0] = read_byte();
-    buf[1] = read_byte();
-    buf[2] = read_byte();
-    buf[3] = read_byte();
-    return *reinterpret_cast<float const*>(buf);
-}
-
-std::string_view InputStream::read_string()
-{
-    auto const len = read_uint();
-    if(offset + len > length)
-        throw std::out_of_range("stream is out of bytes!");
-    std::string_view result(reinterpret_cast<char const *>(data + offset), len);
-    offset += len;
-	return result;
 }
 
 std::tuple<UIProperty, bool> InputStream::read_property_enum()
@@ -102,6 +61,9 @@ UIValue InputStream::read_value(UIType type)
 
 		case UIType::resource:
 			return UIResourceID(this->read_uint());
+
+		case UIType::callback:
+			return CallbackID(this->read_uint());
 
 		case UIType::object: // objects are always references!
 			return ObjectRef { ObjectID(this->read_uint()) };
@@ -191,19 +153,4 @@ UIValue InputStream::read_value(UIType type)
 
 	}
 	assert(false and "property type not in table yet!");
-}
-
-std::tuple<const void *, size_t> InputStream::read_data(size_t len)
-{
-	if(offset + len > length)
-        throw std::out_of_range("stream is out of bytes");
-
-	void const * start = &data[offset];
-	offset += len;
-	return std::make_tuple(start, len);
-}
-
-std::tuple<const void *, size_t> InputStream::read_to_end()
-{
-	return read_data(length - offset);
 }
