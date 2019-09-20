@@ -1,6 +1,6 @@
 - [x] Resource System
 	- [x] Bitmap
-		- [ ] Deserialize Bitmaps
+		- [x] Deserialize Bitmaps
 	- [ ] Vector Drawing
 		- [ ] Deserialize Vectors
 	- [x] UI Template
@@ -10,7 +10,7 @@
 	- [ ] Make object properties mark if they have feedback to the client
 	- [x] Define possible object property types
 	- [x] Deserialize Objects
-	- [ ] Refresh objects
+	- [x] Refresh objects
 	- [ ] Propagate property changes back
 - [x] Input Routing
 	- [x] Mouse
@@ -24,8 +24,8 @@
 - [ ] Add "deferModalDrawing" to render/ui context
 	- allow rendering stuff *after* everything else
 	- required for tooltips and combo boxes
-- [ ] Command API
-	- [ ] Define commands/api/messages
+- [x] Command API
+	- [x] Define commands/api/messages
 - [x] Property bindings
 - [ ] implement tool tips
 - [ ] Transitions between widgets
