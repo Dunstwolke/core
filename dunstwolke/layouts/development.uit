@@ -1,7 +1,26 @@
 Panel {
 	vertical-alignment: middle;
 	horizontal-alignment: center;
-	Label {
-		text: "Hello, World!";
+	StackLayout {
+		Button {
+			Label {
+				text: "Start Game";
+			}
+		}
+		Button {
+			Label {
+				text: "Load Game";
+			}
+		}
+		Button {
+			Label {
+				text: "Options";
+			}
+		}
+		Button {
+			Label {
+				text: "Quit";
+			}
+		}
 	}
 }

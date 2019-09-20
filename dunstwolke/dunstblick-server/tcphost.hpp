@@ -17,6 +17,7 @@ struct TcpHost
 	std::queue<Packet> packet_queue;
 	std::mutex queue_lock;
 	std::mutex send_lock;
+	std::atomic_flag shutdown_request;
 
 	explicit TcpHost(int bindPort);
 	TcpHost(TcpHost const &) = delete;

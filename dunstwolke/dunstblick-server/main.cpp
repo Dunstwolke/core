@@ -191,20 +191,6 @@ static LayoutResource load_and_compile(LayoutParser const & parser, std::string 
 	return LayoutResource(reinterpret_cast<uint8_t const *>(formData.data()), formData.size());
 }
 
-uint8_t const serdata_object1[] =
-	"\x01" // object-id : varint
-	// property name : varint, type : u8, value : TypeFor(type)
-	"\x0C\x17\x02" // ObjectRef, 23, 2
-	"\x01\x2A\x19" // Integer, 42, 25
-	"\x00" // end of properties
-;
-
-uint8_t const serdata_object2[] =
-	"\x02" // object-id 2
-	"\x01\x2A\x32" // integer, 42, 50
-	"\x00" // end of properties
-;
-
 static std::ostream & operator<< (std::ostream & stream, std::monostate)
 {
 	stream << "<NULL>";
@@ -345,7 +331,7 @@ int main()
 	{
 		auto layout = load_and_compile(layout_parser, "./layouts/development.uit");
 		std::ofstream out("/tmp/layout.bin");
-		out.write((char const *)layout.layout_data.data(), layout.layout_data.size());
+		out.write((char const *)layout.layout_data.data(), gsl::narrow<std::streamsize>(layout.layout_data.size()));
 		out.flush();
 	}
 

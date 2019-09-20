@@ -16,12 +16,15 @@ TcpHost::TcpHost(int bindPort) :
 	if(not listener.listen())
 		throw std::runtime_error("Could not listen!");
 
-	worker = std::thread([](TcpHost * host) { host->thread_worker(); }, this);
+	this->shutdown_request.test_and_set();
+	this->worker = std::thread([](TcpHost * host) { host->thread_worker(); }, this);
 }
 
 TcpHost::~TcpHost()
 {
-
+	this->shutdown_request.clear();
+	this->client->shutdown();
+	this->worker.join();
 }
 
 void TcpHost::send(const uint8_t * payload, size_t len)
@@ -46,7 +49,7 @@ std::optional<Packet> TcpHost::receive()
 
 void TcpHost::thread_worker()
 {
-	while(true)
+	while(this->shutdown_request.test_and_set())
 	{
 		auto [ sock, ep ] = listener.accept();
 		this->client.emplace(std::move(sock));

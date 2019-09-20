@@ -1,4 +1,5 @@
 TEMPLATE = subdirs
 
 SUBDIRS += \
-  dunstblick
+  dunstblick-server \
+  libdunstblick

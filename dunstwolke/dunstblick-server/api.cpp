@@ -137,7 +137,7 @@ void API::insertRange(ObjectID obj, PropertyName prop, size_t index, size_t coun
 	{
 		for(size_t i = 0; i < count; i++, index++)
 		{
-			list->emplace((index >= list->size()) ? list->end() : list->begin() + index, value[i]);
+			list->emplace((index >= list->size()) ? list->end() : list->begin() + gsl::narrow<ssize_t>(index), value[i]);
 		}
 	}
 }
@@ -150,7 +150,7 @@ void API::removeRange(ObjectID obj, PropertyName prop, size_t index, size_t coun
 			return;
 		for(size_t i = 0; (i < count) and (index < list->size()); i++, index++)
 		{
-			list->erase(list->begin() + index);
+			list->erase(list->begin() + gsl::narrow<ssize_t>(index));
 		}
 	}
 }

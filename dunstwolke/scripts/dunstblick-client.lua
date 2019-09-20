@@ -64,15 +64,39 @@ local function makeVarint(i)
 	return str:reverse()
 end
 
-send_packet(
-	   string.char(MSGType.uploadResource)
-	.. makeVarint(1)
-	.. string.char(ResourceKind.layout)
-	.. slurp("/tmp/layout.bin")
-)
+function uploadResource(id, kind, fileName)
+	send_packet(
+		   string.char(MSGType.uploadResource)
+		.. makeVarint(id)
+		.. string.char(kind)
+		.. slurp(fileName)
+	)
+end
 
-send_packet(
-	   string.char(MSGType.setView)
-	.. makeVarint(1)
-)
+function setView(id)
+	send_packet(
+		   string.char(MSGType.setView)
+		.. makeVarint(id)
+	)
+end
+
+function setRoot(id)
+	send_packet(
+		   string.char(MSGType.setRoot)
+		.. makeVarint(id)
+	)
+end
+
+function removeObject(id)
+	send_packet(
+		   string.char(MSGType.removeObject)
+		.. makeVarint(id)
+	)
+end
+
+uploadResource(1, ResourceKind.layout, "/tmp/layout.bin")
+
+
+setView(1)
+
 sock:close()
