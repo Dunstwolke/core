@@ -8,6 +8,10 @@
 #include <cstring>
 #include <gsl/gsl>
 
+#if defined(DUNSTBLICK_SERVER)
+#include "types.hpp"
+#endif
+
 enum class ClientMessageType : uint8_t
 {
 	invalid = 0,
@@ -197,6 +201,102 @@ struct CommandBuffer
 			default:
 				assert(false and "invalid value type: out of range!");
 		}
+	}
+#elif defined(DUNSTBLICK_SERVER)
+	void write_value(UIValue const & val, bool prefixType)
+	{
+		if(prefixType)
+			write_enum(gsl::narrow<uint8_t>(val.index()));
+		switch(UIType(val.index()))
+		{
+			case UIType::integer: {
+				write_varint(gsl::narrow<uint32_t>((std::get<int>(val))));
+				return;
+			}
+
+			case UIType::number: {
+				write_number(std::get<float>(val));
+				return;
+			}
+
+			case UIType::enumeration: {
+				write_enum(std::get<uint8_t>(val));
+				return;
+			}
+
+			case UIType::string:
+				write_string(std::get<std::string>(val).c_str());
+				return;
+
+			case UIType::boolean: {
+				write_byte(std::get<bool>(val) ? 1 : 0);
+				return;
+			}
+
+			case UIType::margins: {
+				auto const & margins = std::get<UIMargin>(val);
+				write_varint(gsl::narrow<uint32_t>(margins.left));
+				write_varint(gsl::narrow<uint32_t>(margins.top));
+				write_varint(gsl::narrow<uint32_t>(margins.right));
+				write_varint(gsl::narrow<uint32_t>(margins.bottom));
+				return;
+			}
+
+			case UIType::sizelist: {
+				auto const & list = std::get<UISizeList>(val);
+
+				// size of the list
+				write_varint(gsl::narrow<uint32_t>(list.size()));
+
+				// bitmask containing two bits per entry:
+				// 00 = auto
+				// 01 = expand
+				// 10 = integer / pixels
+				// 11 = number / percentage
+				for(size_t i = 0; i < list.size(); i += 4)
+				{
+					uint8_t value = 0;
+					for(size_t j = 0; j < std::min(4UL, list.size() - i); j++)
+						value |= (list[i + j].index() & 0x3) << (2 * j);
+					write_byte(value);
+				}
+
+				for(size_t i = 0; i < list.size(); i++)
+				{
+					switch(list[i].index())
+					{
+						case 2: // pixels
+							write_varint(gsl::narrow<uint32_t>(std::get<int>(list[i])));
+							break;
+						case 3: // percentage
+							write_number(std::get<float>(list[i]));
+							break;
+					}
+				}
+
+				return;
+			}
+
+			case UIType::resource:
+			{
+				write_varint(gsl::narrow<uint32_t>(std::get<UIResourceID>(val).value));
+				return;
+			}
+
+			case UIType::object:
+			{
+				write_varint(gsl::narrow<uint32_t>(std::get<ObjectRef>(val).id.value));
+				return;
+			}
+
+			case UIType::callback:
+			{
+				write_varint(gsl::narrow<uint32_t>(std::get<CallbackID>(val).value));
+				return;
+			}
+
+		}
+		assert(false and "not supported type!");
 	}
 #endif
 };

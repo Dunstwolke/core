@@ -38,6 +38,18 @@ struct UIColor
         return { r, g, b, a };
     }
 #endif
+
+	bool operator== (UIColor c) const {
+		return (r == c.r)
+		   and (g == c.g)
+		   and (b == c.b)
+		   and (a == c.a)
+		;
+	}
+
+	bool operator!= (UIColor c) const {
+		return !(*this == c);
+	}
 };
 
 struct UIMargin
@@ -73,6 +85,18 @@ static_assert(std::is_same_v<std::variant_alternative_t<0, UISizeDef>, UISizeAut
 static_assert(std::is_same_v<std::variant_alternative_t<1, UISizeDef>, UISizeExpandTag>);
 static_assert(std::is_same_v<std::variant_alternative_t<2, UISizeDef>, int>);
 static_assert(std::is_same_v<std::variant_alternative_t<3, UISizeDef>, float>);
+
+inline bool operator== (UISizeExpandTag,UISizeExpandTag) { return true; }
+inline bool operator!= (UISizeExpandTag,UISizeExpandTag) { return false; }
+
+inline bool operator== (UISizeAutoTag,UISizeAutoTag) { return true; }
+inline bool operator!= (UISizeAutoTag,UISizeAutoTag) { return false; }
+
+inline bool operator== (SDL_Point a, SDL_Point b) { return (a.x == b.x) and (a.y == b.y); }
+inline bool operator!= (SDL_Point a, SDL_Point b) { return !(a == b); }
+
+inline bool operator== (SDL_Size a, SDL_Size b) { return (a.w == b.w) and (a.h == b.h); }
+inline bool operator!= (SDL_Size a, SDL_Size b) { return !(a == b); }
 
 using UISizeList = std::vector<UISizeDef>;
 

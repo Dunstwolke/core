@@ -30,7 +30,7 @@ Button::Button() :
 
 void Button::onClick()
 {
-	trigger(onClickEvent.get(this));
+	trigger_callback(onClickEvent.get(this));
 }
 
 Label::Label()

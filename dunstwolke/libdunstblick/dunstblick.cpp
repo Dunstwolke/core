@@ -173,11 +173,12 @@ dunstblick_Error dunstblick_PumpEvents(dunstblick_Connection * con, dunstblick_E
 			{
 				auto const obj_id = reader.read_uint();
 				auto const property = reader.read_uint();
-				auto const type = reader.read_byte();
+				auto const type = dunstblick_Type(reader.read_byte());
 
-				// reader.read_value();
+				dunstblick_Value value = reader.read_value(type);
 
-				assert(false and "not implemented yet!");
+				if(eha->onPropertyChanged != nullptr)
+					eha->onPropertyChanged(obj_id, property, &value);
 
 				break;
 			}

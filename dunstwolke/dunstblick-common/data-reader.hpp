@@ -87,6 +87,72 @@ struct DataReader
 		return read_data(length - offset);
 	}
 
+#ifdef DUNSTBLICK_LIBRARY
+	dunstblick_Value read_value(dunstblick_Type type)
+	{
+		dunstblick_Value val;
+		memset(&val, 0, sizeof val);
+		val.type = type;
+		switch(type)
+		{
+			case DUNSTBLICK_TYPE_ENUMERATION:
+				val.enumeration = this->read_byte();
+				break;
+
+			case DUNSTBLICK_TYPE_INTEGER:
+				val.integer = gsl::narrow<int>(this->read_uint());
+				break;
+
+			case DUNSTBLICK_TYPE_RESOURCE:
+				val.resource = this->read_uint();
+				break;
+
+			case DUNSTBLICK_TYPE_OBJECT:
+				val.object = this->read_uint();
+				break;
+
+			case DUNSTBLICK_TYPE_NUMBER:
+				val.number = this->read_float();
+				break;
+
+			case DUNSTBLICK_TYPE_BOOLEAN:
+				val.boolean = (this->read_byte() != 0);
+				break;
+
+			case DUNSTBLICK_TYPE_COLOR:
+				val.color.r = this->read_byte();
+				val.color.g = this->read_byte();
+				val.color.b = this->read_byte();
+				val.color.a = this->read_byte();
+				break;
+
+			case DUNSTBLICK_TYPE_SIZE:
+				val.size.w = gsl::narrow<int>(this->read_uint());
+				val.size.h = gsl::narrow<int>(this->read_uint());
+				break;
+
+			case DUNSTBLICK_TYPE_POINT:
+				val.point.x = gsl::narrow<int>(this->read_uint());
+				val.point.y = gsl::narrow<int>(this->read_uint());
+				break;
+
+			case DUNSTBLICK_TYPE_STRING:
+				// HOW?
+				// this->read_string();
+				assert(false and "not implemented yet!");
+				break;
+
+			case DUNSTBLICK_TYPE_MARGINS:
+				val.margins.left = gsl::narrow<int>(this->read_uint());
+				val.margins.top = gsl::narrow<int>(this->read_uint());
+				val.margins.right = gsl::narrow<int>(this->read_uint());
+				val.margins.bottom = gsl::narrow<int>(this->read_uint());
+				break;
+		}
+		return val;
+	}
+#endif
+
 };
 
 #endif // DATAREADER_HPP

@@ -260,6 +260,9 @@ struct WidgetIs : Widget
 /// loads a widget from a given resource ID or throws.
 std::unique_ptr<Widget> load_widget(UIResourceID id);
 
+extern void trigger_callback(CallbackID);
+
+extern void trigger_propertyChanged(ObjectID, PropertyName, UIValue value);
 
 template<typename T, bool UseBindings>
 T property<T, UseBindings>::get(const Widget * w) const
@@ -283,20 +286,25 @@ void property<T, UseBindings>::set(Widget * w, const T & new_value)
 {
 	if constexpr (UseBindings) {
 		if(binding and w->bindingSource.is_resolvable()) {
-			if(auto prop = w->bindingSource->get(*binding); prop) {
+			auto & obj = w->bindingSource.resolve();
+			if(auto prop = obj.get(*binding); prop) {
 				UIValue to_convert;
 				if constexpr (std::is_enum_v<T>)
 					to_convert = std::uint8_t(new_value);
 				else
 					to_convert = UIValue(new_value);
-				prop->value = convertTo(to_convert, prop->type);
+
+				auto const newValue = convertTo(to_convert, prop->type);
+				auto const valueChanged = (prop->value != newValue);
+				prop->value = newValue;
+				if(valueChanged)
+					trigger_propertyChanged(obj.get_id(), *binding, newValue);
+
 				return;
 			}
 		}
 	}
 	this->value = new_value;
 }
-
-extern void trigger(CallbackID);
 
 #endif // WIDGET_HPP

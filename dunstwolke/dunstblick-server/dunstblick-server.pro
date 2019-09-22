@@ -3,6 +3,8 @@ CONFIG += console c++17
 CONFIG -= app_bundle
 CONFIG -= qt
 
+DEFINES += DUNSTBLICK_SERVER
+
 XQLIB += sdl2 sdl2_image sdl2_ttf network io
 
 include($$(XQLIB_ROOT)/xqlib.pri)

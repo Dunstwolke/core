@@ -6,7 +6,7 @@ Repository for developing software for a "personal cloud" project
 
 A UI system with a different approach:
 
-Serialize widgets and layout structure into a binary, deserialize this on the server side
+Serialize widgets and layout structure into a binary structure, deserialize this on the server side
 and only communicate with state changes in "object values" (bindings), not
 widget states.
 

@@ -259,13 +259,30 @@ static void dump_object(Object const & obj)
 	}
 }
 
-void trigger(CallbackID cid)
+void trigger_callback(CallbackID cid)
 {
 	if(cid.is_null()) // ignore empty callbacks
 		return;
 
 	CommandBuffer buffer { ServerMessageType::eventCallback };
 	buffer.write_id(cid.value);
+
+	send_message(buffer);
+}
+
+void trigger_propertyChanged(ObjectID oid, PropertyName name, UIValue value)
+{
+	if(oid.is_null())
+		return;
+	if(name.is_null())
+		return;
+	if(value.index() == 0)
+		return;
+
+	CommandBuffer buffer { ServerMessageType::propertyChanged };
+	buffer.write_id(oid.value);
+	buffer.write_id(name.value);
+	buffer.write_value(value, true);
 
 	send_message(buffer);
 }
