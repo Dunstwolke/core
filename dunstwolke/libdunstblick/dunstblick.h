@@ -127,12 +127,14 @@ dunstblick_Error dunstblick_UploadResource(
 	size_t length            ///< The length of the data in bytes.
 );
 
-/// Uploads an object. The object will either be added to the list of objects
-/// or, if an object with the same ID already exists, will replace that object.
+/// Starts an object change. This is similar to a SQL transaction:
+/// - the change process is initiated
+/// - changes are made to an object handle
+/// - the process is either commited or cancelled.
 ///
-/// @returns Handle to the object that should be uploaded. Close or cancel this handle to finalize this transaction.
-/// @see dunstblick_CloseObject, dunstblick_CancelObject, dunstblick_SetObjectProperty
-dunstblick_Object * dunstblick_AddOrUpdateObject(
+/// @returns Handle to the object that should be updated. Commit or cancel this handle to finalize this transaction.
+/// @see dunstblick_CommitObject, dunstblick_CancelObject, dunstblick_SetObjectProperty
+dunstblick_Object * dunstblick_BeginChangeObject(
 	dunstblick_Connection *, ///< The connection where the action should be applied.
 	dunstblick_ObjectID id
 );
@@ -217,12 +219,17 @@ dunstblick_Error  dunstblick_SetObjectProperty(
 	dunstblick_Value const * value ///< the value of the property
 );
 
-/// Closes the object and starts the upload process.
-dunstblick_Error dunstblick_CloseObject(
+/// The object will either be added to the list of objects
+/// or, if an object with the same ID already exists, will replace that object.
+/// The new object will only have the properties set in this transaction,
+/// all old properties will be __removed__.
+/// @remarks the object will be released in this function. the handle is not valid after this function is called.
+dunstblick_Error dunstblick_CommitObject(
 	dunstblick_Object *
 );
 
-/// Closes the object and cancels the upload process.
+/// Closes the object and cancels the update process.
+/// @remarks the object will be released in this function. the handle is not valid after this function is called.
 void dunstblick_CancelObject(
 	dunstblick_Object *
 );

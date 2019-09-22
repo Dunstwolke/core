@@ -7,11 +7,11 @@
 		- [x] Deserialize Templates
 - [ ] Object System
 	- [x] Object Registry
-	- [ ] Make object properties mark if they have feedback to the client
 	- [x] Define possible object property types
 	- [x] Deserialize Objects
 	- [x] Refresh objects
 	- [ ] Propagate property changes back
+	- [ ] Make object properties mark if they have feedback to the client
 - [x] Input Routing
 	- [x] Mouse
 	- [x] Keyboard

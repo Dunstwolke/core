@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cassert>
 #include <cstring>
+#include <gsl/gsl>
 
 enum class ClientMessageType : uint8_t
 {
@@ -96,13 +97,13 @@ struct CommandBuffer
 	void write_string(char const * text)
 	{
 		size_t len = strlen(text);
-		write_varint(len);
+		write_varint(gsl::narrow<uint32_t>(len));
 		write(text, len);
 	}
 
 	void write_string(char const * text, size_t length)
 	{
-		write_varint(length);
+		write_varint(gsl::narrow<uint32_t>(length));
 		write(text, length);
 	}
 
@@ -115,7 +116,7 @@ struct CommandBuffer
 		{
 			case DUNSTBLICK_TYPE_INTEGER:
 			{
-				write_varint(val.integer);
+				write_varint(gsl::narrow<uint32_t>(val.integer));
 				break;
 			}
 
@@ -139,10 +140,10 @@ struct CommandBuffer
 
 			case DUNSTBLICK_TYPE_MARGINS:
 			{
-				write_varint(val.margins.left);
-				write_varint(val.margins.top);
-				write_varint(val.margins.right);
-				write_varint(val.margins.bottom);
+				write_varint(gsl::narrow<uint32_t>(val.margins.left));
+				write_varint(gsl::narrow<uint32_t>(val.margins.top));
+				write_varint(gsl::narrow<uint32_t>(val.margins.right));
+				write_varint(gsl::narrow<uint32_t>(val.margins.bottom));
 				break;
 			}
 
@@ -157,15 +158,15 @@ struct CommandBuffer
 
 			case DUNSTBLICK_TYPE_SIZE:
 			{
-				write_varint(val.size.w);
-				write_varint(val.size.h);
+				write_varint(gsl::narrow<uint32_t>(val.size.w));
+				write_varint(gsl::narrow<uint32_t>(val.size.h));
 				break;
 			}
 
 			case DUNSTBLICK_TYPE_POINT:
 			{
-				write_varint(val.point.x);
-				write_varint(val.point.y);
+				write_varint(gsl::narrow<uint32_t>(val.point.x));
+				write_varint(gsl::narrow<uint32_t>(val.point.y));
 				break;
 			}
 

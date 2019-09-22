@@ -54,7 +54,7 @@ struct dunstblick_Connection
 	{
 		try
 		{
-			uint32_t length = buffer.buffer.size();
+			uint32_t length = gsl::narrow<uint32_t>(buffer.buffer.size());
 
 			xnet::socket_ostream stream { sock };
 
@@ -181,6 +181,9 @@ dunstblick_Error dunstblick_PumpEvents(dunstblick_Connection * con, dunstblick_E
 
 				break;
 			}
+			default:
+				// log some message?
+				break;
 		}
 	}
 
@@ -209,7 +212,7 @@ dunstblick_Error dunstblick_UploadResource(dunstblick_Connection * con, dunstbli
 	return DUNSTBLICK_ERROR_NONE;
 }
 
-dunstblick_Object * dunstblick_AddOrUpdateObject(dunstblick_Connection * con, dunstblick_ObjectID id)
+dunstblick_Object * dunstblick_BeginChangeObject(dunstblick_Connection * con, dunstblick_ObjectID id)
 {
 	if(con == nullptr)
 		return nullptr;
@@ -319,8 +322,8 @@ dunstblick_Error dunstblick_InsertRange(dunstblick_Connection * con, dunstblick_
 	CommandBuffer buffer { ClientMessageType::insertRange };
 	buffer.write_id(oid);
 	buffer.write_id(name);
-	buffer.write_varint(index);
-	buffer.write_varint(count);
+	buffer.write_varint(gsl::narrow<uint32_t>(index));
+	buffer.write_varint(gsl::narrow<uint32_t>(count));
 	for(size_t i = 0; i < count; i++)
 		buffer.write_id(values[i]);
 
@@ -341,8 +344,8 @@ dunstblick_Error dunstblick_RemoveRange(dunstblick_Connection * con, dunstblick_
 	CommandBuffer buffer { ClientMessageType::removeRange };
 	buffer.write_id(oid);
 	buffer.write_id(name);
-	buffer.write_varint(index);
-	buffer.write_varint(count);
+	buffer.write_varint(gsl::narrow<uint32_t>(index));
+	buffer.write_varint(gsl::narrow<uint32_t>(count));
 
 	if(not con->send(buffer))
 		return DUNSTBLICK_ERROR_NETWORK;
@@ -361,9 +364,9 @@ dunstblick_Error dunstblick_MoveRange(dunstblick_Connection * con, dunstblick_Ob
 	CommandBuffer buffer { ClientMessageType::moveRange };
 	buffer.write_id(oid);
 	buffer.write_id(name);
-	buffer.write_varint(indexFrom);
-	buffer.write_varint(indexTo);
-	buffer.write_varint(count);
+	buffer.write_varint(gsl::narrow<uint32_t>(indexFrom));
+	buffer.write_varint(gsl::narrow<uint32_t>(indexTo));
+	buffer.write_varint(gsl::narrow<uint32_t>(count));
 
 	if(not con->send(buffer))
 		return DUNSTBLICK_ERROR_NETWORK;
@@ -391,7 +394,7 @@ dunstblick_Error dunstblick_SetObjectProperty(dunstblick_Object * obj, dunstblic
 	return DUNSTBLICK_ERROR_NONE;
 }
 
-dunstblick_Error dunstblick_CloseObject(dunstblick_Object * obj)
+dunstblick_Error dunstblick_CommitObject(dunstblick_Object * obj)
 {
 	if(not obj)
 		return DUNSTBLICK_ERROR_INVALID_ARG;

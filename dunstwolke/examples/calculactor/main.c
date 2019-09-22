@@ -5,6 +5,7 @@
 #include <dunstblick.h>
 #include <unistd.h>
 
+#define ROOT_LAYOUT 1
 #define OBJ_ROOT 1
 #define PROP_RESULT 1
 
@@ -17,38 +18,9 @@
 		} \
 	} while(0)
 
-bool load_file(char const * fileName, void ** buffer, size_t * len)
-{
-	*buffer = NULL;
-	*len = 0;
-
-	FILE * f = fopen(fileName, "rb");
-	if(f == NULL)
-		return false;
-	fseek(f, 0, SEEK_END);
-	*len = ftell(f);
-	fseek(f, 0, SEEK_SET);
-
-	*buffer = malloc(*len);
-
-	size_t offset = 0;
-	while(offset < *len)
-	{
-		ssize_t delta = fread((char*)*buffer + offset, 1, *len - offset, f);
-		if(delta < 0) {
-			free(*buffer);
-			*buffer = NULL;
-			*len = 0;
-			fclose(f);
-			return false;
-		}
-		offset += delta;
-	}
-
-	fclose(f);
-
-	return true;
-}
+/// Simple routine that loads a file
+/// and returns both a buffer and the size of the file.
+bool load_file(char const * fileName, void ** buffer, size_t * len);
 
 enum MathCommand { COPY=0, ADD, SUBTRACT, MULTIPLY, DIVIDE };
 
@@ -181,16 +153,14 @@ static void onCallback(dunstblick_CallbackID cid, void * context)
 	refresh_screen(context);
 }
 
-static void onPropertyChanged(dunstblick_ObjectID oid, dunstblick_PropertyName property, dunstblick_Value const * value)
-{
-	printf("property changed: oid=%d, property=%d, value(type)=%d\n", oid, property, value->type);
-}
-
 int main()
 {
 	void * root_layout;
 	size_t root_layout_size;
 
+	// Load the precompiled layout binary.
+	// This binary was created with
+	// $ dunstblick-compiler -o calculator-ui.bin -c root.json root.ui
 	if(!load_file("calculator-ui.bin", &root_layout, &root_layout_size)) {
 		printf("failed to load layout file!\n");
 		return 1;
@@ -198,43 +168,103 @@ int main()
 
 	dunstblick_EventHandler events = {
 		.onCallback = &onCallback,
-		.onPropertyChanged = &onPropertyChanged,
+		.onPropertyChanged = NULL,
 	};
 
+	// Open a connection to our dunstblick server.
+	// This allows interaction with the UI system.
 	dunstblick_Connection * con = dunstblick_Open("127.0.0.1", 1309);
 	if(con == NULL) {
 		printf("Failed to establish connection!\n");
 		return 1;
 	}
 
-	DBCHECKED(dunstblick_UploadResource(con, 1, DUNSTBLICK_RESOURCE_LAYOUT, root_layout, root_layout_size));
+	// Upload the compiled layout to the server,
+	// so we can use dunstblick_SetView to display
+	// the UI layout.
+	DBCHECKED(dunstblick_UploadResource(con, ROOT_LAYOUT, DUNSTBLICK_RESOURCE_LAYOUT, root_layout, root_layout_size));
 
+	// Create our root object
+	// that allows us to display changing values.
+	// As dunstblick does not allow you to mutate widgets directly,
+	// you require to create objects and bind widget properties to
+	// object properties in order to mutate state.
 	{
-		dunstblick_Object * root_obj = dunstblick_AddOrUpdateObject(con, OBJ_ROOT);
+		dunstblick_Object * root_obj = dunstblick_BeginChangeObject(con, OBJ_ROOT);
 		if(root_obj == NULL) {
 			printf("failed to create object!\n");
 			return 1;
 		}
+
+		// Create a string property named PROP_RESULT
+		// with an empty string as initial value.
 		dunstblick_Value result = {
 		    .type = DUNSTBLICK_TYPE_STRING,
-		    .string = "0",
+		    .string = "",
 		};
-
 		DBCHECKED(dunstblick_SetObjectProperty(root_obj, PROP_RESULT, &result));
-		DBCHECKED(dunstblick_CloseObject(root_obj));
+
+		// CommitObject commits the object change to the ui server.
+		DBCHECKED(dunstblick_CommitObject(root_obj));
 	}
 
-	DBCHECKED(dunstblick_SetView(con, 1));
+	// After base is set up,
+	// both set the current view (UI layout) and root object.
+	// the root object is used for all bindings in the layouts
+	// except for widgets with a changed 'binding-context'.
+	DBCHECKED(dunstblick_SetView(con, ROOT_LAYOUT));
 	DBCHECKED(dunstblick_SetRoot(con, OBJ_ROOT));
 
 	bool running = true;
 	while(running)
 	{
+		// Pump UI events from the server into the current
+		// thread.
+		// Will call the corresponding event handler from
+		// the set for each event received.
 		DBCHECKED(dunstblick_PumpEvents(con, &events, con));
 
 		usleep(10000);
 	}
 
+	// Closes the connection to the server.
+	// This will release the 'con' handle.
 	dunstblick_Close(con);
 	return 0;
+}
+
+
+
+
+bool load_file(char const * fileName, void ** buffer, size_t * len)
+{
+	*buffer = NULL;
+	*len = 0;
+
+	FILE * f = fopen(fileName, "rb");
+	if(f == NULL)
+		return false;
+	fseek(f, 0, SEEK_END);
+	*len = ftell(f);
+	fseek(f, 0, SEEK_SET);
+
+	*buffer = malloc(*len);
+
+	size_t offset = 0;
+	while(offset < *len)
+	{
+		ssize_t delta = fread((char*)*buffer + offset, 1, *len - offset, f);
+		if(delta < 0) {
+			free(*buffer);
+			*buffer = NULL;
+			*len = 0;
+			fclose(f);
+			return false;
+		}
+		offset += delta;
+	}
+
+	fclose(f);
+
+	return true;
 }
