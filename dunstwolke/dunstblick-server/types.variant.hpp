@@ -6,8 +6,8 @@ using UIValue = std::variant<
 	uint8_t,
 	UIMargin,
 	UIColor,
-	SDL_Size,
-	SDL_Point,
+	UISize,
+	UIPoint,
 	UIResourceID,
 	bool,
 	UISizeList,
@@ -23,8 +23,8 @@ static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::string), 
 static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::enumeration),     UIValue>, uint8_t>);
 static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::margins),     UIValue>, UIMargin>);
 static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::color),     UIValue>, UIColor>);
-static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::size),     UIValue>, SDL_Size>);
-static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::point),     UIValue>, SDL_Point>);
+static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::size),     UIValue>, UISize>);
+static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::point),     UIValue>, UIPoint>);
 static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::resource),     UIValue>, UIResourceID>);
 static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::boolean),     UIValue>, bool>);
 static_assert(std::is_same_v<std::variant_alternative_t<size_t(UIType::sizelist),     UIValue>, UISizeList>);
@@ -40,8 +40,8 @@ template<> constexpr UIType getUITypeFromType<std::string>() { return UIType::st
 template<> constexpr UIType getUITypeFromType<uint8_t>() { return UIType::enumeration; }
 template<> constexpr UIType getUITypeFromType<UIMargin>() { return UIType::margins; }
 template<> constexpr UIType getUITypeFromType<UIColor>() { return UIType::color; }
-template<> constexpr UIType getUITypeFromType<SDL_Size>() { return UIType::size; }
-template<> constexpr UIType getUITypeFromType<SDL_Point>() { return UIType::point; }
+template<> constexpr UIType getUITypeFromType<UISize>() { return UIType::size; }
+template<> constexpr UIType getUITypeFromType<UIPoint>() { return UIType::point; }
 template<> constexpr UIType getUITypeFromType<UIResourceID>() { return UIType::resource; }
 template<> constexpr UIType getUITypeFromType<bool>() { return UIType::boolean; }
 template<> constexpr UIType getUITypeFromType<UISizeList>() { return UIType::sizelist; }
@@ -49,14 +49,15 @@ template<> constexpr UIType getUITypeFromType<ObjectRef>() { return UIType::obje
 template<> constexpr UIType getUITypeFromType<ObjectList>() { return UIType::objectlist; }
 template<> constexpr UIType getUITypeFromType<CallbackID>() { return UIType::callback; }
 template<> constexpr UIType getUITypeFromType<BooleanFormat>() { return UIType::enumeration; }
-template<> constexpr UIType getUITypeFromType<HAlignment>() { return UIType::enumeration; }
-template<> constexpr UIType getUITypeFromType<VAlignment>() { return UIType::enumeration; }
-template<> constexpr UIType getUITypeFromType<Visibility>() { return UIType::enumeration; }
-template<> constexpr UIType getUITypeFromType<DockSite>() { return UIType::enumeration; }
 template<> constexpr UIType getUITypeFromType<StackDirection>() { return UIType::enumeration; }
-template<> constexpr UIType getUITypeFromType<UIFont>() { return UIType::enumeration; }
-template<> constexpr UIType getUITypeFromType<ImageScaling>() { return UIType::enumeration; }
+template<> constexpr UIType getUITypeFromType<Orientation>() { return UIType::enumeration; }
+template<> constexpr UIType getUITypeFromType<Visibility>() { return UIType::enumeration; }
 template<> constexpr UIType getUITypeFromType<DisplayProgressStyle>() { return UIType::enumeration; }
+template<> constexpr UIType getUITypeFromType<ImageScaling>() { return UIType::enumeration; }
+template<> constexpr UIType getUITypeFromType<DockSite>() { return UIType::enumeration; }
+template<> constexpr UIType getUITypeFromType<VAlignment>() { return UIType::enumeration; }
+template<> constexpr UIType getUITypeFromType<UIFont>() { return UIType::enumeration; }
+template<> constexpr UIType getUITypeFromType<HAlignment>() { return UIType::enumeration; }
 
 
 static_assert(getUITypeFromType<std::monostate>() == UIType::invalid);
@@ -66,8 +67,8 @@ static_assert(getUITypeFromType<std::string>() == UIType::string);
 static_assert(getUITypeFromType<uint8_t>() == UIType::enumeration);
 static_assert(getUITypeFromType<UIMargin>() == UIType::margins);
 static_assert(getUITypeFromType<UIColor>() == UIType::color);
-static_assert(getUITypeFromType<SDL_Size>() == UIType::size);
-static_assert(getUITypeFromType<SDL_Point>() == UIType::point);
+static_assert(getUITypeFromType<UISize>() == UIType::size);
+static_assert(getUITypeFromType<UIPoint>() == UIType::point);
 static_assert(getUITypeFromType<UIResourceID>() == UIType::resource);
 static_assert(getUITypeFromType<bool>() == UIType::boolean);
 static_assert(getUITypeFromType<UISizeList>() == UIType::sizelist);
@@ -75,11 +76,12 @@ static_assert(getUITypeFromType<ObjectRef>() == UIType::object);
 static_assert(getUITypeFromType<ObjectList>() == UIType::objectlist);
 static_assert(getUITypeFromType<CallbackID>() == UIType::callback);
 static_assert(getUITypeFromType<BooleanFormat>() == UIType::enumeration);
-static_assert(getUITypeFromType<HAlignment>() == UIType::enumeration);
-static_assert(getUITypeFromType<VAlignment>() == UIType::enumeration);
-static_assert(getUITypeFromType<Visibility>() == UIType::enumeration);
-static_assert(getUITypeFromType<DockSite>() == UIType::enumeration);
 static_assert(getUITypeFromType<StackDirection>() == UIType::enumeration);
-static_assert(getUITypeFromType<UIFont>() == UIType::enumeration);
-static_assert(getUITypeFromType<ImageScaling>() == UIType::enumeration);
+static_assert(getUITypeFromType<Orientation>() == UIType::enumeration);
+static_assert(getUITypeFromType<Visibility>() == UIType::enumeration);
 static_assert(getUITypeFromType<DisplayProgressStyle>() == UIType::enumeration);
+static_assert(getUITypeFromType<ImageScaling>() == UIType::enumeration);
+static_assert(getUITypeFromType<DockSite>() == UIType::enumeration);
+static_assert(getUITypeFromType<VAlignment>() == UIType::enumeration);
+static_assert(getUITypeFromType<UIFont>() == UIType::enumeration);
+static_assert(getUITypeFromType<HAlignment>() == UIType::enumeration);

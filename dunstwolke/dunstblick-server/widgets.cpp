@@ -50,18 +50,18 @@ void Label::paintWidget(const SDL_Rect &rectangle)
     context().renderer.copy(tex, rectangle); // stretch for now...
 }
 
-SDL_Size Label::calculateWantedSize()
+UISize Label::calculateWantedSize()
 {
     auto & fc = context().getFont(font.get(this));
     auto * tex = fc.render(text.get(this));
     if(not tex)
         return { 0, TTF_FontHeight(fc.font.get()) };
-    SDL_Size size;
+    UISize size;
     SDL_QueryTexture(tex, nullptr, nullptr, &size.w, &size.h);
     return size;
 }
 
-SDL_Size PlaceholderWidget::calculateWantedSize()
+UISize PlaceholderWidget::calculateWantedSize()
 {
     return { 32, 32 };
 }
@@ -86,7 +86,7 @@ void Panel::paintWidget(const SDL_Rect &rectangle)
     context().renderer.drawRect(rectangle);
 }
 
-SDL_Size Separator::calculateWantedSize()
+UISize Separator::calculateWantedSize()
 {
     return { 5, 5 };
 }
@@ -106,7 +106,7 @@ void Separator::paintWidget(const SDL_Rect &rectangle)
     }
 }
 
-SDL_Size ProgressBar::calculateWantedSize()
+UISize ProgressBar::calculateWantedSize()
 {
     return { 256, 32 };
 }
@@ -170,7 +170,7 @@ void CheckBox::onClick()
 	isChecked.set(this, not isChecked.get(this));
 }
 
-SDL_Size CheckBox::calculateWantedSize()
+UISize CheckBox::calculateWantedSize()
 {
     return { 32, 32 };
 }
@@ -209,7 +209,7 @@ void RadioButton::onClick()
 	isChecked.set(this, not isChecked.get(this));
 }
 
-SDL_Size RadioButton::calculateWantedSize()
+UISize RadioButton::calculateWantedSize()
 {
     return { 32, 32 };
 }
@@ -221,7 +221,7 @@ void RadioButton::paintWidget(const SDL_Rect &rectangle)
     int radiusA = std::min(rectangle.w, rectangle.h) / 2 - 1;
     int radiusB = radiusA - 6;
 
-    SDL_Point circleA[37], circleB[37];
+    UIPoint circleA[37], circleB[37];
     for(int i = 0; i <= 36; i++)
     {
         circleA[i].x = int(centerX + radiusA * sin(M_PI * i / 18.0));
@@ -242,7 +242,7 @@ void RadioButton::paintWidget(const SDL_Rect &rectangle)
     context().renderer.drawLines(circleA, 36);
 }
 
-SDL_Size Slider::calculateWantedSize()
+UISize Slider::calculateWantedSize()
 {
     return { 32, 32 };
 }
@@ -460,7 +460,7 @@ void Picture::paintWidget(const SDL_Rect & rectangle)
 	}
 }
 
-SDL_Size Picture::calculateWantedSize()
+UISize Picture::calculateWantedSize()
 {
 	if(auto res = find_resource(image.get(this)); res and is_bitmap(*res))
 	{
@@ -498,4 +498,34 @@ bool ClickableWidget::processEvent(const SDL_Event & event)
 		return true;
 	}
 	return Widget::processEvent(event);
+}
+
+UISize ScrollBar::calculateWantedSize()
+{
+	if(orientation.get(this) == Orientation::horizontal)
+	{
+		return UISize { 64, 24 };
+	}
+	else
+	{
+		return UISize { 24, 64 };
+	}
+}
+
+void ScrollBar::paintWidget(const SDL_Rect & rectangle)
+{
+	int const knobSize = 24;
+	if(orientation.get(this) == Orientation::horizontal)
+	{
+
+	}
+	else
+	{
+
+	}
+}
+
+bool ScrollBar::processEvent(const SDL_Event & ev)
+{
+	return Widget::processEvent(ev);
 }

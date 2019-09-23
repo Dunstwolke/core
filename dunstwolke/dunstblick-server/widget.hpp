@@ -132,7 +132,7 @@ public: // deserializable properties
 	property<UIMargin> margins = UIMargin(4);
 	property<UIMargin> paddings = UIMargin(0);
 	property<bool> enabled = true;
-	property<SDL_Size> sizeHint = SDL_Size { 0, 0 };
+	property<UISize> sizeHint = UISize { 0, 0 };
 	property<bool> hitTestVisible = true;
 
 	property<ObjectList> childSource;
@@ -159,7 +159,7 @@ public: // layouting and rendering
 	/// the space the widget says it needs to have.
 	/// this is a hint to each layouting algorithm to auto-size the widget
 	/// accordingly.
-	SDL_Size wanted_size;
+	UISize wanted_size;
 
 	/// the position of the widget on the screen after layouting
 	/// NOTE: this does not include the margins of the widget!
@@ -199,7 +199,7 @@ public:
 	SDL_Rect bounds_with_margins() const;
 
 	/// returns the wanted_size of the widget with margins added
-	SDL_Size wanted_size_with_margins() const;
+	UISize wanted_size_with_margins() const;
 
 	/// sets a widget property or ignores the value if the property does not exist
 	void setProperty(UIProperty property, UIValue value);
@@ -233,7 +233,7 @@ protected:
 	/// stage1: calculates the space this widget wants to take.
 	/// MUST refresh `wanted_size` field!
 	/// the default is the maximum size of all its children combined
-	virtual SDL_Size calculateWantedSize();
+	virtual UISize calculateWantedSize();
 
 	/// stage2: recursively lays out all child elements to the widgets layout.
 	/// the default layouting is "all children get their wanted size with alignment".

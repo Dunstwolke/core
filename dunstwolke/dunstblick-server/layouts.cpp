@@ -37,11 +37,11 @@ void StackLayout::layoutChildren(const SDL_Rect &_rect)
     }
 }
 
-SDL_Size StackLayout::calculateWantedSize()
+UISize StackLayout::calculateWantedSize()
 {
     if(direction.get(this) == StackDirection::vertical)
     {
-        SDL_Size size = { 0, 0 };
+        UISize size = { 0, 0 };
         for(auto & child : children)
         {
             if(child->getActualVisibility() == Visibility::collapsed)
@@ -53,7 +53,7 @@ SDL_Size StackLayout::calculateWantedSize()
     }
     else
     {
-        SDL_Size size = { 0, 0 };
+        UISize size = { 0, 0 };
         for(auto & child : children)
         {
             if(child->getActualVisibility() == Visibility::collapsed)
@@ -130,12 +130,12 @@ void DockLayout::layoutChildren(const SDL_Rect &_rect)
     children.back()->layout(childArea);
 }
 
-SDL_Size DockLayout::calculateWantedSize()
+UISize DockLayout::calculateWantedSize()
 {
     if(children.size() == 0)
         return { 0, 0 };
 
-    SDL_Size size = children.back()->wanted_size;
+    UISize size = children.back()->wanted_size;
 
     size_t i = children.size() -1;
     while(i > 0)
@@ -180,9 +180,9 @@ void DockLayout::setDockSite(size_t index, DockSite site)
     children.at(index)->dockSite.set(this, site);
 }
 
-SDL_Size TabLayout::calculateWantedSize()
+UISize TabLayout::calculateWantedSize()
 {
-    SDL_Size size = { 0, 0 };
+    UISize size = { 0, 0 };
     for(auto & child : children)
     {
         size.w = std::max(size.w, child->wanted_size_with_margins().w);
@@ -338,7 +338,7 @@ void GridLayout::layoutChildren(const SDL_Rect &childArea)
     }
 }
 
-SDL_Size GridLayout::calculateWantedSize()
+UISize GridLayout::calculateWantedSize()
 {
     row_heights.resize(getRowCount());
     column_widths.resize(getColumnCount());
@@ -413,9 +413,9 @@ void CanvasLayout::layoutChildren(const SDL_Rect &childArea)
     }
 }
 
-SDL_Size CanvasLayout::calculateWantedSize()
+UISize CanvasLayout::calculateWantedSize()
 {
-    SDL_Size size = { 0, 0 };
+    UISize size = { 0, 0 };
     for(auto & child : this->children)
     {
         if(child->visibility.get(this) == Visibility::collapsed)

@@ -60,9 +60,9 @@ static const std::map<std::string, UIProperty> properties =
 	 { "binding-context", UIProperty::bindingContext },
 	 { "child-source", UIProperty::childSource },
 	 { "child-template", UIProperty::childTemplate },
-	 { "tool-tip", UIProperty::toolTip },
 	 { "hit-test-visible", UIProperty::hitTestVisible },
 	 { "on-click", UIProperty::onClick },
+	 { "orientation", UIProperty::orientation },
 };
 
 static const std::map<std::string, uint8_t> enumerations =

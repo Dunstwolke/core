@@ -43,12 +43,12 @@ struct Label : WidgetIs<UIWidget::label>
 
     void paintWidget(const SDL_Rect &rectangle) override;
 
-    SDL_Size calculateWantedSize() override;
+    UISize calculateWantedSize() override;
 };
 
 struct PlaceholderWidget : WidgetIs<UIWidget::spacer>
 {
-    SDL_Size calculateWantedSize() override;
+    UISize calculateWantedSize() override;
 
     void paintWidget(const SDL_Rect &rectangle) override;
 };
@@ -66,7 +66,7 @@ struct Picture : WidgetIs<UIWidget::picture>
 
     void paintWidget(const SDL_Rect &rectangle) override;
 
-    SDL_Size calculateWantedSize() override;
+    UISize calculateWantedSize() override;
 };
 
 #define TextBox PlaceholderWidget
@@ -79,7 +79,7 @@ struct CheckBox  : ClickableWidget
 
 	void onClick() override;
 
-    SDL_Size calculateWantedSize() override;
+    UISize calculateWantedSize() override;
 
     void paintWidget(const SDL_Rect &rectangle) override;
 };
@@ -93,13 +93,36 @@ struct RadioButton : ClickableWidget
 
 	void onClick() override;
 
-    SDL_Size calculateWantedSize() override;
+    UISize calculateWantedSize() override;
 
     void paintWidget(const SDL_Rect &rectangle) override;
 };
 
 #define ScrollView PlaceholderWidget
-#define ScrollBar PlaceholderWidget
+
+struct ScrollBar : WidgetIs<UIWidget::scrollbar>
+{
+	property<float> minimum = 0.0f;
+    property<float> maximum = 100.0f;
+    property<float> value = 0.0f;
+	property<Orientation> orientation = Orientation::horizontal;
+
+	bool is_taking_input = false;
+
+    UISize calculateWantedSize() override;
+
+    void paintWidget(const SDL_Rect &rectangle) override;
+
+	bool processEvent(SDL_Event const & ev) override;
+
+	bool isKeyboardFocusable() const override {
+		return true;
+	}
+
+	SDL_SystemCursor getCursor() const override {
+		return SDL_SYSTEM_CURSOR_HAND;
+	}
+};
 
 struct Slider : WidgetIs<UIWidget::progressbar>
 {
@@ -109,7 +132,7 @@ struct Slider : WidgetIs<UIWidget::progressbar>
 
 	bool is_taking_input = false;
 
-    SDL_Size calculateWantedSize() override;
+    UISize calculateWantedSize() override;
 
     void paintWidget(const SDL_Rect &rectangle) override;
 
@@ -131,7 +154,7 @@ struct ProgressBar : WidgetIs<UIWidget::progressbar>
     property<float> value = 0.0f;
     property<DisplayProgressStyle> displayProgress = DisplayProgressStyle::percent;
 
-    SDL_Size calculateWantedSize() override;
+    UISize calculateWantedSize() override;
 
     void paintWidget(const SDL_Rect &rectangle) override;
 };
@@ -140,7 +163,7 @@ struct ProgressBar : WidgetIs<UIWidget::progressbar>
 
 struct Separator : WidgetIs<UIWidget::separator>
 {
-    SDL_Size calculateWantedSize() override;
+    UISize calculateWantedSize() override;
 
     void paintWidget(const SDL_Rect &rectangle) override;
 };

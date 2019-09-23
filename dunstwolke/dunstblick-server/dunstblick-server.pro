@@ -21,6 +21,7 @@ SOURCES += \
         rendercontext.cpp \
         resources.cpp \
         tcphost.cpp \
+        testhost.cpp \
         types.cpp \
         widget.cpp \
         widget.create.cpp \
@@ -40,6 +41,7 @@ HEADERS += \
   rendercontext.hpp \
   resources.hpp \
   tcphost.hpp \
+  testhost.hpp \
   types.hpp \
   types.variant.hpp \
   widget.hpp \

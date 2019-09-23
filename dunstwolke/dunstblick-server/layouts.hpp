@@ -11,14 +11,14 @@ struct StackLayout : WidgetIs<UIWidget::stack_layout>
 
     void layoutChildren(SDL_Rect const & childArea) override;
 
-    SDL_Size calculateWantedSize() override;
+    UISize calculateWantedSize() override;
 };
 
 struct DockLayout : WidgetIs<UIWidget::dock_layout>
 {
     void layoutChildren(SDL_Rect const & childArea) override;
 
-    SDL_Size calculateWantedSize() override;
+    UISize calculateWantedSize() override;
 
     DockSite getDockSite(size_t index) const;
 
@@ -34,7 +34,7 @@ struct TabLayout : WidgetIs<UIWidget::tab_layout>
 
     void layoutChildren(SDL_Rect const & childArea) override;
 
-    SDL_Size calculateWantedSize() override;
+    UISize calculateWantedSize() override;
 };
 
 struct GridLayout : WidgetIs<UIWidget::grid_layout>
@@ -49,7 +49,7 @@ struct GridLayout : WidgetIs<UIWidget::grid_layout>
 
     void layoutChildren(SDL_Rect const & childArea) override;
 
-    SDL_Size calculateWantedSize() override;
+    UISize calculateWantedSize() override;
 
     size_t getRowCount() const;
     size_t getColumnCount() const;
@@ -60,7 +60,7 @@ struct CanvasLayout : WidgetIs<UIWidget::canvas_layout>
 {
     void layoutChildren(SDL_Rect const & childArea) override;
 
-    SDL_Size calculateWantedSize() override;
+    UISize calculateWantedSize() override;
 };
 
 struct FlowLayout : WidgetIs<UIWidget::flow_layout>

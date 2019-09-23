@@ -19,11 +19,13 @@
 using UIResourceID = xstd::unique_id<struct UIResourceID_tag>;
 using CallbackID = xstd::unique_id<struct CallbackID_tag>;
 
-#ifdef DUNSTBLICK_COMPILER
-struct SDL_Point { int x, y; };
+#ifdef DUNSTBLICK_SERVER
+using UIPoint = SDL_Point;
+#else
+struct UIPoint { int x, y; };
 #endif
 
-struct SDL_Size { int w, h; };
+struct UISize { int w, h; };
 
 /// RGB color structure
 struct UIColor
@@ -92,11 +94,11 @@ inline bool operator!= (UISizeExpandTag,UISizeExpandTag) { return false; }
 inline bool operator== (UISizeAutoTag,UISizeAutoTag) { return true; }
 inline bool operator!= (UISizeAutoTag,UISizeAutoTag) { return false; }
 
-inline bool operator== (SDL_Point a, SDL_Point b) { return (a.x == b.x) and (a.y == b.y); }
-inline bool operator!= (SDL_Point a, SDL_Point b) { return !(a == b); }
+inline bool operator== (UIPoint a, UIPoint b) { return (a.x == b.x) and (a.y == b.y); }
+inline bool operator!= (UIPoint a, UIPoint b) { return !(a == b); }
 
-inline bool operator== (SDL_Size a, SDL_Size b) { return (a.w == b.w) and (a.h == b.h); }
-inline bool operator!= (SDL_Size a, SDL_Size b) { return !(a == b); }
+inline bool operator== (UISize a, UISize b) { return (a.w == b.w) and (a.h == b.h); }
+inline bool operator!= (UISize a, UISize b) { return !(a == b); }
 
 using UISizeList = std::vector<UISizeDef>;
 

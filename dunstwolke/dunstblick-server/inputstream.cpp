@@ -50,7 +50,7 @@ UIValue InputStream::read_value(UIType type)
 					break;
 				list.push_back(ObjectRef { id });
 			}
-			return list;
+			return std::move(list);
 		}
 
 		case UIType::enumeration:
@@ -86,7 +86,7 @@ UIValue InputStream::read_value(UIType type)
 
 		case UIType::size:
 		{
-			SDL_Size size;
+			UISize size;
 			size.w = gsl::narrow<int>(this->read_uint());
 			size.h = gsl::narrow<int>(this->read_uint());
 			return size;
@@ -94,7 +94,7 @@ UIValue InputStream::read_value(UIType type)
 
 		case UIType::point:
 		{
-			SDL_Point pos;
+			UIPoint pos;
 			pos.x = gsl::narrow<int>(this->read_uint());
 			pos.y = gsl::narrow<int>(this->read_uint());
 			return pos;

@@ -1,37 +1,21 @@
 - [x] Resource System
-	- [x] Bitmap
-		- [x] Deserialize Bitmaps
 	- [ ] Vector Drawing
 		- [ ] Deserialize Vectors
-	- [x] UI Template
-		- [x] Deserialize Templates
-- [ ] Object System
-	- [x] Object Registry
-	- [x] Define possible object property types
-	- [x] Deserialize Objects
-	- [x] Refresh objects
-	- [x] Propagate property changes back
-	- [ ] Make object properties mark if they have feedback to the client
-- [x] Input Routing
-	- [x] Mouse
-	- [x] Keyboard
-	- [ ] Tab Switch
-	- [ ] Filter keyboard for widgets with tab stop
-- [ ] Widget
-	- [x] Bindable child lists
-		- [x] Observere list/children
-		- [x] Auto-instantiation of children
+		- [ ] Define Vector format
+		- [ ] Define Vector rendering
+- [ ] Implement missing widgets
+	- [ ] ComboBox
+	- [ ] TreeView
+	- [ ] TreeViewItem
+	- [ ] ListBox
+	- [ ] ListBoxItem
+	- [ ] TextBox
+	- [ ] ScrollView
+	- [ ] ScrollBar
+	- [ ] SpinEdit
 - [ ] Add "deferModalDrawing" to render/ui context
 	- allow rendering stuff *after* everything else
-	- required for tooltips and combo boxes
-- [x] Command API
-	- [x] Define commands/api/messages
-- [x] Property bindings
-- [ ] implement tool tips
-- [ ] Transitions between widgets
-	- [ ] Ease-in
-	- [ ] Ease-out
-	- [ ] Transition between two layouts
+	- required for combo boxes
 - Improved text rendering API
 	- [ ] Rich text
 	- [ ] Full unicode
@@ -39,5 +23,16 @@
 		- [ ] Left-align
 		- [ ] Right-align
 		- [ ] Center
-		- [ ] 
-
+		- [ ] Justify
+- [ ] Object System
+	- [ ] Make object properties mark if they have feedback to the client
+- [ ] Input Routing
+	- [ ] Tab Switch
+	- [ ] Filter keyboard for widgets with tab stop
+- [ ] Transitions between widgets
+	- [ ] Ease-in
+	- [ ] Ease-out
+	- [ ] Transition between two layouts
+- [ ] Widget
+	- [ ] Bindable child lists
+		- [ ] Add "sort by property" + "sort asc, sort desc"

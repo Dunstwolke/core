@@ -88,12 +88,12 @@ void Widget::updateWantedSize()
 	// this->wanted_size.h += this->margins.totalVertical();
 }
 
-SDL_Size Widget::calculateWantedSize()
+UISize Widget::calculateWantedSize()
 {
 	if(children.empty())
 		return sizeHint.get(this);
 
-	SDL_Size size = { 0, 0 };
+	UISize size = { 0, 0 };
 	for(auto & child : children)
 	{
 		size.w = std::max(size.w, child->wanted_size_with_margins().w);
@@ -213,7 +213,7 @@ SDL_Rect Widget::bounds_with_margins() const
 	};
 }
 
-SDL_Size Widget::wanted_size_with_margins() const
+UISize Widget::wanted_size_with_margins() const
 {
 	return {
 		wanted_size.w + margins.get(this).totalHorizontal(),

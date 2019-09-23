@@ -72,8 +72,8 @@ types =
     {   4, "enumeration", "uint8_t"               },
     {   5, "margins",     "UIMargin"              },
     {   6, "color",       "UIColor"               },
-    {   7, "size",        "SDL_Size"              },
-    {   8, "point",       "SDL_Point"             }, 
+    {   7, "size",        "UISize"                },
+    {   8, "point",       "UIPoint"               }, 
     {   9, "resource",    "UIResourceID"          },
     {  10, "boolean",     "bool"                  },
 	{  11, "sizelist",    "UISizeList"            },
@@ -111,9 +111,10 @@ properties =
     {  25, "bindingContext",       "binding-context",        "object"      },
 	{  26, "childSource",          "child-source",           "objectlist"  },
 	{  27, "childTemplate",        "child-template",         "resource"    },
-    {  28, "toolTip",              "tool-tip",               "string"      },
+    -- {  28, "toolTip",              "tool-tip",               "string"      },
 	{  29, "hitTestVisible",       "hit-test-visible",       "boolean"     },
 	{  30, "onClick",              "on-click",               "callback"    },
+	{  31, "orientation",          "orientation",            "enumeration" },
 },
 
 groups = 
@@ -127,6 +128,7 @@ groups =
 	["DisplayProgressStyle"] = { "none", "percent", "absolute" },
 	["ImageScaling"]         = { "none", "center", "stretch", "zoom", "contain", "cover" },
 	["BooleanFormat"]        = { "truefalse", "yesno", "onoff" },
+	["Orientation"]          = { "horizontal", "vertical" },
 },
 
 };

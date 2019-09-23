@@ -1,4 +1,5 @@
 TEMPLATE = subdirs
 
 SUBDIRS += \
-  calculactor
+  calculactor \
+  dunstblick-layout-tester

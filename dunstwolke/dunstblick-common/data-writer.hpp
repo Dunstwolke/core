@@ -121,25 +121,25 @@ struct CommandBuffer
 			case DUNSTBLICK_TYPE_INTEGER:
 			{
 				write_varint(gsl::narrow<uint32_t>(val.integer));
-				break;
+				return;
 			}
 
 			case DUNSTBLICK_TYPE_NUMBER:
 			{
 				write_number(val.number);
-				break;
+				return;
 			}
 
 			case DUNSTBLICK_TYPE_STRING:
 			{
 				write_string(val.string);
-				break;
+				return;
 			}
 
 			case DUNSTBLICK_TYPE_ENUMERATION:
 			{
 				write_enum(val.enumeration);
-				break;
+				return;
 			}
 
 			case DUNSTBLICK_TYPE_MARGINS:
@@ -148,7 +148,7 @@ struct CommandBuffer
 				write_varint(gsl::narrow<uint32_t>(val.margins.top));
 				write_varint(gsl::narrow<uint32_t>(val.margins.right));
 				write_varint(gsl::narrow<uint32_t>(val.margins.bottom));
-				break;
+				return;
 			}
 
 			case DUNSTBLICK_TYPE_COLOR:
@@ -157,50 +157,48 @@ struct CommandBuffer
 				write_byte(val.color.g);
 				write_byte(val.color.b);
 				write_byte(val.color.a);
-				break;
+				return;
 			}
 
 			case DUNSTBLICK_TYPE_SIZE:
 			{
 				write_varint(gsl::narrow<uint32_t>(val.size.w));
 				write_varint(gsl::narrow<uint32_t>(val.size.h));
-				break;
+				return;
 			}
 
 			case DUNSTBLICK_TYPE_POINT:
 			{
 				write_varint(gsl::narrow<uint32_t>(val.point.x));
 				write_varint(gsl::narrow<uint32_t>(val.point.y));
-				break;
+				return;
 			}
 
 			case DUNSTBLICK_TYPE_RESOURCE:
 			{
 				write_varint(val.resource);
-				break;
+				return;
 			}
 
 			case DUNSTBLICK_TYPE_BOOLEAN:
 			{
 				write_byte(val.boolean ? 1 : 0);
-				break;
+				return;
 			}
 
 			case DUNSTBLICK_TYPE_OBJECT:
 			{
 				write_varint(val.resource);
-				break;
+				return;
 			}
 
 			case DUNSTBLICK_TYPE_OBJECTLIST:
 			{
 				assert(false and "not implemented yet");
-				break;
+				return;
 			}
-
-			default:
-				assert(false and "invalid value type: out of range!");
 		}
+		assert(false and "invalid value type: out of range!");
 	}
 #elif defined(DUNSTBLICK_SERVER)
 	void write_value(UIValue const & val, bool prefixType)
@@ -295,6 +293,46 @@ struct CommandBuffer
 				return;
 			}
 
+			case UIType::color:
+			{
+				auto const & col = std::get<UIColor>(val);
+				write_byte(col.r);
+				write_byte(col.g);
+				write_byte(col.b);
+				write_byte(col.a);
+				return;
+			}
+
+			case UIType::size:
+			{
+				auto const & size = std::get<UISize>(val);
+				write_varint(gsl::narrow<uint32_t>(size.w));
+				write_varint(gsl::narrow<uint32_t>(size.h));
+				return;
+			}
+
+			case UIType::point:
+			{
+				auto const & point = std::get<UIPoint>(val);
+				write_varint(gsl::narrow<uint32_t>(point.x));
+				write_varint(gsl::narrow<uint32_t>(point.y));
+				return;
+			}
+
+			case UIType::objectlist:
+			{
+				auto const & list = std::get<ObjectList>(val);
+				for(size_t i = 0; i < list.size(); i++)
+				{
+					if(not list[i].id.is_null())
+						write_varint(gsl::narrow<uint32_t>(list[i].id.value));
+				}
+				write_varint(0);
+				return;
+			}
+
+			case UIType::invalid:
+				break;
 		}
 		assert(false and "not supported type!");
 	}

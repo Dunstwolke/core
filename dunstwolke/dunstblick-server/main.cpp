@@ -220,14 +220,14 @@ static std::ostream & operator<< (std::ostream & stream, UIColor col)
 }
 
 
-static std::ostream & operator<< (std::ostream & stream, SDL_Size val)
+static std::ostream & operator<< (std::ostream & stream, UISize val)
 {
 	stream << val.w << " × " << val.h;
 	return stream;
 }
 
 
-static std::ostream & operator<< (std::ostream & stream, SDL_Point val)
+static std::ostream & operator<< (std::ostream & stream, UIPoint val)
 {
 	stream << val.x << ", " << val.y;
 	return stream;
