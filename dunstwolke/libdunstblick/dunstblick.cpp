@@ -125,6 +125,12 @@ static void receive_data(dunstblick_Connection * con)
 
 dunstblick_Connection * dunstblick_Open(const char * host, int portNumber)
 {
+	if(host == nullptr)
+		return nullptr;
+
+	if(portNumber <= 0 or portNumber >= 65536)
+		return nullptr;
+
 	std::optional<xnet::socket> sock;
 
 	for (auto const & entry : xnet::dns::resolve(host, std::to_string(portNumber), SOCK_STREAM))

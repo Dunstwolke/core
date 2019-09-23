@@ -13,7 +13,7 @@
 
 int main(int argc, char ** argv)
 {
-	if((argc < 1) || (argc > 3))
+	if((argc <= 1) || (argc > 3))
 	{
 		fprintf(stderr,
 			"usage: dunstblick-layout-tester [layout file] [server] [port]\n"
@@ -24,8 +24,8 @@ int main(int argc, char ** argv)
 	}
 
 	char const * fileName = argv[1];
-	char const * server = (argc >= 2) ? argv[2] : "127.0.0.1";
-	int portNum = (argc >= 3) ? strtod(argv[3], NULL) : 1309;
+	char const * server = (argc > 2) ? argv[2] : "127.0.0.1";
+	int portNum = (argc > 3) ? strtod(argv[3], NULL) : 1309;
 
 	FILE * f = fopen(fileName, "rb");
 	if(f == NULL) {

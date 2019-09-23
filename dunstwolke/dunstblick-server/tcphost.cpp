@@ -22,6 +22,7 @@ TcpHost::TcpHost(int bindPort) :
 
 TcpHost::~TcpHost()
 {
+	this->listener.shutdown();
 	this->shutdown_request.clear();
 	this->client->shutdown();
 	this->worker.join();
@@ -51,8 +52,17 @@ void TcpHost::thread_worker()
 {
 	while(this->shutdown_request.test_and_set())
 	{
-		auto [ sock, ep ] = listener.accept();
-		this->client.emplace(std::move(sock));
+		try
+		{
+			auto [ sock, ep ] = listener.accept();
+			this->client.emplace(std::move(sock));
+		}
+		catch(xcept::io_error const & err)
+		{
+			std::this_thread::sleep_for(std::chrono::milliseconds(10));
+			XLOG_MSG() << err.what();
+			continue;
+		}
 
 		XLOG_MSG() << "TCP Client connected!";
 		try
@@ -62,8 +72,8 @@ void TcpHost::thread_worker()
 			bool connected = true;
 			while(connected)
 			{
-				auto length = stream.read<uint32_t>();
-				if(connected > 0)
+				auto const length = stream.read<uint32_t>();
+				if(length > 0)
 				{
 					Packet p(length);
 					stream.read(p.data(), p.size());
