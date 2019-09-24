@@ -104,7 +104,7 @@ struct ScrollBar : WidgetIs<UIWidget::scrollbar>
 {
 	property<float> minimum = 0.0f;
     property<float> maximum = 100.0f;
-    property<float> value = 0.0f;
+    property<float> value = 25.0f;
 	property<Orientation> orientation = Orientation::horizontal;
 
 	bool is_taking_input = false;
@@ -129,6 +129,7 @@ struct Slider : WidgetIs<UIWidget::progressbar>
 	property<float> minimum = 0.0f;
     property<float> maximum = 100.0f;
     property<float> value = 0.0f;
+	property<Orientation> orientation = Orientation::horizontal;
 
 	bool is_taking_input = false;
 

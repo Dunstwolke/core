@@ -340,6 +340,7 @@ std::initializer_list<MetaProperty> const metaProperties
 	MetaProperty { UIProperty::minimum, &Slider::minimum },
 	MetaProperty { UIProperty::maximum, &Slider::maximum },
 	MetaProperty { UIProperty::value, &Slider::value },
+	MetaProperty { UIProperty::orientation, &Slider::orientation},
 
 	MetaProperty { UIProperty::stackDirection, &StackLayout::direction },
 

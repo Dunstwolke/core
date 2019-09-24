@@ -251,7 +251,7 @@ void Slider::paintWidget(const SDL_Rect &rectangle)
 {
     int const knobThick = 12;
 
-    if(rectangle.w > rectangle.h)
+    if(orientation.get(this) == Orientation::horizontal)
     {
         // horizontal slider
 
@@ -310,7 +310,7 @@ void Slider::paintWidget(const SDL_Rect &rectangle)
 bool Slider::processEvent(const SDL_Event & ev)
 {
 	int const knobThick = 12;
-	bool const isHorizontal = (actual_bounds.w > actual_bounds.h);
+	bool const isHorizontal = orientation.get(this) == Orientation::horizontal;
 
 	auto setSlider = [&](int x, int y)
 	{
@@ -515,13 +515,42 @@ UISize ScrollBar::calculateWantedSize()
 void ScrollBar::paintWidget(const SDL_Rect & rectangle)
 {
 	int const knobSize = 24;
-	if(orientation.get(this) == Orientation::horizontal)
-	{
 
+	float const progress = (value.get(this) - minimum.get(this)) / (maximum.get(this) - minimum.get(this));
+
+	if(orientation.get(this) == Orientation::vertical)
+	{
+		SDL_Rect const topKnob = { rectangle.x, rectangle.y, knobSize, knobSize };
+		SDL_Rect const botKnob = { rectangle.x, rectangle.y + rectangle.h - knobSize, knobSize, knobSize };
+
+		SDL_Rect const slidKnob = {
+		    rectangle.x,
+		    rectangle.y + knobSize + int(progress * (rectangle.h - 2 * knobSize) + 0.5f),
+		    knobSize,
+		    knobSize
+		};
+
+		context().renderer.setColor(0xFF, 0x00, 0x00);
+		context().renderer.fillRect(topKnob);
+		context().renderer.fillRect(botKnob);
+		context().renderer.fillRect(slidKnob);
 	}
 	else
 	{
+		SDL_Rect const leftKnob = { rectangle.x, rectangle.y, knobSize, knobSize };
+		SDL_Rect const rightKnob = { rectangle.x + rectangle.w - knobSize, rectangle.y, knobSize, knobSize };
 
+		SDL_Rect const slidKnob = {
+		    rectangle.x + knobSize + int(progress * (rectangle.w - 2 * knobSize) + 0.5f),
+		    rectangle.y,
+		    knobSize,
+		    knobSize
+		};
+
+		context().renderer.setColor(0xFF, 0x00, 0x00);
+		context().renderer.fillRect(leftKnob);
+		context().renderer.fillRect(rightKnob);
+		context().renderer.fillRect(slidKnob);
 	}
 }
 
