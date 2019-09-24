@@ -389,11 +389,6 @@ int main()
 					if(auto * child = root_widget->hitTest(e.motion.x, e.motion.y); child != nullptr)
 					{
 						ui_set_mouse_focus(child);
-
-						// adjust event
-						e.motion.x -= child->actual_bounds.x;
-						e.motion.y -= child->actual_bounds.y;
-
 						child->processEvent(e);
 					}
 					break;
@@ -402,18 +397,18 @@ int main()
 				case SDL_MOUSEBUTTONUP:
 				case SDL_MOUSEBUTTONDOWN:
 				{
+					// Only allow left button interaction with all widgets
+					if(e.button.button != SDL_BUTTON_LEFT)
+						break;
+
 					if(not root_widget)
 						break;
 					if(auto * child = root_widget->hitTest(e.button.x, e.button.y); child != nullptr)
 					{
 						ui_set_mouse_focus(child);
 
-						if((e.type == SDL_MOUSEBUTTONUP) and (e.button.button == SDL_BUTTON_LEFT) and child->isKeyboardFocusable())
+						if((e.type == SDL_MOUSEBUTTONUP) and child->isKeyboardFocusable())
 							ui_set_keyboard_focus(child);
-
-						// adjust event
-						e.button.x -= child->actual_bounds.x;
-						e.button.y -= child->actual_bounds.y;
 
 						child->processEvent(e);
 					}
@@ -427,10 +422,6 @@ int main()
 					if(auto * child = root_widget->hitTest(e.wheel.x, e.wheel.y); child != nullptr)
 					{
 						ui_set_mouse_focus(child);
-
-						// adjust event
-						e.wheel.x -= child->actual_bounds.x;
-						e.wheel.y -= child->actual_bounds.y;
 
 						child->processEvent(e);
 					}

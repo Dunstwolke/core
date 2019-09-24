@@ -124,7 +124,7 @@ struct ScrollBar : WidgetIs<UIWidget::scrollbar>
 	}
 };
 
-struct Slider : WidgetIs<UIWidget::progressbar>
+struct Slider : WidgetIs<UIWidget::slider>
 {
 	property<float> minimum = 0.0f;
     property<float> maximum = 100.0f;

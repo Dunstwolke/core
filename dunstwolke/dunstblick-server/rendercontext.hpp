@@ -4,6 +4,13 @@
 #include "fontcache.hpp"
 #include <sdl2++/renderer>
 
+enum class Bevel
+{
+	flat,
+	sunken,
+	raised,
+};
+
 struct RenderContext
 {
     sdl2::renderer renderer;
@@ -14,6 +21,9 @@ struct RenderContext
     explicit RenderContext(sdl2::renderer && ren, char const * sansTTF, char const * serifTTF, char const * monoTTF);
 
     FontCache & getFont(UIFont font);
+
+
+	void drawBevel(SDL_Rect const & rect, Bevel bevel);
 };
 
 RenderContext & context();

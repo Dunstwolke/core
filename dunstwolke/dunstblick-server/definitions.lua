@@ -88,7 +88,7 @@ properties =
     {   2, "verticalAlignment",    "vertical-alignment",     "enumeration" },
     {   3, "margins",              "margins",                "margins"     },
     {   4, "paddings",             "paddings",               "margins"     },
-    {   5, "stackDirection",       "stack-direction",        "enumeration" },
+    -- {   5, "stackDirection",       "stack-direction",        "enumeration" },
     {   6, "dockSite",             "dock-site",              "enumeration" },
     {   7, "visibility",           "visibility",             "enumeration" },
     {   8, "sizeHint",             "size-hint",              "size"        },

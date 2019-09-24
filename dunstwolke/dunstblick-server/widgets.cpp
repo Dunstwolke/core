@@ -3,6 +3,22 @@
 
 #include <xlog>
 
+static bool contains(SDL_Rect const & rect, int x, int y)
+{
+	return (x >= rect.x)
+	        and (y >= rect.y)
+	        and (x < rect.x + rect.w)
+	        and (y < rect.y + rect.h)
+	        ;
+}
+
+static bool is_clicked(SDL_Rect const & rect, SDL_Event const & ev)
+{
+	if(ev.type != SDL_MOUSEBUTTONDOWN)
+		return false;
+	return contains(rect, ev.button.x, ev.button.y);
+}
+
 Spacer::Spacer()
 {
 	hitTestVisible.set(this, false);
@@ -317,12 +333,12 @@ bool Slider::processEvent(const SDL_Event & ev)
 		float v;
 		if(isHorizontal)
 		{
-			int pos = std::clamp(x - knobThick / 2, 0, actual_bounds.w - knobThick - 1);
+			int pos = std::clamp(x - knobThick / 2 - actual_bounds.x, 0, actual_bounds.w - knobThick - 1);
 			v = float(pos) / float(actual_bounds.w - knobThick - 1);
 		}
 		else
 		{
-			int pos = std::clamp(y - knobThick / 2, 0, actual_bounds.h - knobThick - 1);
+			int pos = std::clamp(y - knobThick / 2 - actual_bounds.y, 0, actual_bounds.h - knobThick - 1);
 			v = float(pos) / float(actual_bounds.h - knobThick - 1);
 		}
 
@@ -335,11 +351,8 @@ bool Slider::processEvent(const SDL_Event & ev)
 	switch(ev.type)
 	{
 		case SDL_MOUSEBUTTONDOWN:
-			if(ev.button.button == SDL_BUTTON_LEFT)
-			{
-				is_taking_input = true;
-				setSlider(ev.button.x, ev.button.y);
-			}
+			is_taking_input = true;
+			setSlider(ev.button.x, ev.button.y);
 			break;
 
 		case SDL_MOUSEMOTION:
@@ -348,8 +361,7 @@ bool Slider::processEvent(const SDL_Event & ev)
 			break;
 
 		case SDL_MOUSEBUTTONUP:
-			if(ev.button.button == SDL_BUTTON_LEFT)
-				is_taking_input = false;
+			is_taking_input = false;
 			break;
 
 		case UI_EVENT_LOST_MOUSE_FOCUS:
@@ -491,7 +503,7 @@ SDL_SystemCursor ClickableWidget::getCursor() const
 
 bool ClickableWidget::processEvent(const SDL_Event & event)
 {
-	if((event.type == SDL_MOUSEBUTTONUP) and (event.button.button == SDL_BUTTON_LEFT))
+	if(event.type == SDL_MOUSEBUTTONUP)
 	{
 		onClick();
 		xlog::log(xlog::verbose) << "clicked on a " << to_string(type) << " widget!";
@@ -525,20 +537,101 @@ void ScrollBar::paintWidget(const SDL_Rect & rectangle)
 
 		SDL_Rect const slidKnob = {
 		    rectangle.x,
-		    rectangle.y + knobSize + int(progress * (rectangle.h - 2 * knobSize) + 0.5f),
+		    rectangle.y + knobSize + int(progress * (rectangle.h - 3 * knobSize) + 0.5f),
 		    knobSize,
 		    knobSize
 		};
 
-		context().renderer.setColor(0xFF, 0x00, 0x00);
-		context().renderer.fillRect(topKnob);
-		context().renderer.fillRect(botKnob);
-		context().renderer.fillRect(slidKnob);
+		context().drawBevel(topKnob, Bevel::raised);
+		context().drawBevel(botKnob, Bevel::raised);
+		context().drawBevel(slidKnob, Bevel::raised);
 	}
 	else
 	{
 		SDL_Rect const leftKnob = { rectangle.x, rectangle.y, knobSize, knobSize };
 		SDL_Rect const rightKnob = { rectangle.x + rectangle.w - knobSize, rectangle.y, knobSize, knobSize };
+
+		SDL_Rect const slidKnob = {
+		    rectangle.x + knobSize + int(progress * (rectangle.w - 3 * knobSize) + 0.5f),
+		    rectangle.y,
+		    knobSize,
+		    knobSize
+		};
+
+		context().drawBevel(leftKnob, Bevel::raised);
+		context().drawBevel(rightKnob, Bevel::raised);
+		context().drawBevel(slidKnob, Bevel::raised);
+	}
+}
+
+bool ScrollBar::processEvent(const SDL_Event & ev)
+{
+	int const knobSize = 24;
+
+	float const minval = minimum.get(this);
+	float const maxval = maximum.get(this);
+	float const val = value.get(this);
+	float const range = maxval - minval;
+	float const progress = (val - minval) / range;
+	float const clickperc = 0.05f;
+
+	auto const rectangle = actual_bounds;
+	if(orientation.get(this) == Orientation::vertical)
+	{
+		SDL_Rect const topKnob = { rectangle.x, rectangle.y, knobSize, knobSize };
+		SDL_Rect const botKnob = { rectangle.x, rectangle.y + rectangle.h - knobSize, knobSize, knobSize };
+
+		SDL_Rect const knobArea = {
+		    rectangle.x,
+		    rectangle.y + knobSize,
+		    rectangle.w,
+		    rectangle.h - 2 * knobSize,
+		};
+
+		SDL_Rect const slidKnob = {
+		    rectangle.x,
+		    rectangle.y + knobSize + int(progress * (rectangle.h - 2 * knobSize) + 0.5f),
+		    knobSize,
+		    knobSize
+		};
+
+		if(is_clicked(topKnob, ev))
+		{
+			value.set(this, std::clamp(val - clickperc * range, minval, maxval));
+			return true;
+		}
+		if(is_clicked(botKnob, ev))
+		{
+			value.set(this, std::clamp(val + clickperc * range, minval, maxval));
+			return true;
+		}
+		if(is_clicked(slidKnob, ev))
+		{
+			// TODO: start dragging here
+			printf("knob hit!\n");
+			fflush(stdout);
+			return true;
+		}
+		if(is_clicked(knobArea, ev))
+		{
+			if(ev.button.y < slidKnob.y)
+				value.set(this, std::clamp(val - clickperc * range, minval, maxval));
+			else
+				value.set(this, std::clamp(val + clickperc * range, minval, maxval));
+			return true;
+		}
+	}
+	else
+	{
+		SDL_Rect const leftKnob = { rectangle.x, rectangle.y, knobSize, knobSize };
+		SDL_Rect const rightKnob = { rectangle.x + rectangle.w - knobSize, rectangle.y, knobSize, knobSize };
+
+		SDL_Rect const knobArea = {
+		    rectangle.x + knobSize,
+		    rectangle.y,
+		    rectangle.w - 2 * knobSize,
+		    rectangle.h,
+		};
 
 		SDL_Rect const slidKnob = {
 		    rectangle.x + knobSize + int(progress * (rectangle.w - 2 * knobSize) + 0.5f),
@@ -547,14 +640,34 @@ void ScrollBar::paintWidget(const SDL_Rect & rectangle)
 		    knobSize
 		};
 
-		context().renderer.setColor(0xFF, 0x00, 0x00);
-		context().renderer.fillRect(leftKnob);
-		context().renderer.fillRect(rightKnob);
-		context().renderer.fillRect(slidKnob);
-	}
-}
 
-bool ScrollBar::processEvent(const SDL_Event & ev)
-{
+		if(is_clicked(leftKnob, ev))
+		{
+			value.set(this, std::clamp(val - clickperc * range, minval, maxval));
+			return true;
+		}
+		if(is_clicked(rightKnob, ev))
+		{
+			value.set(this, std::clamp(val + clickperc * range, minval, maxval));
+			return true;
+		}
+		if(is_clicked(slidKnob, ev))
+		{
+			// TODO: start dragging here
+			printf("knob hit!\n");
+			fflush(stdout);
+			return true;
+		}
+		if(is_clicked(knobArea, ev))
+		{
+			if(ev.button.x < slidKnob.x)
+				value.set(this, std::clamp(val - clickperc * range, minval, maxval));
+			else
+				value.set(this, std::clamp(val + clickperc * range, minval, maxval));
+			return true;
+		}
+
+	}
+
 	return Widget::processEvent(ev);
 }

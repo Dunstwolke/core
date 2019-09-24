@@ -4,6 +4,15 @@ GridLayout {
 	margins: 0;
 	Panel {
 		margins: 0;
+		StackLayout {
+			orientation: vertical;
+			Slider {
+				orientation: vertical;
+			}
+			Slider {
+				orientation: horizontal;
+			}
+		}
 	}
 	ScrollBar {
 		orientation: vertical;

@@ -342,7 +342,7 @@ std::initializer_list<MetaProperty> const metaProperties
 	MetaProperty { UIProperty::value, &Slider::value },
 	MetaProperty { UIProperty::orientation, &Slider::orientation},
 
-	MetaProperty { UIProperty::stackDirection, &StackLayout::direction },
+	MetaProperty { UIProperty::orientation, &StackLayout::direction },
 
 	MetaProperty { UIProperty::isChecked, &CheckBox::isChecked },
 
