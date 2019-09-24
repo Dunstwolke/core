@@ -586,10 +586,26 @@ bool ScrollBar::processEvent(const SDL_Event & ev)
 
 		SDL_Rect const slidKnob = {
 		    rectangle.x,
-		    rectangle.y + knobSize + int(progress * (rectangle.h - 2 * knobSize) + 0.5f),
+		    rectangle.y + knobSize + int(progress * (rectangle.h - 3 * knobSize) + 0.5f),
 		    knobSize,
 		    knobSize
 		};
+
+		if(ev.type == SDL_MOUSEBUTTONUP)
+			releaseMouse();
+
+		if(hasMouseCaptured() and (ev.type == SDL_MOUSEMOTION))
+		{
+			// move knob here!
+
+			int const y = std::clamp(ev.motion.y - knobArea.y - knobOffset, 0, knobArea.h - 1);
+
+			float const p = float(y) / float(knobArea.h - 1);
+
+			value.set(this, minval + range * p);
+
+			return true;
+		}
 
 		if(is_clicked(topKnob, ev))
 		{
@@ -603,9 +619,8 @@ bool ScrollBar::processEvent(const SDL_Event & ev)
 		}
 		if(is_clicked(slidKnob, ev))
 		{
-			// TODO: start dragging here
-			printf("knob hit!\n");
-			fflush(stdout);
+			knobOffset = ev.button.y - slidKnob.y;
+			captureMouse();
 			return true;
 		}
 		if(is_clicked(knobArea, ev))
@@ -630,12 +645,28 @@ bool ScrollBar::processEvent(const SDL_Event & ev)
 		};
 
 		SDL_Rect const slidKnob = {
-		    rectangle.x + knobSize + int(progress * (rectangle.w - 2 * knobSize) + 0.5f),
+		    rectangle.x + knobSize + int(progress * (rectangle.w - 3 * knobSize) + 0.5f),
 		    rectangle.y,
 		    knobSize,
 		    knobSize
 		};
 
+
+		if(ev.type == SDL_MOUSEBUTTONUP)
+			releaseMouse();
+
+		if(hasMouseCaptured() and (ev.type == SDL_MOUSEMOTION))
+		{
+			// move knob here!
+
+			int const y = std::clamp(ev.motion.x - knobArea.x - knobOffset, 0, knobArea.w - 1);
+
+			float const p = float(y) / float(knobArea.w - 1);
+
+			value.set(this, minval + range * p);
+
+			return true;
+		}
 
 		if(is_clicked(leftKnob, ev))
 		{
@@ -649,9 +680,8 @@ bool ScrollBar::processEvent(const SDL_Event & ev)
 		}
 		if(is_clicked(slidKnob, ev))
 		{
-			// TODO: start dragging here
-			printf("knob hit!\n");
-			fflush(stdout);
+			knobOffset = ev.button.x - slidKnob.x;
+			captureMouse();
 			return true;
 		}
 		if(is_clicked(knobArea, ev))

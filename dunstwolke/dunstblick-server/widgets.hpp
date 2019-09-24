@@ -107,7 +107,7 @@ struct ScrollBar : WidgetIs<UIWidget::scrollbar>
     property<float> value = 25.0f;
 	property<Orientation> orientation = Orientation::horizontal;
 
-	bool is_taking_input = false;
+	int knobOffset;
 
     UISize calculateWantedSize() override;
 
