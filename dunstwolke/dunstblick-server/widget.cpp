@@ -225,9 +225,7 @@ void Widget::setProperty(UIProperty property, UIValue value)
 {
 	auto & meta = MetaWidget::get(this->type);
 
-	if(auto it1 = meta.specializedProperties.find(property); it1 != meta.specializedProperties.end())
-		it1->second(*this)->setValue(value);
-	else if(auto it2 = meta.defaultProperties.find(property); it2 != meta.defaultProperties.end())
+	if(auto it2 = meta.properties.find(property); it2 != meta.properties.end())
 		it2->second(*this)->setValue(value);
 	else {
 		xlog::log(xlog::error) << "unknown property " + to_string(property) + " for widget " + to_string(this->type) + "!";
@@ -238,10 +236,8 @@ void Widget::setPropertyBinding(UIProperty property, xstd::optional<PropertyName
 {
 	auto & meta = MetaWidget::get(this->type);
 
-	if(auto it1 = meta.specializedProperties.find(property); it1 != meta.specializedProperties.end())
-		it1->second(*this)->binding = name;
-	else if(auto it2 = meta.defaultProperties.find(property); it2 != meta.defaultProperties.end())
-		it2->second(*this)->binding = name;
+	if(auto it = meta.properties.find(property); it != meta.properties.end())
+		it->second(*this)->binding = name;
 	else {
 		xlog::log(xlog::error) << "unknown property " + to_string(property) + " for widget " + to_string(this->type) + "!";
 	}
@@ -315,7 +311,7 @@ static std::map<UIProperty, GetPropertyFunction> Transpose(std::initializer_list
 	return properties;
 }
 
-std::map<UIProperty, GetPropertyFunction> const MetaWidget::defaultProperties = Transpose(
+std::initializer_list<MetaProperty> const metaProperties
 {
 	MetaProperty { UIProperty::margins, &Widget::margins },
 	MetaProperty { UIProperty::paddings, &Widget::paddings },
@@ -332,104 +328,60 @@ std::map<UIProperty, GetPropertyFunction> const MetaWidget::defaultProperties = 
 	MetaProperty { UIProperty::hitTestVisible, &Widget::hitTestVisible },
 	MetaProperty { UIProperty::childSource, &Widget::childSource },
 	MetaProperty { UIProperty::childTemplate, &Widget::childTemplate },
-});
 
-std::map<UIWidget, MetaWidget> const metaWidgets
-{
-	{
-		UIWidget::label,
-		    MetaWidget
-		{
-			MetaProperty { UIProperty::text, &Label::text },
-			MetaProperty { UIProperty::fontFamily, &Label::font },
-		}
-	},
-	{
-		UIWidget::progressbar,
-		    MetaWidget
-		{
-			MetaProperty { UIProperty::minimum, &ProgressBar::minimum },
-			MetaProperty { UIProperty::maximum, &ProgressBar::maximum },
-			MetaProperty { UIProperty::value, &ProgressBar::value },
-			MetaProperty { UIProperty::displayProgressStyle, &ProgressBar::displayProgress },
-		}
-	},
-	{
-		UIWidget::slider,
-		    MetaWidget
-		{
-			MetaProperty { UIProperty::minimum, &Slider::minimum },
-			MetaProperty { UIProperty::maximum, &Slider::maximum },
-			MetaProperty { UIProperty::value, &Slider::value },
-		}
-	},
-	{
-		UIWidget::stack_layout,
-		    MetaWidget
-		{
-			MetaProperty { UIProperty::stackDirection, &StackLayout::direction },
-		}
-	},
-	{
-		UIWidget::checkbox,
-		    MetaWidget
-		{
-			MetaProperty { UIProperty::isChecked, &CheckBox::isChecked },
-		}
-	},
-	{
-		UIWidget::radiobutton,
-		    MetaWidget
-		{
-			MetaProperty { UIProperty::isChecked, &RadioButton::isChecked },
-		}
-	},
-	{
-		UIWidget::tab_layout,
-		    MetaWidget
-		{
-			MetaProperty { UIProperty::selectedIndex, &TabLayout::selectedIndex },
-		}
-	},
-	{
-		UIWidget::grid_layout,
-		    MetaWidget
-		{
-			MetaProperty { UIProperty::columns, &GridLayout::columns },
-			MetaProperty { UIProperty::rows, &GridLayout::rows },
-		}
-	},
-	{
-		UIWidget::picture,
-		    MetaWidget
-		{
-			MetaProperty { UIProperty::image, &Picture::image },
-			MetaProperty { UIProperty::imageScaling, &Picture::scaling },
-		}
-	},
-	{
-		UIWidget::button,
-		    MetaWidget
-		{
-			MetaProperty { UIProperty::onClick, &Button::onClickEvent },
-		}
-	},
+	MetaProperty { UIProperty::text, &Label::text },
+	MetaProperty { UIProperty::fontFamily, &Label::font },
+
+	MetaProperty { UIProperty::minimum, &ProgressBar::minimum },
+	MetaProperty { UIProperty::maximum, &ProgressBar::maximum },
+	MetaProperty { UIProperty::value, &ProgressBar::value },
+	MetaProperty { UIProperty::displayProgressStyle, &ProgressBar::displayProgress },
+
+	MetaProperty { UIProperty::minimum, &Slider::minimum },
+	MetaProperty { UIProperty::maximum, &Slider::maximum },
+	MetaProperty { UIProperty::value, &Slider::value },
+
+	MetaProperty { UIProperty::stackDirection, &StackLayout::direction },
+
+	MetaProperty { UIProperty::isChecked, &CheckBox::isChecked },
+
+	MetaProperty { UIProperty::isChecked, &RadioButton::isChecked },
+
+	MetaProperty { UIProperty::selectedIndex, &TabLayout::selectedIndex },
+
+	MetaProperty { UIProperty::columns, &GridLayout::columns },
+
+	MetaProperty { UIProperty::rows, &GridLayout::rows },
+
+	MetaProperty { UIProperty::image, &Picture::image },
+	MetaProperty { UIProperty::imageScaling, &Picture::scaling },
+
+	MetaProperty { UIProperty::onClick, &Button::onClickEvent },
+
+	MetaProperty { UIProperty::orientation, &ScrollBar::orientation },
+	MetaProperty { UIProperty::minimum, &ScrollBar::minimum },
+	MetaProperty { UIProperty::maximum, &ScrollBar::maximum },
+	MetaProperty { UIProperty::value, &ScrollBar::value },
 };
 
-
+static std::map<UIWidget, MetaWidget> widgetTypes;
 
 const MetaWidget &MetaWidget::get(UIWidget type)
 {
-	static MetaWidget defaultWidget { };
-
-	if(auto it = metaWidgets.find(type); it != metaWidgets.end())
+	if(auto it = widgetTypes.find(type); it != widgetTypes.end()) {
 		return it->second;
-	else
-		return defaultWidget;
+	}
+	auto [ it, emplaced ] = widgetTypes.emplace(type, MetaWidget { type });
+	assert(emplaced);
+	return it->second;
 }
 
-MetaWidget::MetaWidget(std::initializer_list<MetaProperty> props)
+MetaWidget::MetaWidget(UIWidget type)
 {
-	for(auto const & item : props)
-		specializedProperties.emplace(item.name, item.getter);
+	for(auto const & item : metaProperties) {
+		// invalid == root widget
+		if((item.widget == UIWidget::invalid) or (item.widget == type)) {
+			properties.emplace(item.name, item.getter);
+		}
+	}
 }

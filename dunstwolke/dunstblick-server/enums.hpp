@@ -120,6 +120,14 @@ enum class UIType : uint8_t
 	callback = 14,
 };
 
+enum class VAlignment : uint8_t
+{
+	stretch = UIEnum::stretch,
+	top = UIEnum::top,
+	middle = UIEnum::middle,
+	bottom = UIEnum::bottom,
+};
+
 enum class BooleanFormat : uint8_t
 {
 	truefalse = UIEnum::truefalse,
@@ -127,16 +135,17 @@ enum class BooleanFormat : uint8_t
 	onoff = UIEnum::onoff,
 };
 
+enum class DisplayProgressStyle : uint8_t
+{
+	none = UIEnum::none,
+	percent = UIEnum::percent,
+	absolute = UIEnum::absolute,
+};
+
 enum class StackDirection : uint8_t
 {
 	vertical = UIEnum::vertical,
 	horizontal = UIEnum::horizontal,
-};
-
-enum class Orientation : uint8_t
-{
-	horizontal = UIEnum::horizontal,
-	vertical = UIEnum::vertical,
 };
 
 enum class Visibility : uint8_t
@@ -146,11 +155,11 @@ enum class Visibility : uint8_t
 	hidden = UIEnum::hidden,
 };
 
-enum class DisplayProgressStyle : uint8_t
+enum class UIFont : uint8_t
 {
-	none = UIEnum::none,
-	percent = UIEnum::percent,
-	absolute = UIEnum::absolute,
+	sans = UIEnum::sans,
+	serif = UIEnum::serif,
+	monospace = UIEnum::monospace,
 };
 
 enum class ImageScaling : uint8_t
@@ -163,27 +172,18 @@ enum class ImageScaling : uint8_t
 	cover = UIEnum::cover,
 };
 
+enum class Orientation : uint8_t
+{
+	horizontal = UIEnum::horizontal,
+	vertical = UIEnum::vertical,
+};
+
 enum class DockSite : uint8_t
 {
 	top = UIEnum::top,
 	bottom = UIEnum::bottom,
 	left = UIEnum::left,
 	right = UIEnum::right,
-};
-
-enum class VAlignment : uint8_t
-{
-	stretch = UIEnum::stretch,
-	top = UIEnum::top,
-	middle = UIEnum::middle,
-	bottom = UIEnum::bottom,
-};
-
-enum class UIFont : uint8_t
-{
-	sans = UIEnum::sans,
-	serif = UIEnum::serif,
-	monospace = UIEnum::monospace,
 };
 
 enum class HAlignment : uint8_t

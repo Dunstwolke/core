@@ -244,6 +244,15 @@ local function genVariantHeader(f)
 	end
 end
 
+
+local function genWidgetMapper(f)
+	
+	for i,v in ipairs(UI.widgets) do
+		f:write("struct ", v[3], ";\n")
+		f:write("template<> constexpr UIWidget widgetTypeToEnum<", v[3], ">() { return UIWidget::", v[2], "; }\n");
+	end
+end
+
 local f
 
 f = assert(io.open("enums.hpp", "w"))
@@ -264,4 +273,8 @@ f:close()
 
 f = assert(io.open("types.variant.hpp", "w"))
 genVariantHeader(f)
+f:close()
+
+f = assert(io.open("widget.mapper.hpp", "w"))
+genWidgetMapper(f)
 f:close()

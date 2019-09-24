@@ -84,13 +84,22 @@ public:
 
 using GetPropertyFunction = std::function<BaseProperty * (Widget &)>;
 
+template<typename T>
+constexpr UIWidget widgetTypeToEnum();
+
+template<> constexpr UIWidget widgetTypeToEnum<Widget>() { return UIWidget::invalid; }
+
+#include "widget.mapper.hpp"
+
 struct MetaProperty
 {
+	UIWidget widget;
 	UIProperty name;
 	GetPropertyFunction getter;
 
 	template<typename T, typename P, bool B>
 	MetaProperty(UIProperty _name, property<P,B> T::*member) :
+	    widget(widgetTypeToEnum<T>()),
 	    name(_name),
 	    getter([=](Widget & w) {
 			auto val = &(static_cast<T*>(&w)->*member);
@@ -103,12 +112,11 @@ struct MetaProperty
 
 struct MetaWidget
 {
-	static std::map<UIProperty, GetPropertyFunction> const defaultProperties;
 	static MetaWidget const & get(UIWidget type);
 
-	std::map<UIProperty, GetPropertyFunction> specializedProperties;
+	std::map<UIProperty, GetPropertyFunction> properties;
 
-	MetaWidget(std::initializer_list<MetaProperty>);
+	explicit MetaWidget(UIWidget);
 };
 
 struct Widget

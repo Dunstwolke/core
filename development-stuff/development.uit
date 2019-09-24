@@ -1,26 +1,19 @@
-Panel {
-	vertical-alignment: middle;
-	horizontal-alignment: center;
-	StackLayout {
-		Button {
-			Label {
-				text: "Start Game";
-			}
-		}
-		Button {
-			Label {
-				text: "Load Game";
-			}
-		}
-		Button {
-			Label {
-				text: "Options";
-			}
-		}
-		Button {
-			Label {
-				text: "Quit";
-			}
-		}
+GridLayout {
+	columns: expand, auto;
+	rows: expand, auto;
+	margins: 0;
+	Panel {
+		margins: 0;
 	}
+	ScrollBar {
+		orientation: vertical;
+		dock-site: right;
+		margins: 0;
+	}
+	ScrollBar {
+		orientation: horizontal;
+		dock-site: bottom;
+		margins: 0;
+	}
+	Spacer { }
 }

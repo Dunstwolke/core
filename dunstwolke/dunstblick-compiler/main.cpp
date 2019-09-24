@@ -1,7 +1,7 @@
 #include "enums.hpp"
 #include "layoutparser.hpp"
 
-
+#include <filesystem>
 #include <iostream>
 #include <fstream>
 #include <getopt.h>
@@ -16,7 +16,7 @@ int main(int argc, char * const * argv)
 	char const * dstFile = nullptr;
 	char const * cfgFile = nullptr;
 
-	int c, opterr = 0;
+	int c = 0;
 	while ((c = getopt (argc, argv, "o:c:")) != -1)
 	{
 		switch (c)
@@ -89,14 +89,15 @@ int main(int argc, char * const * argv)
 	}
 
 	std::ifstream input_src(srcFile);
+	std::ofstream output_file(dstFile);
 
 	std::stringstream formDataBuffer;
-	layout_parser.compile(input_src, formDataBuffer);
 
-	auto formData = formDataBuffer.str();
-
-	std::ofstream output_file(dstFile);
-	output_file.write(formData.data(), formData.size());
+	if(not layout_parser.compile(input_src, output_file))
+	{
+		std::filesystem::remove(dstFile);
+		return 1;
+	}
 
 	return 0;
 }

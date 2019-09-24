@@ -7,6 +7,7 @@
 #include <gsl/gsl>
 #include <stdexcept>
 #include <xstd/resource>
+#include <xstd/format>
 
 #include "enums.hpp"
 #include "types.hpp"
@@ -15,6 +16,15 @@
 #include "parser-info.hpp"
 #undef INCLUDE_PARSER_FIELDS
 
+#include <iostream>
+
+struct ParseError
+{
+	int line, column;
+	std::string message;
+};
+
+using ErrorList = std::vector<ParseError>;
 
 static std::string toString(LexerTokenType type)
 {
@@ -139,7 +149,7 @@ static void write_number(std::ostream & output, float value)
 //	return strtof(text.c_str(), nullptr);
 //}
 
-static void parse_and_translate(LayoutParser const & parser, UIType type, Lexer & lexer, std::ostream &output)
+static void parse_and_translate(LayoutParser const & parser, UIType type, Lexer & lexer, ErrorList & errors, std::ostream &output)
 {
 	switch(type)
 	{
@@ -365,11 +375,16 @@ static void parse_and_translate(LayoutParser const & parser, UIType type, Lexer 
 	assert(false and "not supported type!");
 }
 
-static void parse_and_translate(LayoutParser const & parser, std::string const & widgetName, Lexer & lexer, std::ostream &output)
+static void parse_and_translate(LayoutParser const & parser, std::string const & widgetName, Lexer & lexer, ErrorList & errors, std::ostream &output)
 {
 	lexer.accept(LexerTokenType::openBrace);
 
-	auto const widgetType = widgetTypes.at(widgetName);
+	UIWidget widgetType = UIWidget::invalid;
+	if(auto it = widgetTypes.find(widgetName); it != widgetTypes.end())
+		widgetType = it->second;
+	else
+		errors.push_back(ParseError{0,0, xstd::format("Widget type '%0' not found").arg(widgetName) });
+
 	write_enum(output, widgetType);
 
 	bool isReadingChildren = false;
@@ -423,7 +438,7 @@ static void parse_and_translate(LayoutParser const & parser, std::string const &
 				{
 					write_enum(output, it1->second);
 
-					parse_and_translate(parser, propertyType, lexer, output);
+					parse_and_translate(parser, propertyType, lexer, errors, output);
 				}
 			}
 			else if(auto it2 = widgetTypes.find(tok->text); it2 != widgetTypes.end())
@@ -431,7 +446,7 @@ static void parse_and_translate(LayoutParser const & parser, std::string const &
 				if(not isReadingChildren)
 					write_enum(output, UIProperty::invalid); // end of properties
 				isReadingChildren = true;
-				parse_and_translate(parser, tok->text, lexer, output);
+				parse_and_translate(parser, tok->text, lexer, errors, output);
 			}
 			else
 			{
@@ -449,15 +464,32 @@ static void parse_and_translate(LayoutParser const & parser, std::string const &
 	write_enum(output, UIWidget::invalid); // end of children
 }
 
-static void parse_and_translate(LayoutParser const & parser, Lexer & lexer, std::ostream &output)
+static void parse_and_translate(LayoutParser const & parser, Lexer & lexer, ErrorList & errors, std::ostream &output)
 {
 	auto const widgetName = lexer.accept(LexerTokenType::identifier);
-	parse_and_translate(parser, widgetName, lexer, output);
+	parse_and_translate(parser, widgetName, lexer, errors, output);
 }
 
-void LayoutParser::compile(std::istream &input, std::ostream &output) const
+bool LayoutParser::compile(std::istream &input, std::ostream &output) const
 {
+	ErrorList errors;
 	Lexer lexer { input };
 
-	parse_and_translate(*this, lexer, output);
+	try
+	{
+		parse_and_translate(*this, lexer, errors, output);
+	}
+	catch(std::runtime_error const & ex)
+	{
+		errors.push_back(ParseError {
+			0, 0, ex.what()
+		});
+	}
+
+	for(auto const & err : errors)
+	{
+		std::cerr << err.line << ":" << err.column << ": " << err.message << std::endl;
+	}
+
+	return errors.empty();
 }

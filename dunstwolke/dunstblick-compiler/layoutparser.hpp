@@ -46,7 +46,7 @@ struct LayoutParser
 
     LayoutParser();
 
-    void compile(std::istream & input, std::ostream & output) const;
+    bool compile(std::istream & input, std::ostream & output) const;
 };
 
 #endif // LAYOUTPARSER_HPP
