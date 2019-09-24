@@ -351,21 +351,17 @@ bool Slider::processEvent(const SDL_Event & ev)
 	switch(ev.type)
 	{
 		case SDL_MOUSEBUTTONDOWN:
-			is_taking_input = true;
+			captureMouse();
 			setSlider(ev.button.x, ev.button.y);
 			break;
 
 		case SDL_MOUSEMOTION:
-			if(is_taking_input)
+			if(hasMouseCaptured())
 				setSlider(ev.motion.x, ev.motion.y);
 			break;
 
 		case SDL_MOUSEBUTTONUP:
-			is_taking_input = false;
-			break;
-
-		case UI_EVENT_LOST_MOUSE_FOCUS:
-			is_taking_input = false;
+			releaseMouse();
 			break;
 	}
 
@@ -385,8 +381,8 @@ void Picture::paintWidget(const SDL_Rect & rectangle)
 		{
 			case ImageScaling::none:
 			{
-				int clipped_w = std::min(w, rectangle.w);
-				int clipped_h = std::min(h, rectangle.h);
+				int const clipped_w = std::min(w, rectangle.w);
+				int const clipped_h = std::min(h, rectangle.h);
 				context().renderer.copy(
 					bmp->texture,
 					SDL_Rect { rectangle.x, rectangle.y, clipped_w, clipped_h },
@@ -421,8 +417,8 @@ void Picture::paintWidget(const SDL_Rect & rectangle)
 					scale = (sourceAspect > targetAspect) ? float(rectangle.w) / float(w) : float(rectangle.h) / float(h);
 				}
 
-				int scaled_w = int(scale * w + 0.5f);
-				int scaled_h = int(scale * h + 0.5f);
+				int const scaled_w = int(scale * w + 0.5f);
+				int const scaled_h = int(scale * h + 0.5f);
 
 				// just center the image as it is contained
 				context().renderer.copy(bmp->texture, {

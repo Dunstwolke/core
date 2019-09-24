@@ -287,6 +287,16 @@ void trigger_propertyChanged(ObjectID oid, PropertyName name, UIValue value)
 	send_message(buffer);
 }
 
+static Widget * get_mouse_widget(int x, int y)
+{
+	if(not root_widget)
+		return nullptr;
+	else if(Widget::capturingWidget)
+		return Widget::capturingWidget;
+	else
+		return root_widget->hitTest(x, y);
+}
+
 int main()
 {
 	//////////////////////////////////////////////////////////////////////////////
@@ -386,9 +396,11 @@ int main()
 				{
 					if(not root_widget)
 						break;
-					if(auto * child = root_widget->hitTest(e.motion.x, e.motion.y); child != nullptr)
+					if(auto * child = get_mouse_widget(e.motion.x, e.motion.y); child != nullptr)
 					{
-						ui_set_mouse_focus(child);
+						// only move focus if mouse is not captured
+						if(Widget::capturingWidget == nullptr)
+							ui_set_mouse_focus(child);
 						child->processEvent(e);
 					}
 					break;
@@ -403,7 +415,8 @@ int main()
 
 					if(not root_widget)
 						break;
-					if(auto * child = root_widget->hitTest(e.button.x, e.button.y); child != nullptr)
+
+					if(auto * child = get_mouse_widget(e.button.x, e.button.y); child != nullptr)
 					{
 						ui_set_mouse_focus(child);
 
@@ -419,7 +432,7 @@ int main()
 				{
 					if(not root_widget)
 						break;
-					if(auto * child = root_widget->hitTest(e.wheel.x, e.wheel.y); child != nullptr)
+					if(auto * child = get_mouse_widget(e.wheel.x, e.wheel.y); child != nullptr)
 					{
 						ui_set_mouse_focus(child);
 

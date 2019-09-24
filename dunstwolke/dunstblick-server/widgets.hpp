@@ -131,8 +131,6 @@ struct Slider : WidgetIs<UIWidget::slider>
     property<float> value = 0.0f;
 	property<Orientation> orientation = Orientation::horizontal;
 
-	bool is_taking_input = false;
-
     UISize calculateWantedSize() override;
 
     void paintWidget(const SDL_Rect &rectangle) override;

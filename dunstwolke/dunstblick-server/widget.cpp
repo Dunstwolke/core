@@ -14,6 +14,13 @@ Widget::Widget(UIWidget _type) :
 
 }
 
+Widget::~Widget()
+{
+	// make sure the mouse is released if captured by this widget.
+	if(capturingWidget == this)
+		capturingWidget = nullptr;
+}
+
 void Widget::updateBindings(ObjectRef parentBindingSource)
 {
 	// STAGE 1: Update the current binding source
@@ -287,6 +294,28 @@ bool Widget::isKeyboardFocusable() const
 SDL_SystemCursor Widget::getCursor() const
 {
 	return SDL_SYSTEM_CURSOR_ARROW;
+}
+
+void Widget::captureMouse()
+{
+	if((capturingWidget != nullptr) and (capturingWidget != this))
+		abort();
+	capturingWidget = this;
+}
+
+void Widget::releaseMouse()
+{
+	capturingWidget = nullptr;
+}
+
+bool Widget::hasMouseCaptured()
+{
+	return (capturingWidget == this);
+}
+
+bool Widget::isMouseCaptured()
+{
+	return (capturingWidget != nullptr);
 }
 
 BaseProperty::~BaseProperty()

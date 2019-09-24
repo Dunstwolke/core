@@ -121,6 +121,8 @@ struct MetaWidget
 
 struct Widget
 {
+public:
+	static inline Widget * capturingWidget = nullptr;
 public: // meta
 	/// the type of the widget
 	UIWidget const type;
@@ -185,7 +187,7 @@ protected:
 	explicit Widget(UIWidget type);
 
 public:
-	virtual ~Widget() = default;
+	virtual ~Widget();
 
 	/// stage0: update widget bindings and property references.
 	/// also updates child widgets if there are is a child source bound.
@@ -236,6 +238,21 @@ public:
 
 	/// returns the cursor for this widget
 	virtual SDL_SystemCursor getCursor() const;
+
+	/// Will enforce that all future mouse input is redirected to
+	/// this widget.
+	/// @remarks will crash if the mouse is already captured by another widget
+	///          as this is a hard programming error!
+	void captureMouse();
+
+	/// will release the mouse from a previous capturing.
+	void releaseMouse();
+
+	/// returns true if this widget captures the mouse
+	bool hasMouseCaptured();
+
+	/// returns true if the mouse is captured by __any__ widget.
+	bool isMouseCaptured();
 
 protected:
 	/// stage1: calculates the space this widget wants to take.
