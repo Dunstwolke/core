@@ -10,9 +10,7 @@ std::unique_ptr<Widget> Widget::create(UIWidget id)
 		case UIWidget::button: return std::make_unique<Button>();
 		case UIWidget::label: return std::make_unique<Label>();
 		case UIWidget::combobox: return std::make_unique<ComboBox>();
-		case UIWidget::treeviewitem: return std::make_unique<TreeViewItem>();
 		case UIWidget::treeview: return std::make_unique<TreeView>();
-		case UIWidget::listboxitem: return std::make_unique<ListBoxItem>();
 		case UIWidget::listbox: return std::make_unique<ListBox>();
 		case UIWidget::picture: return std::make_unique<Picture>();
 		case UIWidget::textbox: return std::make_unique<TextBox>();

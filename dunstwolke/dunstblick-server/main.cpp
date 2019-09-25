@@ -355,6 +355,8 @@ int main()
 
 	set_protocol_adapter(ProtocolAdapter::createFrom(tcpHost));
 
+	UIPoint mouse_pos { 0, 0 };
+
 	while(not shutdown_app_requested)
 	{
 		do_communication();
@@ -394,6 +396,8 @@ int main()
 				// mouse events:
 				case SDL_MOUSEMOTION:
 				{
+					mouse_pos.x = e.motion.x;
+					mouse_pos.y = e.motion.y;
 					if(not root_widget)
 						break;
 					if(auto * child = get_mouse_widget(e.motion.x, e.motion.y); child != nullptr)
@@ -445,7 +449,7 @@ int main()
 
 		SDL_SystemCursor nextCursor;
 		if(mouse_focused_widget)
-			nextCursor = mouse_focused_widget->getCursor();
+			nextCursor = mouse_focused_widget->getCursor(mouse_pos);
 		else
 			nextCursor = SDL_SYSTEM_CURSOR_ARROW;
 
@@ -477,16 +481,19 @@ int main()
 			int mx, my;
 			SDL_GetMouseState(&mx, &my);
 
-			if(mouse_focused_widget != nullptr)
+			if(SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_F3])
 			{
-				context().renderer.setColor(0xFF, 0x00, 0x00);
-				context().renderer.drawRect(mouse_focused_widget->actual_bounds);
-			}
+				if(mouse_focused_widget != nullptr)
+				{
+					context().renderer.setColor(0xFF, 0x00, 0x00);
+					context().renderer.drawRect(mouse_focused_widget->actual_bounds);
+				}
 
-			if(keyboard_focused_widget != nullptr)
-			{
-				context().renderer.setColor(0x00, 0xFF, 0x00);
-				context().renderer.drawRect(keyboard_focused_widget->actual_bounds);
+				if(keyboard_focused_widget != nullptr)
+				{
+					context().renderer.setColor(0x00, 0xFF, 0x00);
+					context().renderer.drawRect(keyboard_focused_widget->actual_bounds);
+				}
 			}
 
 			context().renderer.present();

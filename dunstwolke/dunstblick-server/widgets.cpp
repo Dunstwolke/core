@@ -492,7 +492,7 @@ bool ClickableWidget::isKeyboardFocusable() const
 	return true;
 }
 
-SDL_SystemCursor ClickableWidget::getCursor() const
+SDL_SystemCursor ClickableWidget::getCursor(UIPoint const &) const
 {
 	return SDL_SYSTEM_CURSOR_HAND;
 }
@@ -522,8 +522,6 @@ UISize ScrollBar::calculateWantedSize()
 
 void ScrollBar::paintWidget(const SDL_Rect & rectangle)
 {
-	int const knobSize = 24;
-
 	float const progress = (value.get(this) - minimum.get(this)) / (maximum.get(this) - minimum.get(this));
 
 	if(orientation.get(this) == Orientation::vertical)
@@ -562,8 +560,6 @@ void ScrollBar::paintWidget(const SDL_Rect & rectangle)
 
 bool ScrollBar::processEvent(const SDL_Event & ev)
 {
-	int const knobSize = 24;
-
 	float const minval = minimum.get(this);
 	float const maxval = maximum.get(this);
 	float const val = value.get(this);
@@ -695,5 +691,86 @@ bool ScrollBar::processEvent(const SDL_Event & ev)
 
 	}
 
+	return Widget::processEvent(ev);
+}
+
+SDL_SystemCursor ScrollBar::getCursor(const UIPoint & p) const
+{
+	return SDL_SYSTEM_CURSOR_HAND;
+}
+
+ScrollView::ScrollView()
+{
+	horizontal_bar.orientation.set(&horizontal_bar,Orientation::horizontal);
+	vertical_bar.orientation.set(&vertical_bar,Orientation::vertical);
+
+	horizontal_bar.margins.set(&horizontal_bar, UIMargin(0));
+	vertical_bar.margins.set(&vertical_bar, UIMargin(0));
+}
+
+void ScrollView::layoutChildren(const SDL_Rect & childArea)
+{
+	auto area = childArea;
+	area.w -= vertical_bar.wanted_size.w;
+	area.h -= horizontal_bar.wanted_size.h;
+
+	for(auto & child : children)
+	{
+		SDL_Rect child_rect = {
+		    childArea.x,
+		    childArea.y,
+		    child->wanted_size_with_margins().w,
+		    child->wanted_size_with_margins().h,
+		};
+		child->layout(child_rect);
+	}
+
+	vertical_bar.layout(SDL_Rect {
+		area.x + area.w,
+	    area.y,
+		horizontal_bar.wanted_size.w,
+		area.h
+	});
+
+	horizontal_bar.layout(SDL_Rect {
+		area.x,
+		area.y + area.h,
+		area.w,
+		vertical_bar.wanted_size.h,
+	});
+}
+
+UISize ScrollView::calculateWantedSize()
+{
+	auto childSize = Widget::calculateWantedSize();
+
+	horizontal_bar.wanted_size = horizontal_bar.calculateWantedSize();
+	vertical_bar.wanted_size = vertical_bar.calculateWantedSize();
+
+	childSize.w += horizontal_bar.wanted_size.w;
+	childSize.h += vertical_bar.wanted_size.h;
+
+	return childSize;
+}
+
+void ScrollView::paintWidget(const SDL_Rect & rectangle)
+{
+	Widget::paintWidget(rectangle);
+
+	horizontal_bar.paintWidget(horizontal_bar.actual_bounds);
+	vertical_bar.paintWidget(vertical_bar.actual_bounds);
+}
+
+SDL_SystemCursor ScrollView::getCursor(const UIPoint & p) const
+{
+	if(contains(vertical_bar.actual_bounds, p.x, p.y))
+		return vertical_bar.getCursor(p);
+	if(contains(horizontal_bar.actual_bounds, p.x, p.y))
+		return horizontal_bar.getCursor(p);
+	return Widget::getCursor(p);
+}
+
+bool ScrollView::processEvent(const SDL_Event & ev)
+{
 	return Widget::processEvent(ev);
 }

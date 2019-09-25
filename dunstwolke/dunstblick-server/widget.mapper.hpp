@@ -4,12 +4,8 @@ struct Label;
 template<> constexpr UIWidget widgetTypeToEnum<Label>() { return UIWidget::label; }
 struct ComboBox;
 template<> constexpr UIWidget widgetTypeToEnum<ComboBox>() { return UIWidget::combobox; }
-struct TreeViewItem;
-template<> constexpr UIWidget widgetTypeToEnum<TreeViewItem>() { return UIWidget::treeviewitem; }
 struct TreeView;
 template<> constexpr UIWidget widgetTypeToEnum<TreeView>() { return UIWidget::treeview; }
-struct ListBoxItem;
-template<> constexpr UIWidget widgetTypeToEnum<ListBoxItem>() { return UIWidget::listboxitem; }
 struct ListBox;
 template<> constexpr UIWidget widgetTypeToEnum<ListBox>() { return UIWidget::listbox; }
 struct Picture;

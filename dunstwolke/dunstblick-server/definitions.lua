@@ -34,9 +34,9 @@ widgets = {
     {   1, "button",        "Button"       },
     {   2, "label",         "Label"        },
     {   3, "combobox",      "ComboBox"     },
-    {   4, "treeviewitem",  "TreeViewItem" },
+    -- {   4, "treeviewitem",  "TreeViewItem" },
     {   5, "treeview",      "TreeView"     },
-    {   6, "listboxitem",   "ListBoxItem"  },
+    -- {   6, "listboxitem",   "ListBoxItem"  },
     {   7, "listbox",       "ListBox"      },
     --  8
     {   9, "picture",       "Picture"      },

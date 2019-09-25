@@ -11,7 +11,7 @@
 	- [ ] ListBoxItem
 	- [ ] TextBox
 	- [ ] ScrollView
-	- [ ] ScrollBar
+	- [x] ScrollBar
 	- [ ] SpinEdit
 - [ ] Add "deferModalDrawing" to render/ui context
 	- allow rendering stuff *after* everything else

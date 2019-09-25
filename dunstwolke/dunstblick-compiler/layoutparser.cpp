@@ -213,6 +213,21 @@ static void parse_and_translate(LayoutParser const & parser, UIType type, Lexer 
 			return;
 		}
 
+		// same serialization and notation style
+		case UIType::size:
+		case UIType::point:
+		{
+			UISize size;
+			size.w = lex_int(lexer);
+			lexer.accept(LexerTokenType::comma);
+			size.h = lex_int(lexer);
+			lexer.accept(LexerTokenType::semiColon);
+
+			write_varint(output, gsl::narrow<uint32_t>(size.w));
+			write_varint(output, gsl::narrow<uint32_t>(size.h));
+			return;
+		}
+
 		case UIType::margins: {
 			std::vector<int> items;
 			items.push_back(lex_int(lexer));

@@ -16,7 +16,7 @@ struct ClickableWidget : Widget
 
 	bool isKeyboardFocusable() const override;
 
-	SDL_SystemCursor getCursor() const override;
+	SDL_SystemCursor getCursor(UIPoint const &) const override;
 
 	bool processEvent(const SDL_Event &event) override;
 
@@ -54,9 +54,9 @@ struct PlaceholderWidget : WidgetIs<UIWidget::spacer>
 };
 
 #define ComboBox PlaceholderWidget
-#define TreeViewItem PlaceholderWidget
+// #define TreeViewItem PlaceholderWidget
 #define TreeView PlaceholderWidget
-#define ListBoxItem PlaceholderWidget
+// #define ListBoxItem PlaceholderWidget
 #define ListBox PlaceholderWidget
 
 struct Picture : WidgetIs<UIWidget::picture>
@@ -98,10 +98,10 @@ struct RadioButton : ClickableWidget
     void paintWidget(const SDL_Rect &rectangle) override;
 };
 
-#define ScrollView PlaceholderWidget
-
 struct ScrollBar : WidgetIs<UIWidget::scrollbar>
 {
+	int static constexpr knobSize = 24;
+
 	property<float> minimum = 0.0f;
     property<float> maximum = 100.0f;
     property<float> value = 25.0f;
@@ -119,9 +119,24 @@ struct ScrollBar : WidgetIs<UIWidget::scrollbar>
 		return true;
 	}
 
-	SDL_SystemCursor getCursor() const override {
-		return SDL_SYSTEM_CURSOR_HAND;
-	}
+	SDL_SystemCursor getCursor(UIPoint const &) const override;
+};
+
+struct ScrollView : WidgetIs<UIWidget::scrollview>
+{
+	ScrollBar horizontal_bar, vertical_bar;
+
+	ScrollView();
+
+	void layoutChildren(SDL_Rect const & childArea) override;
+
+    UISize calculateWantedSize() override;
+
+	void paintWidget(const SDL_Rect &rectangle) override;
+
+	SDL_SystemCursor getCursor(UIPoint const &) const override;
+
+	bool processEvent(SDL_Event const & ev) override;
 };
 
 struct Slider : WidgetIs<UIWidget::slider>
@@ -141,7 +156,7 @@ struct Slider : WidgetIs<UIWidget::slider>
 		return true;
 	}
 
-	SDL_SystemCursor getCursor() const override {
+	SDL_SystemCursor getCursor(UIPoint const &) const override {
 		return SDL_SYSTEM_CURSOR_HAND;
 	}
 };

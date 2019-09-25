@@ -9,7 +9,6 @@ UIType getPropertyType(UIProperty property)
 		case UIProperty::verticalAlignment: return UIType::enumeration;
 		case UIProperty::margins: return UIType::margins;
 		case UIProperty::paddings: return UIType::margins;
-		case UIProperty::stackDirection: return UIType::enumeration;
 		case UIProperty::dockSite: return UIType::enumeration;
 		case UIProperty::visibility: return UIType::enumeration;
 		case UIProperty::sizeHint: return UIType::size;
@@ -47,7 +46,6 @@ std::string to_string(UIProperty property)
 		case UIProperty::verticalAlignment: return "vertical-alignment";
 		case UIProperty::margins: return "margins";
 		case UIProperty::paddings: return "paddings";
-		case UIProperty::stackDirection: return "stack-direction";
 		case UIProperty::dockSite: return "dock-site";
 		case UIProperty::visibility: return "visibility";
 		case UIProperty::sizeHint: return "size-hint";
@@ -83,9 +81,7 @@ std::string to_string(UIWidget widget)
 		case UIWidget::button: return "Button";
 		case UIWidget::label: return "Label";
 		case UIWidget::combobox: return "ComboBox";
-		case UIWidget::treeviewitem: return "TreeViewItem";
 		case UIWidget::treeview: return "TreeView";
-		case UIWidget::listboxitem: return "ListBoxItem";
 		case UIWidget::listbox: return "ListBox";
 		case UIWidget::picture: return "Picture";
 		case UIWidget::textbox: return "TextBox";

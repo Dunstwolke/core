@@ -97,8 +97,10 @@ void Widget::updateWantedSize()
 
 UISize Widget::calculateWantedSize()
 {
+	auto const shint = sizeHint.get(this);
+
 	if(children.empty())
-		return sizeHint.get(this);
+		return shint;
 
 	UISize size = { 0, 0 };
 	for(auto & child : children)
@@ -106,6 +108,10 @@ UISize Widget::calculateWantedSize()
 		size.w = std::max(size.w, child->wanted_size_with_margins().w);
 		size.h = std::max(size.h, child->wanted_size_with_margins().h);
 	}
+
+	size.w = std::max(size.w, shint.w);
+	size.h = std::max(size.h, shint.h);
+
 	return size;
 }
 
@@ -291,7 +297,7 @@ bool Widget::isKeyboardFocusable() const
 	return false;
 }
 
-SDL_SystemCursor Widget::getCursor() const
+SDL_SystemCursor Widget::getCursor(UIPoint const &) const
 {
 	return SDL_SYSTEM_CURSOR_ARROW;
 }
@@ -331,14 +337,6 @@ BaseProperty::~BaseProperty()
 
 #include "widgets.hpp"
 #include "layouts.hpp"
-
-static std::map<UIProperty, GetPropertyFunction> Transpose(std::initializer_list<MetaProperty> props)
-{
-	std::map<UIProperty, GetPropertyFunction> properties;
-	for(auto const & item : props)
-		properties.emplace(item.name, item.getter);
-	return properties;
-}
 
 std::initializer_list<MetaProperty> const metaProperties
 {

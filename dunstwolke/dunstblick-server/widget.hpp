@@ -237,7 +237,7 @@ public:
 	virtual bool isKeyboardFocusable() const;
 
 	/// returns the cursor for this widget
-	virtual SDL_SystemCursor getCursor() const;
+	virtual SDL_SystemCursor getCursor(UIPoint const & p) const;
 
 	/// Will enforce that all future mouse input is redirected to
 	/// this widget.

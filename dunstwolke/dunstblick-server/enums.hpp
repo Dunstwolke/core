@@ -42,9 +42,7 @@ enum class UIWidget : uint8_t
 	button = 1,
 	label = 2,
 	combobox = 3,
-	treeviewitem = 4,
 	treeview = 5,
-	listboxitem = 6,
 	listbox = 7,
 	picture = 9,
 	textbox = 10,
@@ -73,7 +71,6 @@ enum class UIProperty : uint8_t
 	verticalAlignment = 2,
 	margins = 3,
 	paddings = 4,
-	stackDirection = 5,
 	dockSite = 6,
 	visibility = 7,
 	sizeHint = 8,
@@ -120,12 +117,32 @@ enum class UIType : uint8_t
 	callback = 14,
 };
 
-enum class VAlignment : uint8_t
+enum class Visibility : uint8_t
+{
+	visible = UIEnum::visible,
+	collapsed = UIEnum::collapsed,
+	hidden = UIEnum::hidden,
+};
+
+enum class Orientation : uint8_t
+{
+	horizontal = UIEnum::horizontal,
+	vertical = UIEnum::vertical,
+};
+
+enum class UIFont : uint8_t
+{
+	sans = UIEnum::sans,
+	serif = UIEnum::serif,
+	monospace = UIEnum::monospace,
+};
+
+enum class HAlignment : uint8_t
 {
 	stretch = UIEnum::stretch,
-	top = UIEnum::top,
-	middle = UIEnum::middle,
-	bottom = UIEnum::bottom,
+	left = UIEnum::left,
+	center = UIEnum::center,
+	right = UIEnum::right,
 };
 
 enum class BooleanFormat : uint8_t
@@ -135,31 +152,20 @@ enum class BooleanFormat : uint8_t
 	onoff = UIEnum::onoff,
 };
 
-enum class DisplayProgressStyle : uint8_t
+enum class VAlignment : uint8_t
 {
-	none = UIEnum::none,
-	percent = UIEnum::percent,
-	absolute = UIEnum::absolute,
+	stretch = UIEnum::stretch,
+	top = UIEnum::top,
+	middle = UIEnum::middle,
+	bottom = UIEnum::bottom,
 };
 
-enum class StackDirection : uint8_t
+enum class DockSite : uint8_t
 {
-	vertical = UIEnum::vertical,
-	horizontal = UIEnum::horizontal,
-};
-
-enum class Visibility : uint8_t
-{
-	visible = UIEnum::visible,
-	collapsed = UIEnum::collapsed,
-	hidden = UIEnum::hidden,
-};
-
-enum class UIFont : uint8_t
-{
-	sans = UIEnum::sans,
-	serif = UIEnum::serif,
-	monospace = UIEnum::monospace,
+	top = UIEnum::top,
+	bottom = UIEnum::bottom,
+	left = UIEnum::left,
+	right = UIEnum::right,
 };
 
 enum class ImageScaling : uint8_t
@@ -172,26 +178,17 @@ enum class ImageScaling : uint8_t
 	cover = UIEnum::cover,
 };
 
-enum class Orientation : uint8_t
+enum class StackDirection : uint8_t
 {
-	horizontal = UIEnum::horizontal,
 	vertical = UIEnum::vertical,
+	horizontal = UIEnum::horizontal,
 };
 
-enum class DockSite : uint8_t
+enum class DisplayProgressStyle : uint8_t
 {
-	top = UIEnum::top,
-	bottom = UIEnum::bottom,
-	left = UIEnum::left,
-	right = UIEnum::right,
-};
-
-enum class HAlignment : uint8_t
-{
-	stretch = UIEnum::stretch,
-	left = UIEnum::left,
-	center = UIEnum::center,
-	right = UIEnum::right,
+	none = UIEnum::none,
+	percent = UIEnum::percent,
+	absolute = UIEnum::absolute,
 };
 
 UIType getPropertyType(UIProperty property);
