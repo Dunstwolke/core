@@ -1,0 +1,104 @@
+
+Fragen:
+- Wie paired man Geräte ins Netz?
+	- NFC-Tag/QRCode/MAC am Gerät?
+- Wo werden "Systemeinstellungen" gespeichert?
+	- gespiegelte Datei auf allen Geräten?
+	- Separate verteilte "Registry"?
+- Wenn ein "Close-Request" für eine Datei nicht kommt, wann wird die Datei geschlossen?? (device lost)
+	- Datei schließen, wenn "device lost", also kein Beacon-Signal mehr kommt?
+
+Grundlagen:
+- Kein Routing (alle Geräte sind point-to-point erreichbar)
+	- Unicast, Multicast, Broadcast sind nur via Software zu handhaben
+	- Nachrichten brauchen ggf. keinen Empfänger
+- Nachrichten können reliable und/oder sequenced übertragen werden
+	- Benötigt ggf. "Channels", um einfache Verwaltung zu machen
+- Eine ganze Wolke besitzt nur eine IP-Adresse und verhält sich nach außen wie ein IP-Gerät
+- Geräte erhalten für spezielle Aufgaben ad-hoc IDs, mit denen man diverse interne Routen konfigurieren kann
+	- Beispiel: Audio-Sources auf Audio-Sinks mappen (dieser Sink spielt diese Liste an Sources ab)
+
+Nachrichten-Typen:
+- Beacon / Anwesenheit (periodisch, jede Sekunde einmal)
+	- Geräte-ID (48 bit unique id, primäre MAC)
+	- Gerätename (Benutzerdefiniert)
+	- Angebotete Features (Audio-Sink, Audio-Source, Massenspeicher, Display-Source, Display-Sink)
+- Management
+	- Aushandlung Defaultgateway
+	- Aushandlung von "lokalen" Geräte-IDs für Maskierung/Routing
+	- Änderung Gerätename
+	- "Ping" zum Auffinden/Identifizieren von Geräten
+- Display
+	- UI-Announcement (ich habe eine GUI anzubieten)
+	- UI-Abonnement (ich möchte Nachrichten zu dieser GUI erhalten)
+	- UI-Steuernachrichten (siehe dunstblick-Protokoll)
+- Audio
+	- Stream-Daten (mp3 o.ä.)
+	- Volume Control
+	- Device Connect
+- Netzwerk
+	- IP-Pakete
+	- 
+- HID device
+	- Keyboard
+	- Mouse
+- Dateisystem
+	- Datei öffnen/schließen
+	- Daten lesen/schreiben
+	- Datei zwischen Geräten verschieben/kopieren
+	- Dateien synchronisieren/aktualisieren
+- Anwendungsspezifische Nachrichten
+
+
+Apps:
+- System
+	- Audio Control
+		- Zeigt für alle Sinks das Master Volume an
+		- Zeigt für einen einzelnen Sink alle Source Volumes an (Mixer)
+		- Sink-Source-Verknüpfungstabelle (ähnlich qjackctl)
+	- Device Management
+		- Geräte auflisten
+		- Geräte umbenennen
+		- Geräte im Netz aufnehmen/rauswerfen
+	- Network Settings
+		- Route/Gateway festlegen
+		- IP-Einstellungen anpassen
+- Programme
+	- Texteditor
+	- Notizen
+	- Media Player
+	- File Manager
+	- Image Viewer
+	- Video Player
+	- Web Browser
+	- IRC Client
+
+
+
+
+
+# Pakete
+
+## Beacon
+Hallo, ich bin Gerät so-und-so und ich bin da.
+Geräte haben eine Lebenszeit von 5 Sekunden, der Beacon
+wird alle Sekunde übertragen.
+
+## Packet ACK
+Bestätigt dem Empfang eines Pakets. Benötigt für "reliable transmission"
+
+## List Directory
+Fordert ein Directory Listing für ein gegebenes Verzeichnis an.
+Die Antwortpakete enthalten dann jeweils eine Datei.
+
+## Directory Entry
+Antwort auf "List Directory". Enthält sowohl eine Referenz
+auf das Verzeichnis sowie entweder File {
+	Dateinamen,
+	Dateigröße,
+} oder Dir {
+	Verzeichnisname,
+}
+
+
+
