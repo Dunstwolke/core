@@ -5,9 +5,9 @@ const port_number = 16158;
 const Address = packed struct {
     value: [6]u8,
 
-    pub fn init(val: [6]u8) Address {
-        return Address {
-            .value = val,
+    pub fn init(a0: u8, a1: u8, a2: u8, a3: u8, a4: u8, a5: u8) Address {
+        return Address{
+            .value = [_]u8{ a0, a1, a2, a3, a4, a5 },
         };
     }
 
@@ -21,7 +21,15 @@ const Address = packed struct {
         return addr;
     }
 
-    const broadcast = Address.init({ 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF });
+    fn eql(a: Address, b: Address) bool {
+        return std.mem.eql(u8, a.value, b.value);
+    }
+
+    pub fn format(self: Address, comptime fmt: []const u8, options: std.fmt.FormatOptions, context: var, comptime Errors: type, output: fn (@typeOf(context), []const u8) Errors!void) Errors!void {
+        try std.fmt.format(context, Errors, output, "{X:0^2}:{X:0^2}:{X:0^2}:{X:0^2}:{X:0^2}:{X:0^2}", self.value[0], self.value[1], self.value[2], self.value[3], self.value[4], self.value[5]);
+    }
+
+    const broadcast = Address.init(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF);
 };
 
 test "Address.parse" {
@@ -63,10 +71,10 @@ const PacketHeader = extern struct {
 
     /// information about the contents of this packet.
     flags: PacketFlags,
-    
+
     /// length of the data stream behind this header.
     len: u8,
-    
+
     /// constantly incrementing sequence number of the packets. this is used to ACK messages.
     sequence: u16,
 
@@ -170,18 +178,18 @@ fn LinkedList(comptime T: type) type {
 
         /// removes an arbitrary element from the list.
         fn remove(self: *Self, element: *T) void {
+            var lock = self.mutex.acquire();
+            defer lock.release();
 
-            if(element == self.front) {
+            if (element == self.front) {
                 _ = self.popFront();
-            } 
-            else if(element == self.back) {
+            } else if (element == self.back) {
                 _ = self.popBack();
-            }
-            else {
-                if(element.previous) |pre| {
+            } else {
+                if (element.previous) |pre| {
                     pre.next = element.next;
                 }
-                if(element.next) |nxt| {
+                if (element.next) |nxt| {
                     nxt.previous = element.previous;
                 }
                 element.next = null;
@@ -320,7 +328,7 @@ const Connection = struct {
             return error.MessageTooLong;
 
         const target = receiver orelse Address.broadcast;
-        if (std.mem.eql(u8, target, self.localAddress))
+        if (Address.eql(target, self.localAddress))
             return error.MessageToSelf;
 
         var packet = try self.getAvailablePacket();
@@ -333,7 +341,6 @@ const Connection = struct {
                 .ack = 0,
             },
             .len = @truncate(u8, data.len),
-            .id = 0, // TODO: store something meaningful here?
             .sequence = self.sequenceId,
             .checksum = calculateChecksum(data),
         };
@@ -397,7 +404,6 @@ const Connection = struct {
     fn receiverThread(self: *Connection) !void {
         var buf: [1024]u8 align(16) = undefined;
         while (@atomicLoad(usize, &self.active, .SeqCst) != 0) {
-
             var len = try std.os.read(self.socket, buf[0..]);
 
             if (len >= PacketHeader.size) {
@@ -407,48 +413,45 @@ const Connection = struct {
                     var checksum = calculateChecksum(data);
 
                     if (checksum == hdr.checksum) {
-                        if(hdr.src != self.localAddress) {
-                            if(hdr.dst == self.localAddress or hdr.dest == Address.broadcast) {
-                                if(hdr.flags.ack) {
+                        if (!Address.eql(hdr.src, self.localAddress)) {
+                            if (Address.eql(hdr.dst, self.localAddress) or Address.eql(hdr.dst, Address.broadcast)) {
+                                if (hdr.flags.ack != 0) {
                                     // is system response and not actual data
-                                    if(hdr.dst != Address.broadcast) {
+                                    if (!Address.eql(hdr.dst, Address.broadcast)) {
                                         // we received an ACK, we should now check if we've sent a message with that
                                         // sequenceID
-
                                         var packet = blk: {
                                             var elem = self.transmitQueue.front;
-                                            while(elem) |ptr| : (elem = elem.next) {
-                                                if(ptr.getHeader().sequence == hdr.sequence)
+                                            while (elem) |ptr| : (elem = ptr.next) {
+                                                if (ptr.getHeader().sequence == hdr.sequence)
                                                     break :blk ptr;
                                             }
                                             break :blk null;
                                         };
-                                        if(packet) |pkt| {
-                                            if(pkt.getHeader().dst == hdr.src) {
-                                                std.debug.warn("received ACK for previously sent message.\n");  
+
+                                        if (packet) |pkt| {
+                                            if (Address.eql(pkt.getHeader().dst, hdr.src)) {
+                                                std.debug.warn("received ACK for previously sent message.\n");
                                                 self.transmitQueue.remove(pkt);
-                                            }
-                                            else {
-                                                std.debug.warn("received invalid message: ACK by invalid sender.\n");  
+                                            } else {
+                                                std.debug.warn("received invalid message: ACK by invalid sender.\n");
                                             }
                                         }
                                     } else {
-                                        std.debug.warn("received invalid message: is ACK, but also to broadcast.\n");  
+                                        std.debug.warn("received invalid message: is ACK, but also to broadcast.\n");
                                     }
-                                }
-                                else {
+                                } else {
                                     // is data
                                     var packet = try self.getAvailablePacket();
                                     std.mem.copy(u8, packet.data[0..], buf[0..len]);
 
                                     self.receiveQueue.pushBack(packet);
                                 }
-                            } 
-                            else {
-                                std.debug.warn("filtering message received for other.\n");  
+                            } else {
+                                std.debug.warn("filtering message received for other.\n");
                             }
                         } else {
-                            std.debug.warn("filtering message received from self.\n");  
+                            std.debug.warn("filtering message received from self.\n");
                         }
                     } else {
                         std.debug.warn("received invalid datagram: checksum was {}, but expected {}!\n", checksum, hdr.checksum);
@@ -474,7 +477,10 @@ pub fn main() anyerror!void {
         std.debug.warn("Missing argument: local address\n");
         return;
     }
+
     var localAddress = try Address.parse(std.mem.toSlice(u8, std.os.argv[1]));
+
+    std.debug.warn("local address = {}\n", localAddress);
 
     var con = try Connection.init(std.heap.direct_allocator, localAddress);
     defer con.deinit();
