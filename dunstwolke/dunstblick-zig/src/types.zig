@@ -124,12 +124,12 @@ pub const PropertyID = UniqueID(@OpaqueType());
 pub const Margins = struct {
     pub const zero: Margins = initAll(0);
 
-    left: i32,
-    top: i32,
-    bottom: i32,
-    right: i32,
+    left: usize,
+    top: usize,
+    bottom: usize,
+    right: usize,
 
-    pub fn initAll(val: i32) Margins {
+    pub fn initAll(val: usize) Margins {
         return .{
             .left = val,
             .right = val,
@@ -138,11 +138,11 @@ pub const Margins = struct {
         };
     }
 
-    pub fn sizeX(m: Margins) i32 {
+    pub fn totalHorizontal(m: Margins) usize {
         return m.left + m.right;
     }
 
-    pub fn sizeY(m: Margins) i32 {
+    pub fn totalVertical(m: Margins) usize {
         return m.top + m.bottom;
     }
 };
@@ -215,7 +215,7 @@ pub const Value = union(Type) {
 
     pub fn get(value: Value, comptime T: type) T {
         if (@typeId(T) == .Enum)
-            return value.enumeration;
+            return @intToEnum(T, value.enumeration);
         return switch (T) {
             i32 => value.integer,
             f32 => value.number,
@@ -262,7 +262,7 @@ pub const Value = union(Type) {
 
 pub const HAlignment = enum(u8) {
     left = Enumeration.left,
-    middle = Enumeration.middle,
+    center = Enumeration.center,
     right = Enumeration.right,
     stretch = Enumeration.stretch,
 };

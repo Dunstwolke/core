@@ -135,7 +135,7 @@ pub const Widget = struct {
     /// accordingly.
     wantedSize: Size = undefined,
 
-    /// the position of the widget on the screen after layouting
+    /// the position of the widget on the screen after layouting.
     /// NOTE: this does not include the margins of the widget!
     actualBounds: Rectangle = undefined,
 
@@ -166,7 +166,7 @@ pub const Widget = struct {
     }
 
     /// Gets a property with respect to bindings.
-    pub fn get(widget: Widget, comptime property: PropertyName) !PropertyType(property) {
+    pub fn get(widget: Widget, comptime property: PropertyName) PropertyType(property) {
         const name = @tagName(property);
 
         if (widget.bindingSource) |source| {
@@ -177,7 +177,12 @@ pub const Widget = struct {
                     // the wanted property.
                     // TODO: This may leak string or list memory?!
                     //       Maybe use an arena allocator for this!
-                    return (try val.convertTo(Type.from(PropertyType(property)))).get(PropertyType(property));
+                    if (val.convertTo(Type.from(PropertyType(property)))) |converted| {
+                        return converted.get(PropertyType(property));
+                    } else |err| {
+                        // well, this is a binding error and we ignore those in general
+                        std.debug.warn("binding failed: {}", err);
+                    }
                 }
             }
         }
@@ -261,6 +266,120 @@ pub const Widget = struct {
             }
         }
     }
+
+    /// second stage of the updating process:
+    /// calculating space constraints.
+    /// this requires to first update all children and then call the
+    /// widget-specific constraint calculator
+    fn updateWantedSize(widget: *Widget) void {
+        for (widget.children.toSlice()) |*child| {
+            child.updateWantedSize();
+        }
+        widget.wantedSize = widget.calculateWantedSize();
+    }
+
+    fn layout(widget: *Widget, _bounds: Rectangle) void {
+        const margins = widget.get(.margins);
+        const bounds = Rectangle{
+            .x = _bounds.x + @intCast(isize, margins.left),
+            .y = _bounds.y + @intCast(isize, margins.top),
+            .width = std.math.max(0, _bounds.width - margins.totalHorizontal()), // safety check against underflow
+            .height = std.math.max(0, _bounds.height - margins.totalVertical()),
+        };
+
+        const wanted_size = widget.wantedSize;
+
+        var target: Rectangle = undefined;
+        switch (widget.get(.horizontalAlignment)) {
+            .stretch => {
+                target.width = bounds.width;
+                target.x = 0;
+            },
+            .left => {
+                target.width = std.math.min(wanted_size.width, bounds.width);
+                target.x = 0;
+            },
+            .center => {
+                target.width = std.math.min(wanted_size.width, bounds.width);
+                target.x = @intCast(isize, (bounds.width - target.width) / 2);
+            },
+            .right => {
+                target.width = std.math.min(wanted_size.width, bounds.width);
+                target.x = @intCast(isize, bounds.width - target.width);
+            },
+        }
+        target.x += bounds.x;
+
+        switch (widget.get(.verticalAlignment)) {
+            .stretch => {
+                target.height = bounds.height;
+                target.y = 0;
+            },
+            .top => {
+                target.height = std.math.min(wanted_size.height, bounds.height);
+                target.y = 0;
+            },
+            .middle => {
+                target.height = std.math.min(wanted_size.height, bounds.height);
+                target.y = @intCast(isize, (bounds.height - target.height) / 2);
+            },
+            .bottom => {
+                target.height = std.math.min(wanted_size.height, bounds.height);
+                target.y = @intCast(isize, bounds.height - target.height);
+            },
+        }
+        target.y += bounds.y;
+
+        widget.actualBounds = target;
+
+        const paddings = widget.get(.paddings);
+        const childArea = Rectangle{
+            .x = widget.actualBounds.x + @intCast(isize, paddings.left),
+            .y = widget.actualBounds.y + @intCast(isize, paddings.top),
+            .width = widget.actualBounds.width - paddings.totalHorizontal(),
+            .height = widget.actualBounds.height - paddings.totalVertical(),
+        };
+
+        widget.layoutChildren(childArea);
+    }
+
+    fn layoutChildren(widget: *Widget, rect: Rectangle) void {
+        for (widget.children.toSlice()) |*child| {
+            child.layout(rect);
+        }
+    }
+
+    /// this function calculcates the size this widget
+    /// wants to take in the layout.
+    /// this calculcate usually requires the `wantedSize` of
+    /// children to be set.
+    fn calculateWantedSize(widget: *Widget) Size {
+        // TODO: Implement inheritance
+        const shint = widget.get(.sizeHint);
+
+        if (widget.children.count() == 0)
+            return shint;
+
+        var size = Size{ .width = 0, .height = 0 };
+        for (widget.children.toSlice()) |child| {
+            const wswm = child.getWantedSizeWithMargins();
+            size.width = std.math.max(size.width, wswm.width);
+            size.height = std.math.max(size.height, wswm.height);
+        }
+
+        size.width = std.math.max(size.width, shint.width);
+        size.height = std.math.max(size.height, shint.height);
+
+        return size;
+    }
+
+    fn getWantedSizeWithMargins(widget: Widget) Size {
+        const margins = widget.get(.margins);
+        return Size{
+            .width = widget.wantedSize.width + margins.totalHorizontal(),
+            .height = widget.wantedSize.height + margins.totalVertical(),
+        };
+    }
 };
 
 test "Widget Bindings" {
@@ -283,12 +402,12 @@ test "Widget Bindings" {
 
     widget.properties.left = 10;
 
-    std.testing.expectEqual(@as(i32, 10), try widget.get(.left));
+    std.testing.expectEqual(@as(i32, 10), widget.get(.left));
 
     widget.bindingSource = &obj;
     widget.bindings.left = pid;
 
-    std.testing.expectEqual(@as(i32, 100), try widget.get(.left));
+    std.testing.expectEqual(@as(i32, 100), widget.get(.left));
     try widget.set(.left, 50);
 
     std.testing.expectEqual(@as(i32, 50), obj.getProperty(pid).?.integer);
@@ -334,7 +453,7 @@ test "Widget.updateBindings" {
     std.testing.expectEqual(@as(?*Object, obj2), widget.bindingSource);
 
     // TEST BOUND PROPERTIES
-    widget.bindings.bindingContext = pid; // bind to "property 2"
+    widget.bindings.bindingContext = pid; // bind to "property"
 
     widget.properties.bindingContext = null; // unset binding context
 
@@ -344,11 +463,58 @@ test "Widget.updateBindings" {
     widget.updateBindings(obj1); // context, no binding => indirect binding source
     std.testing.expectEqual(@as(?*Object, obj3), widget.bindingSource);
 
-    widget.properties.bindingContext = ObjectRef{ .id = oid2 }; // set binding context without binding
+    widget.properties.bindingContext = ObjectRef{ .id = oid2 }; // set binding context with binding
 
     widget.updateBindings(null); // no context, binding => binding source
     std.testing.expectEqual(@as(?*Object, obj2), widget.bindingSource);
 
     widget.updateBindings(obj1); // context, binding => indirect source
     std.testing.expectEqual(@as(?*Object, obj3), widget.bindingSource);
+}
+
+test "Widget.wantedSize" {
+    const allocator = std.heap.direct_allocator;
+
+    var context = UIContext.init(allocator);
+    defer context.deinit();
+
+    var widget = Widget.init(&context);
+    defer widget.deinit();
+
+    widget.updateWantedSize();
+
+    std.testing.expectEqual(Size{ .width = 0, .height = 0 }, widget.wantedSize);
+}
+
+test "Widget.layout (margins)" {
+    const allocator = std.heap.direct_allocator;
+
+    var context = UIContext.init(allocator);
+    defer context.deinit();
+
+    var widget = Widget.init(&context);
+    defer widget.deinit();
+
+    widget.properties.margins = Margins{
+        .left = 5,
+        .right = 10,
+        .top = 15,
+        .bottom = 20,
+    };
+
+    widget.updateWantedSize();
+
+    widget.layout(Rectangle{
+        .x = 0,
+        .y = 0,
+        .width = 200,
+        .height = 100,
+    });
+
+    std.testing.expectEqual(Rectangle{
+        .x = 5,
+        .y = 15,
+        .width = 185,
+        .height = 65,
+    }, widget.actualBounds);
 }
