@@ -46,7 +46,7 @@ pub const Widget = struct {
         /// it will bind to the parent bindingSource instead
         /// of the own bindingSource.
         /// see the implementation of @ref updateBindings
-        bindingContext: ?ObjectRef = null,
+        bindingContext: ?ObjectID = null,
 
         // dock layout
         dockSite: DockSite = DockSite.top,
@@ -109,6 +109,36 @@ pub const Widget = struct {
             @compileError("Not all fields of Widget.Bindings are available in Widget.Properties!");
     }
 
+    const WidgetClass = union(WidgetType) {
+        button: void,
+        label: void,
+        combobox: void,
+        treeview: void,
+        listbox: void,
+        picture: void,
+        textbox: void,
+        checkbox: void,
+        radiobutton: void,
+        scrollview: void,
+        scrollbar: void,
+        slider: void,
+        progressbar: void,
+        spinedit: void,
+        separator: void,
+        spacer: void,
+        panel: void,
+        tab_layout: void,
+        canvas_layout: void,
+        flow_layout: void,
+        grid_layout: void,
+        dock_layout: void,
+        stack_layout: void,
+
+        fn new(t: WidgetType) WidgetClass {
+            return undefined;
+        }
+    };
+
     // FIELDS START HERE
 
     /// upwards reference to the UI context
@@ -127,6 +157,10 @@ pub const Widget = struct {
 
     /// contains all binding overides for properties
     bindings: Bindings,
+
+    /// Stores the type of this widget as well as some additional
+    /// fields if necessary.
+    class: WidgetClass,
 
     // layouting and rendering
 
@@ -147,12 +181,13 @@ pub const Widget = struct {
     /// this must be refreshed after any changes to the object hierarchy!
     bindingSource: ?*Object = null,
 
-    pub fn init(context: *UIContext) Widget {
+    pub fn init(context: *UIContext, class: WidgetType) Widget {
         return Widget{
             .context = context,
             .properties = Properties{}, // all default
             .bindings = Bindings{}, // all default
             .children = std.ArrayList(Widget).init(context.allocator),
+            .class = WidgetClass.new(class),
         };
     }
 
@@ -181,7 +216,7 @@ pub const Widget = struct {
                         return converted.get(PropertyType(property));
                     } else |err| {
                         // well, this is a binding error and we ignore those in general
-                        std.debug.warn("binding failed: {}", err);
+                        std.debug.warn("binding failed: {}", .{err});
                     }
                 }
             }
@@ -343,7 +378,10 @@ pub const Widget = struct {
         widget.layoutChildren(childArea);
     }
 
+    /// This function will lay out all children in this widget.
+    /// It's primary function is to allow different kinds of layout.
     fn layoutChildren(widget: *Widget, rect: Rectangle) void {
+        // TODO: Implement inheritance
         for (widget.children.toSlice()) |*child| {
             child.layout(rect);
         }
@@ -357,7 +395,7 @@ pub const Widget = struct {
         // TODO: Implement inheritance
         const shint = widget.get(.sizeHint);
 
-        if (widget.children.count() == 0)
+        if (widget.children.len == 0)
             return shint;
 
         var size = Size{ .width = 0, .height = 0 };
@@ -373,6 +411,7 @@ pub const Widget = struct {
         return size;
     }
 
+    /// Returns the wantedSize field with added margins
     fn getWantedSizeWithMargins(widget: Widget) Size {
         const margins = widget.get(.margins);
         return Size{
@@ -393,7 +432,7 @@ test "Widget Bindings" {
     // The context would be required though if updateBindings is used.
     var ctx: UIContext = undefined;
 
-    var widget = Widget.init(&ctx);
+    var widget = Widget.init(&ctx, .panel);
     defer widget.deinit();
 
     const pid = PropertyID.init(42);
@@ -426,12 +465,12 @@ test "Widget.updateBindings" {
     const pid = PropertyID.init(2);
 
     const obj1 = try context.objects.addOrGet(oid1);
-    try obj1.setProperty(pid, Value{ .object = ObjectRef{ .id = oid3 } });
+    try obj1.setProperty(pid, Value{ .object = oid3 });
 
     const obj2 = try context.objects.addOrGet(oid2);
     const obj3 = try context.objects.addOrGet(oid3);
 
-    var widget = Widget.init(&context);
+    var widget = Widget.init(&context, .panel);
     defer widget.deinit();
 
     // TEST UNBOUND PROPERTIES
@@ -444,7 +483,7 @@ test "Widget.updateBindings" {
     widget.updateBindings(obj1); // context, no binding => context
     std.testing.expectEqual(@as(?*Object, obj1), widget.bindingSource);
 
-    widget.properties.bindingContext = ObjectRef{ .id = oid2 }; // set binding context without binding
+    widget.properties.bindingContext = oid2; // set binding context without binding
 
     widget.updateBindings(null); // no context, binding => binding source
     std.testing.expectEqual(@as(?*Object, obj2), widget.bindingSource);
@@ -463,7 +502,7 @@ test "Widget.updateBindings" {
     widget.updateBindings(obj1); // context, no binding => indirect binding source
     std.testing.expectEqual(@as(?*Object, obj3), widget.bindingSource);
 
-    widget.properties.bindingContext = ObjectRef{ .id = oid2 }; // set binding context with binding
+    widget.properties.bindingContext = oid2; // set binding context with binding
 
     widget.updateBindings(null); // no context, binding => binding source
     std.testing.expectEqual(@as(?*Object, obj2), widget.bindingSource);
@@ -478,7 +517,7 @@ test "Widget.wantedSize" {
     var context = UIContext.init(allocator);
     defer context.deinit();
 
-    var widget = Widget.init(&context);
+    var widget = Widget.init(&context, .panel);
     defer widget.deinit();
 
     widget.updateWantedSize();
@@ -492,7 +531,7 @@ test "Widget.layout (margins)" {
     var context = UIContext.init(allocator);
     defer context.deinit();
 
-    var widget = Widget.init(&context);
+    var widget = Widget.init(&context, .panel);
     defer widget.deinit();
 
     widget.properties.margins = Margins{

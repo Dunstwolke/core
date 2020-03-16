@@ -1,5 +1,32 @@
 const std = @import("std");
 
+pub const WidgetType = enum(u8) {
+    // invalid = 0, // marks "end of children" in the binary format
+    button = 1,
+    label = 2,
+    combobox = 3,
+    treeview = 5,
+    listbox = 7,
+    picture = 9,
+    textbox = 10,
+    checkbox = 11,
+    radiobutton = 12,
+    scrollview = 13,
+    scrollbar = 14,
+    slider = 15,
+    progressbar = 16,
+    spinedit = 17,
+    separator = 18,
+    spacer = 19,
+    panel = 20,
+    tab_layout = 250,
+    canvas_layout = 251,
+    flow_layout = 252,
+    grid_layout = 253,
+    dock_layout = 254,
+    stack_layout = 255,
+};
+
 pub const Type = enum(u8) {
     integer = 1,
     number = 2,
@@ -17,7 +44,7 @@ pub const Type = enum(u8) {
     callback = 14,
 
     pub fn from(comptime T: type) Type {
-        if (@typeId(T) == .Enum)
+        if (@typeInfo(T) == .Enum)
             return .enumeration;
         return switch (T) {
             i32 => .integer,
@@ -30,7 +57,7 @@ pub const Type = enum(u8) {
             ResourceID => .resource,
             bool => .boolean,
             SizeList => .sizelist,
-            ObjectRef => .object,
+            ObjectID => .object,
             ObjectList => .objectlist,
             CallbackID => .callback,
             else => @compileError("Type " ++ @typeName(T) ++ " is not convertible"),
@@ -118,7 +145,6 @@ fn UniqueID(comptime T: type) type {
 
 pub const ResourceID = UniqueID(@OpaqueType());
 pub const CallbackID = UniqueID(@OpaqueType());
-pub const ObjectID = UniqueID(@OpaqueType());
 pub const PropertyID = UniqueID(@OpaqueType());
 
 pub const Margins = struct {
@@ -178,18 +204,28 @@ pub const TableSizeDefition = union(enum) {
     percent: f32,
 };
 
-pub const ObjectRef = struct {
-    usingnamespace @import("object.zig");
+pub const ObjectID = struct {
+    const This = @This();
 
-    id: ObjectID,
+    const ObjectSpace = @import("object.zig");
 
-    pub fn resolve(ref: ObjectRef, store: ObjectStore) ?*Object {
-        return store.get(ref.id);
+    value: u32,
+
+    pub fn init(val: u32) This {
+        return This{ .value = val };
+    }
+
+    pub fn eql(a: This, b: This) bool {
+        return a.value == b.value;
+    }
+
+    pub fn resolve(ref: This, store: ObjectSpace.ObjectStore) ?*ObjectSpace.Object {
+        return store.get(ref);
     }
 };
 
 pub const SizeList = std.ArrayList(Size);
-pub const ObjectList = std.ArrayList(ObjectRef);
+pub const ObjectList = std.ArrayList(ObjectID);
 
 pub const Value = union(Type) {
     integer: i32,
@@ -203,7 +239,7 @@ pub const Value = union(Type) {
     resource: ResourceID,
     boolean: bool,
     sizelist: SizeList,
-    object: ObjectRef,
+    object: ObjectID,
     objectlist: ObjectList,
     callback: CallbackID,
 
@@ -214,7 +250,7 @@ pub const Value = union(Type) {
     }
 
     pub fn get(value: Value, comptime T: type) T {
-        if (@typeId(T) == .Enum)
+        if (@typeInfo(T) == .Enum)
             return @intToEnum(T, value.enumeration);
         return switch (T) {
             i32 => value.integer,
@@ -227,7 +263,7 @@ pub const Value = union(Type) {
             ResourceID => value.resource,
             bool => value.boolean,
             SizeList => value.sizelist,
-            ObjectRef => value.object,
+            ObjectID => value.object,
             ObjectList => value.objectlist,
             CallbackID => value.callback,
             else => @compileError("Type " ++ @typeName(T) ++ " is not convertible"),
@@ -235,8 +271,8 @@ pub const Value = union(Type) {
     }
 
     pub fn initFrom(value: var) Value {
-        const T = @typeOf(value);
-        if (@typeId(T) == .Enum)
+        const T = @TypeOf(value);
+        if (@typeInfo(T) == .Enum)
             return Value{ .enumeration = @enumToInt(value) };
         // @compileLog(@tagName(comptime Type.from(T)));
         // return @unionInit(Value, comptime @tagName(comptime Type.from(T)), value);
@@ -252,11 +288,19 @@ pub const Value = union(Type) {
             ResourceID => Value{ .resource = value },
             bool => Value{ .boolean = value },
             SizeList => Value{ .sizelist = value },
-            ObjectRef => Value{ .object = value },
+            ObjectID => Value{ .object = value },
             ObjectList => Value{ .objectlist = value },
             CallbackID => Value{ .callback = value },
             else => @compileError("Type " ++ @typeName(T) ++ " is not convertible"),
         };
+    }
+
+    pub fn deinit(value: Value) void {
+        switch (value) {
+            .sizelist => |l| l.deinit(),
+            .objectlist => |l| l.deinit(),
+            else => {}, // nop
+        }
     }
 };
 

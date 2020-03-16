@@ -240,12 +240,16 @@ const Connection = struct {
             return @ptrCast(*PacketHeader, &self.data);
         }
 
-        fn getPayload(self: *Packet) []u8 {
+        fn getPayloadStorage(self: *Packet) []u8 {
             return self.data[PacketHeader.size..];
         }
 
         fn getData(self: *Packet) []const u8 {
             return self.data[0 .. self.getHeader().len + PacketHeader.size];
+        }
+
+        fn getPayload(self: *Packet) []const u8 {
+            return self.data[PacketHeader.size .. self.getHeader().len + PacketHeader.size];
         }
     };
 
@@ -346,7 +350,7 @@ const Connection = struct {
         };
         _ = @addWithOverflow(u16, self.sequenceId, 1, &self.sequenceId);
 
-        std.mem.copy(u8, packet.getPayload(), data);
+        std.mem.copy(u8, packet.getPayloadStorage(), data);
 
         try self.sendPacket(packet);
     }
@@ -364,6 +368,8 @@ const Connection = struct {
         }
 
         try std.os.bind(sock, &std.net.Address.initIp4(0, port_number).os_addr);
+
+        std.debug.warn("sock = {}\n", sock);
 
         var con = Connection{
             .socket = sock,
@@ -397,7 +403,10 @@ const Connection = struct {
 
     fn receiverThreadWrapper(self: *Connection) void {
         receiverThread(self) catch |err| {
-            std.debug.warn("Got error in receiver thread: {}\n", err);
+            std.debug.warn("error: {}\n", @errorName(err));
+            if (@errorReturnTrace()) |trace| {
+                std.debug.dumpStackTrace(trace.*);
+            }
         };
     }
 
@@ -446,6 +455,25 @@ const Connection = struct {
                                     std.mem.copy(u8, packet.data[0..], buf[0..len]);
 
                                     self.receiveQueue.pushBack(packet);
+
+                                    if (!Address.eql(hdr.dst, Address.broadcast) and hdr.flags.reliable != 0) {
+                                        // packet is reliable, so send an ACK
+                                        var response = try self.getAvailablePacket();
+
+                                        response.getHeader().* = PacketHeader{
+                                            .src = self.localAddress,
+                                            .dst = hdr.src,
+                                            .flags = PacketFlags{
+                                                .reliable = 0,
+                                                .ack = 1,
+                                            },
+                                            .len = 0,
+                                            .sequence = hdr.sequence,
+                                            .checksum = 0,
+                                        };
+
+                                        try self.sendPacket(response);
+                                    }
                                 }
                             } else {
                                 std.debug.warn("filtering message received for other.\n");
@@ -491,6 +519,11 @@ pub fn main() anyerror!void {
 
     try con.send(null, "Hello, World", false);
 
+    if (std.os.argv.len > 2) {
+        var target = try Address.parse(std.mem.toSlice(u8, std.os.argv[2]));
+        try con.send(target, "ACK mich!", true);
+    }
+
     var stdin = try std.io.getStdIn();
     var stream = stdin.inStream();
 
@@ -507,7 +540,7 @@ pub fn main() anyerror!void {
 
         // std.debug.warn("'{}'\n", text);
         while (con.receivePacket()) |packet| {
-            std.debug.warn("received packet: {}\n{x}\n", packet.getHeader(), packet.getData());
+            std.debug.warn("received packet: {}\n{}\n", packet.getHeader(), packet.getPayload());
 
             packet.returnToPool();
         }

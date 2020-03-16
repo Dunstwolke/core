@@ -5,5 +5,5 @@ CONFIG += ordered
 SUBDIRS += \
   libdunstblick \
   dunstblick-compiler \
-  dunstblick-server \
+  dunstblick-display \
   examples

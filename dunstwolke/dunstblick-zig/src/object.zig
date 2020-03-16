@@ -18,6 +18,10 @@ pub const Object = struct {
     }
 
     pub fn deinit(obj: Object) void {
+        var it = obj.properties.iterator();
+        while (it.next()) |p| {
+            p.value.value.deinit();
+        }
         obj.properties.deinit();
     }
 
