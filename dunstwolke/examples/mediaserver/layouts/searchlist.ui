@@ -19,7 +19,7 @@ DockLayout
   ScrollView
   {
     StackLayout {
-      margins: 8;
+      margins: 0;
       paddings: 0;
       Panel {
         margins: 0;

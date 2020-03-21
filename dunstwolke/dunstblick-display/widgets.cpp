@@ -710,6 +710,28 @@ void ScrollView::layoutChildren(const SDL_Rect & fullArea)
 	auto area = calculateChildArea(fullArea);
 
     auto childArea = area;
+
+    int extend_x = 0;
+    int extend_y = 0;
+    for(auto & child : children)
+    {
+        auto const child_size = child->wanted_size_with_margins();
+
+        extend_x = std::max(extend_x, child_size.w - childArea.w);
+        extend_y = std::max(extend_y, child_size.h - childArea.h);
+    }
+
+    horizontal_bar.maximum.set(this, extend_x);
+    vertical_bar.maximum.set(this, extend_y);
+
+    if(horizontal_bar.value.get(this) > horizontal_bar.maximum.get(this)) {
+        horizontal_bar.value.set(this, extend_x);
+    }
+
+    if(vertical_bar.value.get(this) > vertical_bar.maximum.get(this)) {
+        vertical_bar.value.set(this, extend_x);
+    }
+
     childArea.x -= int(horizontal_bar.value.get(this) + 0.5f);
     childArea.y -= int(vertical_bar.value.get(this) + 0.5f);
 
