@@ -203,7 +203,8 @@ public:
 	void layout(SDL_Rect const & bounds);
 
 	/// draws the widget
-	void paint();
+	/// This function is a generic purpose painter
+	virtual void paint();
 
 	/// returns the bounds of the widget with margins
 	SDL_Rect bounds_with_margins() const;
@@ -226,7 +227,7 @@ public:
 	/// @returns the widget hit.
 	/// @param ssx x coordinate in screen space coordinates
 	/// @param ssy y coordinate in screen space coordinates
-	Widget * hitTest(int ssx, int ssy);
+	virtual Widget * hitTest(int ssx, int ssy);
 
 	/// processes an SDL event that has been adjusted for this widget
 	/// @param event the event that should be processed

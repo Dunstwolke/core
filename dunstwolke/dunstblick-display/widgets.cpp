@@ -1,16 +1,8 @@
 #include "widgets.hpp"
 #include "resources.hpp"
+#include "rectangle_tools.hpp"
 
 #include <xlog>
-
-static bool contains(SDL_Rect const & rect, int x, int y)
-{
-	return (x >= rect.x)
-	        and (y >= rect.y)
-	        and (x < rect.x + rect.w)
-	        and (y < rect.y + rect.h)
-	        ;
-}
 
 static bool is_clicked(SDL_Rect const & rect, SDL_Event const & ev)
 {
@@ -368,6 +360,11 @@ bool Slider::processEvent(const SDL_Event & ev)
 	return Widget::processEvent(ev);
 }
 
+Picture::Picture()
+{
+    this->hitTestVisible.set(this, false);
+}
+
 void Picture::paintWidget(const SDL_Rect & rectangle)
 {
 	if(auto bmp = get_resource<BitmapResource>(image.get(this)); bmp)
@@ -708,20 +705,29 @@ ScrollView::ScrollView()
 	vertical_bar.margins.set(&vertical_bar, UIMargin(0));
 }
 
-void ScrollView::layoutChildren(const SDL_Rect & childArea)
+void ScrollView::layoutChildren(const SDL_Rect & fullArea)
 {
-	auto area = childArea;
-	area.w -= vertical_bar.wanted_size.w;
-	area.h -= horizontal_bar.wanted_size.h;
+	auto area = calculateChildArea(fullArea);
+
+    auto childArea = area;
+    childArea.x -= int(horizontal_bar.value.get(this) + 0.5f);
+    childArea.y -= int(vertical_bar.value.get(this) + 0.5f);
 
 	for(auto & child : children)
 	{
+        auto const child_size = child->wanted_size_with_margins();
 		SDL_Rect child_rect = {
 		    childArea.x,
 		    childArea.y,
-		    child->wanted_size_with_margins().w,
-		    child->wanted_size_with_margins().h,
+		    std::max(childArea.w, child_size.w),
+		    std::max(childArea.h, child_size.h)
 		};
+
+        printf("%d×%d, %d×%d → %d×%d\n",
+            childArea.w, childArea.h,
+            child_size.w, child_size.h,
+            child_rect.w, child_rect.h);
+
 		child->layout(child_rect);
 	}
 
@@ -737,7 +743,14 @@ void ScrollView::layoutChildren(const SDL_Rect & childArea)
 		area.y + area.h,
 		area.w,
 		vertical_bar.wanted_size.h,
-	});
+    });
+}
+
+SDL_Rect ScrollView::calculateChildArea(SDL_Rect rect)
+{
+    rect.w -= vertical_bar.wanted_size.w;
+    rect.h -= horizontal_bar.wanted_size.h;
+    return rect;
 }
 
 UISize ScrollView::calculateWantedSize()
@@ -750,15 +763,63 @@ UISize ScrollView::calculateWantedSize()
 	childSize.w += horizontal_bar.wanted_size.w;
 	childSize.h += vertical_bar.wanted_size.h;
 
-	return childSize;
+    return childSize;
 }
 
-void ScrollView::paintWidget(const SDL_Rect & rectangle)
+Widget *ScrollView::hitTest(int ssx, int ssy)
 {
-	Widget::paintWidget(rectangle);
+    if(not this->hitTestVisible.get(this))
+		return nullptr;
+	if(not contains(actual_bounds, ssx, ssy))
+		return nullptr;
 
-	horizontal_bar.paintWidget(horizontal_bar.actual_bounds);
-	vertical_bar.paintWidget(vertical_bar.actual_bounds);
+    if(contains(horizontal_bar.actual_bounds, ssx, ssy))
+        return &horizontal_bar;
+    if(contains(vertical_bar.actual_bounds, ssx, ssy))
+        return &vertical_bar;
+
+    auto const childArea = calculateChildArea(actual_bounds);
+    if(not contains(childArea, ssx, ssy))
+        return this;
+
+	for(auto it = children.rbegin(); it != children.rend(); it++)
+	{
+        if(auto * child = (*it)->hitTest(ssx, ssy); child != nullptr)
+			return child;
+	}
+	return this;
+}
+
+void ScrollView::paint()
+{
+    assert(SDL_RenderIsClipEnabled(context().renderer));
+    auto const currentClipRect = context().renderer.getClipRect();
+
+    SDL_Rect actual_clip_rect = intersect(currentClipRect, actual_bounds);
+    if(actual_clip_rect.w * actual_clip_rect.h > 0)
+    {
+        auto const child_clip_rect = intersect(actual_clip_rect, calculateChildArea(actual_bounds));
+
+        context().renderer.setClipRect(child_clip_rect);
+        for(auto & child : children)
+        {
+            // only draw visible children
+            if(child->getActualVisibility() == Visibility::visible)
+                child->paint();
+        }
+
+        context().renderer.setClipRect(actual_clip_rect);
+
+        horizontal_bar.paintWidget(horizontal_bar.actual_bounds);
+        vertical_bar.paintWidget(vertical_bar.actual_bounds);
+
+        context().renderer.setClipRect(currentClipRect);
+    }
+}
+
+void ScrollView::paintWidget(const SDL_Rect &)
+{
+    assert(false and "should never be called!");
 }
 
 SDL_SystemCursor ScrollView::getCursor(const UIPoint & p) const
@@ -772,5 +833,20 @@ SDL_SystemCursor ScrollView::getCursor(const UIPoint & p) const
 
 bool ScrollView::processEvent(const SDL_Event & ev)
 {
-	return Widget::processEvent(ev);
+    auto const routeEvent = [&](int x, int y) -> bool {
+        if(contains(vertical_bar.actual_bounds, x, y))
+            return vertical_bar.processEvent(ev);
+        if(contains(horizontal_bar.actual_bounds, x, y))
+            return horizontal_bar.processEvent(ev);
+        return Widget::processEvent(ev);
+    };
+
+    switch(ev.type)
+    {
+    case SDL_MOUSEWHEEL:      return routeEvent(ev.wheel.x, ev.wheel.y);
+    case SDL_MOUSEMOTION:     return routeEvent(ev.motion.x, ev.motion.y);
+    case SDL_MOUSEBUTTONDOWN: return routeEvent(ev.button.x, ev.button.y);
+    case SDL_MOUSEBUTTONUP:   return routeEvent(ev.button.x, ev.button.y);
+    default:                  return Widget::processEvent(ev);
+    }
 }

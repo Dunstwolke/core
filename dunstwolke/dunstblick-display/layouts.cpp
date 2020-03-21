@@ -39,9 +39,9 @@ void StackLayout::layoutChildren(const SDL_Rect &_rect)
 
 UISize StackLayout::calculateWantedSize()
 {
+    UISize size = { 0, 0 };
     if(direction.get(this) == StackDirection::vertical)
     {
-        UISize size = { 0, 0 };
         for(auto & child : children)
         {
             if(child->getActualVisibility() == Visibility::collapsed)
@@ -49,11 +49,9 @@ UISize StackLayout::calculateWantedSize()
             size.w = std::max(size.w, child->wanted_size_with_margins().w);
             size.h += child->wanted_size_with_margins().h;
         }
-        return size;
     }
     else
     {
-        UISize size = { 0, 0 };
         for(auto & child : children)
         {
             if(child->getActualVisibility() == Visibility::collapsed)
@@ -61,8 +59,10 @@ UISize StackLayout::calculateWantedSize()
             size.w += child->wanted_size_with_margins().w;
             size.h = std::max(size.h, child->wanted_size_with_margins().h);
         }
-        return size;
     }
+    size.w += paddings.get(this).totalHorizontal();
+    size.h += paddings.get(this).totalVertical();
+    return size;
 }
 
 /*******************************************************************************
@@ -135,7 +135,7 @@ UISize DockLayout::calculateWantedSize()
     if(children.size() == 0)
         return { 0, 0 };
 
-    UISize size = children.back()->wanted_size;
+    UISize size = children.back()->wanted_size_with_margins();
 
     size_t i = children.size() -1;
     while(i > 0)

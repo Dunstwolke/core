@@ -1,0 +1,202 @@
+DockLayout
+{
+  DockLayout
+  {
+    margins: 0;
+    dock-site: bottom;
+		Button
+		{
+      dock-site: right;
+			on-click: callback("close-main-menu");
+      horizontal-alignment: center;
+			Picture { image: resource("icon-close"); }
+		}
+    TextBox
+    {
+
+    }
+  }
+  ScrollView
+  {
+    StackLayout {
+      margins: 8;
+      paddings: 0;
+      Panel {
+        margins: 0;
+        horizontal-alignment: stretch;
+        DockLayout {
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-open-folder"); }
+          }
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-add"); }
+          }
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-play"); }
+          }
+          Label {
+            horizontal-alignment: left;
+            text: "Gloryhammer";
+          }
+        }
+      }
+
+      Panel {
+        margins: 0;
+        DockLayout {
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-open-folder"); }
+          }
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-add"); }
+          }
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-play"); }
+          }
+          Label {
+            horizontal-alignment: left;
+            text: "猫 シ Corp.";
+          }
+        }
+      }
+
+      Panel {
+        margins: 0;
+        DockLayout {
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-open-folder"); }
+          }
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-add"); }
+          }
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-play"); }
+          }
+          Label {
+            horizontal-alignment: left;
+            text: "Morgan Willis";
+          }
+        }
+      }
+
+      Panel {
+        margins: 0;
+        DockLayout {
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-open-folder"); }
+          }
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-add"); }
+          }
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-play"); }
+          }
+          Label {
+            horizontal-alignment: left;
+            text: "Soft Cell";
+          }
+        }
+      }
+
+      Panel {
+        margins: 0;
+        DockLayout {
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-open-folder"); }
+          }
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-add"); }
+          }
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-play"); }
+          }
+          Label {
+            horizontal-alignment: left;
+            text: "Modern Talking";
+          }
+        }
+      }
+
+      Panel {
+        margins: 0;
+        DockLayout {
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-open-folder"); }
+          }
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-add"); }
+          }
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-play"); }
+          }
+          Label {
+            horizontal-alignment: left;
+            text: "Angerfist";
+          }
+        }
+      }
+
+      Panel {
+        margins: 0;
+        DockLayout {
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-open-folder"); }
+          }
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-add"); }
+          }
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-play"); }
+          }
+          Label {
+            horizontal-alignment: left;
+            text: "Instant Remedy";
+          }
+        }
+      }
+
+      Panel {
+        margins: 0;
+        DockLayout {
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-open-folder"); }
+          }
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-add"); }
+          }
+          Button {
+            dock-site: right;
+            Picture { image: resource("icon-play"); }
+          }
+          Label {
+            horizontal-alignment: left;
+            text: "Danimal Cannon";
+          }
+        }
+      }
+    }
+  }
+}

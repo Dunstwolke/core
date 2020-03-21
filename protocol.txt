@@ -43,12 +43,11 @@ Nachrichten-Typen:
 	- Keyboard
 	- Mouse
 - Dateisystem
-	- Datei öffnen/schließen
+	- Datei erstellen/öffnen(lesen)/öffnen(schreiben)/schließen
 	- Daten lesen/schreiben
 	- Datei zwischen Geräten verschieben/kopieren
 	- Dateien synchronisieren/aktualisieren
 - Anwendungsspezifische Nachrichten
-
 
 Apps:
 - System
@@ -72,10 +71,7 @@ Apps:
 	- Video Player
 	- Web Browser
 	- IRC Client
-
-
-
-
+	- Telegram
 
 # Pakete
 
@@ -102,3 +98,37 @@ auf das Verzeichnis sowie entweder File {
 
 
 
+
+
+
+# Protokoll-Grundlagen
+
+- Device→Broadcast-Channel?
+- Device→Device-Channel?
+
+## Features pro Channel
+
+- reliable, sequenced
+	- TCP-Modus: Pakete werden in der korrekten Reihenfolge garantiert empfangen
+	- Pakete werden als Stream übertragen: Ein Paket wird geschickt. Nach empfang des ACKs wird das nächste Paket
+	  im Stream übertragen. Falls kein ACK empfangen wird, wird das Paket erneut übertragen
+- unreliable, sequenced
+	- Fast-Path: Ältere Pakete als das zuletzt empfangene Paket werden beim Empfang verworfen
+	- Pakete werden nicht geackt, wenn ältere Pakete eintreffen, werden diese verworfen
+- reliable, unsequenced
+	- Paket-Modus: Pakete kommen garantiert an, aber nicht zwingend in der Reihenfolge, in der sie gesendet wurden
+	- Pakete werden geackt, nicht-geackte pakete werden erneut gesendet
+- unreliable, unsequenced
+	- UDP-Modus: Pakete kommen nicht garantiert an und auch nicht zwingend in der gesendeten Reihenfolge.
+	- Pakete werden nicht geackt
+
+Paketheader:
+	u1: sequenced
+	u1: reliable
+	u6: channel
+	u8: padding
+	[6]u8: quelladresse
+	[6]u8: zieladresse
+	u16: length
+	u16: sequence
+	u16: checksum

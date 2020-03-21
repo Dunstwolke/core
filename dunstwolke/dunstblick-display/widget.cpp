@@ -3,6 +3,7 @@
 
 #include <stdexcept>
 #include <xlog>
+#include "rectangle_tools.hpp"
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Stage 1:
@@ -200,20 +201,28 @@ void Widget::paintWidget(const SDL_Rect &)
 
 void Widget::paint()
 {
-	context().renderer.setClipRect(actual_bounds);
+    assert(SDL_RenderIsClipEnabled(context().renderer));
+    auto const currentClipRect = context().renderer.getClipRect();
 
-	// context().renderer.setColor(0xFF, 0x00, 0xFF, 0x40);
-	// context().renderer.fillRect(actual_bounds);
+    SDL_Rect actual_clip_rect = intersect(currentClipRect, actual_bounds);
+    if(actual_clip_rect.w * actual_clip_rect.h > 0)
+    {
+        context().renderer.setClipRect(actual_clip_rect);
 
-	this->paintWidget(actual_bounds);
+        // context().renderer.setColor(0xFF, 0x00, 0xFF, 0x40);
+        // context().renderer.fillRect(actual_bounds);
 
-	context().renderer.resetClipRect();
-	for(auto & child : children)
-	{
-		// only draw visible children
-		if(child->getActualVisibility() == Visibility::visible)
-			child->paint();
-	}
+        this->paintWidget(actual_bounds);
+
+        for(auto & child : children)
+        {
+            // only draw visible children
+            if(child->getActualVisibility() == Visibility::visible)
+                child->paint();
+        }
+
+        context().renderer.setClipRect(currentClipRect);
+    }
 }
 
 SDL_Rect Widget::bounds_with_margins() const
@@ -263,15 +272,6 @@ Visibility Widget::getActualVisibility() const
 	return visibility.get(this);
 }
 
-static inline bool contains(SDL_Rect const & rect, int x, int y)
-{
-	return (x >= rect.x)
-	   and (y >= rect.y)
-	   and (x < rect.x + rect.w)
-	   and (y < rect.y + rect.h)
-	;
-}
-
 Widget * Widget::hitTest(int ssx, int ssy)
 {
 	if(not this->hitTestVisible.get(this))
@@ -280,7 +280,7 @@ Widget * Widget::hitTest(int ssx, int ssy)
 		return nullptr;
 	for(auto it = children.rbegin(); it != children.rend(); it++)
 	{
-		if(auto * child = (*it)->hitTest(ssx, ssy); child != nullptr)
+        if(auto * child = (*it)->hitTest(ssx, ssy); child != nullptr)
 			return child;
 	}
 	return this;

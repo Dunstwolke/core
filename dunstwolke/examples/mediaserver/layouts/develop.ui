@@ -1,0 +1,49 @@
+StackLayout {
+  orientation: horizontal;
+  Panel {
+    vertical-alignment: top;
+    margins: 0;
+    paddings: 0;
+    GridLayout {
+      margins: 0;
+      paddings: 0;
+      rows: auto;
+      Spacer {
+        margins: 8;
+        horizontal-alignment: left;
+        vertical-alignment: middle;
+        size-hint: 64, 64;
+      }
+    }
+  }
+  Panel {
+    vertical-alignment: top;
+    margins: 0;
+    paddings: 0;
+    DockLayout {
+      margins: 0;
+      paddings: 0;
+      Spacer {
+        margins: 8;
+        horizontal-alignment: left;
+        vertical-alignment: middle;
+        size-hint: 64, 64;
+      }
+    }
+  }
+  Panel {
+    vertical-alignment: top;
+    margins: 0;
+    paddings: 0;
+    StackLayout {
+      margins: 0;
+      paddings: 0;
+      Spacer {
+        margins: 8;
+        horizontal-alignment: left;
+        vertical-alignment: middle;
+        size-hint: 64, 64;
+      }
+    }
+  }
+}

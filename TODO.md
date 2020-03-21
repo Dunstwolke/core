@@ -13,6 +13,8 @@
 	- [ ] ScrollView
 	- [x] ScrollBar
 	- [ ] SpinEdit
+- [ ] Fix Bugs
+  - [ ] Empty grid (no colums, no rows) should not crash
 - [ ] Add "deferModalDrawing" to render/ui context
 	- allow rendering stuff *after* everything else
 	- required for combo boxes

@@ -62,7 +62,9 @@ struct PlaceholderWidget : WidgetIs<UIWidget::spacer>
 struct Picture : WidgetIs<UIWidget::picture>
 {
     property<UIResourceID> image;
-		property<ImageScaling> scaling = ImageScaling::stretch;
+    property<ImageScaling> scaling = ImageScaling::stretch;
+
+    Picture();
 
     void paintWidget(const SDL_Rect &rectangle) override;
 
@@ -130,8 +132,13 @@ struct ScrollView : WidgetIs<UIWidget::scrollview>
 
 	void layoutChildren(SDL_Rect const & childArea) override;
 
+    SDL_Rect calculateChildArea(SDL_Rect rect);
+
     UISize calculateWantedSize() override;
 
+    Widget * hitTest(int ssx, int ssy) override;
+
+    void paint() override;
 	void paintWidget(const SDL_Rect &rectangle) override;
 
 	SDL_SystemCursor getCursor(UIPoint const &) const override;

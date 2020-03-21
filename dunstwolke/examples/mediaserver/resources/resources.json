@@ -1,0 +1,97 @@
+{
+  "icon-volume-off": {
+    "id": 2,
+    "type": "bitmap",
+    "file": "volume-off.png"
+  },
+  "icon-volume-low": {
+    "id": 3,
+    "type": "bitmap",
+    "file": "volume-low.png"
+  },
+  "icon-volume-medium": {
+    "id": 4,
+    "type": "bitmap",
+    "file": "volume-medium.png"
+  },
+  "icon-volume-high": {
+    "id": 5,
+    "type": "bitmap",
+    "file": "volume-high.png"
+  },
+  "icon-skip-previous": {
+    "id": 6,
+    "type": "bitmap",
+    "file": "skip-previous.png"
+  },
+  "icon-skip-next": {
+    "id": 7,
+    "type": "bitmap",
+    "file": "skip-next.png"
+  },
+  "icon-play": {
+    "id": 8,
+    "type": "bitmap",
+    "file": "play.png"
+  },
+  "icon-pause": {
+    "id": 9,
+    "type": "bitmap",
+    "file": "pause.png"
+  },
+  "icon-menu": {
+    "id": 10,
+    "type": "bitmap",
+    "file": "menu.png"
+  },
+  "icon-settings": {
+    "id": 11,
+    "type": "bitmap",
+    "file": "cog.png"
+  },
+  "icon-repeat-one": {
+    "id": 12,
+    "type": "bitmap",
+    "file": "repeat-once.png"
+  },
+  "icon-repeat-all": {
+    "id": 13,
+    "type": "bitmap",
+    "file": "repeat.png"
+  },
+  "icon-shuffle": {
+    "id": 14,
+    "type": "bitmap",
+    "file": "shuffle.png"
+  },
+  "icon-album": {
+    "id": 15,
+    "type": "bitmap",
+    "file": "album.png"
+  },
+  "icon-playlist": {
+    "id": 16,
+    "type": "bitmap",
+    "file": "playlist-music.png"
+  },
+  "icon-radio": {
+    "id": 17,
+    "type": "bitmap",
+    "file": "radio.png"
+  },
+  "icon-add": {
+    "id": 18,
+    "type": "bitmap",
+    "file": "plus.png"
+  },
+  "icon-open-folder": {
+    "id": 19,
+    "type": "bitmap",
+    "file": "folder-open.png"
+  },
+  "icon-close": {
+    "id": 20,
+    "type": "bitmap",
+    "file": "close.png"
+  }
+}

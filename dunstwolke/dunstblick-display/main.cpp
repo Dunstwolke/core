@@ -318,7 +318,7 @@ int main()
 	//////////////////////////////////////////////////////////////////////////////
 
 	SDL_Window * window = SDL_CreateWindow(
-	      "DunstBlick Frontend",
+	      "DunstBlick Frontend *FLOAT*",
 	      SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
 	      800, 600,
 	      SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE
@@ -475,8 +475,12 @@ int main()
 
 			update_layout();
 
-			if(root_widget)
+            if(root_widget) {
+                SDL_Rect clipRect{ 0, 0 };
+                SDL_GetRendererOutputSize(context().renderer, &clipRect.w, &clipRect.h);
+                context().renderer.setClipRect(clipRect);
 				root_widget->paint();
+            }
 
 			int mx, my;
 			SDL_GetMouseState(&mx, &my);

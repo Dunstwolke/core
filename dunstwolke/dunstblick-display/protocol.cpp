@@ -4,6 +4,7 @@
 
 #include <cassert>
 #include <xlog>
+#include <xcept>
 
 static ProtocolAdapter adapter;
 
@@ -141,5 +142,8 @@ void do_communication()
 
 void send_message(CommandBuffer const & buffer)
 {
-	msg_send(reinterpret_cast<uint8_t const *>(buffer.buffer.data()), buffer.buffer.size());
+    try {
+        msg_send(reinterpret_cast<uint8_t const *>(buffer.buffer.data()), buffer.buffer.size());
+    }catch(xcept::io_error) {
+    }
 }
