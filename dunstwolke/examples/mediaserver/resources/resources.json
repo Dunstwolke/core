@@ -93,5 +93,20 @@
     "id": 20,
     "type": "bitmap",
     "file": "close.png"
+  },
+  "big-fucking-image": {
+    "id": 21,
+    "type": "bitmap",
+    "file": "space-backgrounds-planets.png"
+  },
+  "demo-album-art": {
+    "id": 22,
+    "type": "bitmap",
+    "file": "/dunstwolke/music/albums/Morgan Willis/Supernova/cover.jpg"
+  },
+  "wallpaper": {
+    "id": 23,
+    "type": "bitmap",
+    "file": "background.jpg"
   }
 }

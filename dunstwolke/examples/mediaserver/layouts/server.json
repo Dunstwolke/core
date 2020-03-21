@@ -18,7 +18,10 @@
     "icon-radio": 17,
     "icon-add": 18,
     "icon-open-folder": 19,
-    "icon-close": 20
+    "icon-close": 20,
+    "big-fucking-image": 21,
+    "demo-album-art": 22,
+    "wallpaper": 23
   },
   "properties": {
     "current-artist": 1,

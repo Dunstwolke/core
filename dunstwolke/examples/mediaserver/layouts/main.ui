@@ -1,55 +1,66 @@
-DockLayout
+Picture
 {
-	GridLayout
+	image: resource("wallpaper");
+	image-scaling: cover;
+	DockLayout
 	{
-    dock-site: bottom;
-		columns: auto, expand, auto, auto, auto, expand, auto;
+		GridLayout
+		{
+			dock-site: bottom;
+			columns: auto, expand, auto, auto, auto, expand, auto;
 
-		Button
-		{
-			on-click: callback("open-volume-control");
-      horizontal-alignment: center;
-			Picture { image: resource("icon-volume-medium"); }
+			Button
+			{
+				on-click: callback("open-volume-control");
+				horizontal-alignment: center;
+				Picture { image: resource("icon-volume-medium"); }
+			}
+			Spacer { }
+			Button
+			{
+				on-click: callback("previous-song");
+				horizontal-alignment: center;
+				Picture { image: resource("icon-skip-previous"); }
+			}
+			Button
+			{
+				on-click: callback("play-pause");
+				horizontal-alignment: center;
+				Picture { image: resource("icon-play"); }
+			}
+			Button
+			{
+				on-click: callback("next-song");
+				horizontal-alignment: center;
+				Picture { image: resource("icon-skip-next"); }
+			}
+			Spacer { }
+			Button
+			{
+				on-click: callback("open-main-menu");
+				horizontal-alignment: center;
+				Picture { image: resource("icon-menu"); }
+			}
 		}
-    Spacer { }
-		Button
+		Label
 		{
-			on-click: callback("previous-song");
-      horizontal-alignment: center;
-			Picture { image: resource("icon-skip-previous"); }
+			dock-site: bottom;
+			/* text: bind("current-artist"); */
+			text: "Morgan Willis";
 		}
-		Button
+		Label
 		{
-			on-click: callback("play-pause");
-      horizontal-alignment: center;
-			Picture { image: resource("icon-play"); }
+			dock-site: bottom;
+			/* text: bind("current-song"); */
+			text: "Réalité augmentée";
 		}
-		Button
+		Picture
 		{
-			on-click: callback("next-song");
-      horizontal-alignment: center;
-			Picture { image: resource("icon-skip-next"); }
-		}
-    Spacer { }
-		Button
-		{
-			on-click: callback("open-main-menu");
-      horizontal-alignment: center;
-			Picture { image: resource("icon-menu"); }
+			/* image: bind("current-albumart"); */
+			image-scaling: zoom;
+			image: resource("demo-album-art");
+			vertical-alignment: middle;
+			horizontal-alignment: center;
 		}
 	}
-  Label
-  {
-    dock-site: bottom;
-    text: bind("current-artist");
-  }
-  Label
-  {
-    dock-site: bottom;
-    text: bind("current-song");
-  }
-  Picture
-  {
-    image: bind("current-albumart");
-  }
 }

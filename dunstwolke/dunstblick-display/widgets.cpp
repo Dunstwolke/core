@@ -564,6 +564,11 @@ bool ScrollBar::processEvent(const SDL_Event & ev)
 	float const progress = (val - minval) / range;
 	float const clickperc = 0.05f;
 
+    if(ev.type == SDL_MOUSEWHEEL) {
+        scroll(ev.wheel.x + ev.wheel.y);
+        return true;
+    }
+
 	auto const rectangle = actual_bounds;
 	if(orientation.get(this) == Orientation::vertical)
 	{
@@ -691,9 +696,18 @@ bool ScrollBar::processEvent(const SDL_Event & ev)
 	return Widget::processEvent(ev);
 }
 
-SDL_SystemCursor ScrollBar::getCursor(const UIPoint & p) const
+SDL_SystemCursor ScrollBar::getCursor(const UIPoint &) const
 {
-	return SDL_SYSTEM_CURSOR_HAND;
+    return SDL_SYSTEM_CURSOR_HAND;
+}
+
+void ScrollBar::scroll(float amount)
+{
+    value.set(this, std::clamp<float>(
+        value.get(this) - amount,
+        minimum.get(this),
+        maximum.get(this)
+    ));
 }
 
 ScrollView::ScrollView()
@@ -729,7 +743,7 @@ void ScrollView::layoutChildren(const SDL_Rect & fullArea)
     }
 
     if(vertical_bar.value.get(this) > vertical_bar.maximum.get(this)) {
-        vertical_bar.value.set(this, extend_x);
+        vertical_bar.value.set(this, extend_y);
     }
 
     childArea.x -= int(horizontal_bar.value.get(this) + 0.5f);
@@ -744,11 +758,6 @@ void ScrollView::layoutChildren(const SDL_Rect & fullArea)
 		    std::max(childArea.w, child_size.w),
 		    std::max(childArea.h, child_size.h)
 		};
-
-        printf("%d×%d, %d×%d → %d×%d\n",
-            childArea.w, childArea.h,
-            child_size.w, child_size.h,
-            child_rect.w, child_rect.h);
 
 		child->layout(child_rect);
 	}
@@ -865,7 +874,18 @@ bool ScrollView::processEvent(const SDL_Event & ev)
 
     switch(ev.type)
     {
-    case SDL_MOUSEWHEEL:      return routeEvent(ev.wheel.x, ev.wheel.y);
+    case SDL_MOUSEWHEEL: {
+        int ssx, ssy;
+        SDL_GetMouseState(&ssx, &ssy);
+
+        if(routeEvent(ssx, ssy))
+            return true;
+
+        horizontal_bar.scroll(ev.wheel.x);
+        vertical_bar.scroll(ev.wheel.y);
+
+        return true;
+    }
     case SDL_MOUSEMOTION:     return routeEvent(ev.motion.x, ev.motion.y);
     case SDL_MOUSEBUTTONDOWN: return routeEvent(ev.button.x, ev.button.y);
     case SDL_MOUSEBUTTONUP:   return routeEvent(ev.button.x, ev.button.y);

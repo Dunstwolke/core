@@ -93,7 +93,7 @@ struct RadioButton : ClickableWidget
 
     RadioButton();
 
-	void onClick() override;
+    void onClick() override;
 
     UISize calculateWantedSize() override;
 
@@ -122,6 +122,8 @@ struct ScrollBar : WidgetIs<UIWidget::scrollbar>
 	}
 
 	SDL_SystemCursor getCursor(UIPoint const &) const override;
+
+    void scroll(float amount);
 };
 
 struct ScrollView : WidgetIs<UIWidget::scrollview>

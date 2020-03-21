@@ -436,7 +436,7 @@ int main()
 				{
 					if(not root_widget)
 						break;
-					if(auto * child = get_mouse_widget(e.wheel.x, e.wheel.y); child != nullptr)
+					if(auto * child = get_mouse_widget(mouse_pos.x, mouse_pos.y); child != nullptr)
 					{
 						ui_set_mouse_focus(child);
 
