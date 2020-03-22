@@ -33,3 +33,4 @@ jobs:
         with:
           source: "./docs/html/*"
           target: "/home/dunstblick-ci/website/html"
+          strip_components: 2
