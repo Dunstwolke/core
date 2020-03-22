@@ -1,0 +1,33 @@
+name: Autogenerate Docs
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+    - uses: actions/checkout@v2
+
+    - name: Generate documentation
+      uses: mattnotmitt/doxygen-action@v1
+      with:
+        doxyfile-path: ./docs/Doxyfile
+
+    - name: Deploy files to dunstwolke.org
+      uses: appleboy/scp-action@master
+      env:
+        HOST: ${{ secrets.HOST }}
+        USERNAME: ${{ secrets.USERNAME }}
+        PORT: ${{ secrets.PORT }}
+        KEY: ${{ secrets.KEY }}
+      with:
+        source: "docs/html/*"
+        target: "."
+  deploy:
+    runs-on: [ubuntu-latest]
