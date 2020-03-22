@@ -13,4 +13,5 @@ SOURCES += \
   dunstblick.cpp
 
 HEADERS += \
+  dunstblick-internal.hpp \
   dunstblick.h

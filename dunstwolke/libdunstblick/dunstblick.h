@@ -1,5 +1,11 @@
-#ifndef DUNSTBLICK_H
-#define DUNSTBLICK_H
+#ifndef DUNSTBLICK2_H
+#define DUNSTBLICK2_H
+
+/// @defgroup dunstblick Dunstblick
+
+/// @file
+/// @brief This module contains the API of the dunstblick user interface.
+/// @ingroup dunstblick
 
 #include <stdint.h>
 #include <stddef.h>
@@ -9,14 +15,23 @@
 extern "C" {
 #endif
 
-typedef enum dunstblick_ResourceKind
+/// @ingroup dunstblick
+/// @brief Enumeration of all available resource types.
+enum dunstblick_ResourceKind
 {
+    /// A layout resource contains the compiled description of a widget layout.
+    /// Create a compiled layout with the @ref dunstblick-compiler.
 	DUNSTBLICK_RESOURCE_LAYOUT  = 0,
+    /// A raster image resource that contains a common image file like PNG or JPEG.
 	DUNSTBLICK_RESOURCE_BITMAP  = 1,
+    /// A vector image resource that contains a yet unspecified format.
 	DUNSTBLICK_RESOURCE_DRAWING = 2,
-} dunstblick_ResourceKind;
+};
+typedef enum dunstblick_ResourceKind dunstblick_ResourceKind;
 
-typedef enum dunstblick_Type
+/// @ingroup dunstblick
+/// @brief Contains a type tag for each possible type a @ref dunstblick_Value can have.
+enum dunstblick_Type
 {
 	DUNSTBLICK_TYPE_INTEGER = 1,
 	DUNSTBLICK_TYPE_NUMBER = 2,
@@ -30,41 +45,88 @@ typedef enum dunstblick_Type
 	DUNSTBLICK_TYPE_BOOLEAN = 10,
 	DUNSTBLICK_TYPE_OBJECT = 12,
 	DUNSTBLICK_TYPE_OBJECTLIST = 13,
-} dunstblick_Type;
+};
+typedef enum dunstblick_Type dunstblick_Type;
 
-typedef enum dunstblick_Error
+/// @ingroup dunstblick
+/// @brief Error codes that are returned by a function.
+enum dunstblick_Error
 {
-	DUNSTBLICK_ERROR_NONE = 0,
-	DUNSTBLICK_ERROR_INVALID_ARG = 1,
-	DUNSTBLICK_ERROR_NETWORK = 2,
-	DUNSTBLICK_ERROR_INVALID_TYPE = 3,
-} dunstblick_Error;
+	DUNSTBLICK_ERROR_NONE = 0,         ///< The operation was successful.
+	DUNSTBLICK_ERROR_INVALID_ARG = 1,  ///< An invalid argument was passed to the function.
+	DUNSTBLICK_ERROR_NETWORK = 2,      ///< A network error happened.
+	DUNSTBLICK_ERROR_INVALID_TYPE = 3, ///< An invalid type was passed to a function.
+    DUNSTBLICK_ERROR_ARGUMENT_OUT_OF_RANGE = 4, ///< An argument was not in the allowed range.
+};
+typedef enum dunstblick_Error dunstblick_Error;
 
+/// @ingroup dunstblick
+/// @brief Enumeration of possible reasons for a client disconnection.
+enum dunstblick_DisconnectReason
+{
+	DUNSTBLICK_DISCONNECT_QUIT = 0,          ///< The user closed the connection.
+	DUNSTBLICK_DISCONNECT_TIMEOUT = 1,       ///< The display client did not respond for a longer time.
+    DUNSTBLICK_DISCONNECT_NETWORK_ERROR = 2, ///< The network connection failed.
+};
+typedef enum dunstblick_DisconnectReason dunstblick_DisconnectReason;
+
+/// @ingroup dunstblick
+/// @brief A unique resource identifier.
 typedef uint32_t dunstblick_ResourceID;
+
+/// @ingroup dunstblick
+/// @brief A unique object handle.
 typedef uint32_t dunstblick_ObjectID;
+
+/// @ingroup dunstblick
+/// @brief Name of an object property.
 typedef uint32_t dunstblick_PropertyName;
-typedef uint32_t dunstblick_CallbackID;
 
-typedef struct dunstblick_Color {
-	uint8_t r, g, b, a;
-} dunstblick_Color;
+/// @ingroup dunstblick
+/// @brief An event id that is defined in the layout.
+typedef uint32_t dunstblick_EventID;
 
-typedef struct dunstblick_Point {
-	int x, y;
-} dunstblick_Point;
+/// @ingroup dunstblick
+/// @brief sRGB color value with linear alpha.
+/// The RGB colors use the [sRGB](https://en.wikipedia.org/wiki/SRGB) color space,
+/// alpha is linearly encoded and blended.
+struct dunstblick_Color {
+	uint8_t r; ///< Red color channel
+    uint8_t g; ///< Green color channel
+    uint8_t b; ///< Blue color channel
+    uint8_t a; ///< Transparency channel. 128 is 50% alpha
+};
+typedef struct dunstblick_Color dunstblick_Color;
 
-typedef struct dunstblick_Size {
-	int w, h;
-} dunstblick_Size;
+/// @ingroup dunstblick
+/// @brief 2D point in screen space coordinates.
+struct dunstblick_Point {
+    int x; ///< distance to the left screen border
+    int y; ///< distance to the upper screen border
+};
+typedef struct dunstblick_Point dunstblick_Point;
 
-typedef struct dunstblick_Margins {
+/// @ingroup dunstblick
+/// @brief 2D dimensions.
+struct dunstblick_Size {
+    int w; ///< Horizontal extends.
+    int h; ///< Vertical extends.
+};
+typedef struct dunstblick_Size dunstblick_Size;
+
+/// @ingroup dunstblick
+/// @brief Width of margins of a rectangle.
+struct dunstblick_Margins {
 	int left, top, right, bottom;
-} dunstblick_Margins;
+};
+typedef struct dunstblick_Margins dunstblick_Margins;
 
-typedef struct dunstblick_Value
+/// @ingroup dunstblick
+/// @brief A type-tagged value for the dunstblick API.
+struct dunstblick_Value
 {
-	dunstblick_Type type;
-	union {
+	dunstblick_Type type; ///< Type of the value. The union field corresponding to this field is active.
+    union {
 		int integer;
 		uint8_t enumeration;
 		float number;
@@ -77,55 +139,158 @@ typedef struct dunstblick_Value
 		dunstblick_Margins margins;
 		bool boolean;
 	};
-} dunstblick_Value;
+};
+typedef struct dunstblick_Value dunstblick_Value;
 
+// Opaque Types:
+
+#ifdef ONLY_FOR_DOXYGEN
+#define DOXYGEN_BODY { }
+#else
+#define DOXYGEN_BODY
+#endif
+
+/// @brief An UI provider that is discoverable by display clients.
+struct dunstblick_Provider DOXYGEN_BODY;
+
+/// @brief A connection to a provider by a display client.
+struct dunstblick_Connection DOXYGEN_BODY;
+
+/// @brief A temporary object handle for bulk property updates.
+struct dunstblick_Object DOXYGEN_BODY;
+
+typedef struct dunstblick_Provider dunstblick_Provider;
 typedef struct dunstblick_Connection dunstblick_Connection;
-
 typedef struct dunstblick_Object dunstblick_Object;
 
-typedef struct dunstblick_EventHandler {
-	void (*onCallback)(dunstblick_CallbackID cid, void * context);
-	void (*onPropertyChanged)(dunstblick_ObjectID oid, dunstblick_PropertyName property, dunstblick_Value const * value);
-} dunstblick_EventHandler;
-
-/*******************************************************************************
-* Connection API
-*******************************************************************************/
-
-/// Opens a connection to a dunstblick server.
-/// @returns pointer to a connection handle
-dunstblick_Connection * dunstblick_Open(
-	char const * host, ///< Host name or address of the dunstblick server
-	int portNumber     ///< Port number of the dunstblick server. Usually 1309
+// Callback Types:
+typedef void (*dunstblick_ConnectedCallback)(
+    dunstblick_Provider * provider,
+    dunstblick_Connection * connection,
+    char const * clientName,
+    void * userData
+);
+typedef void (*dunstblick_DisconnectedCallback)(
+    dunstblick_Provider * provider,
+    dunstblick_Connection * connection,
+    dunstblick_DisconnectReason reason,
+    void * userData
+);
+typedef void (*dunstblick_EventCallback)(
+    dunstblick_Connection * connection,
+    dunstblick_EventID callback,
+    void * userData
+);
+typedef void (*dunstblick_PropertyChangedCallback)(
+    dunstblick_Connection * connection,
+    dunstblick_ObjectID object,
+    dunstblick_PropertyName property,
+    dunstblick_Value const * value,
+    void * userData
 );
 
-/// Pumps incoming events from the connection.
-/// This allows synchronous event handling with the calling thread.
-dunstblick_Error dunstblick_PumpEvents(
-	dunstblick_Connection *, ///< The connection for which events should be pumped.
-	dunstblick_EventHandler const *, ///< The event pump that will receive the pumped events.
-	void * context           ///< Custom parameter that will be passed to the event handler
+// Provider Functions:
+
+/// Creates a new UI provider that will respond to dunstblick search requests.
+/// If a user wants to connect to this application, the *Connected* callback
+/// is called.
+dunstblick_Provider * dunstblick_OpenProvider(
+    char const * discoveryName ///< The name of the application which will be broadcasted
 );
 
-
-/// Closes an established connection to a dunstblick server.
-void dunstblick_Close(
-	dunstblick_Connection * ///< The connection that should be closed.
+/// Shuts down the ui provider and closes all open connections.
+void dunstblick_CloseProvider(
+    dunstblick_Provider * provider
 );
 
-
-/*******************************************************************************
-* Client-To-Server API
-*******************************************************************************/
-
-/// Uploads a certain resource to the server.
-dunstblick_Error dunstblick_UploadResource(
-	dunstblick_Connection *, ///< The connection where the action should be applied.
-	dunstblick_ResourceID,   ///< The unique identifier of this resource.
-	dunstblick_ResourceKind, ///< The kind of resource this is.
-	void const * data,       ///< A non-null pointer to the data that should be uploaded
-	size_t length            ///< The length of the data in bytes.
+/// @ingroup dunstblick
+/// Adds a resource to the UI system.
+/// The resource will be hashed and stored until the provider is shut down
+/// or the the resource is removed again.
+/// Resources in the storage will be uploaded to a display client on connection
+/// and newly added resources will also be sent to all currently connected display
+/// clients.
+dunstblick_Error dunstblick_AddResource(
+    dunstblick_Provider * provider,   ///< The ui provider that will receive the resource.
+    dunstblick_ResourceID resourceID, ///< The ID of the resource
+    dunstblick_ResourceKind type,     ///< Specifies the type of the resource data.
+    void const * data,                ///< Pointer to resource data. The encoding of the data is defined by `type`.
+    size_t length                     ///< Size of the resource in bytes.
 );
+
+/// Deletes a resource from the UI system.
+/// Already uploaded resources will stay uploaded until the resource ID is
+/// used again, but newly connected display clients will not receive the
+/// resource anymore.
+dunstblick_Error dunstblick_RemoveResource(
+    dunstblick_Provider * provider,  ///< The ui provider that will receive the resource.
+    dunstblick_ResourceID resourceID ///< ID of the resource that will be removed.
+);
+
+/// Sets the callback that will be called when a new display client connects.
+dunstblick_Error dunstblick_SetConnectedCallback(
+    dunstblick_Provider * provider,
+    dunstblick_ConnectedCallback callback, ///< Either a callback or `NULL` of the callback should be disabled.
+    void * userData                        ///< User data will be stored and passed to the callback.
+);
+
+/// Sets the callback that will be called when a display client disconnects.
+dunstblick_Error dunstblick_SetDisconnectedCallback(
+    dunstblick_Provider * provider,
+    dunstblick_DisconnectedCallback callback, ///< Either a callback or `NULL` of the callback should be disabled.
+    void * userData                           ///< User data will be stored and passed to the callback.
+);
+
+/// Returns the current number of connected display clients.
+size_t dunstblick_GetConnectionCount(
+    dunstblick_Provider * provider
+);
+
+/// Returns one of the currently established connections.
+/// Returns `NULL` if the connection is not valid.
+dunstblick_Connection *  dunstblick_GetConnection(
+    dunstblick_Provider * provider,
+    size_t index ///< The index of the connection.
+);
+
+// Connection functions:
+
+/// Closes the connection and disconnects the display client.
+void dunstblick_CloseConnection(
+    dunstblick_Connection * connection, ///< The connection to be closed.
+    char const * reason                 ///< The disconnect reason that will be displayed to the client. May be `NULL`, then no reason is displayed to the client.
+);
+
+/// Stores a custom pointer in the connection handle.
+/// This can be used to associate a custom state with the connection
+/// that can be freed in @ref dunstblick_DisconnectedCallback.
+void dunstblick_SetUserData(
+    dunstblick_Connection * connection, ///< The connection for which the user data should be set.
+    void * userData                     ///< The pointer that should be associated with the connection.
+);
+
+/// Returns a previously associated user data for this connection.
+/// @returns The previously associated pointer or `NULL` if none was set.
+void * dunstblick_GetUserData(
+    dunstblick_Connection * connection ///< The connection for which the user data should be queried.
+);
+
+/// Sets the callback that will be called when the display client
+/// invokes an UI event.
+void dunstblick_SetEventCallback(
+    dunstblick_Connection * connection, ///< The connection for which the callback should be set.
+    dunstblick_EventCallback callback,  ///< The callback that will be called when an UI event happens.
+    void * userData                     ///< A pointer that will be stored and be passed to the callback.
+);
+
+/// Sets the callback that will be called when the display client
+/// changes an object property.
+void dunstblick_SetPropertyChangedCallback(
+    dunstblick_Connection * connection,          ///< The connection for which the callback should be set.
+    dunstblick_PropertyChangedCallback callback, ///< The callback that will be called when an UI event happens.
+    void * userData                              ///< A pointer that will be stored and be passed to the callback.
+);
+
 
 /// Starts an object change. This is similar to a SQL transaction:
 /// - the change process is initiated
@@ -206,10 +371,7 @@ dunstblick_Error dunstblick_MoveRange(
 	size_t count
 );
 
-
-/*******************************************************************************
-* Object Write API
-*******************************************************************************/
+// Object functions:
 
 /// Sets a property on the given object.
 /// The third parameter depends on the given type parameter.
@@ -234,9 +396,8 @@ void dunstblick_CancelObject(
 	dunstblick_Object *
 );
 
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif // DUNSTBLICK_H
+#endif // DUNSTBLICK2_H

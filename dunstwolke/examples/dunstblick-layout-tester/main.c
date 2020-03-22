@@ -2,6 +2,12 @@
 #include <stdlib.h>
 #include <dunstblick.h>
 
+int main(int argc, char ** argv)
+{
+    return 1;
+}
+/*
+
 #define DBCHECKED(_X) do { \
 		dunstblick_Error err = _X; \
 		if(err != DUNSTBLICK_ERROR_NONE) \
@@ -67,3 +73,5 @@ int main(int argc, char ** argv)
 
 	return 0;
 }
+
+*/

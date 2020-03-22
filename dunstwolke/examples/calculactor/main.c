@@ -5,6 +5,21 @@
 #include <dunstblick.h>
 #include <unistd.h>
 
+
+int main()
+{
+    dunstblick_Provider * provider = dunstblick_OpenProvider("Calculator");
+    if(!provider)
+        return 1;
+
+    sleep(1000);
+
+    dunstblick_CloseProvider(provider);
+    return 0;
+}
+
+/*
+
 #define ROOT_LAYOUT 1
 #define OBJ_ROOT 1
 #define PROP_RESULT 1
@@ -268,3 +283,5 @@ bool load_file(char const * fileName, void ** buffer, size_t * len)
 
 	return true;
 }
+
+*/
