@@ -4,7 +4,7 @@
   <element>
     <id>UMLClass</id>
     <coordinates>
-      <x>289</x>
+      <x>323</x>
       <y>102</y>
       <w>170</w>
       <h>799</h>
@@ -15,7 +15,7 @@
   <element>
     <id>UMLClass</id>
     <coordinates>
-      <x>1037</x>
+      <x>1071</x>
       <y>102</y>
       <w>170</w>
       <h>799</h>
@@ -26,7 +26,7 @@
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>442</x>
+      <x>476</x>
       <y>136</y>
       <w>629</w>
       <h>85</h>
@@ -39,7 +39,7 @@ fg=blue</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>442</x>
+      <x>476</x>
       <y>204</y>
       <w>629</w>
       <h>85</h>
@@ -52,7 +52,7 @@ fg=blue</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>442</x>
+      <x>476</x>
       <y>340</y>
       <w>629</w>
       <h>85</h>
@@ -65,7 +65,7 @@ fg=red</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>442</x>
+      <x>476</x>
       <y>255</y>
       <w>629</w>
       <h>68</h>
@@ -77,7 +77,7 @@ Handshake Phase</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>442</x>
+      <x>476</x>
       <y>408</y>
       <w>629</w>
       <h>85</h>
@@ -90,7 +90,7 @@ fg=red</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>442</x>
+      <x>476</x>
       <y>442</y>
       <w>629</w>
       <h>85</h>
@@ -103,7 +103,7 @@ fg=red</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>442</x>
+      <x>476</x>
       <y>510</y>
       <w>629</w>
       <h>85</h>
@@ -116,7 +116,7 @@ fg=red</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>442</x>
+      <x>476</x>
       <y>578</y>
       <w>629</w>
       <h>85</h>
@@ -129,7 +129,7 @@ fg=red</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>442</x>
+      <x>476</x>
       <y>629</y>
       <w>629</w>
       <h>68</h>
@@ -141,7 +141,7 @@ Communication Phase</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>442</x>
+      <x>476</x>
       <y>85</y>
       <w>629</w>
       <h>68</h>
@@ -153,7 +153,7 @@ Discover Phase</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>442</x>
+      <x>476</x>
       <y>680</y>
       <w>629</w>
       <h>85</h>
@@ -166,7 +166,7 @@ fg=red</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>442</x>
+      <x>476</x>
       <y>816</y>
       <w>629</w>
       <h>85</h>
@@ -179,7 +179,7 @@ fg=red</panel_attributes>
   <element>
     <id>UMLNote</id>
     <coordinates>
-      <x>306</x>
+      <x>340</x>
       <y>663</y>
       <w>136</w>
       <h>102</h>
@@ -193,7 +193,7 @@ fontsize=8</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>442</x>
+      <x>476</x>
       <y>714</y>
       <w>629</w>
       <h>85</h>
@@ -206,7 +206,7 @@ fg=red</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>442</x>
+      <x>476</x>
       <y>782</y>
       <w>629</w>
       <h>85</h>
@@ -219,7 +219,7 @@ fg=red</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>442</x>
+      <x>476</x>
       <y>306</y>
       <w>629</w>
       <h>85</h>
