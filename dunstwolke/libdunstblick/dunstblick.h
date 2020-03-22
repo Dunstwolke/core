@@ -49,6 +49,22 @@ enum dunstblick_Type
 typedef enum dunstblick_Type dunstblick_Type;
 
 /// @ingroup dunstblick
+/// @brief Feature flags the display client capabilities.
+/// These flags can be used to decide what UI layouts to deliver to the client.
+enum dunstblick_ClientCapabilities
+{
+    DUNSTBLICK_CAPS_NONE = 0, ///< The client has no special capabilities.
+    DUNSTBLICK_CAPS_MOUSE = 1, ///< The client has a mouse available.
+    DUNSTBLICK_CAPS_KEYBOARD = 2, ///< The client has a keyboard available.
+    DUNSTBLICK_CAPS_TOUCH = 4, ///< The client has a touchscreen available.
+    DUNSTBLICK_CAPS_HIGHDPI = 8, ///< The client has a high-dpi screen
+    DUNSTBLICK_CAPS_TILTABLE = 16, ///< The client can be tilted and switch between portrait and landscape view (like a mobile device)
+    DUNSTBLICK_CAPS_RESIZABLE =  32, ///< The client area can be resized (for example when it's hosted in a window instead of a fullscreen application)
+    DUNSTBLICK_CAPS_REQ_ACCESSIBILITY = 64, ///< The client wants to have a special UI for improved accessiblity
+};
+typedef enum dunstblick_ClientCapabilities dunstblick_ClientCapabilities;
+
+/// @ingroup dunstblick
 /// @brief Error codes that are returned by a function.
 enum dunstblick_Error
 {
@@ -168,6 +184,9 @@ typedef void (*dunstblick_ConnectedCallback)(
     dunstblick_Provider * provider,
     dunstblick_Connection * connection,
     char const * clientName,
+    char const * password,
+    dunstblick_Size screenSize,
+    dunstblick_ClientCapabilities capabilities,
     void * userData
 );
 typedef void (*dunstblick_DisconnectedCallback)(

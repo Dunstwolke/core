@@ -211,7 +211,9 @@ static void provider_mainloop(dunstblick_Provider * provider)
         }
         if(read_fds.check(provider->tcp_sock.handle))
         {
-            fprintf(stderr, "client pending…\n");
+            auto [ socket, endpoint ] = provider->tcp_sock.accept();
+
+            fprintf(stderr, "client connected from %s\n", to_string(endpoint).c_str());
         }
     }
 }
