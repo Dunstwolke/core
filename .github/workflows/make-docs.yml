@@ -17,6 +17,11 @@ jobs:
         uses: mattnotmitt/doxygen-action@v1
         with:
           doxyfile-path: ./docs/Doxyfile
+          
+      - name: Display directory contents
+        run: |
+          pwd
+          ls ./docs/html
 
       - name: Deploy files to dunstwolke.org
         uses: appleboy/scp-action@master
@@ -26,5 +31,5 @@ jobs:
           PORT: ${{ secrets.PORT }}
           KEY: ${{ secrets.KEY }}
         with:
-          source: "docs/html/*"
-          target: "."
+          source: "./docs/html/*"
+          target: "/home/dunstblick-ci/website/html"
