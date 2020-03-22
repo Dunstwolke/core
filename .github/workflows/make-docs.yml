@@ -27,4 +27,4 @@ jobs:
           KEY: ${{ secrets.KEY }}
         with:
           source: "docs/html/*"
-          target: "."
+          target: "/home/dunstblick-ci/website/html"
