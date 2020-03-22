@@ -9,8 +9,11 @@ include($$(XQLIB_ROOT)/xqlib.pri)
 
 DEFINES += DUNSTBLICK_LIBRARY
 
+INCLUDEPATH += ../ext/picohash
+
 SOURCES += \
-  dunstblick.cpp
+  dunstblick.cpp \
+  picohash.c
 
 HEADERS += \
   dunstblick-internal.hpp \

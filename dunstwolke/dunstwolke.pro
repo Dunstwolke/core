@@ -7,3 +7,5 @@ SUBDIRS += \
   dunstblick-compiler \
   dunstblick-display \
   examples
+
+DISTFILES += ../.clang-format

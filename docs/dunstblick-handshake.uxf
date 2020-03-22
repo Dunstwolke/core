@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<diagram program="umlet" version="14.3.0">
+  <zoom_level>17</zoom_level>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>289</x>
+      <y>102</y>
+      <w>170</w>
+      <h>799</h>
+    </coordinates>
+    <panel_attributes>Provider</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>1037</x>
+      <y>102</y>
+      <w>170</w>
+      <h>799</h>
+    </coordinates>
+    <panel_attributes>Display Client</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>442</x>
+      <y>136</y>
+      <w>629</w>
+      <h>85</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;-
+Discover
+fg=blue</panel_attributes>
+    <additional_attributes>10.0;30.0;350.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>442</x>
+      <y>204</y>
+      <w>629</w>
+      <h>85</h>
+    </coordinates>
+    <panel_attributes>lt=-&gt;&gt;
+Discover Response
+fg=blue</panel_attributes>
+    <additional_attributes>10.0;10.0;350.0;30.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>442</x>
+      <y>340</y>
+      <w>629</w>
+      <h>85</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;-
+Header{PASSWD,CAPS,RES}
+fg=red</panel_attributes>
+    <additional_attributes>10.0;30.0;350.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>442</x>
+      <y>255</y>
+      <w>629</w>
+      <h>68</h>
+    </coordinates>
+    <panel_attributes>lt=.
+Handshake Phase</panel_attributes>
+    <additional_attributes>10.0;20.0;350.0;20.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>442</x>
+      <y>408</y>
+      <w>629</w>
+      <h>85</h>
+    </coordinates>
+    <panel_attributes>lt=-&gt;&gt;
+ACK/NAK
+fg=red</panel_attributes>
+    <additional_attributes>10.0;10.0;350.0;30.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>442</x>
+      <y>442</y>
+      <w>629</w>
+      <h>85</h>
+    </coordinates>
+    <panel_attributes>lt=-&gt;&gt;
+Resource List {ID,HASH}*
+fg=red</panel_attributes>
+    <additional_attributes>10.0;10.0;350.0;30.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>442</x>
+      <y>510</y>
+      <w>629</w>
+      <h>85</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;-
+Required Resources {ID}*
+fg=red</panel_attributes>
+    <additional_attributes>10.0;30.0;350.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>442</x>
+      <y>578</y>
+      <w>629</w>
+      <h>85</h>
+    </coordinates>
+    <panel_attributes>lt=-&gt;&gt;
+Resources {ID,DATA}*
+fg=red</panel_attributes>
+    <additional_attributes>10.0;10.0;350.0;30.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>442</x>
+      <y>629</y>
+      <w>629</w>
+      <h>68</h>
+    </coordinates>
+    <panel_attributes>lt=.
+Communication Phase</panel_attributes>
+    <additional_attributes>10.0;20.0;350.0;20.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>442</x>
+      <y>85</y>
+      <w>629</w>
+      <h>68</h>
+    </coordinates>
+    <panel_attributes>lt=.
+Discover Phase</panel_attributes>
+    <additional_attributes>10.0;20.0;350.0;20.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>442</x>
+      <y>680</y>
+      <w>629</w>
+      <h>85</h>
+    </coordinates>
+    <panel_attributes>lt=-&gt;&gt;
+Command
+fg=red</panel_attributes>
+    <additional_attributes>10.0;10.0;350.0;30.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>442</x>
+      <y>816</y>
+      <w>629</w>
+      <h>85</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;..
+Close
+fg=red</panel_attributes>
+    <additional_attributes>10.0;30.0;350.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>UMLNote</id>
+    <coordinates>
+      <x>306</x>
+      <y>663</y>
+      <w>136</w>
+      <h>102</h>
+    </coordinates>
+    <panel_attributes>bg=blue
+Events here
+are not ordered
+fontsize=8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>442</x>
+      <y>714</y>
+      <w>629</w>
+      <h>85</h>
+    </coordinates>
+    <panel_attributes>lt=-&gt;&gt;
+Disconnect {REASON}
+fg=red</panel_attributes>
+    <additional_attributes>10.0;10.0;350.0;30.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>442</x>
+      <y>782</y>
+      <w>629</w>
+      <h>85</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;-
+Event
+fg=red</panel_attributes>
+    <additional_attributes>10.0;30.0;350.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>442</x>
+      <y>306</y>
+      <w>629</w>
+      <h>85</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;..
+Connect
+fg=red</panel_attributes>
+    <additional_attributes>10.0;30.0;350.0;10.0</additional_attributes>
+  </element>
+</diagram>

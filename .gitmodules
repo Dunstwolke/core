@@ -1,0 +1,3 @@
+[submodule "dunstwolke/ext/picohash"]
+	path = dunstwolke/ext/picohash
+	url = https://github.com/kazuho/picohash

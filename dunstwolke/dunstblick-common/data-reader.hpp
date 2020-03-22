@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <string_view>
 #include <tuple>
+#include <gsl/gsl>
 
 // varint encoding:
 // numbers are encoded with a 7 bit big endian code

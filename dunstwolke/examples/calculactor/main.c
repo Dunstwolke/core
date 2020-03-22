@@ -5,6 +5,50 @@
 #include <dunstblick.h>
 #include <unistd.h>
 
+static void cb_onConnected(
+    dunstblick_Provider * provider,
+    dunstblick_Connection * connection,
+    char const * clientName,
+    char const * password,
+    dunstblick_Size screenSize,
+    dunstblick_ClientCapabilities capabilities,
+    void * userData
+    )
+{
+    fprintf(stderr,
+        "Client connected  callback:\n"
+        "\tconnection:   %p\n"
+        "\tclient name:  %s\n"
+        "\tpassword:     %s\n"
+        "\tresolution:   %d×%d\n"
+        "\tcapabilities: 0x%04X\n",
+        connection,
+        clientName,
+        password,
+        screenSize.w, screenSize.h,
+        capabilities
+    );
+}
+
+static void cb_onDisconnected(
+    dunstblick_Provider * provider,
+    dunstblick_Connection * connection,
+    dunstblick_DisconnectReason reason,
+    void * userData
+)
+{
+    fprintf(stderr,
+            "Client disconnected callback:\n"
+            "\tconnection: %p\n"
+            "\treason:     %u\n",
+            connection,
+            reason
+            );
+}
+
+char const resourceBlob1[] = "Hello, World!";
+char const resourceBlob2[] = "Goodbye, my darling!";
+char const resourceBlob3[] = "Have you ever seen the rain?";
 
 int main()
 {
@@ -12,7 +56,25 @@ int main()
     if(!provider)
         return 1;
 
-    sleep(1000);
+    dunstblick_SetConnectedCallback(provider, cb_onConnected, NULL);
+    dunstblick_SetDisconnectedCallback(provider, cb_onDisconnected, NULL);
+
+    dunstblick_AddResource(
+        provider,
+        0x10,
+        DUNSTBLICK_RESOURCE_DRAWING,
+        resourceBlob1,
+        sizeof resourceBlob1
+    );
+    dunstblick_AddResource(
+        provider,
+        0x20,
+        DUNSTBLICK_RESOURCE_DRAWING,
+        resourceBlob2,
+        sizeof resourceBlob2
+    );
+
+    sleep(600);
 
     dunstblick_CloseProvider(provider);
     return 0;
