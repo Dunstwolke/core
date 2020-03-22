@@ -80,9 +80,10 @@ typedef enum dunstblick_Error dunstblick_Error;
 /// @brief Enumeration of possible reasons for a client disconnection.
 enum dunstblick_DisconnectReason
 {
-	DUNSTBLICK_DISCONNECT_QUIT = 0,          ///< The user closed the connection.
-	DUNSTBLICK_DISCONNECT_TIMEOUT = 1,       ///< The display client did not respond for a longer time.
-    DUNSTBLICK_DISCONNECT_NETWORK_ERROR = 2, ///< The network connection failed.
+	DUNSTBLICK_DISCONNECT_QUIT = 0,             ///< The user closed the connection.
+	DUNSTBLICK_DISCONNECT_TIMEOUT = 1,          ///< The display client did not respond for a longer time.
+    DUNSTBLICK_DISCONNECT_NETWORK_ERROR = 2,    ///< The network connection failed.
+    DUNSTBLICK_DISCONNECT_INVALID_PASSWORD = 3, ///< The user has given an invalid password.
 };
 typedef enum dunstblick_DisconnectReason dunstblick_DisconnectReason;
 
@@ -180,14 +181,20 @@ typedef struct dunstblick_Connection dunstblick_Connection;
 typedef struct dunstblick_Object dunstblick_Object;
 
 // Callback Types:
+
+/// @ingroup dunstblick
+/// @brief A callback that is called whenever a new client has successfully
+///        connected to the display provider.
+/// It's possible to disconnect the client in this callback, the @ref dunstblick_DisconnectedCallback
+/// will be called as soon as this function returns.
 typedef void (*dunstblick_ConnectedCallback)(
-    dunstblick_Provider * provider,
-    dunstblick_Connection * connection,
-    char const * clientName,
-    char const * password,
-    dunstblick_Size screenSize,
-    dunstblick_ClientCapabilities capabilities,
-    void * userData
+    dunstblick_Provider * provider,             ///< The provider to which the connection was established.
+    dunstblick_Connection * connection,         ///< The newly created connection.
+    char const * clientName,                    ///< The name of the display client. If none is given, it's just `IP:port`
+    char const * password,                      ///< The password that was passed by the user.
+    dunstblick_Size screenSize,                 ///< Current screen size of the display client.
+    dunstblick_ClientCapabilities capabilities, ///< Bitmask containing all available capabilities of the display client.
+    void * userData                             ///< The user data pointer that was passed to @ref dunstblick_SetConnectedCallback.
 );
 typedef void (*dunstblick_DisconnectedCallback)(
     dunstblick_Provider * provider,
