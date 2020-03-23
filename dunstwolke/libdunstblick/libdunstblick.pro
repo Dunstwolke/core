@@ -10,6 +10,7 @@ include($$(XQLIB_ROOT)/xqlib.pri)
 DEFINES += DUNSTBLICK_LIBRARY
 
 INCLUDEPATH += ../ext/picohash
+INCLUDEPATH += ../ext/concurrentqueue
 
 SOURCES += \
   dunstblick.cpp \

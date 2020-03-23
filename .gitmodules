@@ -1,3 +1,6 @@
 [submodule "dunstwolke/ext/picohash"]
 	path = dunstwolke/ext/picohash
 	url = https://github.com/kazuho/picohash
+[submodule "dunstwolke/ext/concurrentqueue"]
+	path = dunstwolke/ext/concurrentqueue
+	url = https://github.com/cameron314/concurrentqueue

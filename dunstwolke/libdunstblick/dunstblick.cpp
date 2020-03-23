@@ -18,10 +18,37 @@
 
 #include "dunstblick-internal.hpp"
 
+#include "concurrentqueue.h"
+
 using mutex_guard = std::lock_guard<std::mutex>;
+
+using Packet = std::vector<std::byte>;
 
 #include "../dunstblick-common/data-reader.hpp"
 #include "../dunstblick-common/data-writer.hpp"
+
+struct FDSet
+{
+    fd_set set;
+    int max_fd;
+
+    FDSet()
+    {
+        FD_ZERO(&set);
+        max_fd = 0;
+    }
+
+    void add(int fd)
+    {
+        max_fd = std::max(max_fd, fd);
+        FD_SET(fd, &set);
+    }
+
+    bool check(int fd) const
+    {
+        return FD_ISSET(fd, &set);
+    }
+};
 
 // playing around with C++ operator overloading:
 struct check
@@ -101,6 +128,13 @@ struct StoredResource
     }
 };
 
+struct TransmitProcess
+{
+    Packet const * packet;
+    std::atomic_bool completed{false};
+    dunstblick_Error error = DUNSTBLICK_ERROR_NONE;
+};
+
 struct dunstblick_Connection
 {
     enum State
@@ -131,6 +165,8 @@ struct dunstblick_Connection
     size_t resource_send_index;                            ///< currently transmitted resource
     size_t resource_send_offset;                           ///< current byte offset in the resource
 
+    moodycamel::ConcurrentQueue<TransmitProcess *> transmit_queue;
+
     dunstblick_Connection(dunstblick_Provider * provider, xnet::socket && sock, xnet::endpoint const & ep);
     dunstblick_Connection(dunstblick_Connection const &) = delete;
     dunstblick_Connection(dunstblick_Connection &&) = delete;
@@ -144,6 +180,10 @@ struct dunstblick_Connection
     //! Is called whenever the socket is ready to send
     //! data and we're not yet in "READY" state
     void send_data();
+
+    //! transmit a CommandBuffer asynchronously, but wait for completion
+    //! DO NOT CALL FROM worker_thread!
+    dunstblick_Error send(CommandBuffer const & packet);
 };
 
 struct dunstblick_Provider
@@ -170,6 +210,20 @@ struct dunstblick_Provider
     dunstblick_Provider(dunstblick_Provider &&) = delete;
 
     ~dunstblick_Provider();
+};
+
+struct dunstblick_Object
+{
+    dunstblick_Connection * const connection;
+
+    CommandBuffer commandbuffer;
+
+    dunstblick_Object(dunstblick_Connection * con);
+
+    dunstblick_Object(dunstblick_Object const &) = delete;
+    dunstblick_Object(dunstblick_Object &&) = delete;
+
+    ~dunstblick_Object();
 };
 
 static void provider_mainloop(dunstblick_Provider * provider);
@@ -304,10 +358,54 @@ void dunstblick_Connection::send_data()
             break;
         }
 
+        case READY: {
+
+            xnet::socket_ostream stream{sock};
+
+            TransmitProcess * process;
+            while (this->transmit_queue.try_dequeue(process)) {
+                uint32_t length = gsl::narrow<uint32_t>(process->packet->size());
+
+                stream.write<uint32_t>(length);
+                stream.write(process->packet->data(), length);
+
+                process->error = DUNSTBLICK_ERROR_NONE;
+                process->completed = true;
+
+                FDSet set;
+                set.add(sock.handle);
+
+                struct timeval timeout = {0, 0};
+
+                // Only loop until we are not ready for sending
+                if (select(set.max_fd + 1, nullptr, &set.set, nullptr, &timeout) <= 0 or not set.check(sock.handle))
+                    break;
+            }
+
+            break;
+        }
+
         default:
             // we don't need to send anything by-default
             return;
     }
+}
+
+dunstblick_Error dunstblick_Connection::send(CommandBuffer const & packet)
+{
+    assert(this->state == READY);
+    assert(provider->worker_thread.get_id() != std::this_thread::get_id());
+
+    TransmitProcess transmission;
+    transmission.packet = &packet.buffer;
+
+    this->transmit_queue.enqueue(&transmission);
+
+    while (not transmission.completed) {
+        std::this_thread::sleep_for(std::chrono::microseconds(10));
+    }
+
+    return transmission.error;
 }
 
 void dunstblick_Connection::push_data(const void * blob, size_t length)
@@ -449,28 +547,11 @@ void dunstblick_Connection::push_data(const void * blob, size_t length)
     }
 }
 
-struct FDSet
-{
-    fd_set set;
-    int max_fd;
+dunstblick_Object::dunstblick_Object(dunstblick_Connection * con) :
+    connection(con), commandbuffer(ClientMessageType::addOrUpdateObject)
+{}
 
-    FDSet()
-    {
-        FD_ZERO(&set);
-        max_fd = 0;
-    }
-
-    void add(int fd)
-    {
-        max_fd = std::max(max_fd, fd);
-        FD_SET(fd, &set);
-    }
-
-    bool check(int fd) const
-    {
-        return FD_ISSET(fd, &set);
-    }
-};
+dunstblick_Object::~dunstblick_Object() {}
 
 static void provider_mainloop(dunstblick_Provider * provider)
 {
@@ -794,85 +875,212 @@ dunstblick_Size dunstblick_GetDisplaySize(dunstblick_Connection * connection)
     return connection->screenResolution;
 }
 
+dunstblick_Object * dunstblick_BeginChangeObject(dunstblick_Connection * con, dunstblick_ObjectID id)
+{
+    if (con == nullptr)
+        return nullptr;
+    if (id == 0)
+        return nullptr;
+
+    auto * obj = new dunstblick_Object(con);
+    obj->commandbuffer.write_id(id);
+    return obj;
+}
+
+dunstblick_Error dunstblick_RemoveObject(dunstblick_Connection * con, dunstblick_ObjectID oid)
+{
+    if (con == nullptr)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+    if (oid == 0)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+
+    CommandBuffer buffer{ClientMessageType::removeObject};
+    buffer.write_id(oid);
+    return con->send(buffer);
+}
+
+dunstblick_Error dunstblick_SetView(dunstblick_Connection * con, dunstblick_ResourceID rid)
+{
+    if (con == nullptr)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+    if (rid == 0)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+
+    CommandBuffer buffer{ClientMessageType::setView};
+    buffer.write_id(rid);
+    return con->send(buffer);
+}
+
+dunstblick_Error dunstblick_SetRoot(dunstblick_Connection * con, dunstblick_ObjectID oid)
+{
+    if (con == nullptr)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+    if (oid == 0)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+
+    CommandBuffer buffer{ClientMessageType::setRoot};
+    buffer.write_id(oid);
+
+    return con->send(buffer);
+}
+
+dunstblick_Error dunstblick_SetProperty(dunstblick_Connection * con,
+                                        dunstblick_ObjectID oid,
+                                        dunstblick_PropertyName name,
+                                        const dunstblick_Value * value)
+{
+    if (con == nullptr)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+    if (oid == 0)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+    if (value == nullptr)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+    if (value->type == 0)
+        return DUNSTBLICK_ERROR_INVALID_TYPE;
+
+    CommandBuffer buffer{ClientMessageType::setProperty};
+    buffer.write_id(oid);
+    buffer.write_id(name);
+    buffer.write_value(*value, true);
+
+    return con->send(buffer);
+}
+
+dunstblick_Error dunstblick_Clear(dunstblick_Connection * con, dunstblick_ObjectID oid, dunstblick_PropertyName name)
+{
+    if (con == nullptr)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+    if (oid == 0)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+    if (name == 0)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+
+    CommandBuffer buffer{ClientMessageType::clear};
+    buffer.write_id(oid);
+    buffer.write_id(name);
+
+    return con->send(buffer);
+}
+
+dunstblick_Error dunstblick_InsertRange(dunstblick_Connection * con,
+                                        dunstblick_ObjectID oid,
+                                        dunstblick_PropertyName name,
+                                        size_t index,
+                                        size_t count,
+                                        const dunstblick_ObjectID * values)
+{
+    if (con == nullptr)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+    if (oid == 0)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+    if (name == 0)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+    if (values == nullptr)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+
+    CommandBuffer buffer{ClientMessageType::insertRange};
+    buffer.write_id(oid);
+    buffer.write_id(name);
+    buffer.write_varint(gsl::narrow<uint32_t>(index));
+    buffer.write_varint(gsl::narrow<uint32_t>(count));
+    for (size_t i = 0; i < count; i++)
+        buffer.write_id(values[i]);
+
+    return con->send(buffer);
+}
+
+dunstblick_Error dunstblick_RemoveRange(
+    dunstblick_Connection * con, dunstblick_ObjectID oid, dunstblick_PropertyName name, size_t index, size_t count)
+{
+    if (con == nullptr)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+    if (oid == 0)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+    if (name == 0)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+
+    CommandBuffer buffer{ClientMessageType::removeRange};
+    buffer.write_id(oid);
+    buffer.write_id(name);
+    buffer.write_varint(gsl::narrow<uint32_t>(index));
+    buffer.write_varint(gsl::narrow<uint32_t>(count));
+
+    return con->send(buffer);
+}
+
+dunstblick_Error dunstblick_MoveRange(dunstblick_Connection * con,
+                                      dunstblick_ObjectID oid,
+                                      dunstblick_PropertyName name,
+                                      size_t indexFrom,
+                                      size_t indexTo,
+                                      size_t count)
+{
+    if (con == nullptr)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+    if (oid == 0)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+    if (name == 0)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+
+    CommandBuffer buffer{ClientMessageType::moveRange};
+    buffer.write_id(oid);
+    buffer.write_id(name);
+    buffer.write_varint(gsl::narrow<uint32_t>(indexFrom));
+    buffer.write_varint(gsl::narrow<uint32_t>(indexTo));
+    buffer.write_varint(gsl::narrow<uint32_t>(count));
+
+    return con->send(buffer);
+}
+
 /*******************************************************************************
  * Object Implementation *
  *******************************************************************************/
 
+dunstblick_Error dunstblick_SetObjectProperty(dunstblick_Object * obj,
+                                              dunstblick_PropertyName name,
+                                              dunstblick_Value const * value)
+{
+    if (obj == nullptr)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+    if (name == 0)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+    if (value == nullptr)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+
+    if (value->type == 0)
+        return DUNSTBLICK_ERROR_INVALID_TYPE;
+
+    obj->commandbuffer.write_enum(value->type);
+    obj->commandbuffer.write_id(name);
+    obj->commandbuffer.write_value(*value, false);
+
+    return DUNSTBLICK_ERROR_NONE;
+}
+
+dunstblick_Error dunstblick_CommitObject(dunstblick_Object * obj)
+{
+    if (not obj)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+
+    obj->commandbuffer.write_enum(0);
+
+    bool sendOk = obj->connection->send(obj->commandbuffer);
+
+    delete obj;
+
+    if (not sendOk)
+        return DUNSTBLICK_ERROR_NETWORK;
+    return DUNSTBLICK_ERROR_NONE;
+}
+
+void dunstblick_CancelObject(dunstblick_Object * obj)
+{
+    if (obj)
+        delete obj;
+}
+
 /*
 
-static void receive_data(dunstblick_Connection * con);
-
-using InputPacket = std::vector<std::byte>;
-
-struct dunstblick_Connection
-{
-xnet::socket sock;
-xstd::locked_value<std::queue<InputPacket>> packets;
-std::thread receiver_thread;
-std::atomic_flag shutdown_request;
-
-dunstblick_Connection(xnet::socket && _sock) :
-    sock(std::move(_sock)),
-    packets(),
-    receiver_thread(receive_data, this)
-{
-
-}
-
-// copying a connection is not logical,
-dunstblick_Connection(dunstblick_Connection const &) = delete;
-
-// but moving a connection is not allowed due to
-// pointer handle semantics on C side.
-dunstblick_Connection(dunstblick_Connection &&) = delete;
-
-~dunstblick_Connection()
-{
-     shutdown_request.clear();
-     sock.shutdown();
-     receiver_thread.join();
-}
-
-bool send(CommandBuffer const & buffer)
-{
-    try
-    {
-        uint32_t length = gsl::narrow<uint32_t>(buffer.buffer.size());
-
-        xnet::socket_ostream stream { sock };
-
-        stream.write<uint32_t>(length);
-        stream.write(buffer.buffer.data(), length);
-    }
-    catch(...)
-    {
-        return false;
-    }
-
-    return true;
-}
-};
-
-struct dunstblick_Object
-{
-dunstblick_Connection * const connection;
-
-CommandBuffer commandbuffer;
-
-dunstblick_Object(dunstblick_Connection * con) :
-    connection(con),
-    commandbuffer(ClientMessageType::addOrUpdateObject)
-{
-}
-
-dunstblick_Object(dunstblick_Object const &) = delete;
-dunstblick_Object(dunstblick_Object &&) = delete;
-
-~dunstblick_Object()
-{
-
-}
-};
 
 static void receive_data(dunstblick_Connection * con)
 {
@@ -886,7 +1094,7 @@ try
     while(con->shutdown_request.test_and_set())
     {
         auto length = stream.read<uint32_t>();
-        if(connected > 0)
+        if(length > 0)
         {
             InputPacket p(length);
             stream.read(p.data(), p.size());
@@ -981,247 +1189,4 @@ while(list->size() > 0)
 
 return  DUNSTBLICK_ERROR_NONE;
 }
-
-
-void dunstblick_Close(dunstblick_Connection * con)
-{
-delete con;
-}
-
-dunstblick_Error dunstblick_UploadResource(dunstblick_Connection * con,
-dunstblick_ResourceID rid, dunstblick_ResourceKind kind, const void * data,
-size_t length)
-{
-if(con == nullptr)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-
-CommandBuffer buffer { ClientMessageType::uploadResource };
-buffer.write_id(rid);
-buffer.write_enum(kind);
-buffer.write(data, length);
-
-if(not con->send(buffer))
-    return DUNSTBLICK_ERROR_NETWORK;
-
-return DUNSTBLICK_ERROR_NONE;
-}
-
-dunstblick_Object * dunstblick_BeginChangeObject(dunstblick_Connection * con,
-dunstblick_ObjectID id)
-{
-if(con == nullptr)
-    return nullptr;
-if(id == 0)
-    return nullptr;
-
-auto * obj = new dunstblick_Object(con);
-obj->commandbuffer.write_id(id);
-return obj;
-}
-
-dunstblick_Error dunstblick_RemoveObject(dunstblick_Connection * con,
-dunstblick_ObjectID oid)
-{
-if(con == nullptr)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-if(oid == 0)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-
-CommandBuffer buffer { ClientMessageType::removeObject };
-buffer.write_id(oid);
-if(not con->send(buffer))
-    return DUNSTBLICK_ERROR_NETWORK;
-
-return DUNSTBLICK_ERROR_NONE;
-}
-
-dunstblick_Error dunstblick_SetView(dunstblick_Connection * con,
-dunstblick_ResourceID rid)
-{
-if(con == nullptr)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-if(rid == 0)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-
-CommandBuffer buffer { ClientMessageType::setView };
-buffer.write_id(rid);
-if(not con->send(buffer))
-    return DUNSTBLICK_ERROR_NETWORK;
-
-return DUNSTBLICK_ERROR_NONE;
-}
-
-dunstblick_Error dunstblick_SetRoot(dunstblick_Connection * con,
-dunstblick_ObjectID oid)
-{
-if(con == nullptr)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-if(oid == 0)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-
-CommandBuffer buffer { ClientMessageType::setRoot };
-buffer.write_id(oid);
-
-if(not con->send(buffer))
-    return DUNSTBLICK_ERROR_NETWORK;
-return DUNSTBLICK_ERROR_NONE;
-}
-
-dunstblick_Error dunstblick_SetProperty(dunstblick_Connection * con,
-dunstblick_ObjectID oid, dunstblick_PropertyName name, const dunstblick_Value *
-value)
-{
-if(con == nullptr)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-if(oid == 0)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-if(value == nullptr)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-if(value->type == 0)
-    return DUNSTBLICK_ERROR_INVALID_TYPE;
-
-CommandBuffer buffer { ClientMessageType::setProperty };
-buffer.write_id(oid);
-buffer.write_id(name);
-buffer.write_value(*value, true);
-
-if(not con->send(buffer))
-    return DUNSTBLICK_ERROR_NETWORK;
-return DUNSTBLICK_ERROR_NONE;
-}
-
-dunstblick_Error dunstblick_Clear(dunstblick_Connection * con,
-dunstblick_ObjectID oid, dunstblick_PropertyName name)
-{
-if(con == nullptr)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-if(oid == 0)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-if(name == 0)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-
-CommandBuffer buffer { ClientMessageType::clear };
-buffer.write_id(oid);
-buffer.write_id(name);
-
-if(not con->send(buffer))
-    return DUNSTBLICK_ERROR_NETWORK;
-return DUNSTBLICK_ERROR_NONE;
-}
-
-dunstblick_Error dunstblick_InsertRange(dunstblick_Connection * con,
-dunstblick_ObjectID oid, dunstblick_PropertyName name, size_t index, size_t
-count, const dunstblick_ObjectID * values)
-{
-if(con == nullptr)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-if(oid == 0)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-if(name == 0)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-if(values == nullptr)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-
-CommandBuffer buffer { ClientMessageType::insertRange };
-buffer.write_id(oid);
-buffer.write_id(name);
-buffer.write_varint(gsl::narrow<uint32_t>(index));
-buffer.write_varint(gsl::narrow<uint32_t>(count));
-for(size_t i = 0; i < count; i++)
-    buffer.write_id(values[i]);
-
-if(not con->send(buffer))
-    return DUNSTBLICK_ERROR_NETWORK;
-return DUNSTBLICK_ERROR_NONE;
-}
-
-dunstblick_Error dunstblick_RemoveRange(dunstblick_Connection * con,
-dunstblick_ObjectID oid, dunstblick_PropertyName name, size_t index, size_t
-count)
-{
-if(con == nullptr)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-if(oid == 0)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-if(name == 0)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-
-CommandBuffer buffer { ClientMessageType::removeRange };
-buffer.write_id(oid);
-buffer.write_id(name);
-buffer.write_varint(gsl::narrow<uint32_t>(index));
-buffer.write_varint(gsl::narrow<uint32_t>(count));
-
-if(not con->send(buffer))
-    return DUNSTBLICK_ERROR_NETWORK;
-return DUNSTBLICK_ERROR_NONE;
-}
-
-dunstblick_Error dunstblick_MoveRange(dunstblick_Connection * con,
-dunstblick_ObjectID oid, dunstblick_PropertyName name, size_t indexFrom, size_t
-indexTo, size_t count)
-{
-if(con == nullptr)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-if(oid == 0)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-if(name == 0)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-
-CommandBuffer buffer { ClientMessageType::moveRange };
-buffer.write_id(oid);
-buffer.write_id(name);
-buffer.write_varint(gsl::narrow<uint32_t>(indexFrom));
-buffer.write_varint(gsl::narrow<uint32_t>(indexTo));
-buffer.write_varint(gsl::narrow<uint32_t>(count));
-
-if(not con->send(buffer))
-    return DUNSTBLICK_ERROR_NETWORK;
-return DUNSTBLICK_ERROR_NONE;
-}
-
-
-
-dunstblick_Error dunstblick_SetObjectProperty(dunstblick_Object * obj,
-dunstblick_PropertyName name, dunstblick_Value const * value)
-{
-if(obj == nullptr)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-if(name == 0)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-if(value == nullptr)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-
-if(value->type == 0)
-    return DUNSTBLICK_ERROR_INVALID_TYPE;
-
-obj->commandbuffer.write_enum(value->type);
-obj->commandbuffer.write_id(name);
-obj->commandbuffer.write_value(*value, false);
-
-return DUNSTBLICK_ERROR_NONE;
-}
-
-dunstblick_Error dunstblick_CommitObject(dunstblick_Object * obj)
-{
-if(not obj)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-
-obj->commandbuffer.write_enum(0);
-
-bool sendOk = obj->connection->send(obj->commandbuffer);
-
-delete obj;
-
-if(not sendOk)
-    return DUNSTBLICK_ERROR_NETWORK;
-return DUNSTBLICK_ERROR_NONE;
-}
-
-void dunstblick_CancelObject(dunstblick_Object * obj)
-{
-if(obj)
-    delete obj;
-}
-
 */

@@ -28,6 +28,8 @@ static void cb_onConnected(
         screenSize.w, screenSize.h,
         capabilities
     );
+
+    dunstblick_SetRoot(connection, 1);
 }
 
 static void cb_onDisconnected(
@@ -73,6 +75,12 @@ int main()
         resourceBlob2,
         sizeof resourceBlob2
     );
+
+    // TODO:
+    bool app_running = true;
+    while(app_running) {
+        dunstblick_PumpEvents(provider);
+    }
 
     sleep(600);
 
