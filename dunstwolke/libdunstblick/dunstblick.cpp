@@ -165,7 +165,11 @@ struct dunstblick_Connection
     size_t resource_send_index;                            ///< currently transmitted resource
     size_t resource_send_offset;                           ///< current byte offset in the resource
 
-    moodycamel::ConcurrentQueue<TransmitProcess *> transmit_queue;
+    /// Stores packets received in message pumping
+    moodycamel::ConcurrentQueue<Packet> incoming_packets;
+
+    Callback<dunstblick_EventCallback> onEvent;
+    Callback<dunstblick_PropertyChangedCallback> onPropertyChanged;
 
     dunstblick_Connection(dunstblick_Provider * provider, xnet::socket && sock, xnet::endpoint const & ep);
     dunstblick_Connection(dunstblick_Connection const &) = delete;
@@ -181,8 +185,9 @@ struct dunstblick_Connection
     //! data and we're not yet in "READY" state
     void send_data();
 
-    //! transmit a CommandBuffer asynchronously, but wait for completion
-    //! DO NOT CALL FROM worker_thread!
+    //! transmit a CommandBuffer synchronously
+    //! @remarks This will lock the Connection internally,
+    //!          so don't wrap this call into a mutex!
     dunstblick_Error send(CommandBuffer const & packet);
 };
 
@@ -192,8 +197,8 @@ struct dunstblick_Provider
     xnet::socket multicast_sock;
     xnet::socket tcp_sock;
     std::string discovery_name;
-    std::thread worker_thread;
-    std::atomic_flag shutdown_request;
+
+    xnet::endpoint tcp_listener_ep;
 
     std::mutex resource_lock;
     std::map<dunstblick_ResourceID, StoredResource> resources;
@@ -210,6 +215,8 @@ struct dunstblick_Provider
     dunstblick_Provider(dunstblick_Provider &&) = delete;
 
     ~dunstblick_Provider();
+
+    void pump_events();
 };
 
 struct dunstblick_Object
@@ -226,22 +233,17 @@ struct dunstblick_Object
     ~dunstblick_Object();
 };
 
-static void provider_mainloop(dunstblick_Provider * provider);
-
 dunstblick_Provider::dunstblick_Provider(char const * discoveryName) :
-    multicast_sock(AF_INET, SOCK_DGRAM, 0),
-    tcp_sock(AF_INET, SOCK_STREAM, 0),
-    discovery_name(discoveryName),
-    worker_thread(),
-    shutdown_request(true)
+    multicast_sock(AF_INET, SOCK_DGRAM, 0), tcp_sock(AF_INET, SOCK_STREAM, 0), discovery_name(discoveryName)
 {
 
     if (not tcp_sock.set_option<int>(SOL_SOCKET, SO_REUSEADDR, 1))
         throw xcept::io_error("Failed to set REUSEADDR on tcp listener.");
 
-    // TODO: Replace fixed port with 0 for dynamic dispatch
-    if (not tcp_sock.bind(xnet::parse_ipv4("0.0.0.0", 39101)))
+    if (not tcp_sock.bind(xnet::parse_ipv4("0.0.0.0", 0)))
         throw xcept::io_error("Failed to bind TCP socket.");
+
+    this->tcp_listener_ep = tcp_sock.get_local_endpoint();
 
     if (not tcp_sock.listen())
         throw xcept::io_error("Failed to listen on TCP socket.");
@@ -262,14 +264,23 @@ dunstblick_Provider::dunstblick_Provider(char const * discoveryName) :
 
     // check("udp loop") = multicast_sock.set_option<int>(SOL_SOCKET,
     // IP_MULTICAST_LOOP, 1);
-
-    this->worker_thread = std::thread(provider_mainloop, this);
 }
 
 dunstblick_Provider::~dunstblick_Provider()
 {
-    shutdown_request.clear();
-    worker_thread.join();
+    for (auto & connection : established_connections) {
+
+        fprintf(stderr,
+                "Client disconnected callback:\n"
+                "\tend point: %s\n"
+                "\treason:    %u\n",
+                to_string(connection.remote).c_str(),
+                *connection.disconnect_reason);
+
+        onDisconnected.invoke(this, &connection, *connection.disconnect_reason);
+
+        dunstblick_CloseConnection(&connection, "The provider has been shut down.");
+    }
 
     //    ip_mreq mcast_request;
     //    mcast_request.imr_interface.s_addr = INADDR_ANY;
@@ -310,6 +321,8 @@ void dunstblick_Connection::drop(dunstblick_DisconnectReason reason)
 
 void dunstblick_Connection::send_data()
 {
+    assert(not this->is_initialized);
+    assert(this->state != READY);
     switch (this->state) {
         case SEND_RESOURCES: {
 
@@ -358,33 +371,6 @@ void dunstblick_Connection::send_data()
             break;
         }
 
-        case READY: {
-
-            xnet::socket_ostream stream{sock};
-
-            TransmitProcess * process;
-            while (this->transmit_queue.try_dequeue(process)) {
-                uint32_t length = gsl::narrow<uint32_t>(process->packet->size());
-
-                stream.write<uint32_t>(length);
-                stream.write(process->packet->data(), length);
-
-                process->error = DUNSTBLICK_ERROR_NONE;
-                process->completed = true;
-
-                FDSet set;
-                set.add(sock.handle);
-
-                struct timeval timeout = {0, 0};
-
-                // Only loop until we are not ready for sending
-                if (select(set.max_fd + 1, nullptr, &set.set, nullptr, &timeout) <= 0 or not set.check(sock.handle))
-                    break;
-            }
-
-            break;
-        }
-
         default:
             // we don't need to send anything by-default
             return;
@@ -394,18 +380,22 @@ void dunstblick_Connection::send_data()
 dunstblick_Error dunstblick_Connection::send(CommandBuffer const & packet)
 {
     assert(this->state == READY);
-    assert(provider->worker_thread.get_id() != std::this_thread::get_id());
 
-    TransmitProcess transmission;
-    transmission.packet = &packet.buffer;
+    if (packet.buffer.size() > std::numeric_limits<uint32_t>::max())
+        return DUNSTBLICK_ERROR_ARGUMENT_OUT_OF_RANGE;
 
-    this->transmit_queue.enqueue(&transmission);
+    uint32_t length = uint32_t(packet.buffer.size());
 
-    while (not transmission.completed) {
-        std::this_thread::sleep_for(std::chrono::microseconds(10));
+    mutex_guard lock{mutex};
+
+    try {
+        xnet::socket_ostream stream{this->sock};
+        stream.write<uint32_t>(length);
+        stream.write(packet.buffer.data(), length);
+    } catch (xcept::end_of_stream) {
+        return DUNSTBLICK_ERROR_NETWORK;
     }
-
-    return transmission.error;
+    return DUNSTBLICK_ERROR_NONE;
 }
 
 void dunstblick_Connection::push_data(const void * blob, size_t length)
@@ -534,10 +524,20 @@ void dunstblick_Connection::push_data(const void * blob, size_t length)
             }
 
             case READY: {
-                // Use normal dunstblick protocol decoding here
+                if (receive_buffer.size() < 4)
+                    return; // Not enough data for size decoding
 
-                fprintf(stderr, "read %lu bytes from %s in READY state\n", length, to_string(remote).c_str(), state);
+                uint32_t const length = *reinterpret_cast<uint32_t const *>(receive_buffer.data());
 
+                if (receive_buffer.size() < (4 + length))
+                    return; // not enough data
+
+                Packet packet(length);
+                memcpy(packet.data(), receive_buffer.data() + 4, length);
+
+                this->incoming_packets.enqueue(std::move(packet));
+
+                consumed_size = length + 4;
                 break;
             }
         }
@@ -553,195 +553,207 @@ dunstblick_Object::dunstblick_Object(dunstblick_Connection * con) :
 
 dunstblick_Object::~dunstblick_Object() {}
 
-static void provider_mainloop(dunstblick_Provider * provider)
+void dunstblick_Provider::pump_events()
 {
-    auto const tcp_listener_ep = provider->tcp_sock.get_local_endpoint();
+    FDSet read_fds, write_fds;
+    read_fds.add(this->multicast_sock.handle);
+    read_fds.add(this->tcp_sock.handle);
 
-    fprintf(stderr, "listening on %s\n", xnet::to_string(tcp_listener_ep).c_str());
+    for (auto const & connection : this->pending_connections) {
+        read_fds.add(connection.sock.handle);
+        write_fds.add(connection.sock.handle);
+    }
+    for (auto const & connection : this->established_connections) {
+        read_fds.add(connection.sock.handle);
+    }
 
-    while (provider->shutdown_request.test_and_set()) {
-        FDSet read_fds, write_fds;
-        read_fds.add(provider->multicast_sock.handle);
-        read_fds.add(provider->tcp_sock.handle);
+    timeval timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 10000;
 
-        for (auto const & connection : provider->pending_connections) {
-            read_fds.add(connection.sock.handle);
-            write_fds.add(connection.sock.handle);
+    int result = select(read_fds.max_fd + 1, &read_fds.set, &write_fds.set, nullptr, &timeout);
+    if (result < 0) {
+        perror("failed to select:");
+    }
+
+    std::array<uint8_t, 4096> blob;
+
+    auto const readAndPushToConnection = [&](dunstblick_Connection & con) -> void {
+        if (not read_fds.check(con.sock.handle))
+            return;
+
+        ssize_t len = con.sock.read(blob.data(), blob.size());
+        if (len < 0) {
+            con.disconnect_reason = DUNSTBLICK_DISCONNECT_NETWORK_ERROR;
+            perror("failed to read from connection");
+        } else if (len == 0) {
+            con.disconnect_reason = DUNSTBLICK_DISCONNECT_QUIT;
+        } else if (len > 0) {
+            con.push_data(blob.data(), size_t(len));
         }
-        for (auto const & connection : provider->established_connections) {
-            read_fds.add(connection.sock.handle);
-        }
+    };
 
-        timeval timeout;
-        timeout.tv_sec = 0;
-        timeout.tv_usec = 10000;
+    for (auto & connection : this->pending_connections) {
+        readAndPushToConnection(connection);
+    }
+    for (auto & connection : this->established_connections) {
+        readAndPushToConnection(connection);
+    }
 
-        int result = select(read_fds.max_fd + 1, &read_fds.set, &write_fds.set, nullptr, &timeout);
-        if (result < 0) {
-            perror("failed to select:");
-        }
+    for (auto & connection : this->pending_connections) {
+        if (not write_fds.check(connection.sock.handle))
+            continue;
+        connection.send_data();
+    }
 
-        std::array<uint8_t, 4096> blob;
+    if (read_fds.check(this->multicast_sock.handle)) {
+        fflush(stdout);
 
-        auto const readAndPushToConnection = [&](dunstblick_Connection & con) -> void {
-            if (not read_fds.check(con.sock.handle))
-                return;
+        UdpBaseMessage message;
 
-            ssize_t len = con.sock.read(blob.data(), blob.size());
-            if (len < 0) {
-                con.disconnect_reason = DUNSTBLICK_DISCONNECT_NETWORK_ERROR;
-                perror("failed to read from connection");
-            } else if (len == 0) {
-                con.disconnect_reason = DUNSTBLICK_DISCONNECT_QUIT;
-            } else if (len > 0) {
-                con.push_data(blob.data(), size_t(len));
-            }
-        };
-
-        for (auto & connection : provider->pending_connections) {
-            readAndPushToConnection(connection);
-        }
-        for (auto & connection : provider->established_connections) {
-            readAndPushToConnection(connection);
-        }
-
-        for (auto & connection : provider->pending_connections) {
-            if (not write_fds.check(connection.sock.handle))
-                continue;
-            connection.send_data();
-        }
-
-        if (read_fds.check(provider->multicast_sock.handle)) {
-            fflush(stdout);
-
-            UdpBaseMessage message;
-
-            auto const [ssize, sender] = provider->multicast_sock.read_from(&message, sizeof message);
-            if (ssize < 0) {
-                perror("read udp failed");
+        auto const [ssize, sender] = this->multicast_sock.read_from(&message, sizeof message);
+        if (ssize < 0) {
+            perror("read udp failed");
+        } else {
+            size_t size = size_t(ssize);
+            if (size < sizeof(message.header)) {
+                fprintf(stderr, "udp message too small…\n");
             } else {
-                size_t size = size_t(ssize);
-                if (size < sizeof(message.header)) {
-                    fprintf(stderr, "udp message too small…\n");
-                } else {
-                    if (message.header.magic == UdpHeader::real_magic) {
-                        switch (message.header.type) {
-                            case UDP_DISCOVER: {
-                                if (size >= sizeof(message.discover)) {
-                                    UdpDiscoverResponse response;
-                                    response.header = UdpHeader::create(UDP_RESPOND_DISCOVER);
-                                    response.tcp_port = uint16_t(tcp_listener_ep.port());
-                                    response.length = provider->discovery_name.size();
+                if (message.header.magic == UdpHeader::real_magic) {
+                    switch (message.header.type) {
+                        case UDP_DISCOVER: {
+                            if (size >= sizeof(message.discover)) {
+                                UdpDiscoverResponse response;
+                                response.header = UdpHeader::create(UDP_RESPOND_DISCOVER);
+                                response.tcp_port = uint16_t(tcp_listener_ep.port());
+                                response.length = this->discovery_name.size();
 
-                                    strncpy(response.name.data(),
-                                            provider->discovery_name.c_str(),
-                                            response.name.size());
+                                strncpy(response.name.data(), this->discovery_name.c_str(), response.name.size());
 
-                                    fprintf(stderr, "response to %s\n", xnet::to_string(sender).c_str());
-                                    fflush(stderr);
+                                fprintf(stderr, "response to %s\n", xnet::to_string(sender).c_str());
+                                fflush(stderr);
 
-                                    ssize_t const sendlen =
-                                        provider->multicast_sock.write_to(sender, &response, sizeof response);
-                                    if (sendlen < 0) {
-                                        perror("failed to send discovery response");
-                                    } else if (sendlen < sizeof(response)) {
-                                        fprintf(stderr,
-                                                "expected to send %lu bytes, got %ld\n",
-                                                sizeof(response),
-                                                sendlen);
-                                    }
-                                } else {
-                                    fprintf(stderr, "expected %lu bytes, got %ld\n", sizeof(message.discover), size);
+                                ssize_t const sendlen =
+                                    this->multicast_sock.write_to(sender, &response, sizeof response);
+                                if (sendlen < 0) {
+                                    perror("failed to send discovery response");
+                                } else if (sendlen < sizeof(response)) {
+                                    fprintf(stderr, "expected to send %lu bytes, got %ld\n", sizeof(response), sendlen);
                                 }
-                                break;
+                            } else {
+                                fprintf(stderr, "expected %lu bytes, got %ld\n", sizeof(message.discover), size);
                             }
-                            case UDP_RESPOND_DISCOVER: {
-                                if (size >= sizeof(message.discover_response)) {
-                                    fprintf(stderr, "got udp response\n");
-                                } else {
-                                    fprintf(stderr,
-                                            "expected %lu bytes, got %ld\n",
-                                            sizeof(message.discover_response),
-                                            size);
-                                }
-                                break;
-                            }
-                            default:
-                                fprintf(stderr, "invalid packet type: %u\n", message.header.type);
+                            break;
                         }
-                    } else {
-                        fprintf(stderr,
-                                "Invalid packet magic: %02X%02X%02X%02X\n",
-                                message.header.magic[0],
-                                message.header.magic[1],
-                                message.header.magic[2],
-                                message.header.magic[3]);
+                        case UDP_RESPOND_DISCOVER: {
+                            if (size >= sizeof(message.discover_response)) {
+                                fprintf(stderr, "got udp response\n");
+                            } else {
+                                fprintf(stderr,
+                                        "expected %lu bytes, got %ld\n",
+                                        sizeof(message.discover_response),
+                                        size);
+                            }
+                            break;
+                        }
+                        default:
+                            fprintf(stderr, "invalid packet type: %u\n", message.header.type);
                     }
+                } else {
+                    fprintf(stderr,
+                            "Invalid packet magic: %02X%02X%02X%02X\n",
+                            message.header.magic[0],
+                            message.header.magic[1],
+                            message.header.magic[2],
+                            message.header.magic[3]);
                 }
             }
         }
-        if (read_fds.check(provider->tcp_sock.handle)) {
-            auto [socket, endpoint] = provider->tcp_sock.accept();
-
-            provider->pending_connections.emplace_back(provider, std::move(socket), endpoint);
-        }
-
-        provider->pending_connections.remove_if(
-            [&](dunstblick_Connection & con) -> bool { return con.disconnect_reason.has_value(); });
-
-        // Sorts connections from "pending" to "ready"
-        provider->pending_connections.sort(
-            [](dunstblick_Connection const & a, dunstblick_Connection const & b) -> bool {
-                return a.is_initialized < b.is_initialized;
-            });
-        {
-            auto it = provider->pending_connections.begin();
-            auto end = provider->pending_connections.end();
-            while (it != end and not it->is_initialized) {
-                std::advance(it, 1);
-            }
-            if (it != end) {
-                // we found connections that are ready
-                auto const start = it;
-
-                do {
-                    provider->onConnected.invoke(provider,
-                                                 &(*it),
-                                                 it->header.clientName.c_str(),
-                                                 it->header.password.c_str(),
-                                                 it->screenResolution,
-                                                 it->header.capabilities);
-
-                    std::advance(it, 1);
-                } while (it != end);
-
-                // Now transfer all established connections to the other set.
-                provider->established_connections.splice(provider->established_connections.begin(),
-                                                         provider->pending_connections,
-                                                         start,
-                                                         end);
-            }
-        }
-
-        provider->established_connections.remove_if([&](dunstblick_Connection & con) -> bool {
-            if (not con.disconnect_reason)
-                return false;
-            provider->onDisconnected.invoke(provider, &con, *con.disconnect_reason);
-            return true;
-        });
     }
-    for (auto & connection : provider->established_connections) {
+    if (read_fds.check(this->tcp_sock.handle)) {
+        auto [socket, endpoint] = this->tcp_sock.accept();
 
-        fprintf(stderr,
-                "Client disconnected callback:\n"
-                "\tend point: %s\n"
-                "\treason:    %u\n",
-                to_string(connection.remote).c_str(),
-                *connection.disconnect_reason);
+        this->pending_connections.emplace_back(this, std::move(socket), endpoint);
+    }
 
-        provider->onDisconnected.invoke(provider, &connection, *connection.disconnect_reason);
+    this->pending_connections.remove_if(
+        [&](dunstblick_Connection & con) -> bool { return con.disconnect_reason.has_value(); });
 
-        dunstblick_CloseConnection(&connection, "The provider has been shut down.");
+    // Sorts connections from "pending" to "ready"
+    this->pending_connections.sort([](dunstblick_Connection const & a, dunstblick_Connection const & b) -> bool {
+        return a.is_initialized < b.is_initialized;
+    });
+
+    auto it = this->pending_connections.begin();
+    auto end = this->pending_connections.end();
+    while (it != end and not it->is_initialized) {
+        std::advance(it, 1);
+    }
+    if (it != end) {
+        // we found connections that are ready
+        auto const start = it;
+
+        do {
+            this->onConnected.invoke(this,
+                                     &(*it),
+                                     it->header.clientName.c_str(),
+                                     it->header.password.c_str(),
+                                     it->screenResolution,
+                                     it->header.capabilities);
+
+            std::advance(it, 1);
+        } while (it != end);
+
+        // Now transfer all established connections to the other set.
+        this->established_connections.splice(this->established_connections.begin(),
+                                             this->pending_connections,
+                                             start,
+                                             end);
+    }
+
+    this->established_connections.remove_if([&](dunstblick_Connection & con) -> bool {
+        if (not con.disconnect_reason)
+            return false;
+        this->onDisconnected.invoke(this, &con, *con.disconnect_reason);
+        return true;
+    });
+
+    for (auto & con : this->established_connections) {
+        Packet packet;
+        while (con.incoming_packets.try_dequeue(packet)) {
+
+            DataReader reader{packet.data(), packet.size()};
+
+            auto const msgtype = ServerMessageType(reader.read_byte());
+
+            switch (msgtype) {
+                case ServerMessageType::eventCallback: {
+                    auto const id = reader.read_uint();
+
+                    con.onEvent.invoke(&con, id);
+
+                    break;
+                }
+                case ServerMessageType::propertyChanged: {
+                    auto const obj_id = reader.read_uint();
+                    auto const property = reader.read_uint();
+                    auto const type = dunstblick_Type(reader.read_byte());
+
+                    dunstblick_Value value = reader.read_value(type);
+
+                    con.onPropertyChanged.invoke(&con, obj_id, property, &value);
+
+                    break;
+                }
+                default:
+                    fprintf(stderr,
+                            "Received %lu bytes of an unknown message type %u\n",
+                            packet.size(),
+                            uint32_t(msgtype));
+                    // log some message?
+                    break;
+            }
+        }
     }
 }
 
@@ -770,6 +782,15 @@ void dunstblick_CloseProvider(dunstblick_Provider * provider)
 {
     if (provider != nullptr)
         delete provider;
+}
+
+dunstblick_Error dunstblick_PumpEvents(dunstblick_Provider * provider)
+{
+    if (provider == nullptr)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+    mutex_guard lock{provider->mutex};
+    provider->pump_events();
+    return DUNSTBLICK_ERROR_NONE;
 }
 
 dunstblick_Error dunstblick_SetConnectedCallback(dunstblick_Provider * provider,
@@ -872,7 +893,26 @@ dunstblick_Size dunstblick_GetDisplaySize(dunstblick_Connection * connection)
 {
     if (connection == nullptr)
         return dunstblick_Size{0, 0};
+    mutex_guard lock{connection->mutex};
     return connection->screenResolution;
+}
+
+void dunstblick_SetEventCallback(dunstblick_Connection * connection, dunstblick_EventCallback callback, void * userData)
+{
+    if (connection == nullptr)
+        return;
+    mutex_guard lock{connection->mutex};
+    connection->onEvent = {callback, userData};
+}
+
+void dunstblick_SetPropertyChangedCallback(dunstblick_Connection * connection,
+                                           dunstblick_PropertyChangedCallback callback,
+                                           void * userData)
+{
+    if (connection == nullptr)
+        return;
+    mutex_guard lock{connection->mutex};
+    connection->onPropertyChanged = {callback, userData};
 }
 
 dunstblick_Object * dunstblick_BeginChangeObject(dunstblick_Connection * con, dunstblick_ObjectID id)
@@ -1140,53 +1180,4 @@ if(not sock)
 return new dunstblick_Connection(std::move(*sock));
 }
 
-
-dunstblick_Error dunstblick_PumpEvents(dunstblick_Connection * con,
-dunstblick_EventHandler const * eha, void * context)
-{
-if(con == nullptr)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-if(eha == nullptr)
-    return DUNSTBLICK_ERROR_INVALID_ARG;
-
-auto list = con->packets.obtain();
-while(list->size() > 0)
-{
-    auto packet = std::move(list->front());
-    list->pop();
-
-    DataReader reader { packet.data(), packet.size() };
-
-    auto const msgtype = ServerMessageType(reader.read_byte());
-
-    switch(msgtype)
-    {
-        case ServerMessageType::eventCallback:
-        {
-            auto const id = reader.read_uint();
-            if(eha->onCallback != nullptr)
-                eha->onCallback(id, context);
-            break;
-        }
-        case ServerMessageType::propertyChanged:
-        {
-            auto const obj_id = reader.read_uint();
-            auto const property = reader.read_uint();
-            auto const type = dunstblick_Type(reader.read_byte());
-
-            dunstblick_Value value = reader.read_value(type);
-
-            if(eha->onPropertyChanged != nullptr)
-                eha->onPropertyChanged(obj_id, property, &value);
-
-            break;
-        }
-        default:
-            // log some message?
-            break;
-    }
-}
-
-return  DUNSTBLICK_ERROR_NONE;
-}
 */

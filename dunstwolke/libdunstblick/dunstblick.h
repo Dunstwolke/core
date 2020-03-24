@@ -163,12 +163,18 @@ extern "C"
 #endif
 
     /// @brief An UI provider that is discoverable by display clients.
+    /// Created with @ref dunstblick_OpenProvider and destroyed by @ref dunstblick_CloseProvider.
     struct dunstblick_Provider DOXYGEN_BODY;
 
-    /// @brief A connection to a provider by a display client.
+    /// @brief A connection of a display client.
+    /// Functions that operate on connection communicate with the display.
+    /// Is either destroyed when the connection is closed by the remote host or
+    /// when @ref dunstblick_CloseConnection is called.
     struct dunstblick_Connection DOXYGEN_BODY;
 
     /// @brief A temporary object handle for bulk property updates.
+    /// Is created by @ref dunstblick_BeginChangeObject and must be destroyed
+    /// bei **either** @ref dunstblick_CommitObject **or** @ref dunstblick_CancelObject.
     struct dunstblick_Object DOXYGEN_BODY;
 
     typedef struct dunstblick_Provider dunstblick_Provider;
@@ -177,7 +183,7 @@ extern "C"
 
     // Callback Types:
 
-    /// @brief A callback that is called whenever a new client has successfully
+    /// @brief A callback that is called whenever a new display client has successfully
     ///        connected to the display provider.
     /// It's possible to disconnect the client in this callback, the @ref dunstblick_DisconnectedCallback
     /// will be called as soon as this function returns.
@@ -191,18 +197,35 @@ extern "C"
             capabilities, ///< Bitmask containing all available capabilities of the display client.
         void * userData   ///< The user data pointer that was passed to @ref dunstblick_SetConnectedCallback.
     );
-    typedef void (*dunstblick_DisconnectedCallback)(dunstblick_Provider * provider,
-                                                    dunstblick_Connection * connection,
-                                                    dunstblick_DisconnectReason reason,
-                                                    void * userData);
-    typedef void (*dunstblick_EventCallback)(dunstblick_Connection * connection,
-                                             dunstblick_EventID callback,
-                                             void * userData);
-    typedef void (*dunstblick_PropertyChangedCallback)(dunstblick_Connection * connection,
-                                                       dunstblick_ObjectID object,
-                                                       dunstblick_PropertyName property,
-                                                       dunstblick_Value const * value,
-                                                       void * userData);
+
+    /// @brief A callback that is called whenever a display client has disconnected
+    ///        from the provider.
+    /// This callback is called for every disconnected client, even when the client is closed
+    /// in the @ref dunstblick_ConnectedCallback.
+    /// @remarks It is possible to query information about `connection`, but it's not possible
+    ///          anymore to send any data to it.
+    typedef void (*dunstblick_DisconnectedCallback)(
+        dunstblick_Provider * provider,     ///< The provider from which the connection was established.
+        dunstblick_Connection * connection, /// The connection that is about to be closed.
+        dunstblick_DisconnectReason reason, ///< The reason why the  display client is disconnected
+        void * userData ///< The user data pointer that was passed to @ref dunstblick_SetDisconnectedCallback.
+    );
+
+    /// @brief A callback that is called whenever a display client triggers a event.
+    typedef void (*dunstblick_EventCallback)(
+        dunstblick_Connection * connection, ///< the display client that triggered the event.
+        dunstblick_EventID callback, ///< The id of the event that was triggered. This ID is specified in the UI layout.
+        void * userData              ///< The user data pointer that was passed to @ref dunstblick_SetEventCallback.
+    );
+
+    /// @brief A callbcak that is called whenever a display client changed the property of an object.
+    typedef void (*dunstblick_PropertyChangedCallback)(
+        dunstblick_Connection * connection, ///< the display client that changed the event.
+        dunstblick_ObjectID object,         ///< The object handle where the property was changed
+        dunstblick_PropertyName property,   ///< The name of the property that was changed
+        dunstblick_Value const * value,     ///< The value of the property
+        void * userData ///< The user data pointer that was passed to @ref dunstblick_SetPropertyChangedCallback.
+    );
 
     // Provider Functions:
 
@@ -215,6 +238,11 @@ extern "C"
 
     /// Shuts down the ui provider and closes all open connections.
     void dunstblick_CloseProvider(dunstblick_Provider * provider);
+
+    /// Pumps network data, calls connection events and disconnect/connect callbacks.
+    /// Call this function continuously to provide a fluent user interaction
+    /// and prevent network timeouts.
+    dunstblick_Error dunstblick_PumpEvents(dunstblick_Provider * provider);
 
     /// Adds a resource to the UI system.
     /// The resource will be hashed and stored until the provider is shut down

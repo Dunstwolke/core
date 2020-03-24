@@ -80,6 +80,7 @@ int main()
     bool app_running = true;
     while(app_running) {
         dunstblick_PumpEvents(provider);
+        usleep(10);
     }
 
     sleep(600);
