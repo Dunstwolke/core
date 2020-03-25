@@ -1,101 +1,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 #include <dunstblick.h>
 #include <unistd.h>
-
-static void cb_onConnected(
-    dunstblick_Provider * provider,
-    dunstblick_Connection * connection,
-    char const * clientName,
-    char const * password,
-    dunstblick_Size screenSize,
-    dunstblick_ClientCapabilities capabilities,
-    void * userData
-    )
-{
-    fprintf(stderr,
-        "Client connected  callback:\n"
-        "\tconnection:   %p\n"
-        "\tclient name:  %s\n"
-        "\tpassword:     %s\n"
-        "\tresolution:   %d×%d\n"
-        "\tcapabilities: 0x%04X\n",
-        connection,
-        clientName,
-        password,
-        screenSize.w, screenSize.h,
-        capabilities
-    );
-
-    dunstblick_SetRoot(connection, 1);
-}
-
-static void cb_onDisconnected(
-    dunstblick_Provider * provider,
-    dunstblick_Connection * connection,
-    dunstblick_DisconnectReason reason,
-    void * userData
-)
-{
-    fprintf(stderr,
-            "Client disconnected callback:\n"
-            "\tconnection: %p\n"
-            "\treason:     %u\n",
-            connection,
-            reason
-            );
-}
-
-char const resourceBlob1[] = "Hello, World!";
-char const resourceBlob2[] = "Goodbye, my darling!";
-char const resourceBlob3[] = "Have you ever seen the rain?";
-
-int main()
-{
-    dunstblick_Provider * provider = dunstblick_OpenProvider("Calculator");
-    if(!provider)
-        return 1;
-
-    dunstblick_SetConnectedCallback(provider, cb_onConnected, NULL);
-    dunstblick_SetDisconnectedCallback(provider, cb_onDisconnected, NULL);
-
-    dunstblick_AddResource(
-        provider,
-        0x10,
-        DUNSTBLICK_RESOURCE_DRAWING,
-        resourceBlob1,
-        sizeof resourceBlob1
-    );
-    dunstblick_AddResource(
-        provider,
-        0x20,
-        DUNSTBLICK_RESOURCE_DRAWING,
-        resourceBlob2,
-        sizeof resourceBlob2
-    );
-
-    // TODO:
-    bool app_running = true;
-    while(app_running) {
-        dunstblick_PumpEvents(provider);
-        usleep(10);
-    }
-
-    sleep(600);
-
-    dunstblick_CloseProvider(provider);
-    return 0;
-}
-
-/*
 
 #define ROOT_LAYOUT 1
 #define OBJ_ROOT 1
 #define PROP_RESULT 1
 
 #define DBCHECKED(_X) do { \
+		dunstblick_Error err = _X; \
+		if(err != DUNSTBLICK_ERROR_NONE) \
+		{ \
+			printf("failed to execute " #_X ": %d\n", err); \
+			return; \
+		} \
+	} while(0)
+
+#define DBCHECKED_MAIN(_X) do { \
 		dunstblick_Error err = _X; \
 		if(err != DUNSTBLICK_ERROR_NONE) \
 		{ \
@@ -110,16 +34,39 @@ bool load_file(char const * fileName, void ** buffer, size_t * len);
 
 enum MathCommand { COPY=0, ADD, SUBTRACT, MULTIPLY, DIVIDE };
 
-static float current_value = 0.0f;
-static char current_input[64] = "";
-static bool shows_result = false;
-static enum MathCommand next_command = COPY;
+struct AppState
+{
+    float current_value ;
+    char current_input[64];
+    bool shows_result;
+    enum MathCommand next_command;
+};
+
+static struct AppState * createAppState()
+{
+    struct AppState * state = malloc(sizeof(struct AppState));
+    assert(state != NULL);
+
+    state-> current_value = 0.0f;
+    memset(state->current_input, 0, sizeof state->current_input);
+    state->shows_result = false;
+    state->next_command = COPY;
+
+    return state;
+}
+
+struct AppState * getAppState(dunstblick_Connection * con)
+{
+    return dunstblick_GetUserData(con);
+}
 
 static void refresh_screen(dunstblick_Connection * con)
 {
+    struct AppState * app = getAppState(con);
+
 	dunstblick_Value result = {
 	    .type = DUNSTBLICK_TYPE_STRING,
-	    .string = current_input,
+	    .string = app->current_input,
 	};
 
 	dunstblick_Error error = dunstblick_SetProperty(con, OBJ_ROOT, PROP_RESULT, &result);
@@ -127,42 +74,44 @@ static void refresh_screen(dunstblick_Connection * con)
 		printf("failed to refresh screen: %d\n", error);
 }
 
-static void enter_char(char c)
+static void enter_char(struct AppState * app, char c)
 {
-	if(shows_result)
-		strcpy(current_input, "");
+	if(app->shows_result)
+		strcpy(app->current_input, "");
 
 	char buf[2] = { c ,0 };
-	strcat(current_input, buf);
-	shows_result = false;
+	strcat(app->current_input, buf);
+	app->shows_result = false;
 }
 
-static void execute_command()
+static void execute_command(struct AppState * app)
 {
-	float val = strtof(current_input, NULL);
-	switch(next_command)
+	float val = strtof(app->current_input, NULL);
+	switch(app->next_command)
 	{
 		case COPY:
-			current_value = val;
+			app->current_value = val;
 			break;
 		case ADD:
-			current_value += val;
+			app->current_value += val;
 			break;
 		case SUBTRACT:
-			current_value -= val;
+			app->current_value -= val;
 			break;
 		case MULTIPLY:
-			current_value *= val;
+			app->current_value *= val;
 			break;
 		case DIVIDE:
-			current_value /= val;
+			app->current_value /= val;
 			break;
 	}
-	shows_result = true;
+	app->shows_result = true;
 }
 
-static void onCallback(dunstblick_CallbackID cid, void * context)
+static void cb_onUiEvent(dunstblick_Connection * con, dunstblick_EventID cid, void * context)
 {
+    struct AppState * app = getAppState(con);
+
 	switch(cid)
 	{
 		case 1:
@@ -177,53 +126,53 @@ static void onCallback(dunstblick_CallbackID cid, void * context)
 		case 10:
 		{
 			int number = cid % 10;
-			enter_char((char)('0' + number));
+			enter_char(app, (char)('0' + number));
 			break;
 		}
 
 		case 11: // "+"
-			execute_command();
-			next_command = ADD;
+			execute_command(app);
+			app->next_command = ADD;
 			break;
 
 		case 12: // "-"
-			execute_command();
-			next_command = SUBTRACT;
+			execute_command(app);
+			app->next_command = SUBTRACT;
 			break;
 
 		case 13: // "*"
-			execute_command();
-			next_command = MULTIPLY;
+			execute_command(app);
+			app->next_command = MULTIPLY;
 			break;
 
 		case 14: // "/"
-			execute_command();
-			next_command = DIVIDE;
+			execute_command(app);
+			app->next_command = DIVIDE;
 			break;
 
 		case 15: // "C"
-			strcpy(current_input, "0");
-			current_value = 0.0f;
-			shows_result = false;
-			next_command = COPY;
+			strcpy(app->current_input, "0");
+			app->current_value = 0.0f;
+			app->shows_result = false;
+            app->next_command = COPY;
 			break;
 
 		case 16: // "CE"
-			strcpy(current_input, "");
-			shows_result = false;
+			strcpy(app->current_input, "");
+			app->shows_result = false;
 			break;
 
 		case 17: // ','
 		{
-			if(strchr(current_input, '.') == NULL)
-				enter_char('.');
+			if(strchr(app->current_input, '.') == NULL)
+				enter_char(app, '.');
 			break;
 		}
 
 		case 18: // "="
 		{
-			execute_command();
-			next_command = COPY;
+			execute_command(app);
+			app->next_command = COPY;
 			break;
 		}
 
@@ -233,53 +182,39 @@ static void onCallback(dunstblick_CallbackID cid, void * context)
 			break;
 	}
 
-	if(shows_result)
-		sprintf(current_input, "%f", (double)current_value);
+	if(app->shows_result)
+		sprintf(app->current_input, "%f", (double)app->current_value);
 
-	refresh_screen(context);
+	refresh_screen(con);
 }
 
-int main()
+
+
+static void cb_onConnected(
+    dunstblick_Provider * provider,
+    dunstblick_Connection * connection,
+    char const * clientName,
+    char const * password,
+    dunstblick_Size screenSize,
+    dunstblick_ClientCapabilities capabilities,
+    void * userData
+    )
 {
-	void * root_layout;
-	size_t root_layout_size;
+    struct App * app = createAppState();
 
-	// Load the precompiled layout binary.
-	// This binary was created with
-	// $ dunstblick-compiler -o calculator-ui.bin -c root.json root.ui
-	if(!load_file("calculator-ui.bin", &root_layout, &root_layout_size)) {
-		printf("failed to load layout file!\n");
-		return 1;
-	}
+    dunstblick_SetUserData(connection, app);
 
-	dunstblick_EventHandler events = {
-		.onCallback = &onCallback,
-		.onPropertyChanged = NULL,
-	};
-
-	// Open a connection to our dunstblick server.
-	// This allows interaction with the UI system.
-	dunstblick_Connection * con = dunstblick_Open("127.0.0.1", 1309);
-	if(con == NULL) {
-		printf("Failed to establish connection!\n");
-		return 1;
-	}
-
-	// Upload the compiled layout to the server,
-	// so we can use dunstblick_SetView to display
-	// the UI layout.
-	DBCHECKED(dunstblick_UploadResource(con, ROOT_LAYOUT, DUNSTBLICK_RESOURCE_LAYOUT, root_layout, root_layout_size));
-
-	// Create our root object
+    // Create our root object
 	// that allows us to display changing values.
 	// As dunstblick does not allow you to mutate widgets directly,
 	// you require to create objects and bind widget properties to
 	// object properties in order to mutate state.
 	{
-		dunstblick_Object * root_obj = dunstblick_BeginChangeObject(con, OBJ_ROOT);
+		dunstblick_Object * root_obj = dunstblick_BeginChangeObject(connection, OBJ_ROOT);
 		if(root_obj == NULL) {
 			printf("failed to create object!\n");
-			return 1;
+			dunstblick_CloseConnection(connection, "Could not change object!");
+            return;
 		}
 
 		// Create a string property named PROP_RESULT
@@ -294,32 +229,64 @@ int main()
 		DBCHECKED(dunstblick_CommitObject(root_obj));
 	}
 
+    dunstblick_SetEventCallback(connection, cb_onUiEvent, NULL);
+
 	// After base is set up,
 	// both set the current view (UI layout) and root object.
 	// the root object is used for all bindings in the layouts
 	// except for widgets with a changed 'binding-context'.
-	DBCHECKED(dunstblick_SetView(con, ROOT_LAYOUT));
-	DBCHECKED(dunstblick_SetRoot(con, OBJ_ROOT));
-
-	bool running = true;
-	while(running)
-	{
-		// Pump UI events from the server into the current
-		// thread.
-		// Will call the corresponding event handler from
-		// the set for each event received.
-		DBCHECKED(dunstblick_PumpEvents(con, &events, con));
-
-		usleep(10000);
-	}
-
-	// Closes the connection to the server.
-	// This will release the 'con' handle.
-	dunstblick_Close(con);
-	return 0;
+	DBCHECKED(dunstblick_SetView(connection, ROOT_LAYOUT));
+	DBCHECKED(dunstblick_SetRoot(connection, OBJ_ROOT));
 }
 
+static void cb_onDisconnected(
+    dunstblick_Provider * provider,
+    dunstblick_Connection * connection,
+    dunstblick_DisconnectReason reason,
+    void * userData
+)
+{
+    // Clean up our data
+    free(dunstblick_GetUserData(connection));
+}
 
+int main()
+{
+    void * root_layout;
+	size_t root_layout_size;
+
+	// Load the precompiled layout binary.
+	// This binary was created with
+	// $ dunstblick-compiler -o calculator-ui.bin -c root.json root.ui
+	if(!load_file("calculator-ui.bin", &root_layout, &root_layout_size)) {
+		fprintf(stderr, "failed to load layout file!\n");
+		return 1;
+	}
+
+    dunstblick_Provider * provider = dunstblick_OpenProvider("Calculator");
+    if(!provider)
+        return 1;
+
+    DBCHECKED_MAIN(dunstblick_SetConnectedCallback(provider, cb_onConnected, NULL));
+    DBCHECKED_MAIN(dunstblick_SetDisconnectedCallback(provider, cb_onDisconnected, NULL));
+
+    // Upload the compiled layout to the server,
+	// so we can use dunstblick_SetView to display
+	// the UI layout.
+    DBCHECKED_MAIN(dunstblick_AddResource(
+        provider,
+        ROOT_LAYOUT, DUNSTBLICK_RESOURCE_LAYOUT, root_layout, root_layout_size
+    ));
+
+    bool app_running = true;
+    while(app_running) {
+        DBCHECKED_MAIN(dunstblick_PumpEvents(provider));
+        usleep(10);
+    }
+
+    dunstblick_CloseProvider(provider);
+    return 0;
+}
 
 
 bool load_file(char const * fileName, void ** buffer, size_t * len)
@@ -354,5 +321,3 @@ bool load_file(char const * fileName, void ** buffer, size_t * len)
 
 	return true;
 }
-
-*/

@@ -143,6 +143,8 @@ struct dunstblick_Connection
     size_t resource_send_index;                            ///< currently transmitted resource
     size_t resource_send_offset;                           ///< current byte offset in the resource
 
+    void * user_data_pointer;
+
     /// Stores packets received in message pumping
     moodycamel::ConcurrentQueue<Packet> incoming_packets;
 
@@ -277,7 +279,8 @@ dunstblick_Connection::dunstblick_Connection(dunstblick_Provider * provider,
     state(READ_HEADER),
     is_initialized(false),
     disconnect_reason(std::nullopt),
-    provider(provider)
+    provider(provider),
+    user_data_pointer(nullptr)
 {
     assert(provider != nullptr);
     fprintf(stderr, "connection from %s\n", to_string(remote).c_str());
@@ -903,6 +906,20 @@ void dunstblick_SetPropertyChangedCallback(dunstblick_Connection * connection,
     connection->onPropertyChanged = {callback, userData};
 }
 
+void * dunstblick_GetUserData(dunstblick_Connection * connection)
+{
+    if (connection == nullptr)
+        return nullptr;
+    return connection->user_data_pointer;
+}
+
+void dunstblick_SetUserData(dunstblick_Connection * connection, void * userData)
+{
+    if (connection == nullptr)
+        return;
+    connection->user_data_pointer = userData;
+}
+
 dunstblick_Object * dunstblick_BeginChangeObject(dunstblick_Connection * con, dunstblick_ObjectID id)
 {
     if (con == nullptr)
@@ -1092,13 +1109,11 @@ dunstblick_Error dunstblick_CommitObject(dunstblick_Object * obj)
 
     obj->commandbuffer.write_enum(0);
 
-    bool sendOk = obj->connection->send(obj->commandbuffer);
+    dunstblick_Error error = obj->connection->send(obj->commandbuffer);
 
     delete obj;
 
-    if (not sendOk)
-        return DUNSTBLICK_ERROR_NETWORK;
-    return DUNSTBLICK_ERROR_NONE;
+    return error;
 }
 
 void dunstblick_CancelObject(dunstblick_Object * obj)
