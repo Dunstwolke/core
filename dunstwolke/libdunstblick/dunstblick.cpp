@@ -12,6 +12,7 @@
 #include <thread>
 #include <xcept>
 #include <xnet/dns>
+#include <xnet/select>
 #include <xnet/socket>
 #include <xnet/socket_stream>
 #include <xstd/locked_value>
@@ -26,29 +27,6 @@ using Packet = std::vector<std::byte>;
 
 #include "../dunstblick-common/data-reader.hpp"
 #include "../dunstblick-common/data-writer.hpp"
-
-struct FDSet
-{
-    fd_set set;
-    int max_fd;
-
-    FDSet()
-    {
-        FD_ZERO(&set);
-        max_fd = 0;
-    }
-
-    void add(int fd)
-    {
-        max_fd = std::max(max_fd, fd);
-        FD_SET(fd, &set);
-    }
-
-    bool check(int fd) const
-    {
-        return FD_ISSET(fd, &set);
-    }
-};
 
 // playing around with C++ operator overloading:
 struct check
@@ -482,8 +460,17 @@ void dunstblick_Connection::push_data(const void * blob, size_t length)
 
                 required_resource_count = header.request_count;
 
-                this->required_resources.clear();
-                state = READ_REQUIRED_RESOURCES;
+                if (required_resource_count > 0) {
+
+                    this->required_resources.clear();
+                    state = READ_REQUIRED_RESOURCES;
+                } else {
+                    state = READY;
+
+                    // handshake phase is complete,
+                    // switch over to main phase
+                    is_initialized = true;
+                }
 
                 consumed_size = sizeof(TcpResourceRequestHeader);
 
@@ -555,31 +542,24 @@ dunstblick_Object::~dunstblick_Object() {}
 
 void dunstblick_Provider::pump_events()
 {
-    FDSet read_fds, write_fds;
+    xnet::socket_set read_fds, write_fds;
     read_fds.add(this->multicast_sock.handle);
     read_fds.add(this->tcp_sock.handle);
 
     for (auto const & connection : this->pending_connections) {
-        read_fds.add(connection.sock.handle);
-        write_fds.add(connection.sock.handle);
+        read_fds.add(connection.sock);
+        write_fds.add(connection.sock);
     }
     for (auto const & connection : this->established_connections) {
-        read_fds.add(connection.sock.handle);
+        read_fds.add(connection.sock);
     }
 
-    timeval timeout;
-    timeout.tv_sec = 0;
-    timeout.tv_usec = 10000;
-
-    int result = select(read_fds.max_fd + 1, &read_fds.set, &write_fds.set, nullptr, &timeout);
-    if (result < 0) {
-        perror("failed to select:");
-    }
+    size_t result = select(read_fds, write_fds, xstd::nullopt, std::chrono::microseconds(10));
 
     std::array<uint8_t, 4096> blob;
 
     auto const readAndPushToConnection = [&](dunstblick_Connection & con) -> void {
-        if (not read_fds.check(con.sock.handle))
+        if (not read_fds.contains(con.sock))
             return;
 
         ssize_t len = con.sock.read(blob.data(), blob.size());
@@ -593,6 +573,20 @@ void dunstblick_Provider::pump_events()
         }
     };
 
+    // REQUIRED send_data must be called before push_data:
+    // Sending is not allowed to be called on established connections,
+    // but receiving a frame of "i don't require resources" will
+    // switch the connection in READY state without having the need of
+    // ever sending data.
+
+    // FIRST THIS
+    for (auto & connection : this->pending_connections) {
+        if (not write_fds.contains(connection.sock))
+            continue;
+        connection.send_data();
+    }
+
+    // THEN THIS
     for (auto & connection : this->pending_connections) {
         readAndPushToConnection(connection);
     }
@@ -600,13 +594,7 @@ void dunstblick_Provider::pump_events()
         readAndPushToConnection(connection);
     }
 
-    for (auto & connection : this->pending_connections) {
-        if (not write_fds.check(connection.sock.handle))
-            continue;
-        connection.send_data();
-    }
-
-    if (read_fds.check(this->multicast_sock.handle)) {
+    if (read_fds.contains(this->multicast_sock)) {
         fflush(stdout);
 
         UdpBaseMessage message;
@@ -670,7 +658,7 @@ void dunstblick_Provider::pump_events()
             }
         }
     }
-    if (read_fds.check(this->tcp_sock.handle)) {
+    if (read_fds.contains(this->tcp_sock)) {
         auto [socket, endpoint] = this->tcp_sock.accept();
 
         this->pending_connections.emplace_back(this, std::move(socket), endpoint);

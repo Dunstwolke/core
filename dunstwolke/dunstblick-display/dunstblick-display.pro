@@ -9,6 +9,8 @@ XQLIB += sdl2 sdl2_image sdl2_ttf network io
 
 include($$(XQLIB_ROOT)/xqlib.pri)
 
+INCLUDEPATH += $$PWD/../libdunstblick
+
 SOURCES += \
         api.cpp \
         enums.cpp \
@@ -20,6 +22,7 @@ SOURCES += \
         protocol.cpp \
         rendercontext.cpp \
         resources.cpp \
+        session.cpp \
         tcphost.cpp \
         testhost.cpp \
         types.cpp \
@@ -41,6 +44,7 @@ HEADERS += \
   rectangle_tools.hpp \
   rendercontext.hpp \
   resources.hpp \
+  session.hpp \
   tcphost.hpp \
   testhost.hpp \
   types.hpp \

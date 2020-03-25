@@ -34,7 +34,7 @@ static void on_connection(dunstblick_Provider * provider,
                           void * userData)
 {
     dunstblick_SetEventCallback(connection, on_event, NULL);
-    dunstblick_SetRoot(connection, 1);
+    dunstblick_SetView(connection, 1);
 }
 
 int main()
