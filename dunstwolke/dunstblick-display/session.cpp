@@ -328,7 +328,7 @@ void Session::setView(UIResourceID id)
 void Session::setRoot(ObjectID id)
 {
     auto ref = ObjectRef{id};
-    if (ref) {
+    if (auto obj = ref.try_resolve(*this); obj) {
         root_object = ref;
         update_layout();
     }
@@ -377,7 +377,7 @@ void Session::ui_set_mouse_focus(Widget * widget)
 void Session::setProperty(ObjectID oid, PropertyName propName, const UIValue & value)
 {
     auto const type = UIType(value.index());
-    if (auto obj = ObjectRef{oid}.try_resolve(); obj) {
+    if (auto obj = ObjectRef{oid}.try_resolve(get_current_session()); obj) {
         if (auto prop = obj->get(propName); prop) {
             if (prop->type == type) {
                 prop->value = value;
@@ -395,7 +395,7 @@ void Session::setProperty(ObjectID oid, PropertyName propName, const UIValue & v
 
 static inline xstd::optional<ObjectList &> get_list(ObjectID oid, PropertyName name)
 {
-    if (auto obj = ObjectRef{oid}.try_resolve(); obj) {
+    if (auto obj = ObjectRef{oid}.try_resolve(get_current_session()); obj) {
         if (auto prop = obj->get(name); prop) {
             if (prop->type == UIType::objectlist) {
                 return std::get<ObjectList>(prop->value);
@@ -526,4 +526,37 @@ void Session::set_resource(UIResourceID id, Resource && resource)
         it->second = std::move(resource);
     else
         resources.emplace(id, std::move(resource));
+}
+
+Object & Session::add_or_update_object(Object && obj)
+{
+    if (auto it = object_registry.find(obj.get_id()); it != object_registry.end()) {
+        assert(it->first == obj.get_id());
+        it->second = std::move(obj);
+        return it->second;
+    }
+    auto [it, emplaced] = object_registry.emplace(obj.get_id(), std::move(obj));
+    assert(emplaced);
+    return it->second;
+}
+
+Object & Session::add_or_get_object(ObjectID id)
+{
+    if (auto it = object_registry.find(id); it != object_registry.end()) {
+        assert(it->first == id);
+        return it->second;
+    }
+    auto [it, emplaced] = object_registry.emplace(id, Object{id});
+    assert(emplaced);
+    return it->second;
+}
+
+void Session::destroy_object(ObjectID id)
+{
+    object_registry.erase(id);
+}
+
+const std::map<ObjectID, Object> & Session::get_object_registry()
+{
+    return object_registry;
 }

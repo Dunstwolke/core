@@ -297,8 +297,8 @@ template <typename T, bool UseBindings>
 T property<T, UseBindings>::get(const Widget * w) const
 {
     if constexpr (UseBindings) {
-        if (binding and w->bindingSource.is_resolvable()) {
-            if (auto prop = w->bindingSource->get(*binding); prop) {
+        if (binding and w->bindingSource.is_resolvable(get_current_session())) {
+            if (auto prop = w->bindingSource.resolve(get_current_session()).get(*binding); prop) {
                 auto const converted = convertTo(prop->value, getUITypeFromType<T>());
                 if constexpr (std::is_enum_v<T>)
                     return T(std::get<uint8_t>(converted));
@@ -314,8 +314,8 @@ template <typename T, bool UseBindings>
 void property<T, UseBindings>::set(Widget * w, const T & new_value)
 {
     if constexpr (UseBindings) {
-        if (binding and w->bindingSource.is_resolvable()) {
-            auto & obj = w->bindingSource.resolve();
+        if (binding and w->bindingSource.is_resolvable(get_current_session())) {
+            auto & obj = w->bindingSource.resolve(get_current_session());
             if (auto prop = obj.get(*binding); prop) {
                 UIValue to_convert;
                 if constexpr (std::is_enum_v<T>)

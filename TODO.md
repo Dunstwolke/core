@@ -15,9 +15,11 @@
 	- [ ] SpinEdit
 - [ ] Fix Bugs
   - [ ] Empty grid (no colums, no rows) should not crash
-- [ ] Add "deferModalDrawing" to render/ui context
+- [ ] ~~Add "deferModalDrawing" to render/ui context~~
+- [ ] Allow creation of modal popup windows
 	- allow rendering stuff *after* everything else
 	- required for combo boxes
+  - required for message boxes
 - Improved text rendering API
 	- [ ] Rich text
 	- [ ] Full unicode
@@ -38,3 +40,8 @@
 - [ ] Widget
 	- [ ] Bindable child lists
 		- [ ] Add "sort by property" + "sort asc, sort desc"
+  - [ ] Give widgets a bindable "name" property that will be passed along with sent events to identify auto-generated widgets.
+- [ ] Add support for multiple open connections in display client
+  - [ ] Make display client use a tabbed design
+  - [ ] First tab is a overview over all available applications in the network
+- [ ] Add support for "push notifications" on the discovery network to allow certain applications announce messages without having an open connection to them

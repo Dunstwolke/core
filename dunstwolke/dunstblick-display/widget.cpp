@@ -23,11 +23,11 @@ void Widget::updateBindings(ObjectRef parentBindingSource)
     // STAGE 1: Update the current binding source
 
     // if we have a bindingSource of the parent available:
-    if (parentBindingSource and this->bindingContext.binding) {
+    if (parentBindingSource.is_resolvable(get_current_session()) and this->bindingContext.binding) {
         // check if the parent source has the property
         // we bind our bindingContext to and if yes,
         // bind to it
-        if (auto prop = parentBindingSource->get(*this->bindingContext.binding); prop) {
+        if (auto prop = parentBindingSource.resolve(get_current_session()).get(*this->bindingContext.binding); prop) {
             this->bindingSource = std::get<ObjectRef>(prop->value);
         } else {
             this->bindingSource = ObjectRef(nullptr);
@@ -36,7 +36,7 @@ void Widget::updateBindings(ObjectRef parentBindingSource)
         // otherwise check if our bindingContext has a valid resourceID and
         // load that resource reference:
         auto objectID = this->bindingContext.get(this);
-        if (objectID.is_resolvable()) {
+        if (objectID.is_resolvable(get_current_session())) {
             this->bindingSource = objectID;
         } else {
             this->bindingSource = parentBindingSource;

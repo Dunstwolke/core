@@ -32,6 +32,7 @@ struct Session
     bool is_active = true;
 
     std::map<UIResourceID, Resource> resources;
+    std::map<ObjectID, Object> object_registry;
 
     Session(xnet::endpoint const & target);
     Session(Session const &) = delete;
@@ -90,6 +91,16 @@ struct Session
     }
 
     void set_resource(UIResourceID id, Resource && resource);
+
+    // Object handling:
+
+    Object & add_or_get_object(ObjectID id);
+
+    Object & add_or_update_object(Object && obj);
+
+    void destroy_object(ObjectID id);
+
+    std::map<ObjectID, Object> const & get_object_registry();
 };
 
 Session & get_current_session();
