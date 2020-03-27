@@ -28,20 +28,26 @@ using Packet = std::vector<std::byte>;
 #include "../dunstblick-common/data-reader.hpp"
 #include "../dunstblick-common/data-writer.hpp"
 
-// playing around with C++ operator overloading:
-struct check
+enum LogLevel
 {
-    char const * msg;
-    check(char const * _msg) : msg(_msg) {}
-
-    void operator=(bool b) const
-    {
-        if (b)
-            return;
-        fprintf(stderr, "%s\n", msg);
-        fflush(stderr);
-    }
+    LOG_NONE = 0,
+    LOG_ERROR = 1,
+    LOG_DIAGNOSTIC = 2,
 };
+
+auto static constexpr log_level = LOG_ERROR;
+
+static void log_msg(LogLevel level, char const * fmt, ...)
+{
+    if (level > log_level)
+        return;
+
+    va_list list;
+    va_start(list, fmt);
+    vfprintf(stderr, fmt, list);
+    va_end(list);
+    fflush(stderr);
+}
 
 template <size_t N>
 static std::string extract_string(std::array<char, N> const & item)
@@ -70,7 +76,7 @@ struct Callback
         if (function != nullptr) {
             function(std::forward<Args>(args)..., user_data);
         } else {
-            fprintf(stderr, "callback does not exist!\n");
+            log_msg(LOG_DIAGNOSTIC, "callback does not exist!\n");
         }
     }
 };
@@ -250,7 +256,7 @@ dunstblick_Provider::~dunstblick_Provider()
 {
     for (auto & connection : established_connections) {
 
-        fprintf(stderr,
+        log_msg(LOG_DIAGNOSTIC,
                 "Client disconnected callback:\n"
                 "\tend point: %s\n"
                 "\treason:    %u\n",
@@ -283,12 +289,12 @@ dunstblick_Connection::dunstblick_Connection(dunstblick_Provider * provider,
     user_data_pointer(nullptr)
 {
     assert(provider != nullptr);
-    fprintf(stderr, "connection from %s\n", to_string(remote).c_str());
+    log_msg(LOG_DIAGNOSTIC, "connection from %s\n", to_string(remote).c_str());
 }
 
 dunstblick_Connection::~dunstblick_Connection()
 {
-    fprintf(stderr, "connection lost to %s\n", to_string(remote).c_str());
+    log_msg(LOG_DIAGNOSTIC, "connection lost to %s\n", to_string(remote).c_str());
 }
 
 void dunstblick_Connection::drop(dunstblick_DisconnectReason reason)
@@ -296,8 +302,7 @@ void dunstblick_Connection::drop(dunstblick_DisconnectReason reason)
     if (this->disconnect_reason)
         return; // already dropped
     this->disconnect_reason = reason;
-    fprintf(stderr, "dropped connection to %s: %u\n", to_string(remote).c_str(), reason);
-    fflush(stderr);
+    log_msg(LOG_DIAGNOSTIC, "dropped connection to %s: %u\n", to_string(remote).c_str(), reason);
 }
 
 void dunstblick_Connection::send_data()
@@ -313,7 +318,6 @@ void dunstblick_Connection::send_data()
             auto const & resource = provider->resources.at(resource_id);
 
             if (resource_send_offset == 0) {
-
                 TcpResourceHeader header;
                 header.id = resource_id;
                 header.size = resource.data.size();
@@ -391,7 +395,7 @@ void dunstblick_Connection::push_data(const void * blob, size_t length)
     receive_buffer.resize(offset + length);
     memcpy(receive_buffer.data() + offset, blob, length);
 
-    fprintf(stderr,
+    log_msg(LOG_DIAGNOSTIC,
             "read %lu bytes from %s into buffer of %lu\n",
             length,
             to_string(remote).c_str(),
@@ -608,7 +612,7 @@ void dunstblick_Provider::pump_events()
         } else {
             size_t size = size_t(ssize);
             if (size < sizeof(message.header)) {
-                fprintf(stderr, "udp message too small…\n");
+                log_msg(LOG_ERROR, "udp message too small…\n");
             } else {
                 if (message.header.magic == UdpHeader::real_magic) {
                     switch (message.header.type) {
@@ -621,26 +625,28 @@ void dunstblick_Provider::pump_events()
 
                                 strncpy(response.name.data(), this->discovery_name.c_str(), response.name.size());
 
-                                fprintf(stderr, "response to %s\n", xnet::to_string(sender).c_str());
-                                fflush(stderr);
+                                log_msg(LOG_DIAGNOSTIC, "response to %s\n", xnet::to_string(sender).c_str());
 
                                 ssize_t const sendlen =
                                     this->multicast_sock.write_to(sender, &response, sizeof response);
                                 if (sendlen < 0) {
-                                    perror("failed to send discovery response");
+                                    log_msg(LOG_ERROR, "%s\n", strerror(errno));
                                 } else if (sendlen < sizeof(response)) {
-                                    fprintf(stderr, "expected to send %lu bytes, got %ld\n", sizeof(response), sendlen);
+                                    log_msg(LOG_ERROR,
+                                            "expected to send %lu bytes, got %ld\n",
+                                            sizeof(response),
+                                            sendlen);
                                 }
                             } else {
-                                fprintf(stderr, "expected %lu bytes, got %ld\n", sizeof(message.discover), size);
+                                log_msg(LOG_ERROR, "expected %lu bytes, got %ld\n", sizeof(message.discover), size);
                             }
                             break;
                         }
                         case UDP_RESPOND_DISCOVER: {
                             if (size >= sizeof(message.discover_response)) {
-                                fprintf(stderr, "got udp response\n");
+                                log_msg(LOG_DIAGNOSTIC, "got udp response\n");
                             } else {
-                                fprintf(stderr,
+                                log_msg(LOG_ERROR,
                                         "expected %lu bytes, got %ld\n",
                                         sizeof(message.discover_response),
                                         size);
@@ -648,10 +654,10 @@ void dunstblick_Provider::pump_events()
                             break;
                         }
                         default:
-                            fprintf(stderr, "invalid packet type: %u\n", message.header.type);
+                            log_msg(LOG_ERROR, "invalid packet type: %u\n", message.header.type);
                     }
                 } else {
-                    fprintf(stderr,
+                    log_msg(LOG_ERROR,
                             "Invalid packet magic: %02X%02X%02X%02X\n",
                             message.header.magic[0],
                             message.header.magic[1],
@@ -737,7 +743,7 @@ void dunstblick_Provider::pump_events()
                     break;
                 }
                 default:
-                    fprintf(stderr,
+                    log_msg(LOG_ERROR,
                             "Received %lu bytes of an unknown message type %u\n",
                             packet.size(),
                             uint32_t(msgtype));
@@ -761,8 +767,7 @@ dunstblick_Provider * dunstblick_OpenProvider(const char * discoveryName)
     try {
         return new dunstblick_Provider(discoveryName);
     } catch (xcept::io_error const & err) {
-        fprintf(stderr, "%s\n", err.what());
-        fflush(stderr);
+        log_msg(LOG_ERROR, "%s\n", err.what());
         return nullptr;
     } catch (std::bad_alloc) {
         return nullptr;

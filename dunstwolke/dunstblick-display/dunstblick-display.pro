@@ -5,6 +5,12 @@ CONFIG -= qt
 
 DEFINES += DUNSTBLICK_SERVER
 
+dunstblick_ui_compiler.output  = ${QMAKE_FILE_BASE}.data.h
+dunstblick_ui_compiler.commands = $$OUT_PWD/../dunstblick-compiler/dunstblick-compiler ${QMAKE_FILE_NAME} -o ${QMAKE_FILE_OUT} -f header
+dunstblick_ui_compiler.input = DUI_FILES
+dunstblick_ui_compiler.CONFIG = no_link
+QMAKE_EXTRA_COMPILERS += dunstblick_ui_compiler
+
 XQLIB += sdl2 sdl2_image sdl2_ttf network io
 
 include($$(XQLIB_ROOT)/xqlib.pri)
@@ -59,3 +65,6 @@ HEADERS += \
 DISTFILES += \
   definitions.lua \
   generator.lua
+
+DUI_FILES += \
+  discovery-list-item.dui

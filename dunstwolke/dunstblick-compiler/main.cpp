@@ -2,9 +2,9 @@
 #include "layoutparser.hpp"
 
 #include <filesystem>
-#include <iostream>
 #include <fstream>
 #include <getopt.h>
+#include <iostream>
 
 #include <xio/simple>
 
@@ -12,92 +12,118 @@
 
 int main(int argc, char * const * argv)
 {
-	char const * srcFile = nullptr;
-	char const * dstFile = nullptr;
-	char const * cfgFile = nullptr;
+    char const * srcFile = nullptr;
+    char const * dstFile = nullptr;
+    char const * cfgFile = nullptr;
 
-	int c = 0;
-	while ((c = getopt (argc, argv, "o:c:")) != -1)
-	{
-		switch (c)
-		{
-			case 'o':
-				dstFile = optarg;
-				break;
+    enum OutputFormat
+    {
+        FMT_BINARY = 0,
+        FMT_HEADER = 1,
+    } format = FMT_BINARY;
 
-			case 'c':
-				cfgFile = optarg;
-				break;
+    int c = 0;
+    while ((c = getopt(argc, argv, "f:o:c:")) != -1) {
+        switch (c) {
+            case 'o':
+                dstFile = optarg;
+                break;
 
-			case '?':
-				if (optopt == 'c')
-					fprintf (stderr, "Option -%c requires an argument.\n", optopt);
-				else if (isprint (optopt))
-					fprintf (stderr, "Unknown option `-%c'.\n", optopt);
-				else
-					fprintf (stderr,
-					         "Unknown option character `\\x%x'.\n",
-					         optopt);
-				return 1;
-			default:
-				abort ();
-		}
-	}
+            case 'c':
+                cfgFile = optarg;
+                break;
 
-	if(optind == argc) {
-		printf("Missing input file!\n");
-		return 1;
-	}
-	srcFile = argv[optind];
+            case 'f':
+                if (strcmp(optarg, "binary") == 0) {
+                    format = FMT_BINARY;
+                } else if (strcmp(optarg, "header") == 0) {
+                    format = FMT_HEADER;
+                } else {
+                    fprintf(stderr, "Unknown outformat format %s.\n", optarg);
+                    return 1;
+                }
+                break;
 
-	if(dstFile == nullptr) {
-		printf("Missing output file!\n");
-		return 1;
-	}
+            case '?':
+                if (optopt == 'c')
+                    fprintf(stderr, "Option -%c requires an argument.\n", optopt);
+                else if (isprint(optopt))
+                    fprintf(stderr, "Unknown option `-%c'.\n", optopt);
+                else
+                    fprintf(stderr, "Unknown option character `\\x%x'.\n", optopt);
+                return 1;
+            default:
+                abort();
+        }
+    }
 
-	LayoutParser layout_parser;
+    if (optind == argc) {
+        printf("Missing input file!\n");
+        return 1;
+    }
+    srcFile = argv[optind];
 
-	if(cfgFile != nullptr)
-	{
-		auto const file = xio::load_raw(cfgFile);
+    if (dstFile == nullptr) {
+        printf("Missing output file!\n");
+        return 1;
+    }
 
-		auto const json = nlohmann::json::parse(file.begin(), file.end());
+    LayoutParser layout_parser;
 
-		if(auto props = json.find("properties"); props != json.end())
-		{
-			for(auto it = props.value().begin(); it != props.value().end(); it++)
-			{
-				layout_parser.knownProperties.emplace(it.key(), PropertyName(it.value().get<unsigned int>()));
-			}
-		}
+    if (cfgFile != nullptr) {
+        auto const file = xio::load_raw(cfgFile);
 
-		if(auto props = json.find("resources"); props != json.end())
-		{
-			for(auto it = props.value().begin(); it != props.value().end(); it++)
-			{
-				layout_parser.knownResources.emplace(it.key(), UIResourceID(it.value().get<unsigned int>()));
-			}
-		}
+        auto const json = nlohmann::json::parse(file.begin(), file.end());
 
-		if(auto props = json.find("callbacks"); props != json.end())
-		{
-			for(auto it = props.value().begin(); it != props.value().end(); it++)
-			{
-				layout_parser.knownCallbacks.emplace(it.key(), CallbackID(it.value().get<unsigned int>()));
-			}
-		}
-	}
+        if (auto props = json.find("properties"); props != json.end()) {
+            for (auto it = props.value().begin(); it != props.value().end(); it++) {
+                layout_parser.knownProperties.emplace(it.key(), PropertyName(it.value().get<unsigned int>()));
+            }
+        }
 
-	std::ifstream input_src(srcFile);
-	std::ofstream output_file(dstFile);
+        if (auto props = json.find("resources"); props != json.end()) {
+            for (auto it = props.value().begin(); it != props.value().end(); it++) {
+                layout_parser.knownResources.emplace(it.key(), UIResourceID(it.value().get<unsigned int>()));
+            }
+        }
 
-	std::stringstream formDataBuffer;
+        if (auto props = json.find("callbacks"); props != json.end()) {
+            for (auto it = props.value().begin(); it != props.value().end(); it++) {
+                layout_parser.knownCallbacks.emplace(it.key(), CallbackID(it.value().get<unsigned int>()));
+            }
+        }
+    }
 
-	if(not layout_parser.compile(input_src, output_file))
-	{
-		std::filesystem::remove(dstFile);
-		return 1;
-	}
+    std::ifstream input_src(srcFile);
 
-	return 0;
+    std::stringstream formDataBuffer;
+
+    if (not layout_parser.compile(input_src, formDataBuffer)) {
+        return 1;
+    }
+
+    switch (format) {
+        case FMT_BINARY: {
+            std::ofstream output_file(dstFile);
+            output_file << formDataBuffer.rdbuf();
+            break;
+        }
+        case FMT_HEADER: {
+            std::ofstream output_file(dstFile);
+            auto const bytes = formDataBuffer.str();
+            for (size_t i = 0; i < bytes.size(); i++) {
+                uint8_t byte = uint8_t(bytes.at(i));
+
+                if (i > 0 and (i % 16) == 0)
+                    output_file << std::endl;
+                output_file << "0x" << std::hex << std::setw(2) << std::setfill('0') << size_t(byte) << ", ";
+            }
+            output_file << std::endl;
+            break;
+        }
+        default:
+            assert(false and "not implemented yet");
+    }
+
+    return 0;
 }

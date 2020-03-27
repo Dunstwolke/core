@@ -24,6 +24,7 @@ std::unique_ptr<Widget> Widget::create(UIWidget id)
 		case UIWidget::separator: return std::make_unique<Separator>();
 		case UIWidget::spacer: return std::make_unique<Spacer>();
 		case UIWidget::panel: return std::make_unique<Panel>();
+		case UIWidget::container: return std::make_unique<Container>();
 		case UIWidget::tab_layout: return std::make_unique<TabLayout>();
 		case UIWidget::canvas_layout: return std::make_unique<CanvasLayout>();
 		case UIWidget::flow_layout: return std::make_unique<FlowLayout>();

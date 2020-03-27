@@ -1,0 +1,33 @@
+Panel
+{
+  DockLayout
+  {
+    Button {
+      dock-site: right;
+      Label { text: "Open"; }
+    }
+    Button {
+      dock-site: right;
+      Label { text: "Close"; }
+    }
+    Label {
+      dock-site: right;
+      text: bind(4);  /* port */
+      margins: 0,4,4,4;
+    }
+    Label {
+      dock-site: right;
+      text: ":";
+      margins: 0,4,0,4;
+    }
+    Label {
+      dock-site: right;
+      text: bind(3); /* ip */
+      margins: 4,4,0,4;
+    }
+    Label {
+      horizontal-alignment: left;
+      text: bind(2);
+    }
+  }
+}

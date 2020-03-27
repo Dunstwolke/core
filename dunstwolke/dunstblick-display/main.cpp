@@ -217,11 +217,17 @@ void refresh_discovery()
             }
         }
 
+        std::sort(new_clients.begin(), new_clients.end(), [](DiscoveredClient const & a, DiscoveredClient const & b) {
+            return (a.name < b.name);
+        });
+
+        size_t idx = 0;
         for (auto const & client : new_clients) {
             fprintf(stderr,
-                    "%s:\n"
+                    "[%lu] %s:\n"
                     "\tname: %s\n"
                     "\tport: %d\n",
+                    idx++,
                     xnet::to_string(client.udp_ep).c_str(),
                     client.name.c_str(),
                     client.tcp_port);
@@ -343,10 +349,9 @@ int main()
 
     // Initialize session resources
     {
-        uint8_t const discovery_list_item[] = {0x14, 0x00, 0xfe, 0x00, 0x01, 0x06, 0x03, 0x00, 0x02, 0x0a,
-                                               0x04, 0x4f, 0x70, 0x65, 0x6e, 0x00, 0x00, 0x00, 0x01, 0x06,
-                                               0x03, 0x00, 0x02, 0x0a, 0x05, 0x43, 0x6c, 0x6f, 0x73, 0x65,
-                                               0x00, 0x00, 0x00, 0x02, 0x8a, 0x02, 0x00, 0x00, 0x00, 0x00};
+        uint8_t const discovery_list_item[] = {
+#include "discovery-list-item.data.h"
+        };
         sess.uploadResource(local_discovery_list_item,
                             ResourceKind::layout,
                             discovery_list_item,
@@ -369,6 +374,12 @@ int main()
         quitButton->children.emplace_back(quitLabel);
 
         menu->children.emplace_back(quitButton);
+
+        auto * const headerLabel = new Label();
+        headerLabel->text.set(headerLabel, "Available Applications");
+        headerLabel->font.set(headerLabel, UIFont::serif);
+
+        menu->children.emplace_back(headerLabel);
 
         auto * const serviceList = new StackLayout();
         serviceList->bindingContext.set(serviceList, ObjectRef{local_root_obj});
@@ -445,6 +456,8 @@ int main()
                 Object obj{id};
 
                 obj.add(local_app_name, UIValue(clients[i].name));
+                obj.add(local_app_port, UIValue(clients[i].tcp_port));
+                obj.add(local_app_ip, UIValue(xnet::to_string(clients[i].udp_ep, false)));
 
                 list.emplace_back(obj);
 

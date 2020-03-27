@@ -21,6 +21,7 @@ static const std::map<std::string, UIWidget> widgetTypes =
 	 { "Separator", UIWidget::separator },
 	 { "Spacer", UIWidget::spacer },
 	 { "Panel", UIWidget::panel },
+	 { "Container", UIWidget::container },
 	 { "TabLayout", UIWidget::tab_layout },
 	 { "CanvasLayout", UIWidget::canvas_layout },
 	 { "FlowLayout", UIWidget::flow_layout },
@@ -60,6 +61,7 @@ static const std::map<std::string, UIProperty> properties =
 	 { "hit-test-visible", UIProperty::hitTestVisible },
 	 { "on-click", UIProperty::onClick },
 	 { "orientation", UIProperty::orientation },
+	 { "widget-name", UIProperty::name },
 };
 
 static const std::map<std::string, uint8_t> enumerations =

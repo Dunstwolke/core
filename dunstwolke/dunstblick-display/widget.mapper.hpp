@@ -32,6 +32,8 @@ struct Spacer;
 template<> constexpr UIWidget widgetTypeToEnum<Spacer>() { return UIWidget::spacer; }
 struct Panel;
 template<> constexpr UIWidget widgetTypeToEnum<Panel>() { return UIWidget::panel; }
+struct Container;
+template<> constexpr UIWidget widgetTypeToEnum<Container>() { return UIWidget::container; }
 struct TabLayout;
 template<> constexpr UIWidget widgetTypeToEnum<TabLayout>() { return UIWidget::tab_layout; }
 struct CanvasLayout;
