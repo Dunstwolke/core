@@ -97,6 +97,11 @@ extern "C"
     /// @brief An event id that is defined in the layout.
     typedef uint32_t dunstblick_EventID;
 
+    /// @brief The name of a widget.
+    /// This value is either `0` (*unnamed*) or has a user-assigned name that can be
+    /// used to distinct widgets that use the same event handler.
+    typedef uint32_t dunstblick_WidgetName;
+
     /// @brief sRGB color value with linear alpha.
     /// The RGB colors use the [sRGB](https://en.wikipedia.org/wiki/SRGB) color space,
     /// alpha is linearly encoded and blended.
@@ -215,7 +220,8 @@ extern "C"
     typedef void (*dunstblick_EventCallback)(
         dunstblick_Connection * connection, ///< the display client that triggered the event.
         dunstblick_EventID callback, ///< The id of the event that was triggered. This ID is specified in the UI layout.
-        void * userData              ///< The user data pointer that was passed to @ref dunstblick_SetEventCallback.
+        dunstblick_WidgetName caller, ///< The name of the widget that triggered the event.
+        void * userData               ///< The user data pointer that was passed to @ref dunstblick_SetEventCallback.
     );
 
     /// @brief A callbcak that is called whenever a display client changed the property of an object.

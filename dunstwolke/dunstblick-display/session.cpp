@@ -60,6 +60,7 @@ void Session::update_layout()
 void Session::setView(UIResourceID id)
 {
     root_widget = load_widget(id);
+    root_widget->initializeRoot(this);
 
     // focused widgets are destroyed, so remove the reference here!
     keyboard_focused_widget = nullptr;
@@ -120,7 +121,7 @@ void Session::ui_set_mouse_focus(Widget * widget)
 void Session::setProperty(ObjectID oid, PropertyName propName, const UIValue & value)
 {
     auto const type = UIType(value.index());
-    if (auto obj = ObjectRef{oid}.try_resolve(get_current_session()); obj) {
+    if (auto obj = ObjectRef{oid}.try_resolve(*this); obj) {
         if (auto prop = obj->get(propName); prop) {
             if (prop->type == type) {
                 prop->value = value;
@@ -136,9 +137,9 @@ void Session::setProperty(ObjectID oid, PropertyName propName, const UIValue & v
     }
 }
 
-static inline xstd::optional<ObjectList &> get_list(ObjectID oid, PropertyName name)
+static inline xstd::optional<ObjectList &> get_list(Session & sess, ObjectID oid, PropertyName name)
 {
-    if (auto obj = ObjectRef{oid}.try_resolve(get_current_session()); obj) {
+    if (auto obj = ObjectRef{oid}.try_resolve(sess); obj) {
         if (auto prop = obj->get(name); prop) {
             if (prop->type == UIType::objectlist) {
                 return std::get<ObjectList>(prop->value);
@@ -157,14 +158,14 @@ static inline xstd::optional<ObjectList &> get_list(ObjectID oid, PropertyName n
 
 void Session::clear(ObjectID obj, PropertyName prop)
 {
-    if (auto list = get_list(obj, prop); list) {
+    if (auto list = get_list(*this, obj, prop); list) {
         list->clear();
     }
 }
 
 void Session::insertRange(ObjectID obj, PropertyName prop, size_t index, size_t count, const ObjectRef * value)
 {
-    if (auto list = get_list(obj, prop); list) {
+    if (auto list = get_list(*this, obj, prop); list) {
         for (size_t i = 0; i < count; i++, index++) {
             list->emplace((index >= list->size()) ? list->end() : list->begin() + gsl::narrow<ssize_t>(index),
                           value[i]);
@@ -174,7 +175,7 @@ void Session::insertRange(ObjectID obj, PropertyName prop, size_t index, size_t 
 
 void Session::removeRange(ObjectID obj, PropertyName prop, size_t index, size_t count)
 {
-    if (auto list = get_list(obj, prop); list) {
+    if (auto list = get_list(*this, obj, prop); list) {
         if (list->empty())
             return;
         for (size_t i = 0; (i < count) and (index < list->size()); i++, index++) {
@@ -185,7 +186,7 @@ void Session::removeRange(ObjectID obj, PropertyName prop, size_t index, size_t 
 
 void Session::moveRange(ObjectID obj, PropertyName prop, size_t indexFrom, size_t indexTo, size_t count)
 {
-    if (auto list = get_list(obj, prop); list) {
+    if (auto list = get_list(*this, obj, prop); list) {
         assert(false and "not implemented yet!");
     }
 }
@@ -198,61 +199,6 @@ Widget * Session::get_mouse_widget(int x, int y)
         return Widget::capturingWidget;
     else
         return root_widget->hitTest(x, y);
-}
-
-static std::unique_ptr<Widget> deserialize_widget(UIWidget widgetType, InputStream & stream)
-{
-    auto widget = Widget::create(widgetType);
-    assert(widget);
-
-    UIProperty property;
-    do {
-        bool isBinding;
-        std::tie(property, isBinding) = stream.read_property_enum();
-        if (property != UIProperty::invalid) {
-            if (isBinding) {
-                auto const name = PropertyName(stream.read_uint());
-                widget->setPropertyBinding(property, name);
-            } else {
-                auto const value = stream.read_value(getPropertyType(property));
-                widget->setProperty(property, value);
-            }
-        }
-    } while (property != UIProperty::invalid);
-
-    UIWidget childType;
-    do {
-        childType = stream.read_enum<UIWidget>();
-        if (childType != UIWidget::invalid)
-            widget->children.emplace_back(deserialize_widget(childType, stream));
-    } while (childType != UIWidget::invalid);
-
-    return widget;
-}
-
-static std::unique_ptr<Widget> deserialize_widget(InputStream & stream)
-{
-    auto const widgetType = stream.read_enum<UIWidget>();
-    return deserialize_widget(widgetType, stream);
-}
-
-/// loads a widget from a given resource ID or throws.
-std::unique_ptr<Widget> Session::load_widget(UIResourceID id)
-{
-    if (auto resource = find_resource(id); resource) {
-        if (resource->index() != int(ResourceKind::layout))
-            throw std::runtime_error("invalid resource: wrong kind!");
-
-        auto const & layout = std::get<LayoutResource>(*resource);
-
-        InputStream stream = layout.get_stream();
-
-        auto widget = deserialize_widget(stream);
-        widget->templateID = id;
-        return widget;
-    } else {
-        throw std::runtime_error("could not find the right resource!");
-    }
 }
 
 xstd::optional<Resource const &> Session::find_resource(UIResourceID id)
@@ -302,4 +248,15 @@ void Session::destroy_object(ObjectID id)
 const std::map<ObjectID, Object> & Session::get_object_registry()
 {
     return object_registry;
+}
+
+xstd::optional<Object &> Session::try_resolve(ObjectID id)
+{
+    if (id.is_null())
+        return xstd::nullopt;
+
+    if (auto it = object_registry.find(id); it != object_registry.end())
+        return it->second;
+    else
+        return xstd::nullopt;
 }

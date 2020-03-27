@@ -8,6 +8,8 @@
 #include <gsl/gsl>
 #include <vector>
 
+#include "dunst-encoding.h"
+
 #if defined(DUNSTBLICK_SERVER)
 #include "types.hpp"
 #endif
@@ -70,11 +72,11 @@ struct CommandBuffer
 
     void write_varint(uint32_t value)
     {
-        char buf[5];
+        uint8_t buf[5];
 
         size_t maxidx = 4;
         for (size_t n = 0; n < 5; n++) {
-            char & c = buf[4 - n];
+            uint8_t & c = buf[4 - n];
             c = (value >> (7 * n)) & 0x7F;
             if (c != 0)
                 maxidx = 4 - n;
@@ -84,6 +86,11 @@ struct CommandBuffer
 
         assert(maxidx < 5);
         write(buf + maxidx, 5 - maxidx);
+    }
+
+    void write_varsint(int32_t value)
+    {
+        write_varint(map_signed_to_unsigned(value));
     }
 
     void write_id(uint32_t id)
@@ -192,7 +199,7 @@ struct CommandBuffer
             write_enum(gsl::narrow<uint8_t>(val.index()));
         switch (UIType(val.index())) {
             case UIType::integer: {
-                write_varint(gsl::narrow<uint32_t>((std::get<int>(val))));
+                write_varsint(std::get<int32_t>(val));
                 return;
             }
 
@@ -217,10 +224,10 @@ struct CommandBuffer
 
             case UIType::margins: {
                 auto const & margins = std::get<UIMargin>(val);
-                write_varint(gsl::narrow<uint32_t>(margins.left));
-                write_varint(gsl::narrow<uint32_t>(margins.top));
-                write_varint(gsl::narrow<uint32_t>(margins.right));
-                write_varint(gsl::narrow<uint32_t>(margins.bottom));
+                write_varsint(gsl::narrow<int32_t>(margins.left));
+                write_varsint(gsl::narrow<int32_t>(margins.top));
+                write_varsint(gsl::narrow<int32_t>(margins.right));
+                write_varsint(gsl::narrow<int32_t>(margins.bottom));
                 return;
             }
 
@@ -266,8 +273,8 @@ struct CommandBuffer
                 return;
             }
 
-            case UIType::callback: {
-                write_varint(gsl::narrow<uint32_t>(std::get<CallbackID>(val).value));
+            case UIType::event: {
+                write_varint(gsl::narrow<uint32_t>(std::get<EventID>(val).value));
                 return;
             }
 
@@ -289,8 +296,8 @@ struct CommandBuffer
 
             case UIType::point: {
                 auto const & point = std::get<UIPoint>(val);
-                write_varint(gsl::narrow<uint32_t>(point.x));
-                write_varint(gsl::narrow<uint32_t>(point.y));
+                write_varsint(gsl::narrow<int32_t>(point.x));
+                write_varsint(gsl::narrow<int32_t>(point.y));
                 return;
             }
 

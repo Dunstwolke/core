@@ -74,7 +74,7 @@ return {
     types =
     {--   ID,  Name,         C++ Type
         {   0, "invalid",     "std::monostate"        },
-        {   1, "integer",     "int"                   },
+        {   1, "integer",     "int32_t"               },
         {   2, "number",      "float"                 },
         {   3, "string",      "std::string"           },
         {   4, "enumeration", "uint8_t"               },
@@ -87,7 +87,8 @@ return {
         {  11, "sizelist",    "UISizeList"            },
         {  12, "object",      "ObjectRef"             },
         {  13, "objectlist",  "ObjectList"            },
-        {  14, "callback",    "CallbackID"            },
+        {  14, "event",       "EventID"               },
+        {  15, "name",        "WidgetName"            },
     },
 
     -- This table contains the definitions for each possible widget property.
@@ -123,9 +124,9 @@ return {
         {  27, "childTemplate",        "child-template",         "resource"    },
      -- {  28, "toolTip",              "tool-tip",               "string"      },
         {  29, "hitTestVisible",       "hit-test-visible",       "boolean"     },
-        {  30, "onClick",              "on-click",               "callback"    },
+        {  30, "onClick",              "on-click",               "event"       },
         {  31, "orientation",          "orientation",            "enumeration" },
-        {  32, "name",                 "widget-name",            "integer",    },
+        {  32, "name",                 "widget-name",            "name",       },
     },
 
     -- This defines the enumeration groups used in the UI system.

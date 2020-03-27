@@ -59,7 +59,7 @@ static std::ostream & operator<<(std::ostream & stream, ObjectRef ref)
     return stream;
 }
 
-static std::ostream & operator<<(std::ostream & stream, CallbackID cb)
+static std::ostream & operator<<(std::ostream & stream, EventID cb)
 {
     stream << "{" << cb.value << "}";
     return stream;
@@ -111,6 +111,12 @@ static std::ostream & operator<<(std::ostream & stream, UISizeList)
     return stream;
 }
 
+static std::ostream & operator<<(std::ostream & stream, WidgetName name)
+{
+    stream << "/" << name.value << "/";
+    return stream;
+}
+
 static void dump_object(Object const & obj)
 {
     std::cout << "Object[" << obj.get_id().value << "]" << std::endl;
@@ -122,12 +128,6 @@ static void dump_object(Object const & obj)
 }
 
 static Session * current_session;
-
-Session & get_current_session()
-{
-    assert(current_session != nullptr);
-    return *current_session;
-}
 
 struct DiscoveredClient
 {
@@ -221,18 +221,18 @@ void refresh_discovery()
             return (a.name < b.name);
         });
 
-        size_t idx = 0;
-        for (auto const & client : new_clients) {
-            fprintf(stderr,
-                    "[%lu] %s:\n"
-                    "\tname: %s\n"
-                    "\tport: %d\n",
-                    idx++,
-                    xnet::to_string(client.udp_ep).c_str(),
-                    client.name.c_str(),
-                    client.tcp_port);
-            fflush(stderr);
-        }
+        //        size_t idx = 0;
+        //        for (auto const & client : new_clients) {
+        //            fprintf(stderr,
+        //                    "[%lu] %s:\n"
+        //                    "\tname: %s\n"
+        //                    "\tport: %d\n",
+        //                    idx++,
+        //                    xnet::to_string(client.udp_ep).c_str(),
+        //                    client.name.c_str(),
+        //                    client.tcp_port);
+        //            fflush(stderr);
+        //        }
 
         {
             std::lock_guard<std::mutex> lock{discovered_clients_lock};
@@ -252,10 +252,11 @@ PropertyName constexpr local_discovery_list{1};
 PropertyName constexpr local_app_name{2};
 PropertyName constexpr local_app_ip{3};
 PropertyName constexpr local_app_port{4};
+PropertyName constexpr local_app_id{5};
 
-CallbackID constexpr local_exit_client_event{1};
-CallbackID constexpr local_open_session_event{2};
-CallbackID constexpr local_close_session_event{3};
+EventID constexpr local_exit_client_event{1};
+EventID constexpr local_open_session_event{2};
+EventID constexpr local_close_session_event{3};
 
 constexpr ObjectID local_session_id(size_t index)
 {
@@ -328,12 +329,26 @@ int main()
     // NetworkSession sess{target_endpoint};
     LocalSession sess;
 
-    sess.onEvent = [](CallbackID event) {
+    sess.onEvent = [](EventID event, WidgetName widget) {
         if (event == local_exit_client_event) {
             shutdown_app_requested = true;
+        } else if (event == local_open_session_event) {
+            DiscoveredClient client;
+            {
+                std::lock_guard<std::mutex> lock{discovered_clients_lock};
+                if (widget.value < 1 or widget.value > discovered_clients.size())
+                    return;
+
+                client = discovered_clients.at(widget.value - 1);
+            }
+
+            all_sessions.emplace_back(new NetworkSession(client.create_tcp_endpoint()));
+
+        } else if (event == local_close_session_event) {
+
         } else {
-            fprintf(stderr, "Unknown event: %lu\n", event.value);
-            assert(false and "unhandled event detected");
+            fprintf(stderr, "Unknown event: %lu, Sender: %lu\n", event.value, widget.value);
+            // assert(false and "unhandled event detected");
         }
     };
 
@@ -394,6 +409,7 @@ int main()
 
         sess.root_widget->children.emplace_back(menu);
     }
+    sess.root_widget->initializeRoot(&sess);
 
     current_session = &sess;
 
@@ -416,19 +432,34 @@ int main()
 
             for (size_t i = 0; i < all_sessions.size(); i++) {
 
-                if (i > children.size()) {
-                    auto * const widget = new Container();
-                    widget->tabTitle.set(widget, "Unnamed Session");
-                    children.emplace_back(widget);
+                auto const session = all_sessions.at(i).get();
+
+                size_t child_index = i + 1;
+
+                Widget * container;
+                if (child_index >= children.size()) {
+                    container = new Container();
+                    container->tabTitle.set(container, "Unnamed Session " + std::to_string(i));
+                    container->widget_context = sess.root_widget->widget_context;
+                    children.emplace_back(container);
+                } else {
+                    container = children.at(child_index).get();
                 }
 
-                auto & widget = children.at(i + 1);
-
-                auto const session = all_sessions.at(i).get();
                 if (session->root_widget) {
-                    widget.reset(session->root_widget.get());
+                    auto root = session->root_widget.get();
+                    if (container->children.size() == 0)
+                        container->children.emplace_back(root);
+                    else {
+                        container->children.at(0).release();
+                        container->children.at(0).reset(root);
+                    }
                 } else {
-                    widget.reset(nullptr);
+                    if (container->children.size() > 0) {
+                        assert(container->children.size() == 1);
+                        container->children.at(0).release();
+                        container->children.clear();
+                    }
                 }
             }
             while (sess.root_widget->children.size() > all_sessions.size() + 1) {
@@ -458,6 +489,7 @@ int main()
                 obj.add(local_app_name, UIValue(clients[i].name));
                 obj.add(local_app_port, UIValue(clients[i].tcp_port));
                 obj.add(local_app_ip, UIValue(xnet::to_string(clients[i].udp_ep, false)));
+                obj.add(local_app_id, UIValue(WidgetName(i + 1)));
 
                 list.emplace_back(obj);
 

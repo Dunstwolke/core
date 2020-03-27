@@ -3,6 +3,7 @@
 
 #include "enums.hpp"
 #include "object.hpp"
+#include "resources.hpp"
 #include "types.hpp"
 
 #include "inputstream.hpp"
@@ -13,8 +14,6 @@
 #include <sdl2++/renderer>
 #include <variant>
 #include <vector>
-
-#include "session.hpp"
 
 // #include <SDL.h>
 
@@ -126,6 +125,32 @@ struct MetaWidget
     explicit MetaWidget(UIWidget);
 };
 
+struct IWidgetContext
+{
+    // Interface:
+
+    virtual xstd::optional<Object &> try_resolve(ObjectID id) = 0;
+
+    virtual void trigger_event(EventID event, WidgetName widget) = 0;
+
+    virtual void trigger_propertyChanged(ObjectID oid, PropertyName name, UIValue value) = 0;
+
+    virtual xstd::optional<Resource const &> find_resource(UIResourceID id) = 0;
+
+    // Helper functions:
+
+    template <typename T>
+    xstd::optional<T const &> get_resource(UIResourceID id)
+    {
+        if (auto res = find_resource(id); res and std::holds_alternative<T>(*res))
+            return std::get<T>(*res);
+        else
+            return xstd::nullopt;
+    }
+
+    std::unique_ptr<Widget> load_widget(UIResourceID id);
+};
+
 struct Widget
 {
   public:
@@ -139,12 +164,17 @@ struct Widget
     /// to the resource this widget was loaded from.
     std::optional<UIResourceID> templateID;
 
+    /// Stores the context for this widget.
+    /// Provides access to resources and event processing
+    IWidgetContext * widget_context;
+
   public: // widget tree
     /// contains all child widgets
     std::vector<std::unique_ptr<Widget>> children;
 
   public: // deserializable properties
     // generic
+    property<WidgetName> name = WidgetName::null();
     property<HAlignment> horizontalAlignment = HAlignment::stretch;
     property<VAlignment> verticalAlignment = VAlignment::stretch;
     property<Visibility> visibility = Visibility::visible;
@@ -197,6 +227,11 @@ struct Widget
 
   public:
     virtual ~Widget();
+
+    /// Sets the context for all resources and I/O operations for
+    /// the widget and all its children.
+    /// @remarks Call at least once before using.
+    void initializeRoot(IWidgetContext * context);
 
     /// stage0: update widget bindings and property references.
     /// also updates child widgets if there are is a child source bound.
@@ -297,8 +332,8 @@ template <typename T, bool UseBindings>
 T property<T, UseBindings>::get(const Widget * w) const
 {
     if constexpr (UseBindings) {
-        if (binding and w->bindingSource.is_resolvable(get_current_session())) {
-            if (auto prop = w->bindingSource.resolve(get_current_session()).get(*binding); prop) {
+        if (binding and w->bindingSource.is_resolvable(*w->widget_context)) {
+            if (auto prop = w->bindingSource.resolve(*w->widget_context).get(*binding); prop) {
                 auto const converted = convertTo(prop->value, getUITypeFromType<T>());
                 if constexpr (std::is_enum_v<T>)
                     return T(std::get<uint8_t>(converted));
@@ -314,8 +349,8 @@ template <typename T, bool UseBindings>
 void property<T, UseBindings>::set(Widget * w, const T & new_value)
 {
     if constexpr (UseBindings) {
-        if (binding and w->bindingSource.is_resolvable(get_current_session())) {
-            auto & obj = w->bindingSource.resolve(get_current_session());
+        if (binding and w->bindingSource.is_resolvable(*w->widget_context)) {
+            auto & obj = w->bindingSource.resolve(*w->widget_context);
             if (auto prop = obj.get(*binding); prop) {
                 UIValue to_convert;
                 if constexpr (std::is_enum_v<T>)
@@ -327,7 +362,7 @@ void property<T, UseBindings>::set(Widget * w, const T & new_value)
                 auto const valueChanged = (prop->value != newValue);
                 prop->value = newValue;
                 if (valueChanged)
-                    get_current_session().trigger_propertyChanged(obj.get_id(), *binding, newValue);
+                    w->widget_context->trigger_propertyChanged(obj.get_id(), *binding, newValue);
 
                 return;
             }

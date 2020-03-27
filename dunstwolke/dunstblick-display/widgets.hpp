@@ -32,7 +32,7 @@ struct ClickableWidget : Widget
 
 struct Button : ClickableWidget
 {
-    property<CallbackID> onClickEvent;
+    property<EventID> onClickEvent;
 
     Button();
 

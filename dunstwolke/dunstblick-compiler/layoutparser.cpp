@@ -102,6 +102,18 @@ struct Lexer
         }
         return tok->text;
     }
+
+    std::variant<std::string, uint32_t> acceptStringOrNumber()
+    {
+        auto tok = lex();
+        if (not tok)
+            throw std::runtime_error("unexpected end of file!");
+        if (tok->type == LexerTokenType::string)
+            return tok->text;
+        if (tok->type == LexerTokenType::integer)
+            return std::strtoul(tok->text.c_str(), nullptr, 10);
+        throw std::runtime_error("expected string or integer!");
+    }
 };
 
 static int lex_int(Lexer & lexer)
@@ -342,37 +354,47 @@ static void parse_and_translate(
 
             lexer.accept(LexerTokenType::openParens);
 
-            auto const resourceName = lexer.accept(LexerTokenType::string);
+            auto const callbackName = lexer.acceptStringOrNumber();
 
             lexer.accept(LexerTokenType::closeParens);
 
             lexer.accept(LexerTokenType::semiColon);
 
-            if (auto it = parser.knownResources.find(resourceName); it == parser.knownResources.end())
-                throw std::runtime_error("unknown resource: '" + resourceName + "'!");
-            else
-                write_varint(output, gsl::narrow<uint32_t>(it->second.value));
+            if (callbackName.index() == 0) {
+                auto const & name = std::get<0>(callbackName);
+                if (auto it = parser.knownResources.find(name); it == parser.knownResources.end())
+                    throw std::runtime_error("unknown resource: '" + name + "'!");
+                else
+                    write_varint(output, gsl::narrow<uint32_t>(it->second.value));
+            } else {
+                write_varint(output, std::get<1>(callbackName));
+            }
 
             return;
         }
 
-        case UIType::callback: {
+        case UIType::event: {
             auto const tokResource = lexer.accept(LexerTokenType::identifier);
             if (tokResource != "callback")
                 throw std::runtime_error("expected 'callback', found " + tokResource + " instead!");
 
             lexer.accept(LexerTokenType::openParens);
 
-            auto const callbackName = lexer.accept(LexerTokenType::string);
+            auto const callbackName = lexer.acceptStringOrNumber();
 
             lexer.accept(LexerTokenType::closeParens);
 
             lexer.accept(LexerTokenType::semiColon);
 
-            if (auto it = parser.knownCallbacks.find(callbackName); it == parser.knownCallbacks.end())
-                throw std::runtime_error("unknown callback: '" + callbackName + "'!");
-            else
-                write_varint(output, gsl::narrow<uint32_t>(it->second.value));
+            if (callbackName.index() == 0) {
+                auto const & name = std::get<0>(callbackName);
+                if (auto it = parser.knownCallbacks.find(name); it == parser.knownCallbacks.end())
+                    throw std::runtime_error("unknown callback: '" + name + "'!");
+                else
+                    write_varint(output, gsl::narrow<uint32_t>(it->second.value));
+            } else {
+                write_varint(output, std::get<1>(callbackName));
+            }
 
             return;
         }
@@ -425,12 +447,7 @@ static void parse_and_translate(LayoutParser const & parser,
                     lexer.accept(LexerTokenType::identifier);
                     lexer.accept(LexerTokenType::openParens);
 
-                    std::variant<std::string, uint32_t> propertyName;
-
-                    if (lexer.peek() and lexer.peek()->type == LexerTokenType::string)
-                        propertyName = lexer.accept(LexerTokenType::string);
-                    else
-                        propertyName = uint32_t(std::stoul(lexer.accept(LexerTokenType::integer), nullptr, 10));
+                    auto const propertyName = lexer.acceptStringOrNumber();
 
                     lexer.accept(LexerTokenType::closeParens);
                     lexer.accept(LexerTokenType::semiColon);

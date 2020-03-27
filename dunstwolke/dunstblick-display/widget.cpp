@@ -18,16 +18,27 @@ Widget::~Widget()
         capturingWidget = nullptr;
 }
 
+void Widget::initializeRoot(IWidgetContext * context)
+{
+    assert(context != nullptr);
+    this->widget_context = context;
+    for (auto & child : children) {
+        child->initializeRoot(context);
+    }
+}
+
 void Widget::updateBindings(ObjectRef parentBindingSource)
 {
+    assert(widget_context != nullptr);
+
     // STAGE 1: Update the current binding source
 
     // if we have a bindingSource of the parent available:
-    if (parentBindingSource.is_resolvable(get_current_session()) and this->bindingContext.binding) {
+    if (parentBindingSource.is_resolvable(*widget_context) and this->bindingContext.binding) {
         // check if the parent source has the property
         // we bind our bindingContext to and if yes,
         // bind to it
-        if (auto prop = parentBindingSource.resolve(get_current_session()).get(*this->bindingContext.binding); prop) {
+        if (auto prop = parentBindingSource.resolve(*widget_context).get(*this->bindingContext.binding); prop) {
             this->bindingSource = std::get<ObjectRef>(prop->value);
         } else {
             this->bindingSource = ObjectRef(nullptr);
@@ -36,7 +47,7 @@ void Widget::updateBindings(ObjectRef parentBindingSource)
         // otherwise check if our bindingContext has a valid resourceID and
         // load that resource reference:
         auto objectID = this->bindingContext.get(this);
-        if (objectID.is_resolvable(get_current_session())) {
+        if (objectID.is_resolvable(*widget_context)) {
             this->bindingSource = objectID;
         } else {
             this->bindingSource = parentBindingSource;
@@ -52,7 +63,8 @@ void Widget::updateBindings(ObjectRef parentBindingSource)
         for (size_t i = 0; i < list.size(); i++) {
             auto & child = this->children[i];
             if (not child or (child->templateID != ct)) {
-                child = get_current_session().load_widget(ct);
+                child = widget_context->load_widget(ct);
+                child->initializeRoot(widget_context);
             }
 
             // update the children with the list as
@@ -254,6 +266,8 @@ Visibility Widget::getActualVisibility() const
 
 Widget * Widget::hitTest(int ssx, int ssy)
 {
+    if (this->hidden_by_layout)
+        return nullptr;
     if (not this->hitTestVisible.get(this))
         return nullptr;
     if (not contains(actual_bounds, ssx, ssy))
@@ -309,6 +323,7 @@ BaseProperty::~BaseProperty() {}
 #include "widgets.hpp"
 
 std::initializer_list<MetaProperty> const metaProperties{
+    MetaProperty{UIProperty::name, &Widget::name},
     MetaProperty{UIProperty::margins, &Widget::margins},
     MetaProperty{UIProperty::paddings, &Widget::paddings},
     MetaProperty{UIProperty::horizontalAlignment, &Widget::horizontalAlignment},
@@ -380,5 +395,60 @@ MetaWidget::MetaWidget(UIWidget type)
         if ((item.widget == UIWidget::invalid) or (item.widget == type)) {
             properties.emplace(item.name, item.getter);
         }
+    }
+}
+
+static std::unique_ptr<Widget> deserialize_widget(UIWidget widgetType, InputStream & stream)
+{
+    auto widget = Widget::create(widgetType);
+    assert(widget);
+
+    UIProperty property;
+    do {
+        bool isBinding;
+        std::tie(property, isBinding) = stream.read_property_enum();
+        if (property != UIProperty::invalid) {
+            if (isBinding) {
+                auto const name = PropertyName(stream.read_uint());
+                widget->setPropertyBinding(property, name);
+            } else {
+                auto const value = stream.read_value(getPropertyType(property));
+                widget->setProperty(property, value);
+            }
+        }
+    } while (property != UIProperty::invalid);
+
+    UIWidget childType;
+    do {
+        childType = stream.read_enum<UIWidget>();
+        if (childType != UIWidget::invalid)
+            widget->children.emplace_back(deserialize_widget(childType, stream));
+    } while (childType != UIWidget::invalid);
+
+    return widget;
+}
+
+static std::unique_ptr<Widget> deserialize_widget(InputStream & stream)
+{
+    auto const widgetType = stream.read_enum<UIWidget>();
+    return deserialize_widget(widgetType, stream);
+}
+
+/// loads a widget from a given resource ID or throws.
+std::unique_ptr<Widget> IWidgetContext::load_widget(UIResourceID id)
+{
+    if (auto resource = find_resource(id); resource) {
+        if (resource->index() != int(ResourceKind::layout))
+            throw std::runtime_error("invalid resource: wrong kind!");
+
+        auto const & layout = std::get<LayoutResource>(*resource);
+
+        InputStream stream = layout.get_stream();
+
+        auto widget = deserialize_widget(stream);
+        widget->templateID = id;
+        return widget;
+    } else {
+        throw std::runtime_error("could not find the right resource!");
     }
 }

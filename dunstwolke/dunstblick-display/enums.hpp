@@ -116,67 +116,14 @@ enum class UIType : uint8_t
 	sizelist = 11,
 	object = 12,
 	objectlist = 13,
-	callback = 14,
-};
-
-enum class BooleanFormat : uint8_t
-{
-	truefalse = UIEnum::truefalse,
-	yesno = UIEnum::yesno,
-	onoff = UIEnum::onoff,
-};
-
-enum class VAlignment : uint8_t
-{
-	stretch = UIEnum::stretch,
-	top = UIEnum::top,
-	middle = UIEnum::middle,
-	bottom = UIEnum::bottom,
-};
-
-enum class DockSite : uint8_t
-{
-	top = UIEnum::top,
-	bottom = UIEnum::bottom,
-	left = UIEnum::left,
-	right = UIEnum::right,
-};
-
-enum class Visibility : uint8_t
-{
-	visible = UIEnum::visible,
-	collapsed = UIEnum::collapsed,
-	hidden = UIEnum::hidden,
-};
-
-enum class ImageScaling : uint8_t
-{
-	none = UIEnum::none,
-	center = UIEnum::center,
-	stretch = UIEnum::stretch,
-	zoom = UIEnum::zoom,
-	contain = UIEnum::contain,
-	cover = UIEnum::cover,
-};
-
-enum class Orientation : uint8_t
-{
-	horizontal = UIEnum::horizontal,
-	vertical = UIEnum::vertical,
+	event = 14,
+	name = 15,
 };
 
 enum class StackDirection : uint8_t
 {
 	vertical = UIEnum::vertical,
 	horizontal = UIEnum::horizontal,
-};
-
-enum class HAlignment : uint8_t
-{
-	stretch = UIEnum::stretch,
-	left = UIEnum::left,
-	center = UIEnum::center,
-	right = UIEnum::right,
 };
 
 enum class UIFont : uint8_t
@@ -191,6 +138,60 @@ enum class DisplayProgressStyle : uint8_t
 	none = UIEnum::none,
 	percent = UIEnum::percent,
 	absolute = UIEnum::absolute,
+};
+
+enum class VAlignment : uint8_t
+{
+	stretch = UIEnum::stretch,
+	top = UIEnum::top,
+	middle = UIEnum::middle,
+	bottom = UIEnum::bottom,
+};
+
+enum class ImageScaling : uint8_t
+{
+	none = UIEnum::none,
+	center = UIEnum::center,
+	stretch = UIEnum::stretch,
+	zoom = UIEnum::zoom,
+	contain = UIEnum::contain,
+	cover = UIEnum::cover,
+};
+
+enum class DockSite : uint8_t
+{
+	top = UIEnum::top,
+	bottom = UIEnum::bottom,
+	left = UIEnum::left,
+	right = UIEnum::right,
+};
+
+enum class Orientation : uint8_t
+{
+	horizontal = UIEnum::horizontal,
+	vertical = UIEnum::vertical,
+};
+
+enum class BooleanFormat : uint8_t
+{
+	truefalse = UIEnum::truefalse,
+	yesno = UIEnum::yesno,
+	onoff = UIEnum::onoff,
+};
+
+enum class Visibility : uint8_t
+{
+	visible = UIEnum::visible,
+	collapsed = UIEnum::collapsed,
+	hidden = UIEnum::hidden,
+};
+
+enum class HAlignment : uint8_t
+{
+	stretch = UIEnum::stretch,
+	left = UIEnum::left,
+	center = UIEnum::center,
+	right = UIEnum::right,
 };
 
 UIType getPropertyType(UIProperty property);

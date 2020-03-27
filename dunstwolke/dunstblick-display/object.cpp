@@ -30,32 +30,26 @@ xstd::optional<const ObjectProperty &> Object::get(PropertyName property) const
         return xstd::nullopt;
 }
 
-xstd::optional<Object &> ObjectRef::try_resolve(Session & session)
+xstd::optional<Object &> ObjectRef::try_resolve(IWidgetContext & session)
 {
-    if (id.is_null())
-        return xstd::nullopt;
-    if (auto it = session.object_registry.find(id); it != session.object_registry.end())
-        return it->second;
+    return session.try_resolve(this->id);
+}
+
+xstd::optional<const Object &> ObjectRef::try_resolve(IWidgetContext & session) const
+{
+    auto opt = session.try_resolve(this->id);
+    if (opt)
+        return *opt;
     else
         return xstd::nullopt;
 }
 
-xstd::optional<const Object &> ObjectRef::try_resolve(Session const & session) const
-{
-    if (id.is_null())
-        return xstd::nullopt;
-    if (auto it = session.object_registry.find(id); it != session.object_registry.end())
-        return it->second;
-    else
-        return xstd::nullopt;
-}
-
-bool ObjectRef::is_resolvable(Session const & session) const
+bool ObjectRef::is_resolvable(IWidgetContext & session) const
 {
     return try_resolve(session).has_value();
 }
 
-Object & ObjectRef::resolve(Session & session)
+Object & ObjectRef::resolve(IWidgetContext & session)
 {
     if (auto obj = try_resolve(session); obj)
         return *obj;
@@ -63,7 +57,7 @@ Object & ObjectRef::resolve(Session & session)
         throw std::runtime_error("tried to access invalid object id " + std::to_string(id.value));
 }
 
-const Object & ObjectRef::resolve(Session const & session) const
+const Object & ObjectRef::resolve(IWidgetContext & session) const
 {
     if (auto obj = try_resolve(session); obj)
         return *obj;

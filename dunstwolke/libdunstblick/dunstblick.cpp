@@ -726,8 +726,9 @@ void dunstblick_Provider::pump_events()
             switch (msgtype) {
                 case ServerMessageType::eventCallback: {
                     auto const id = reader.read_uint();
+                    auto const widget = reader.read_uint();
 
-                    con.onEvent.invoke(&con, id);
+                    con.onEvent.invoke(&con, id, widget);
 
                     break;
                 }

@@ -35,7 +35,7 @@ Button::Button() : ClickableWidget(UIWidget::button) {}
 
 void Button::onClick()
 {
-    get_current_session().trigger_event(onClickEvent.get(this));
+    widget_context->trigger_event(onClickEvent.get(this), this->name.get(this));
 }
 
 Label::Label()
@@ -339,7 +339,7 @@ Picture::Picture()
 
 void Picture::paintWidget(const SDL_Rect & rectangle)
 {
-    if (auto bmp = get_current_session().get_resource<BitmapResource>(image.get(this)); bmp) {
+    if (auto bmp = widget_context->get_resource<BitmapResource>(image.get(this)); bmp) {
         auto const [format, access, w, h] = bmp->texture.query();
 
         float targetAspect = float(rectangle.w) / float(rectangle.h);
@@ -423,7 +423,7 @@ void Picture::paintWidget(const SDL_Rect & rectangle)
 
 UISize Picture::calculateWantedSize()
 {
-    if (auto res = get_current_session().find_resource(image.get(this)); res and is_bitmap(*res)) {
+    if (auto res = widget_context->find_resource(image.get(this)); res and is_bitmap(*res)) {
         auto [format, access, w, h] = std::get<BitmapResource>(*res).texture.query();
         return {w, h};
     } else {

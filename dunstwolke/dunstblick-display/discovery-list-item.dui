@@ -3,11 +3,15 @@ Panel
   DockLayout
   {
     Button {
+      on-click: callback(2);
       dock-site: right;
+      widget-name: bind(5);
       Label { text: "Open"; }
     }
     Button {
+      on-click: callback(3);
       dock-site: right;
+      widget-name: bind(5);
       Label { text: "Close"; }
     }
     Label {

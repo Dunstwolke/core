@@ -17,7 +17,8 @@
 #include "enums.hpp"
 
 using UIResourceID = xstd::unique_id<struct UIResourceID_tag>;
-using CallbackID = xstd::unique_id<struct CallbackID_tag>;
+using EventID = xstd::unique_id<struct CallbackID_tag>;
+using WidgetName = xstd::unique_id<struct WidgetName_tag>;
 
 #ifdef DUNSTBLICK_SERVER
 using UIPoint = SDL_Point;
@@ -142,7 +143,7 @@ using PropertyName = xstd::unique_id<struct ObjectProperty>;
 
 struct Object;
 
-struct Session;
+struct IWidgetContext;
 
 struct ObjectRef
 {
@@ -154,13 +155,13 @@ struct ObjectRef
 
     explicit ObjectRef(Object const & obj);
 
-    xstd::optional<Object &> try_resolve(Session & session);
-    xstd::optional<Object const &> try_resolve(Session const & session) const;
+    xstd::optional<Object &> try_resolve(IWidgetContext & session);
+    xstd::optional<Object const &> try_resolve(IWidgetContext & session) const;
 
-    bool is_resolvable(Session const & session) const;
+    bool is_resolvable(IWidgetContext & session) const;
 
-    Object & resolve(Session & session);
-    Object const & resolve(Session const & session) const;
+    Object & resolve(IWidgetContext & session);
+    Object const & resolve(IWidgetContext & session) const;
 
     bool operator==(ObjectRef const & o) const
     {

@@ -89,7 +89,7 @@ int main(int argc, char * const * argv)
 
         if (auto props = json.find("callbacks"); props != json.end()) {
             for (auto it = props.value().begin(); it != props.value().end(); it++) {
-                layout_parser.knownCallbacks.emplace(it.key(), CallbackID(it.value().get<unsigned int>()));
+                layout_parser.knownCallbacks.emplace(it.key(), EventID(it.value().get<unsigned int>()));
             }
         }
     }

@@ -7,12 +7,13 @@
 #include "enums.hpp"
 #include "resources.hpp"
 #include "types.hpp"
+#include "widget.hpp"
 
 using Packet = std::vector<uint8_t>;
 
 struct Widget;
 
-struct Session
+struct Session : IWidgetContext
 {
     std::unique_ptr<Widget> root_widget;
     Widget * keyboard_focused_widget = nullptr;
@@ -33,6 +34,8 @@ struct Session
 
     virtual void update() = 0;
 
+    xstd::optional<Object &> try_resolve(ObjectID) override;
+
     // API
     void uploadResource(UIResourceID, ResourceKind, void const * data, size_t len);
     void addOrUpdateObject(Object && obj);
@@ -49,11 +52,6 @@ struct Session
     void removeRange(ObjectID obj, PropertyName prop, size_t index, size_t count);                   // manipulate lists
     void moveRange(ObjectID obj, PropertyName prop, size_t indexFrom, size_t indexTo, size_t count); // manipulate lists
 
-    // Event handling
-    virtual void trigger_event(CallbackID cid) = 0;
-
-    virtual void trigger_propertyChanged(ObjectID oid, PropertyName name, UIValue value) = 0;
-
     // Layouting and stuff
     void update_layout();
     void ui_set_mouse_focus(Widget * widget);
@@ -61,23 +59,9 @@ struct Session
 
     Widget * get_mouse_widget(int x, int y);
 
-    // More
-
-    /// loads a widget from a given resource ID or throws.
-    std::unique_ptr<Widget> load_widget(UIResourceID id);
-
     // Resource handling:
 
-    xstd::optional<Resource const &> find_resource(UIResourceID id);
-
-    template <typename T>
-    xstd::optional<T const &> get_resource(UIResourceID id)
-    {
-        if (auto res = find_resource(id); res and std::holds_alternative<T>(*res))
-            return std::get<T>(*res);
-        else
-            return xstd::nullopt;
-    }
+    xstd::optional<Resource const &> find_resource(UIResourceID id) override;
 
     void set_resource(UIResourceID id, Resource && resource);
 
@@ -91,7 +75,5 @@ struct Session
 
     std::map<ObjectID, Object> const & get_object_registry();
 };
-
-Session & get_current_session();
 
 #endif // SESSION_HPP

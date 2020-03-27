@@ -9,3 +9,6 @@ SUBDIRS += \
   examples
 
 DISTFILES += ../.clang-format
+
+HEADERS += \
+  dunstblick-common/dunst-encoding.h

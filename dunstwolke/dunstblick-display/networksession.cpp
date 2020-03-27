@@ -95,13 +95,14 @@ void NetworkSession::update()
     do_communication();
 }
 
-void NetworkSession::trigger_event(CallbackID cid)
+void NetworkSession::trigger_event(EventID cid, WidgetName widget)
 {
     if (cid.is_null()) // ignore empty callbacks
         return;
 
     CommandBuffer buffer{ServerMessageType::eventCallback};
     buffer.write_id(cid.value);
+    buffer.write_id(widget.value);
 
     send_message(buffer);
 }

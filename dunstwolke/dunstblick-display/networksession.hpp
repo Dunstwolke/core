@@ -17,7 +17,7 @@ struct NetworkSession : Session
     // session implementation
     void update() override;
 
-    void trigger_event(CallbackID cid) override;
+    void trigger_event(EventID cid, WidgetName widget) override;
 
     void trigger_propertyChanged(ObjectID oid, PropertyName name, UIValue value) override;
 
