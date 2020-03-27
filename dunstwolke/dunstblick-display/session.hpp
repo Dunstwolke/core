@@ -1,13 +1,8 @@
 #ifndef SESSION_HPP
 #define SESSION_HPP
 
-#include <xnet/ip>
-#include <xnet/socket>
-
 #include <mutex>
 #include <vector>
-
-#include "../dunstblick-common/data-writer.hpp"
 
 #include "enums.hpp"
 #include "resources.hpp"
@@ -19,8 +14,6 @@ struct Widget;
 
 struct Session
 {
-    xnet::socket sock;
-
     std::unique_ptr<Widget> root_widget;
     Widget * keyboard_focused_widget = nullptr;
     Widget * mouse_focused_widget = nullptr;
@@ -34,13 +27,11 @@ struct Session
     std::map<UIResourceID, Resource> resources;
     std::map<ObjectID, Object> object_registry;
 
-    Session(xnet::endpoint const & target);
+    Session();
     Session(Session const &) = delete;
-    ~Session();
+    virtual ~Session();
 
-    void do_communication();
-
-    void send_message(CommandBuffer const & buffer);
+    virtual void update() = 0;
 
     // API
     void uploadResource(UIResourceID, ResourceKind, void const * data, size_t len);
@@ -58,12 +49,10 @@ struct Session
     void removeRange(ObjectID obj, PropertyName prop, size_t index, size_t count);                   // manipulate lists
     void moveRange(ObjectID obj, PropertyName prop, size_t indexFrom, size_t indexTo, size_t count); // manipulate lists
 
-    // Decoding
-    void parse_and_exec_msg(Packet const & msg);
+    // Event handling
+    virtual void trigger_event(CallbackID cid) = 0;
 
-    void trigger_callback(CallbackID cid);
-
-    void trigger_propertyChanged(ObjectID oid, PropertyName name, UIValue value);
+    virtual void trigger_propertyChanged(ObjectID oid, PropertyName name, UIValue value) = 0;
 
     // Layouting and stuff
     void update_layout();

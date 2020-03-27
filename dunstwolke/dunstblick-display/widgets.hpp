@@ -5,33 +5,40 @@
 
 struct Spacer : WidgetIs<UIWidget::spacer>
 {
-	Spacer();
+    Spacer();
 
-    void paintWidget(const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect & rectangle) override;
+};
+
+struct Container : WidgetIs<UIWidget::container>
+{
+    Container();
+
+    void paintWidget(const SDL_Rect & rectangle) override;
 };
 
 struct ClickableWidget : Widget
 {
-	explicit ClickableWidget(UIWidget type);
+    explicit ClickableWidget(UIWidget type);
 
-	bool isKeyboardFocusable() const override;
+    bool isKeyboardFocusable() const override;
 
-	SDL_SystemCursor getCursor(UIPoint const &) const override;
+    SDL_SystemCursor getCursor(UIPoint const &) const override;
 
-	bool processEvent(const SDL_Event &event) override;
+    bool processEvent(const SDL_Event & event) override;
 
-	virtual void onClick() = 0;
+    virtual void onClick() = 0;
 };
 
 struct Button : ClickableWidget
 {
-	property<CallbackID> onClickEvent;
+    property<CallbackID> onClickEvent;
 
-	Button();
+    Button();
 
-	void onClick() override;
+    void onClick() override;
 
-    void paintWidget(const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect & rectangle) override;
 };
 
 struct Label : WidgetIs<UIWidget::label>
@@ -41,7 +48,7 @@ struct Label : WidgetIs<UIWidget::label>
 
     explicit Label();
 
-    void paintWidget(const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect & rectangle) override;
 
     UISize calculateWantedSize() override;
 };
@@ -50,7 +57,7 @@ struct PlaceholderWidget : WidgetIs<UIWidget::spacer>
 {
     UISize calculateWantedSize() override;
 
-    void paintWidget(const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect & rectangle) override;
 };
 
 #define ComboBox PlaceholderWidget
@@ -66,26 +73,25 @@ struct Picture : WidgetIs<UIWidget::picture>
 
     Picture();
 
-    void paintWidget(const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect & rectangle) override;
 
     UISize calculateWantedSize() override;
 };
 
 #define TextBox PlaceholderWidget
 
-struct CheckBox  : ClickableWidget
+struct CheckBox : ClickableWidget
 {
-	property<bool> isChecked = false;
+    property<bool> isChecked = false;
 
     CheckBox();
 
-	void onClick() override;
+    void onClick() override;
 
     UISize calculateWantedSize() override;
 
-    void paintWidget(const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect & rectangle) override;
 };
-
 
 struct RadioButton : ClickableWidget
 {
@@ -97,42 +103,43 @@ struct RadioButton : ClickableWidget
 
     UISize calculateWantedSize() override;
 
-    void paintWidget(const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect & rectangle) override;
 };
 
 struct ScrollBar : WidgetIs<UIWidget::scrollbar>
 {
-	int static constexpr knobSize = 24;
+    int static constexpr knobSize = 24;
 
-	property<float> minimum = 0.0f;
+    property<float> minimum = 0.0f;
     property<float> maximum = 100.0f;
     property<float> value = 25.0f;
-	property<Orientation> orientation = Orientation::horizontal;
+    property<Orientation> orientation = Orientation::horizontal;
 
-	int knobOffset;
+    int knobOffset;
 
     UISize calculateWantedSize() override;
 
-    void paintWidget(const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect & rectangle) override;
 
-	bool processEvent(SDL_Event const & ev) override;
+    bool processEvent(SDL_Event const & ev) override;
 
-	bool isKeyboardFocusable() const override {
-		return true;
-	}
+    bool isKeyboardFocusable() const override
+    {
+        return true;
+    }
 
-	SDL_SystemCursor getCursor(UIPoint const &) const override;
+    SDL_SystemCursor getCursor(UIPoint const &) const override;
 
     void scroll(float amount);
 };
 
 struct ScrollView : WidgetIs<UIWidget::scrollview>
 {
-	ScrollBar horizontal_bar, vertical_bar;
+    ScrollBar horizontal_bar, vertical_bar;
 
-	ScrollView();
+    ScrollView();
 
-	void layoutChildren(SDL_Rect const & childArea) override;
+    void layoutChildren(SDL_Rect const & childArea) override;
 
     SDL_Rect calculateChildArea(SDL_Rect rect);
 
@@ -141,33 +148,35 @@ struct ScrollView : WidgetIs<UIWidget::scrollview>
     Widget * hitTest(int ssx, int ssy) override;
 
     void paint() override;
-	void paintWidget(const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect & rectangle) override;
 
-	SDL_SystemCursor getCursor(UIPoint const &) const override;
+    SDL_SystemCursor getCursor(UIPoint const &) const override;
 
-	bool processEvent(SDL_Event const & ev) override;
+    bool processEvent(SDL_Event const & ev) override;
 };
 
 struct Slider : WidgetIs<UIWidget::slider>
 {
-	property<float> minimum = 0.0f;
+    property<float> minimum = 0.0f;
     property<float> maximum = 100.0f;
     property<float> value = 0.0f;
-	property<Orientation> orientation = Orientation::horizontal;
+    property<Orientation> orientation = Orientation::horizontal;
 
     UISize calculateWantedSize() override;
 
-    void paintWidget(const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect & rectangle) override;
 
-	bool processEvent(SDL_Event const & ev) override;
+    bool processEvent(SDL_Event const & ev) override;
 
-	bool isKeyboardFocusable() const override {
-		return true;
-	}
+    bool isKeyboardFocusable() const override
+    {
+        return true;
+    }
 
-	SDL_SystemCursor getCursor(UIPoint const &) const override {
-		return SDL_SYSTEM_CURSOR_HAND;
-	}
+    SDL_SystemCursor getCursor(UIPoint const &) const override
+    {
+        return SDL_SYSTEM_CURSOR_HAND;
+    }
 };
 
 struct ProgressBar : WidgetIs<UIWidget::progressbar>
@@ -179,7 +188,7 @@ struct ProgressBar : WidgetIs<UIWidget::progressbar>
 
     UISize calculateWantedSize() override;
 
-    void paintWidget(const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect & rectangle) override;
 };
 
 #define SpinEdit PlaceholderWidget
@@ -188,14 +197,12 @@ struct Separator : WidgetIs<UIWidget::separator>
 {
     UISize calculateWantedSize() override;
 
-    void paintWidget(const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect & rectangle) override;
 };
-
 
 struct Panel : WidgetIs<UIWidget::panel>
 {
-    void paintWidget(const SDL_Rect &rectangle) override;
+    void paintWidget(const SDL_Rect & rectangle) override;
 };
-
 
 #endif // WIDGETS_HPP

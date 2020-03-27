@@ -19,7 +19,7 @@
 
 #include "dunstblick-internal.hpp"
 
-#include "concurrentqueue.h"
+#include <concurrentqueue.h>
 
 using mutex_guard = std::lock_guard<std::mutex>;
 

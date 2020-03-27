@@ -9,8 +9,10 @@ include($$(XQLIB_ROOT)/xqlib.pri)
 
 DEFINES += DUNSTBLICK_LIBRARY
 
-INCLUDEPATH += ../ext/picohash
-INCLUDEPATH += ../ext/concurrentqueue
+SYSTEM_INCLUDEPATH += -isystem $$PWD/../ext/picohash -isystem $$PWD/../ext/concurrentqueue
+
+QMAKE_CFLAGS += $$SYSTEM_INCLUDEPATH
+QMAKE_CXXFLAGS += $$SYSTEM_INCLUDEPATH
 
 SOURCES += \
   dunstblick.cpp \

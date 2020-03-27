@@ -18,6 +18,10 @@ Spacer::Spacer()
 
 void Spacer::paintWidget(const SDL_Rect &) {}
 
+Container::Container() {}
+
+void Container::paintWidget(const SDL_Rect &) {}
+
 void Button::paintWidget(const SDL_Rect & rectangle)
 {
     context().renderer.setColor(0x80, 0x80, 0x80);
@@ -31,7 +35,7 @@ Button::Button() : ClickableWidget(UIWidget::button) {}
 
 void Button::onClick()
 {
-    get_current_session().trigger_callback(onClickEvent.get(this));
+    get_current_session().trigger_event(onClickEvent.get(this));
 }
 
 Label::Label()

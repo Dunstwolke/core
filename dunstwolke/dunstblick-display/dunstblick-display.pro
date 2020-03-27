@@ -17,7 +17,9 @@ SOURCES += \
         fontcache.cpp \
         inputstream.cpp \
         layouts.cpp \
+        localsession.cpp \
         main.cpp \
+        networksession.cpp \
         object.cpp \
         protocol.cpp \
         rendercontext.cpp \
@@ -39,6 +41,8 @@ HEADERS += \
   inputstream.hpp \
   layoutparser.hpp \
   layouts.hpp \
+  localsession.hpp \
+  networksession.hpp \
   object.hpp \
   protocol.hpp \
   rectangle_tools.hpp \

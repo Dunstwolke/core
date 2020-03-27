@@ -1,4 +1,4 @@
-#include "picohash.h"
+#include <picohash.h>
 
 void compute_hash(void const *data, size_t length, void * out)
 {

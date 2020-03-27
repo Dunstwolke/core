@@ -1,0 +1,17 @@
+Panel
+{
+  DockLayout
+  {
+    Button {
+      dock-site: right;
+      Label { text: "Open"; }
+    }
+    Button {
+      dock-site: right;
+      Label { text: "Close"; }
+    }
+    Label {
+      text: bind(2);
+    }
+  }
+}

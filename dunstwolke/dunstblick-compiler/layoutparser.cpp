@@ -1,13 +1,13 @@
 #include "layoutparser.hpp"
 #include "FlexLexer.h"
 
-#include <map>
 #include <cassert>
-#include <string>
 #include <gsl/gsl>
+#include <map>
 #include <stdexcept>
-#include <xstd/resource>
+#include <string>
 #include <xstd/format>
+#include <xstd/resource>
 
 #include "enums.hpp"
 #include "types.hpp"
@@ -20,491 +20,478 @@
 
 struct ParseError
 {
-	int line, column;
-	std::string message;
+    int line, column;
+    std::string message;
 };
 
 using ErrorList = std::vector<ParseError>;
 
 static std::string toString(LexerTokenType type)
 {
-	switch(type)
-	{
-		case LexerTokenType::identifier: return "identifier";
-		case LexerTokenType::integer: return "integer";
-		case LexerTokenType::number: return "number";
-		case LexerTokenType::openBrace: return "opening brace";
-		case LexerTokenType::closeBrace: return "closing brace";
-		case LexerTokenType::openParens: return "opening parens";
-		case LexerTokenType::closeParens: return "closing parens";
-		case LexerTokenType::colon: return "colon";
-		case LexerTokenType::semiColon: return "semicolon";
-		case LexerTokenType::comma: return "comma";
-		case LexerTokenType::string: return "string";
-		case LexerTokenType::percentage: return "percentage";
-		case LexerTokenType::eof: return "<end of file>";
-		case LexerTokenType::invalid: return "<invalid token>";
-	}
-	return "???";
+    switch (type) {
+        case LexerTokenType::identifier:
+            return "identifier";
+        case LexerTokenType::integer:
+            return "integer";
+        case LexerTokenType::number:
+            return "number";
+        case LexerTokenType::openBrace:
+            return "opening brace";
+        case LexerTokenType::closeBrace:
+            return "closing brace";
+        case LexerTokenType::openParens:
+            return "opening parens";
+        case LexerTokenType::closeParens:
+            return "closing parens";
+        case LexerTokenType::colon:
+            return "colon";
+        case LexerTokenType::semiColon:
+            return "semicolon";
+        case LexerTokenType::comma:
+            return "comma";
+        case LexerTokenType::string:
+            return "string";
+        case LexerTokenType::percentage:
+            return "percentage";
+        case LexerTokenType::eof:
+            return "<end of file>";
+        case LexerTokenType::invalid:
+            return "<invalid token>";
+    }
+    return "???";
 }
 
-LayoutParser::LayoutParser()
-{
-
-}
+LayoutParser::LayoutParser() {}
 
 struct Lexer
 {
-	xstd::resource<FlexLexer*, LayoutParser::FreeLexer> lexer;
+    xstd::resource<FlexLexer *, LayoutParser::FreeLexer> lexer;
 
-	std::optional<Token> peeked_token; // 0…1 element buffer
+    std::optional<Token> peeked_token; // 0…1 element buffer
 
-	Lexer(std::istream & input) :
-	    lexer(LayoutParser::AllocLexer(&input))
-	{
-		assert(lexer != nullptr);
-	}
+    Lexer(std::istream & input) : lexer(LayoutParser::AllocLexer(&input))
+    {
+        assert(lexer != nullptr);
+    }
 
-	std::optional<Token> peek()
-	{
-		if(peeked_token)
-			return peeked_token;
-		peeked_token = LayoutParser::Lex(lexer.get());
-		return peeked_token;
-	}
+    std::optional<Token> peek()
+    {
+        if (peeked_token)
+            return peeked_token;
+        peeked_token = LayoutParser::Lex(lexer.get());
+        return peeked_token;
+    }
 
-	std::optional<Token> lex()
-	{
-		if(peeked_token) {
-			auto result = peeked_token;
-			peeked_token.reset();
-			return result;
-		}
-		return LayoutParser::Lex(lexer.get());
-	}
+    std::optional<Token> lex()
+    {
+        if (peeked_token) {
+            auto result = peeked_token;
+            peeked_token.reset();
+            return result;
+        }
+        return LayoutParser::Lex(lexer.get());
+    }
 
-
-
-	std::string accept(LexerTokenType type)
-	{
-		auto tok = lex();
-		if(not tok or tok->type != type) {
-			if(not tok)
-				throw std::runtime_error("unexpected end of file!");
-			throw std::runtime_error("expected " + toString(type) + ", found: '" + tok->text + "'!");
-		}
-		return tok->text;
-	}
-
+    std::string accept(LexerTokenType type)
+    {
+        auto tok = lex();
+        if (not tok or tok->type != type) {
+            if (not tok)
+                throw std::runtime_error("unexpected end of file!");
+            throw std::runtime_error("expected " + toString(type) + ", found: '" + tok->text + "'!");
+        }
+        return tok->text;
+    }
 };
 
 static int lex_int(Lexer & lexer)
 {
-	auto text = lexer.accept(LexerTokenType::integer);
-	return gsl::narrow<int>(strtol(text.c_str(), nullptr, 10));
+    auto text = lexer.accept(LexerTokenType::integer);
+    return gsl::narrow<int>(strtol(text.c_str(), nullptr, 10));
 }
 
-static void write_varint(std::ostream &output, uint32_t value)
+static void write_varint(std::ostream & output, uint32_t value)
 {
-	char buf[5];
+    char buf[5];
 
-	size_t maxidx = 4;
-	for(size_t n = 0; n < 5; n++)
-	{
-		char & c = buf[4 - n];
-		c = (value >> (7 * n)) & 0x7F;
-		if(c != 0)
-			maxidx = 4 - n;
-		if(n > 0)
-			c |= 0x80;
-	}
+    size_t maxidx = 4;
+    for (size_t n = 0; n < 5; n++) {
+        char & c = buf[4 - n];
+        c = (value >> (7 * n)) & 0x7F;
+        if (c != 0)
+            maxidx = 4 - n;
+        if (n > 0)
+            c |= 0x80;
+    }
 
-	assert(maxidx < 5);
-	output.write(buf + maxidx, std::streamsize(5 - maxidx));
+    assert(maxidx < 5);
+    output.write(buf + maxidx, std::streamsize(5 - maxidx));
 }
 
-template<typename T>
-static void write_enum(std::ostream &output, T const & value)
+template <typename T>
+static void write_enum(std::ostream & output, T const & value)
 {
-	static_assert (std::is_enum_v<T> or std::is_same_v<T, uint8_t>);
-	static_assert (sizeof(T) == 1);
-	output.write(reinterpret_cast<char const *>(&value), 1);
+    static_assert(std::is_enum_v<T> or std::is_same_v<T, uint8_t>);
+    static_assert(sizeof(T) == 1);
+    output.write(reinterpret_cast<char const *>(&value), 1);
 }
 
 static void write_string(std::ostream & output, std::string const & text)
 {
-	write_varint(output, gsl::narrow<uint32_t>(text.size()));
-	output.write(text.c_str(), gsl::narrow<std::streamsize>(text.size()));
+    write_varint(output, gsl::narrow<uint32_t>(text.size()));
+    output.write(text.c_str(), gsl::narrow<std::streamsize>(text.size()));
 }
 
 static void write_number(std::ostream & output, float value)
 {
-	output.write(reinterpret_cast<char const *>(&value), sizeof(value));
+    output.write(reinterpret_cast<char const *>(&value), sizeof(value));
 }
 
-
-//static float lex_number(FlexLexer * lexer)
+// static float lex_number(FlexLexer * lexer)
 //{
 //	auto text = Accept(lexer, LexerTokenType::number);
 //	return strtof(text.c_str(), nullptr);
 //}
 
-static void parse_and_translate(LayoutParser const & parser, UIType type, Lexer & lexer, ErrorList & errors, std::ostream &output)
+static void parse_and_translate(
+    LayoutParser const & parser, UIType type, Lexer & lexer, ErrorList & errors, std::ostream & output)
 {
-	switch(type)
-	{
-		case UIType::integer: {
-			auto value = lex_int(lexer);
-			write_varint(output, gsl::narrow<uint32_t>(value));
-			lexer.accept(LexerTokenType::semiColon);
-			return;
-		}
+    switch (type) {
+        case UIType::integer: {
+            auto value = lex_int(lexer);
+            write_varint(output, gsl::narrow<uint32_t>(value));
+            lexer.accept(LexerTokenType::semiColon);
+            return;
+        }
 
-		case UIType::number: {
-			auto tok = lexer.lex();
-			if(not tok)
-				throw std::runtime_error("unexpected end of file!");
-			float value;
-			if(tok->type == LexerTokenType::integer) {
-				value = strtol(tok->text.c_str(), nullptr, 10);
-			}
-			else if(tok->type == LexerTokenType::number) {
-				value = strtof(tok->text.c_str(), nullptr);
-			}
-			else {
-				throw std::runtime_error("unexpected token. expected number or integer!");
-			}
-			write_number(output, value);
-			lexer.accept(LexerTokenType::semiColon);
-			return;
-		}
+        case UIType::number: {
+            auto tok = lexer.lex();
+            if (not tok)
+                throw std::runtime_error("unexpected end of file!");
+            float value;
+            if (tok->type == LexerTokenType::integer) {
+                value = strtol(tok->text.c_str(), nullptr, 10);
+            } else if (tok->type == LexerTokenType::number) {
+                value = strtof(tok->text.c_str(), nullptr);
+            } else {
+                throw std::runtime_error("unexpected token. expected number or integer!");
+            }
+            write_number(output, value);
+            lexer.accept(LexerTokenType::semiColon);
+            return;
+        }
 
-		case UIType::enumeration: {
-			auto text = lexer.accept(LexerTokenType::identifier);
+        case UIType::enumeration: {
+            auto text = lexer.accept(LexerTokenType::identifier);
 
-			if(auto it = enumerations.find(text); it != enumerations.end())
-				write_enum(output, it->second);
-			else
-				throw std::runtime_error("unknown enumeration value: " + text);
+            if (auto it = enumerations.find(text); it != enumerations.end())
+                write_enum(output, it->second);
+            else
+                throw std::runtime_error("unknown enumeration value: " + text);
 
-			lexer.accept(LexerTokenType::semiColon);
-			return;
-		}
+            lexer.accept(LexerTokenType::semiColon);
+            return;
+        }
 
-		case UIType::string: {
-			write_string(output, lexer.accept(LexerTokenType::string));
-			lexer.accept(LexerTokenType::semiColon);
-			return;
-		}
+        case UIType::string: {
+            write_string(output, lexer.accept(LexerTokenType::string));
+            lexer.accept(LexerTokenType::semiColon);
+            return;
+        }
 
-		case UIType::boolean: {
-			auto text = lexer.accept(LexerTokenType::identifier);
-			char value;
-			if(text == "true" or text == "yes")
-				value = 1;
-			else if(text == "false" or text == "no")
-				value = 0;
-			else
-				throw std::runtime_error("invalid boolean value: " + text);
+        case UIType::boolean: {
+            auto text = lexer.accept(LexerTokenType::identifier);
+            char value;
+            if (text == "true" or text == "yes")
+                value = 1;
+            else if (text == "false" or text == "no")
+                value = 0;
+            else
+                throw std::runtime_error("invalid boolean value: " + text);
 
-			output.write(&value, 1);
+            output.write(&value, 1);
 
-			lexer.accept(LexerTokenType::semiColon);
-			return;
-		}
+            lexer.accept(LexerTokenType::semiColon);
+            return;
+        }
 
-		// same serialization and notation style
-		case UIType::size:
-		case UIType::point:
-		{
-			UISize size;
-			size.w = lex_int(lexer);
-			lexer.accept(LexerTokenType::comma);
-			size.h = lex_int(lexer);
-			lexer.accept(LexerTokenType::semiColon);
+        // same serialization and notation style
+        case UIType::size:
+        case UIType::point: {
+            UISize size;
+            size.w = lex_int(lexer);
+            lexer.accept(LexerTokenType::comma);
+            size.h = lex_int(lexer);
+            lexer.accept(LexerTokenType::semiColon);
 
-			write_varint(output, gsl::narrow<uint32_t>(size.w));
-			write_varint(output, gsl::narrow<uint32_t>(size.h));
-			return;
-		}
+            write_varint(output, gsl::narrow<uint32_t>(size.w));
+            write_varint(output, gsl::narrow<uint32_t>(size.h));
+            return;
+        }
 
-		case UIType::margins: {
-			std::vector<int> items;
-			items.push_back(lex_int(lexer));
-			while(items.size() < 4)
-			{
-				auto next = lexer.lex();
-				if(not next)
-					throw std::runtime_error("unexpected end of file!");
-				if(next->type == LexerTokenType::semiColon)
-					break;
-				else if(next->type != LexerTokenType::comma)
-					throw std::runtime_error("expected comma, got '" + next->text + "' instead!");
-				items.push_back(lex_int(lexer));
-			}
-			if(items.size() == 4)
-				lexer.accept(LexerTokenType::semiColon);
-			switch(items.size())
-			{
-				case 1:
-					items.push_back(items[0]);
-					items.push_back(items[0]);
-					items.push_back(items[0]);
-					break;
+        case UIType::margins: {
+            std::vector<int> items;
+            items.push_back(lex_int(lexer));
+            while (items.size() < 4) {
+                auto next = lexer.lex();
+                if (not next)
+                    throw std::runtime_error("unexpected end of file!");
+                if (next->type == LexerTokenType::semiColon)
+                    break;
+                else if (next->type != LexerTokenType::comma)
+                    throw std::runtime_error("expected comma, got '" + next->text + "' instead!");
+                items.push_back(lex_int(lexer));
+            }
+            if (items.size() == 4)
+                lexer.accept(LexerTokenType::semiColon);
+            switch (items.size()) {
+                case 1:
+                    items.push_back(items[0]);
+                    items.push_back(items[0]);
+                    items.push_back(items[0]);
+                    break;
 
-				case 2:
-					items.push_back(items[0]);
-					items.push_back(items[1]);
-					break;
+                case 2:
+                    items.push_back(items[0]);
+                    items.push_back(items[1]);
+                    break;
 
-				case 4:
-					break;
+                case 4:
+                    break;
 
-				default:
-					throw std::runtime_error("invalid count for margins. only 1, 2 or 4 values are allowed");
-			}
+                default:
+                    throw std::runtime_error("invalid count for margins. only 1, 2 or 4 values are allowed");
+            }
 
-			assert(items.size() == 4);
+            assert(items.size() == 4);
 
-			for(size_t i = 0; i < 4; i++)
-				write_varint(output, gsl::narrow<uint32_t>(items[i]));
+            for (size_t i = 0; i < 4; i++)
+                write_varint(output, gsl::narrow<uint32_t>(items[i]));
 
-			return;
-		}
+            return;
+        }
 
-		case UIType::sizelist: {
-			auto lex_item = [&]() -> UISizeDef {
-			    auto tok = lexer.lex();
-			    if(not tok)
-			    throw std::runtime_error("unexpected end of file!");
-			    if(tok->type == LexerTokenType::identifier) {
-			    if(tok->text == "auto")
-			    return UISizeAutoTag { };
-			    else if(tok->text == "expand")
-			    return UISizeExpandTag { };
-			    else
-			    throw std::runtime_error("unexpected identifier. must be auto or expand!");
-			}
-			    else if(tok->type == LexerTokenType::integer) {
-			    return int(strtol(tok->text.c_str(), nullptr, 10));
-			}
-			    else if(tok->type == LexerTokenType::percentage) {
-			    return 0.01f * strtof(tok->text.c_str(), nullptr);
-			}
-			    else {
-			    throw std::runtime_error("unexpected token '" + tok->text + "'. expected on of 'auto', 'expand', integer or percentage!");
-			}
-			};
+        case UIType::sizelist: {
+            auto lex_item = [&]() -> UISizeDef {
+                auto tok = lexer.lex();
+                if (not tok)
+                    throw std::runtime_error("unexpected end of file!");
+                if (tok->type == LexerTokenType::identifier) {
+                    if (tok->text == "auto")
+                        return UISizeAutoTag{};
+                    else if (tok->text == "expand")
+                        return UISizeExpandTag{};
+                    else
+                        throw std::runtime_error("unexpected identifier. must be auto or expand!");
+                } else if (tok->type == LexerTokenType::integer) {
+                    return int(strtol(tok->text.c_str(), nullptr, 10));
+                } else if (tok->type == LexerTokenType::percentage) {
+                    return 0.01f * strtof(tok->text.c_str(), nullptr);
+                } else {
+                    throw std::runtime_error("unexpected token '" + tok->text +
+                                             "'. expected on of 'auto', 'expand', integer or percentage!");
+                }
+            };
 
-			UISizeList list;
-			list.push_back(lex_item());
-			while(true)
-			{
-				auto next = lexer.lex();
-				if(not next)
-					throw std::runtime_error("unexpected end of file!");
-				if(next->type == LexerTokenType::semiColon)
-					break;
-				else if(next->type != LexerTokenType::comma)
-					throw std::runtime_error("expected comma, got '" + next->text + "' instead!");
-				list.push_back(lex_item());
-			}
+            UISizeList list;
+            list.push_back(lex_item());
+            while (true) {
+                auto next = lexer.lex();
+                if (not next)
+                    throw std::runtime_error("unexpected end of file!");
+                if (next->type == LexerTokenType::semiColon)
+                    break;
+                else if (next->type != LexerTokenType::comma)
+                    throw std::runtime_error("expected comma, got '" + next->text + "' instead!");
+                list.push_back(lex_item());
+            }
 
-			// size of the list
-			write_varint(output, gsl::narrow<uint32_t>(list.size()));
+            // size of the list
+            write_varint(output, gsl::narrow<uint32_t>(list.size()));
 
-			// bitmask containing two bits per entry:
-			// 00 = auto
-			// 01 = expand
-			// 10 = integer / pixels
-			// 11 = number / percentage
-			for(size_t i = 0; i < list.size(); i += 4)
-			{
-				uint8_t value = 0;
-				for(size_t j = 0; j < std::min(4UL, list.size() - i); j++)
-					value |= (list[i + j].index() & 0x3) << (2 * j);
-				output.write(reinterpret_cast<char const *>(&value), 1);
-			}
+            // bitmask containing two bits per entry:
+            // 00 = auto
+            // 01 = expand
+            // 10 = integer / pixels
+            // 11 = number / percentage
+            for (size_t i = 0; i < list.size(); i += 4) {
+                uint8_t value = 0;
+                for (size_t j = 0; j < std::min(4UL, list.size() - i); j++)
+                    value |= (list[i + j].index() & 0x3) << (2 * j);
+                output.write(reinterpret_cast<char const *>(&value), 1);
+            }
 
-			for(size_t i = 0; i < list.size(); i++)
-			{
-				switch(list[i].index())
-				{
-					case 2: // pixels
-						write_varint(output, gsl::narrow<uint32_t>(std::get<int>(list[i])));
-						break;
-					case 3: // percentage
-						write_number(output, std::get<float>(list[i]));
-						break;
-				}
-			}
+            for (size_t i = 0; i < list.size(); i++) {
+                switch (list[i].index()) {
+                    case 2: // pixels
+                        write_varint(output, gsl::narrow<uint32_t>(std::get<int>(list[i])));
+                        break;
+                    case 3: // percentage
+                        write_number(output, std::get<float>(list[i]));
+                        break;
+                }
+            }
 
-			return;
-		}
+            return;
+        }
 
-		case UIType::resource:
-		{
-			auto const tokResource = lexer.accept(LexerTokenType::identifier);
-			if(tokResource != "resource")
-				throw std::runtime_error("expected 'resource', found " + tokResource + " instead!");
+        case UIType::resource: {
+            auto const tokResource = lexer.accept(LexerTokenType::identifier);
+            if (tokResource != "resource")
+                throw std::runtime_error("expected 'resource', found " + tokResource + " instead!");
 
-			lexer.accept(LexerTokenType::openParens);
+            lexer.accept(LexerTokenType::openParens);
 
-			auto const resourceName = lexer.accept(LexerTokenType::string);
+            auto const resourceName = lexer.accept(LexerTokenType::string);
 
-			lexer.accept(LexerTokenType::closeParens);
+            lexer.accept(LexerTokenType::closeParens);
 
-			lexer.accept(LexerTokenType::semiColon);
+            lexer.accept(LexerTokenType::semiColon);
 
-			if(auto it = parser.knownResources.find(resourceName); it == parser.knownResources.end())
-				throw std::runtime_error("unknown resource: '" + resourceName + "'!");
-			else
-				write_varint(output, gsl::narrow<uint32_t>(it->second.value));
+            if (auto it = parser.knownResources.find(resourceName); it == parser.knownResources.end())
+                throw std::runtime_error("unknown resource: '" + resourceName + "'!");
+            else
+                write_varint(output, gsl::narrow<uint32_t>(it->second.value));
 
-			return;
-		}
+            return;
+        }
 
-		case UIType::callback:
-		{
-			auto const tokResource = lexer.accept(LexerTokenType::identifier);
-			if(tokResource != "callback")
-				throw std::runtime_error("expected 'callback', found " + tokResource + " instead!");
+        case UIType::callback: {
+            auto const tokResource = lexer.accept(LexerTokenType::identifier);
+            if (tokResource != "callback")
+                throw std::runtime_error("expected 'callback', found " + tokResource + " instead!");
 
-			lexer.accept(LexerTokenType::openParens);
+            lexer.accept(LexerTokenType::openParens);
 
-			auto const callbackName = lexer.accept(LexerTokenType::string);
+            auto const callbackName = lexer.accept(LexerTokenType::string);
 
-			lexer.accept(LexerTokenType::closeParens);
+            lexer.accept(LexerTokenType::closeParens);
 
-			lexer.accept(LexerTokenType::semiColon);
+            lexer.accept(LexerTokenType::semiColon);
 
-			if(auto it = parser.knownCallbacks.find(callbackName); it == parser.knownCallbacks.end())
-				throw std::runtime_error("unknown callback: '" + callbackName + "'!");
-			else
-				write_varint(output, gsl::narrow<uint32_t>(it->second.value));
+            if (auto it = parser.knownCallbacks.find(callbackName); it == parser.knownCallbacks.end())
+                throw std::runtime_error("unknown callback: '" + callbackName + "'!");
+            else
+                write_varint(output, gsl::narrow<uint32_t>(it->second.value));
 
-			return;
-		}
-
-	}
-	assert(false and "not supported type!");
+            return;
+        }
+    }
+    assert(false and "not supported type!");
 }
 
-static void parse_and_translate(LayoutParser const & parser, std::string const & widgetName, Lexer & lexer, ErrorList & errors, std::ostream &output)
+static void parse_and_translate(LayoutParser const & parser,
+                                std::string const & widgetName,
+                                Lexer & lexer,
+                                ErrorList & errors,
+                                std::ostream & output)
 {
-	lexer.accept(LexerTokenType::openBrace);
+    lexer.accept(LexerTokenType::openBrace);
 
-	UIWidget widgetType = UIWidget::invalid;
-	if(auto it = widgetTypes.find(widgetName); it != widgetTypes.end())
-		widgetType = it->second;
-	else
-		errors.push_back(ParseError{0,0, xstd::format("Widget type '%0' not found").arg(widgetName) });
+    UIWidget widgetType = UIWidget::invalid;
+    if (auto it = widgetTypes.find(widgetName); it != widgetTypes.end())
+        widgetType = it->second;
+    else
+        errors.push_back(ParseError{0, 0, xstd::format("Widget type '%0' not found").arg(widgetName)});
 
-	write_enum(output, widgetType);
+    write_enum(output, widgetType);
 
-	bool isReadingChildren = false;
+    bool isReadingChildren = false;
 
-	while(true)
-	{
-		auto tok = lexer.lex();
-		if(not tok)
-			throw std::runtime_error("unexpected end of file!");
-		if(tok->type == LexerTokenType::closeBrace)
-		{
-			break;
-		}
-		else if(tok->type == LexerTokenType::identifier)
-		{
-			if(auto it1 = properties.find(tok->text); it1 != properties.end())
-			{
-				if(isReadingChildren)
-					throw std::runtime_error("property definitions are only allowed before child widgets!!");
-				lexer.accept(LexerTokenType::colon);
+    while (true) {
+        auto tok = lexer.lex();
+        if (not tok)
+            throw std::runtime_error("unexpected end of file!");
+        if (tok->type == LexerTokenType::closeBrace) {
+            break;
+        } else if (tok->type == LexerTokenType::identifier) {
+            if (auto it1 = properties.find(tok->text); it1 != properties.end()) {
+                if (isReadingChildren)
+                    throw std::runtime_error("property definitions are only allowed before child widgets!!");
+                lexer.accept(LexerTokenType::colon);
 
-				char propId = char(it1->second);
-				assert((propId & ~0x7F) == 0);
+                uint8_t propId = uint8_t(it1->second);
+                assert((propId & ~0x7F) == 0);
 
-				auto const propertyType = getPropertyType(it1->second);
+                auto const propertyType = getPropertyType(it1->second);
 
-				if(auto bindTok = lexer.peek(); bindTok and (bindTok->type == LexerTokenType::identifier) and (bindTok->text == "bind"))
-				{
-					// this is a binding
-					propId |= 0x80; // set "is property bit"
+                if (auto bindTok = lexer.peek();
+                    bindTok and (bindTok->type == LexerTokenType::identifier) and (bindTok->text == "bind")) {
+                    // this is a binding
+                    propId |= 0x80; // set "is property bit"
 
-					output.write(&propId, 1);
+                    output.write(reinterpret_cast<char const *>(&propId), 1);
 
-					lexer.accept(LexerTokenType::identifier);
-					lexer.accept(LexerTokenType::openParens);
+                    lexer.accept(LexerTokenType::identifier);
+                    lexer.accept(LexerTokenType::openParens);
 
-					auto const propertyName = lexer.accept(LexerTokenType::string);
+                    std::variant<std::string, uint32_t> propertyName;
 
-					lexer.accept(LexerTokenType::closeParens);
-					lexer.accept(LexerTokenType::semiColon);
+                    if (lexer.peek() and lexer.peek()->type == LexerTokenType::string)
+                        propertyName = lexer.accept(LexerTokenType::string);
+                    else
+                        propertyName = uint32_t(std::stoul(lexer.accept(LexerTokenType::integer), nullptr, 10));
 
-					auto it3 = parser.knownProperties.find(propertyName);
-					if(it3 == parser.knownProperties.end())
-						throw std::runtime_error("unknown property: " + propertyName);
+                    lexer.accept(LexerTokenType::closeParens);
+                    lexer.accept(LexerTokenType::semiColon);
 
-					auto const propertyKey = gsl::narrow<uint32_t>(it3->second.value);
+                    uint32_t propertyKey;
+                    if (propertyName.index() == 0) {
 
-					write_varint(output, propertyKey);
-				}
-				else
-				{
-					write_enum(output, it1->second);
+                        auto const name = std::get<0>(propertyName);
+                        auto it3 = parser.knownProperties.find(name);
+                        if (it3 == parser.knownProperties.end())
+                            throw std::runtime_error("unknown property: " + name);
 
-					parse_and_translate(parser, propertyType, lexer, errors, output);
-				}
-			}
-			else if(auto it2 = widgetTypes.find(tok->text); it2 != widgetTypes.end())
-			{
-				if(not isReadingChildren)
-					write_enum(output, UIProperty::invalid); // end of properties
-				isReadingChildren = true;
-				parse_and_translate(parser, tok->text, lexer, errors, output);
-			}
-			else
-			{
-				throw std::runtime_error("unexpected identifier: " + tok->text);
-			}
-		}
-		else
-		{
-			throw std::runtime_error("unexpected token: '" + tok->text + "'");
-		}
-	}
+                        propertyKey = gsl::narrow<uint32_t>(it3->second.value);
+                    } else {
+                        propertyKey = std::get<1>(propertyName);
+                    }
 
-	if(not isReadingChildren)
-		write_enum(output, UIProperty::invalid); // end of properties
-	write_enum(output, UIWidget::invalid); // end of children
+                    write_varint(output, propertyKey);
+                } else {
+                    write_enum(output, it1->second);
+
+                    parse_and_translate(parser, propertyType, lexer, errors, output);
+                }
+            } else if (auto it2 = widgetTypes.find(tok->text); it2 != widgetTypes.end()) {
+                if (not isReadingChildren)
+                    write_enum(output, UIProperty::invalid); // end of properties
+                isReadingChildren = true;
+                parse_and_translate(parser, tok->text, lexer, errors, output);
+            } else {
+                throw std::runtime_error("unexpected identifier: " + tok->text);
+            }
+        } else {
+            throw std::runtime_error("unexpected token: '" + tok->text + "'");
+        }
+    }
+
+    if (not isReadingChildren)
+        write_enum(output, UIProperty::invalid); // end of properties
+    write_enum(output, UIWidget::invalid);       // end of children
 }
 
-static void parse_and_translate(LayoutParser const & parser, Lexer & lexer, ErrorList & errors, std::ostream &output)
+static void parse_and_translate(LayoutParser const & parser, Lexer & lexer, ErrorList & errors, std::ostream & output)
 {
-	auto const widgetName = lexer.accept(LexerTokenType::identifier);
-	parse_and_translate(parser, widgetName, lexer, errors, output);
+    auto const widgetName = lexer.accept(LexerTokenType::identifier);
+    parse_and_translate(parser, widgetName, lexer, errors, output);
 }
 
-bool LayoutParser::compile(std::istream &input, std::ostream &output) const
+bool LayoutParser::compile(std::istream & input, std::ostream & output) const
 {
-	ErrorList errors;
-	Lexer lexer { input };
+    ErrorList errors;
+    Lexer lexer{input};
 
-	try
-	{
-		parse_and_translate(*this, lexer, errors, output);
-	}
-	catch(std::runtime_error const & ex)
-	{
-		errors.push_back(ParseError {
-			0, 0, ex.what()
-		});
-	}
+    try {
+        parse_and_translate(*this, lexer, errors, output);
+    } catch (std::runtime_error const & ex) {
+        errors.push_back(ParseError{0, 0, ex.what()});
+    }
 
-	for(auto const & err : errors)
-	{
-		std::cerr << err.line << ":" << err.column << ": " << err.message << std::endl;
-	}
+    for (auto const & err : errors) {
+        std::cerr << err.line << ":" << err.column << ": " << err.message << std::endl;
+    }
 
-	return errors.empty();
+    return errors.empty();
 }

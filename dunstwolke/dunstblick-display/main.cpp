@@ -21,6 +21,9 @@
 
 #include "session.hpp"
 
+#include "localsession.hpp"
+#include "networksession.hpp"
+
 #include <dunstblick-internal.hpp>
 
 static bool shutdown_app_requested = false;
@@ -126,37 +129,50 @@ Session & get_current_session()
     return *current_session;
 }
 
-int main()
+struct DiscoveredClient
 {
+    std::string name;
+    uint16_t tcp_port;
+    xnet::endpoint udp_ep;
 
-    xnet::endpoint target_endpoint;
+    xnet::endpoint create_tcp_endpoint() const
     {
-        xnet::socket multicast_sock(AF_INET, SOCK_DGRAM, 0);
+        switch (udp_ep.family()) {
+            case AF_INET:
+                return xnet::endpoint(udp_ep.get_addr_v4(), tcp_port);
+            case AF_INET6:
+                return xnet::endpoint(udp_ep.get_addr_v6(), tcp_port);
+            default:
+                assert(false and "not supported yet");
+        }
+    }
+};
 
-        // multicast_sock.set_option<int>(SOL_SOCKET, SO_REUSEADDR, 1);
-        // multicast_sock.set_option<int>(SOL_SOCKET, SO_BROADCAST, 1);
+std::vector<DiscoveredClient> discovered_clients;
+std::mutex discovered_clients_lock;
 
-        // multicast_sock.bind(xnet::parse_ipv4("0.0.0.0", DUNSTBLICK_DEFAULT_PORT));
+void refresh_discovery()
+{
+    xnet::socket multicast_sock(AF_INET, SOCK_DGRAM, 0);
 
-        // multicast_sock.set_option<int>(SOL_SOCKET, IP_MULTICAST_LOOP, 1);
+    // multicast_sock.set_option<int>(SOL_SOCKET, SO_REUSEADDR, 1);
+    // multicast_sock.set_option<int>(SOL_SOCKET, SO_BROADCAST, 1);
 
-        auto const multicast_ep = xnet::parse_ipv4(DUNSTBLICK_MULTICAST_GROUP, DUNSTBLICK_DEFAULT_PORT);
+    // multicast_sock.bind(xnet::parse_ipv4("0.0.0.0", DUNSTBLICK_DEFAULT_PORT));
 
-        timeval timeout;
-        timeout.tv_sec = 0;
-        timeout.tv_usec = 50000;
+    // multicast_sock.set_option<int>(SOL_SOCKET, IP_MULTICAST_LOOP, 1);
 
-        multicast_sock.set_option<timeval>(SOL_SOCKET, SO_RCVTIMEO, timeout);
+    auto const multicast_ep = xnet::parse_ipv4(DUNSTBLICK_MULTICAST_GROUP, DUNSTBLICK_DEFAULT_PORT);
 
-        struct Client
-        {
-            std::string name;
-            uint16_t tcp_port;
-            xnet::endpoint udp_ep;
-        };
+    timeval timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 50000;
 
-        std::vector<Client> clients;
+    multicast_sock.set_option<timeval>(SOL_SOCKET, SO_RCVTIMEO, timeout);
 
+    while (true) {
+
+        std::vector<DiscoveredClient> new_clients;
         for (int i = 0; i < 10; i++) {
             UdpDiscover discoverMsg;
             discoverMsg.header = UdpHeader::create(UDP_DISCOVER);
@@ -168,7 +184,7 @@ int main()
                 UdpBaseMessage message;
                 auto const [len, sender] = multicast_sock.read_from(&message, sizeof message);
                 if (len < 0) {
-                    if (errno != ETIMEDOUT)
+                    if (errno != EWOULDBLOCK and errno != EAGAIN)
                         perror("receive failed");
                     break;
                 }
@@ -179,14 +195,14 @@ int main()
                     else
                         resp.name.back() = 0;
 
-                    Client client;
+                    DiscoveredClient client;
 
                     client.name = std::string(resp.name.data());
                     client.tcp_port = resp.tcp_port;
                     client.udp_ep = sender;
 
                     bool found = false;
-                    for (auto const & other : clients) {
+                    for (auto const & other : new_clients) {
                         if (client.tcp_port != other.tcp_port)
                             continue;
                         if (client.udp_ep != other.udp_ep)
@@ -196,36 +212,62 @@ int main()
                     }
                     if (found)
                         continue;
-                    clients.emplace_back(std::move(client));
+                    new_clients.emplace_back(std::move(client));
                 }
             }
         }
 
-        for (auto const & client : clients) {
-            printf("%s:\n"
-                   "\tname: %s\n"
-                   "\tport: %d\n",
-                   xnet::to_string(client.udp_ep).c_str(),
-                   client.name.c_str(),
-                   client.tcp_port);
+        for (auto const & client : new_clients) {
+            fprintf(stderr,
+                    "%s:\n"
+                    "\tname: %s\n"
+                    "\tport: %d\n",
+                    xnet::to_string(client.udp_ep).c_str(),
+                    client.name.c_str(),
+                    client.tcp_port);
+            fflush(stderr);
         }
 
-        if (clients.size() == 0)
-            return 1;
-
-        auto const & client_meta = clients.at(0);
-
-        switch (client_meta.udp_ep.family()) {
-            case AF_INET:
-                target_endpoint = xnet::endpoint(client_meta.udp_ep.get_addr_v4(), client_meta.tcp_port);
-                break;
-            case AF_INET6:
-                target_endpoint = xnet::endpoint(client_meta.udp_ep.get_addr_v6(), client_meta.tcp_port);
-                break;
-            default:
-                return 1;
+        {
+            std::lock_guard<std::mutex> lock{discovered_clients_lock};
+            discovered_clients = std::move(new_clients);
         }
+        std::this_thread::sleep_for(std::chrono::seconds(1));
     }
+}
+
+static std::vector<std::unique_ptr<Session>> all_sessions;
+
+ObjectID constexpr local_root_obj{1};
+
+UIResourceID constexpr local_discovery_list_item{1};
+
+PropertyName constexpr local_discovery_list{1};
+PropertyName constexpr local_app_name{2};
+PropertyName constexpr local_app_ip{3};
+PropertyName constexpr local_app_port{4};
+
+CallbackID constexpr local_exit_client_event{1};
+CallbackID constexpr local_open_session_event{2};
+CallbackID constexpr local_close_session_event{3};
+
+constexpr ObjectID local_session_id(size_t index)
+{
+    return ObjectID(1000 + index);
+}
+
+static Session * get_session_for_id(ObjectID value)
+{
+    if (value.value < 1000)
+        return nullptr;
+    if (value.value > 1000 + all_sessions.size())
+        return nullptr;
+    return all_sessions.at(value.value).get();
+}
+
+int main()
+{
+    std::thread discovery_thread(refresh_discovery);
 
     //////////////////////////////////////////////////////////////////////////////
     if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
@@ -277,15 +319,140 @@ int main()
 
     UIPoint mouse_pos{0, 0};
 
-    Session sess{target_endpoint};
+    // NetworkSession sess{target_endpoint};
+    LocalSession sess;
+
+    sess.onEvent = [](CallbackID event) {
+        if (event == local_exit_client_event) {
+            shutdown_app_requested = true;
+        } else {
+            fprintf(stderr, "Unknown event: %lu\n", event.value);
+            assert(false and "unhandled event detected");
+        }
+    };
+
+    // Initialize session objects
+    {
+        Object obj{local_root_obj};
+        obj.add(local_discovery_list, ObjectList{});
+
+        sess.addOrUpdateObject(std::move(obj));
+
+        sess.setRoot(local_root_obj);
+    }
+
+    // Initialize session resources
+    {
+        uint8_t const discovery_list_item[] = {0x14, 0x00, 0xfe, 0x00, 0x01, 0x06, 0x03, 0x00, 0x02, 0x0a,
+                                               0x04, 0x4f, 0x70, 0x65, 0x6e, 0x00, 0x00, 0x00, 0x01, 0x06,
+                                               0x03, 0x00, 0x02, 0x0a, 0x05, 0x43, 0x6c, 0x6f, 0x73, 0x65,
+                                               0x00, 0x00, 0x00, 0x02, 0x8a, 0x02, 0x00, 0x00, 0x00, 0x00};
+        sess.uploadResource(local_discovery_list_item,
+                            ResourceKind::layout,
+                            discovery_list_item,
+                            sizeof discovery_list_item);
+    }
+
+    // we "load" our layout by hand and store/modify pointers directly
+    // instead of utilizing the resource functions
+    sess.root_widget.reset(new TabLayout());
+    {
+        auto * const menu = new DockLayout();
+        menu->tabTitle.set(menu, "Menu");
+
+        auto * const quitLabel = new Label();
+        quitLabel->text.set(quitLabel, "Exit");
+
+        auto * const quitButton = new Button();
+        quitButton->onClickEvent.set(quitButton, local_exit_client_event);
+        quitButton->dockSite.set(quitButton, DockSite::bottom);
+        quitButton->children.emplace_back(quitLabel);
+
+        menu->children.emplace_back(quitButton);
+
+        auto * const serviceList = new StackLayout();
+        serviceList->bindingContext.set(serviceList, ObjectRef{local_root_obj});
+        serviceList->childSource.binding = local_discovery_list;
+        serviceList->childTemplate.set(serviceList, local_discovery_list_item);
+
+        auto * const serviceScroll = new ScrollView();
+
+        serviceScroll->children.emplace_back(serviceList);
+
+        menu->children.emplace_back(serviceScroll);
+
+        sess.root_widget->children.emplace_back(menu);
+    }
 
     current_session = &sess;
 
     while (not shutdown_app_requested) {
-        current_session->do_communication();
+        for (auto & session : all_sessions) {
+            session->update();
+        }
 
-        if (not current_session->is_active) {
-            break;
+        // Remove all destroyed sessions
+        {
+            auto it = std::remove_if(all_sessions.begin(),
+                                     all_sessions.end(),
+                                     [](std::unique_ptr<Session> const & item) { return not item->is_active; });
+            all_sessions.erase(it, all_sessions.end());
+        }
+
+        // Update tab pages
+        {
+            auto & children = sess.root_widget->children;
+
+            for (size_t i = 0; i < all_sessions.size(); i++) {
+
+                if (i > children.size()) {
+                    auto * const widget = new Container();
+                    widget->tabTitle.set(widget, "Unnamed Session");
+                    children.emplace_back(widget);
+                }
+
+                auto & widget = children.at(i + 1);
+
+                auto const session = all_sessions.at(i).get();
+                if (session->root_widget) {
+                    widget.reset(session->root_widget.get());
+                } else {
+                    widget.reset(nullptr);
+                }
+            }
+            while (sess.root_widget->children.size() > all_sessions.size() + 1) {
+                // we do evel hackery above and store the same pointer in two
+                // unique pointers. We have to make sure that we don't double free it.
+                sess.root_widget->children.back().release();
+                sess.root_widget->children.pop_back();
+            }
+        }
+
+        // Update objects in local session
+        {
+            std::vector<DiscoveredClient> clients;
+            {
+                std::lock_guard<std::mutex> lock{discovered_clients_lock};
+                clients = discovered_clients;
+            }
+
+            ObjectList list;
+            list.reserve(clients.size());
+
+            for (size_t i = 0; i < clients.size(); i++) {
+                auto const id = local_session_id(i);
+
+                Object obj{id};
+
+                obj.add(local_app_name, UIValue(clients[i].name));
+
+                list.emplace_back(obj);
+
+                sess.addOrUpdateObject(std::move(obj));
+            }
+
+            sess.clear(local_root_obj, local_discovery_list);
+            sess.insertRange(local_root_obj, local_discovery_list, 0, list.size(), list.data());
         }
 
         SDL_Event e;
