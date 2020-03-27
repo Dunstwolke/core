@@ -137,6 +137,8 @@ struct IWidgetContext
 
     virtual xstd::optional<Resource const &> find_resource(UIResourceID id) = 0;
 
+    virtual void notify_destroy(Widget * widget) = 0;
+
     // Helper functions:
 
     template <typename T>
@@ -224,6 +226,7 @@ struct Widget
 
   protected:
     explicit Widget(UIWidget type);
+    Widget(Widget const &) = delete;
 
   public:
     virtual ~Widget();

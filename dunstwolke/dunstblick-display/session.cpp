@@ -57,14 +57,17 @@ void Session::update_layout()
     root_widget->layout(screen_rect);
 }
 
+void Session::notify_destroy(Widget * w)
+{
+    assert(w != nullptr);
+    if (onWidgetDestroyed)
+        onWidgetDestroyed(w);
+}
+
 void Session::setView(UIResourceID id)
 {
     root_widget = load_widget(id);
     root_widget->initializeRoot(this);
-
-    // focused widgets are destroyed, so remove the reference here!
-    keyboard_focused_widget = nullptr;
-    mouse_focused_widget = nullptr;
 
     update_layout();
 }
@@ -75,46 +78,6 @@ void Session::setRoot(ObjectID id)
     if (auto obj = ref.try_resolve(*this); obj) {
         root_object = ref;
         update_layout();
-    }
-}
-
-void Session::ui_set_keyboard_focus(Widget * widget)
-{
-    if (keyboard_focused_widget == widget)
-        return;
-
-    if (keyboard_focused_widget != nullptr) {
-        SDL_Event e;
-        e.type = UI_EVENT_LOST_KEYBOARD_FOCUS;
-        e.common.timestamp = SDL_GetTicks();
-        keyboard_focused_widget->processEvent(e);
-    }
-    keyboard_focused_widget = widget;
-    if (keyboard_focused_widget != nullptr) {
-        SDL_Event e;
-        e.type = UI_EVENT_GOT_KEYBOARD_FOCUS;
-        e.common.timestamp = SDL_GetTicks();
-        keyboard_focused_widget->processEvent(e);
-    }
-}
-
-void Session::ui_set_mouse_focus(Widget * widget)
-{
-    if (mouse_focused_widget == widget)
-        return;
-
-    if (mouse_focused_widget != nullptr) {
-        SDL_Event e;
-        e.type = UI_EVENT_LOST_MOUSE_FOCUS;
-        e.common.timestamp = SDL_GetTicks();
-        mouse_focused_widget->processEvent(e);
-    }
-    mouse_focused_widget = widget;
-    if (mouse_focused_widget != nullptr) {
-        SDL_Event e;
-        e.type = UI_EVENT_GOT_MOUSE_FOCUS;
-        e.common.timestamp = SDL_GetTicks();
-        mouse_focused_widget->processEvent(e);
     }
 }
 
@@ -189,16 +152,6 @@ void Session::moveRange(ObjectID obj, PropertyName prop, size_t indexFrom, size_
     if (auto list = get_list(*this, obj, prop); list) {
         assert(false and "not implemented yet!");
     }
-}
-
-Widget * Session::get_mouse_widget(int x, int y)
-{
-    if (not root_widget)
-        return nullptr;
-    else if (Widget::capturingWidget)
-        return Widget::capturingWidget;
-    else
-        return root_widget->hitTest(x, y);
 }
 
 xstd::optional<Resource const &> Session::find_resource(UIResourceID id)

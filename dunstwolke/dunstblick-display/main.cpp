@@ -272,6 +272,58 @@ static Session * get_session_for_id(ObjectID value)
     return all_sessions.at(value.value).get();
 }
 
+static Widget * keyboard_focused_widget = nullptr;
+static Widget * mouse_focused_widget = nullptr;
+
+Widget * get_mouse_widget(int x, int y)
+{
+    if (not current_session->root_widget)
+        return nullptr;
+    else if (Widget::capturingWidget)
+        return Widget::capturingWidget;
+    else
+        return current_session->root_widget->hitTest(x, y);
+}
+
+void ui_set_keyboard_focus(Widget * widget)
+{
+    if (keyboard_focused_widget == widget)
+        return;
+
+    if (keyboard_focused_widget != nullptr) {
+        SDL_Event e;
+        e.type = UI_EVENT_LOST_KEYBOARD_FOCUS;
+        e.common.timestamp = SDL_GetTicks();
+        keyboard_focused_widget->processEvent(e);
+    }
+    keyboard_focused_widget = widget;
+    if (keyboard_focused_widget != nullptr) {
+        SDL_Event e;
+        e.type = UI_EVENT_GOT_KEYBOARD_FOCUS;
+        e.common.timestamp = SDL_GetTicks();
+        keyboard_focused_widget->processEvent(e);
+    }
+}
+
+void ui_set_mouse_focus(Widget * widget)
+{
+    if (mouse_focused_widget == widget)
+        return;
+
+    if (mouse_focused_widget != nullptr) {
+        SDL_Event e;
+        e.type = UI_EVENT_LOST_MOUSE_FOCUS;
+        e.common.timestamp = SDL_GetTicks();
+        mouse_focused_widget->processEvent(e);
+    }
+    mouse_focused_widget = widget;
+    if (mouse_focused_widget != nullptr) {
+        SDL_Event e;
+        e.type = UI_EVENT_GOT_MOUSE_FOCUS;
+        e.common.timestamp = SDL_GetTicks();
+        mouse_focused_widget->processEvent(e);
+    }
+}
 int main()
 {
     std::thread discovery_thread(refresh_discovery);
@@ -342,7 +394,17 @@ int main()
                 client = discovered_clients.at(widget.value - 1);
             }
 
-            all_sessions.emplace_back(new NetworkSession(client.create_tcp_endpoint()));
+            auto const net_sess = new NetworkSession(client.create_tcp_endpoint());
+
+            net_sess->onWidgetDestroyed = [](Widget * w) {
+                // focused widgets are destroyed, so remove the reference here!
+                if (keyboard_focused_widget == w)
+                    keyboard_focused_widget = nullptr;
+                if (mouse_focused_widget == w)
+                    mouse_focused_widget = nullptr;
+            };
+
+            all_sessions.emplace_back(net_sess);
 
         } else if (event == local_close_session_event) {
 
@@ -522,8 +584,8 @@ int main()
                 case SDL_TEXTEDITING:
                 case SDL_TEXTINPUT:
                 case SDL_KEYMAPCHANGED: {
-                    if (current_session->keyboard_focused_widget != nullptr) {
-                        current_session->keyboard_focused_widget->processEvent(e);
+                    if (keyboard_focused_widget != nullptr) {
+                        keyboard_focused_widget->processEvent(e);
                     }
                     break;
                 }
@@ -534,10 +596,10 @@ int main()
                     mouse_pos.y = e.motion.y;
                     if (not current_session->root_widget)
                         break;
-                    if (auto * child = current_session->get_mouse_widget(e.motion.x, e.motion.y); child != nullptr) {
+                    if (auto * child = get_mouse_widget(e.motion.x, e.motion.y); child != nullptr) {
                         // only move focus if mouse is not captured
                         if (Widget::capturingWidget == nullptr)
-                            current_session->ui_set_mouse_focus(child);
+                            ui_set_mouse_focus(child);
                         child->processEvent(e);
                     }
                     break;
@@ -552,11 +614,11 @@ int main()
                     if (not current_session->root_widget)
                         break;
 
-                    if (auto * child = current_session->get_mouse_widget(e.button.x, e.button.y); child != nullptr) {
-                        current_session->ui_set_mouse_focus(child);
+                    if (auto * child = get_mouse_widget(e.button.x, e.button.y); child != nullptr) {
+                        ui_set_mouse_focus(child);
 
                         if ((e.type == SDL_MOUSEBUTTONUP) and child->isKeyboardFocusable())
-                            current_session->ui_set_keyboard_focus(child);
+                            ui_set_keyboard_focus(child);
 
                         child->processEvent(e);
                     }
@@ -566,8 +628,8 @@ int main()
                 case SDL_MOUSEWHEEL: {
                     if (not current_session->root_widget)
                         break;
-                    if (auto * child = current_session->get_mouse_widget(mouse_pos.x, mouse_pos.y); child != nullptr) {
-                        current_session->ui_set_mouse_focus(child);
+                    if (auto * child = get_mouse_widget(mouse_pos.x, mouse_pos.y); child != nullptr) {
+                        ui_set_mouse_focus(child);
 
                         child->processEvent(e);
                     }
@@ -577,8 +639,8 @@ int main()
         }
 
         SDL_SystemCursor nextCursor;
-        if (current_session->mouse_focused_widget)
-            nextCursor = current_session->mouse_focused_widget->getCursor(mouse_pos);
+        if (mouse_focused_widget)
+            nextCursor = mouse_focused_widget->getCursor(mouse_pos);
         else
             nextCursor = SDL_SYSTEM_CURSOR_ARROW;
 
@@ -612,14 +674,14 @@ int main()
             SDL_GetMouseState(&mx, &my);
 
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_F3]) {
-                if (current_session->mouse_focused_widget != nullptr) {
+                if (mouse_focused_widget != nullptr) {
                     context().renderer.setColor(0xFF, 0x00, 0x00);
-                    context().renderer.drawRect(current_session->mouse_focused_widget->actual_bounds);
+                    context().renderer.drawRect(mouse_focused_widget->actual_bounds);
                 }
 
-                if (current_session->keyboard_focused_widget != nullptr) {
+                if (keyboard_focused_widget != nullptr) {
                     context().renderer.setColor(0x00, 0xFF, 0x00);
-                    context().renderer.drawRect(current_session->keyboard_focused_widget->actual_bounds);
+                    context().renderer.drawRect(keyboard_focused_widget->actual_bounds);
                 }
             }
 

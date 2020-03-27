@@ -16,6 +16,8 @@ Widget::~Widget()
     // make sure the mouse is released if captured by this widget.
     if (capturingWidget == this)
         capturingWidget = nullptr;
+    if (widget_context != nullptr)
+        widget_context->notify_destroy(this);
 }
 
 void Widget::initializeRoot(IWidgetContext * context)

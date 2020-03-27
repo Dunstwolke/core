@@ -16,9 +16,6 @@ struct Widget;
 struct Session : IWidgetContext
 {
     std::unique_ptr<Widget> root_widget;
-    Widget * keyboard_focused_widget = nullptr;
-    Widget * mouse_focused_widget = nullptr;
-
     ObjectRef root_object = ObjectRef(nullptr);
 
     std::mutex send_lock;
@@ -27,6 +24,8 @@ struct Session : IWidgetContext
 
     std::map<UIResourceID, Resource> resources;
     std::map<ObjectID, Object> object_registry;
+
+    std::function<void(Widget *)> onWidgetDestroyed;
 
     Session();
     Session(Session const &) = delete;
@@ -54,10 +53,8 @@ struct Session : IWidgetContext
 
     // Layouting and stuff
     void update_layout();
-    void ui_set_mouse_focus(Widget * widget);
-    void ui_set_keyboard_focus(Widget * widget);
 
-    Widget * get_mouse_widget(int x, int y);
+    void notify_destroy(Widget *) override;
 
     // Resource handling:
 
