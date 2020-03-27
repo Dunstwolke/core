@@ -25,16 +25,21 @@ struct DockLayout : WidgetIs<UIWidget::dock_layout>
     void setDockSite(size_t index, DockSite site);
 };
 
-
 struct TabLayout : WidgetIs<UIWidget::tab_layout>
 {
     property<int> selectedIndex = 0;
+
+    std::vector<SDL_Rect> tabButtons;
 
     void paintWidget(const SDL_Rect &) override;
 
     void layoutChildren(SDL_Rect const & childArea) override;
 
     UISize calculateWantedSize() override;
+
+    virtual bool processEvent(SDL_Event const & event) override;
+
+    virtual SDL_SystemCursor getCursor(UIPoint const & p) const override;
 };
 
 struct GridLayout : WidgetIs<UIWidget::grid_layout>
@@ -55,7 +60,6 @@ struct GridLayout : WidgetIs<UIWidget::grid_layout>
     size_t getColumnCount() const;
 };
 
-
 struct CanvasLayout : WidgetIs<UIWidget::canvas_layout>
 {
     void layoutChildren(SDL_Rect const & childArea) override;
@@ -67,6 +71,5 @@ struct FlowLayout : WidgetIs<UIWidget::flow_layout>
 {
     void layoutChildren(SDL_Rect const & childArea) override;
 };
-
 
 #endif // LAYOUTS_HPP
