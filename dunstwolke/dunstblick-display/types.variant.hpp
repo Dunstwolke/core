@@ -51,16 +51,16 @@ template<> constexpr UIType getUITypeFromType<ObjectRef>() { return UIType::obje
 template<> constexpr UIType getUITypeFromType<ObjectList>() { return UIType::objectlist; }
 template<> constexpr UIType getUITypeFromType<EventID>() { return UIType::event; }
 template<> constexpr UIType getUITypeFromType<WidgetName>() { return UIType::name; }
-template<> constexpr UIType getUITypeFromType<StackDirection>() { return UIType::enumeration; }
-template<> constexpr UIType getUITypeFromType<UIFont>() { return UIType::enumeration; }
-template<> constexpr UIType getUITypeFromType<DisplayProgressStyle>() { return UIType::enumeration; }
 template<> constexpr UIType getUITypeFromType<VAlignment>() { return UIType::enumeration; }
-template<> constexpr UIType getUITypeFromType<ImageScaling>() { return UIType::enumeration; }
 template<> constexpr UIType getUITypeFromType<DockSite>() { return UIType::enumeration; }
+template<> constexpr UIType getUITypeFromType<StackDirection>() { return UIType::enumeration; }
 template<> constexpr UIType getUITypeFromType<Orientation>() { return UIType::enumeration; }
+template<> constexpr UIType getUITypeFromType<UIFont>() { return UIType::enumeration; }
 template<> constexpr UIType getUITypeFromType<BooleanFormat>() { return UIType::enumeration; }
-template<> constexpr UIType getUITypeFromType<Visibility>() { return UIType::enumeration; }
 template<> constexpr UIType getUITypeFromType<HAlignment>() { return UIType::enumeration; }
+template<> constexpr UIType getUITypeFromType<ImageScaling>() { return UIType::enumeration; }
+template<> constexpr UIType getUITypeFromType<DisplayProgressStyle>() { return UIType::enumeration; }
+template<> constexpr UIType getUITypeFromType<Visibility>() { return UIType::enumeration; }
 
 
 static_assert(getUITypeFromType<std::monostate>() == UIType::invalid);
@@ -79,13 +79,13 @@ static_assert(getUITypeFromType<ObjectRef>() == UIType::object);
 static_assert(getUITypeFromType<ObjectList>() == UIType::objectlist);
 static_assert(getUITypeFromType<EventID>() == UIType::event);
 static_assert(getUITypeFromType<WidgetName>() == UIType::name);
-static_assert(getUITypeFromType<StackDirection>() == UIType::enumeration);
-static_assert(getUITypeFromType<UIFont>() == UIType::enumeration);
-static_assert(getUITypeFromType<DisplayProgressStyle>() == UIType::enumeration);
 static_assert(getUITypeFromType<VAlignment>() == UIType::enumeration);
-static_assert(getUITypeFromType<ImageScaling>() == UIType::enumeration);
 static_assert(getUITypeFromType<DockSite>() == UIType::enumeration);
+static_assert(getUITypeFromType<StackDirection>() == UIType::enumeration);
 static_assert(getUITypeFromType<Orientation>() == UIType::enumeration);
+static_assert(getUITypeFromType<UIFont>() == UIType::enumeration);
 static_assert(getUITypeFromType<BooleanFormat>() == UIType::enumeration);
-static_assert(getUITypeFromType<Visibility>() == UIType::enumeration);
 static_assert(getUITypeFromType<HAlignment>() == UIType::enumeration);
+static_assert(getUITypeFromType<ImageScaling>() == UIType::enumeration);
+static_assert(getUITypeFromType<DisplayProgressStyle>() == UIType::enumeration);
+static_assert(getUITypeFromType<Visibility>() == UIType::enumeration);

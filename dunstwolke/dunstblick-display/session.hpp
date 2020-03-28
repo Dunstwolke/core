@@ -27,6 +27,8 @@ struct Session : IWidgetContext
 
     std::function<void(Widget *)> onWidgetDestroyed;
 
+    std::string title = "Unnamed Session";
+
     Session();
     Session(Session const &) = delete;
     virtual ~Session();

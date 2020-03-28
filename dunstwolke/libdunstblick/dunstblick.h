@@ -248,7 +248,14 @@ extern "C"
     /// Pumps network data, calls connection events and disconnect/connect callbacks.
     /// Call this function continuously to provide a fluent user interaction
     /// and prevent network timeouts.
+    /// @remarks Same as @ref dunstblick_PumpEvents, but does not block.
     dunstblick_Error dunstblick_PumpEvents(dunstblick_Provider * provider);
+
+    /// Pumps network data, calls connection events and disconnect/connect callbacks.
+    /// Call this function continuously to provide a fluent user interaction
+    /// and prevent network timeouts.
+    /// @remarks Same as @ref dunstblick_PumpEvents, but blocks until some event or network activity happens.
+    dunstblick_Error dunstblick_WaitEvents(dunstblick_Provider * provider);
 
     /// Adds a resource to the UI system.
     /// The resource will be hashed and stored until the provider is shut down

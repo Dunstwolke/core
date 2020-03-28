@@ -280,8 +280,7 @@ int main()
 
     bool app_running = true;
     while(app_running) {
-        DBCHECKED_MAIN(dunstblick_PumpEvents(provider));
-        usleep(10);
+        DBCHECKED_MAIN(dunstblick_WaitEvents(provider));
     }
 
     dunstblick_CloseProvider(provider);

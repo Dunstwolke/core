@@ -166,7 +166,7 @@ UISize TabLayout::calculateWantedSize()
             0,
             0,
             w + 8,
-            h,
+            32,
         };
     }
 
@@ -197,6 +197,11 @@ SDL_SystemCursor TabLayout::getCursor(const UIPoint & p) const
 
 void TabLayout::layoutChildren(const SDL_Rect & childArea)
 {
+    auto const selected_index = gsl::narrow<size_t>(selectedIndex.get(this));
+    if (children.size() > 0 and selected_index >= children.size()) {
+        selectedIndex.set(this, gsl::narrow<int>(children.size() - 1));
+    }
+
     auto area = childArea;
     area.y += 32;
     area.h -= 32;
@@ -224,6 +229,12 @@ void TabLayout::paintWidget(const SDL_Rect & rectangle)
     ren.setColor(0x30, 0x30, 0x30);
     ren.fillRect(rectangle);
 
+    SDL_Rect topbar = rectangle;
+    topbar.h = 32;
+
+    ren.setColor(0x30, 0x30, 0x40);
+    ren.fillRect(topbar);
+
     auto const selected_index = gsl::narrow<size_t>(selectedIndex.get(this));
 
     assert(children.size() == tabButtons.size());
@@ -248,6 +259,9 @@ void TabLayout::paintWidget(const SDL_Rect & rectangle)
         ren.setColor(0xFF, 0xFF, 0xFF);
         ren.drawRect(tab);
     }
+
+    ren.setColor(0xFF, 0xFF, 0xFF);
+    ren.drawRect(topbar);
 
     ren.setColor(0xFF, 0xFF, 0xFF);
     ren.drawRect(rectangle);

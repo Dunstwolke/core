@@ -151,7 +151,9 @@ struct DiscoveredClient
 std::vector<DiscoveredClient> discovered_clients;
 std::mutex discovered_clients_lock;
 
-void refresh_discovery()
+static std::atomic_flag shutdown_discovery_flag{true};
+
+static void refresh_discovery()
 {
     xnet::socket multicast_sock(AF_INET, SOCK_DGRAM, 0);
 
@@ -170,7 +172,7 @@ void refresh_discovery()
 
     multicast_sock.set_option<timeval>(SOL_SOCKET, SO_RCVTIMEO, timeout);
 
-    while (true) {
+    while (shutdown_discovery_flag.test_and_set()) {
 
         std::vector<DiscoveredClient> new_clients;
         for (int i = 0; i < 10; i++) {
@@ -238,6 +240,7 @@ void refresh_discovery()
             std::lock_guard<std::mutex> lock{discovered_clients_lock};
             discovered_clients = std::move(new_clients);
         }
+
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 }
@@ -396,6 +399,8 @@ int main()
 
             auto const net_sess = new NetworkSession(client.create_tcp_endpoint());
 
+            net_sess->title = client.name;
+
             net_sess->onWidgetDestroyed = [](Widget * w) {
                 // focused widgets are destroyed, so remove the reference here!
                 if (keyboard_focused_widget == w)
@@ -438,6 +443,7 @@ int main()
     // we "load" our layout by hand and store/modify pointers directly
     // instead of utilizing the resource functions
     sess.root_widget.reset(new TabLayout());
+    sess.root_widget->margins.set(sess.root_widget.get(), UIMargin(0));
     {
         auto * const menu = new DockLayout();
         menu->tabTitle.set(menu, "Menu");
@@ -501,12 +507,12 @@ int main()
                 Widget * container;
                 if (child_index >= children.size()) {
                     container = new Container();
-                    container->tabTitle.set(container, "Unnamed Session " + std::to_string(i));
                     container->widget_context = sess.root_widget->widget_context;
                     children.emplace_back(container);
                 } else {
                     container = children.at(child_index).get();
                 }
+                container->tabTitle.set(container, session->title);
 
                 if (session->root_widget) {
                     auto root = session->root_widget.get();
@@ -703,6 +709,9 @@ int main()
     current_rc.reset();
 
     SDL_DestroyWindow(window);
+
+    shutdown_discovery_flag.clear();
+    discovery_thread.join();
 
     return 0;
 }

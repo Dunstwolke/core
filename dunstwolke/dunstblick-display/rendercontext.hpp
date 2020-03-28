@@ -6,9 +6,9 @@
 
 enum class Bevel
 {
-	flat,
-	sunken,
-	raised,
+    flat,
+    sunken,
+    raised,
 };
 
 struct RenderContext
@@ -22,8 +22,7 @@ struct RenderContext
 
     FontCache & getFont(UIFont font);
 
-
-	void drawBevel(SDL_Rect const & rect, Bevel bevel);
+    void drawBevel(SDL_Rect const & rect, Bevel bevel);
 };
 
 RenderContext & context();

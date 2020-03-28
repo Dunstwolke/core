@@ -202,7 +202,7 @@ struct dunstblick_Provider
 
     ~dunstblick_Provider();
 
-    void pump_events();
+    void pump_events(xstd::optional<std::chrono::microseconds> timeout);
 };
 
 struct dunstblick_Object
@@ -547,7 +547,7 @@ dunstblick_Object::dunstblick_Object(dunstblick_Connection * con) :
 
 dunstblick_Object::~dunstblick_Object() {}
 
-void dunstblick_Provider::pump_events()
+void dunstblick_Provider::pump_events(xstd::optional<std::chrono::microseconds> timeout)
 {
     xnet::socket_set read_fds, write_fds;
     read_fds.add(this->multicast_sock.handle);
@@ -561,7 +561,7 @@ void dunstblick_Provider::pump_events()
         read_fds.add(connection.sock);
     }
 
-    size_t result = select(read_fds, write_fds, xstd::nullopt, std::chrono::microseconds(10));
+    size_t result = select(read_fds, write_fds, xstd::nullopt, timeout);
 
     std::array<uint8_t, 4096> blob;
 
@@ -786,7 +786,16 @@ dunstblick_Error dunstblick_PumpEvents(dunstblick_Provider * provider)
     if (provider == nullptr)
         return DUNSTBLICK_ERROR_INVALID_ARG;
     mutex_guard lock{provider->mutex};
-    provider->pump_events();
+    provider->pump_events(std::chrono::microseconds(10));
+    return DUNSTBLICK_ERROR_NONE;
+}
+
+dunstblick_Error dunstblick_WaitEvents(dunstblick_Provider * provider)
+{
+    if (provider == nullptr)
+        return DUNSTBLICK_ERROR_INVALID_ARG;
+    mutex_guard lock{provider->mutex};
+    provider->pump_events(xstd::nullopt);
     return DUNSTBLICK_ERROR_NONE;
 }
 

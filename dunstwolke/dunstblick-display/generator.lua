@@ -1,5 +1,5 @@
 -- load UI definitions
-local UI = require "definitions"
+local UI = dofile "../dunstblick-common/definitions.lua"
 
 local function genEnumHeader(f)
 	f:write [[#ifndef ENUMS_HPP

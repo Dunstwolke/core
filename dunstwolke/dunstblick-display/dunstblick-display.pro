@@ -63,8 +63,9 @@ HEADERS += \
   widgets.hpp
 
 DISTFILES += \
-  definitions.lua \
   generator.lua
 
 DUI_FILES += \
   discovery-list-item.dui
+
+FORMS +=

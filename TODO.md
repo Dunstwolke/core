@@ -13,6 +13,12 @@
 	- [ ] ScrollView
 	- [x] ScrollBar
 	- [ ] SpinEdit
+  - [ ] RadioButton
+  - [ ] Slider
+    - Implement discrete and continuous mode
+    - Snap to integers/values
+  - [ ] GridLayout
+    - Implement `row-span` and `col-span`.
 - [ ] Fix Bugs
   - [ ] Empty grid (no colums, no rows) should not crash
 - [ ] ~~Add "deferModalDrawing" to render/ui context~~
