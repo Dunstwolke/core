@@ -150,6 +150,9 @@ struct DataReader
                 val.margins.right = this->read_int();
                 val.margins.bottom = this->read_uint();
                 break;
+
+            case DUNSTBLICK_TYPE_OBJECTLIST:
+                assert(false and "not implemented yet");
         }
         return val;
     }

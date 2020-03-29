@@ -4,6 +4,9 @@ CONFIG -= app_bundle
 CONFIG -= qt
 CONFIG += static
 
+# remote "lib" prefix
+TARGET=dunstblick
+
 XQLIB += network io
 include($$(XQLIB_ROOT)/xqlib.pri)
 

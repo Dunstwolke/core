@@ -111,7 +111,7 @@ struct Lexer
         if (tok->type == LexerTokenType::string)
             return tok->text;
         if (tok->type == LexerTokenType::integer)
-            return std::strtoul(tok->text.c_str(), nullptr, 10);
+            return uint32_t(std::strtoul(tok->text.c_str(), nullptr, 10));
         throw std::runtime_error("expected string or integer!");
     }
 };

@@ -41,11 +41,6 @@
     "toggle-shuffle": 10,
     "toggle-repeat-one": 11,
     "toggle-repeat-all": 12,
-    "close-main-menu": 13,
-    "/": 14,
-    "C": 15,
-    "CE": 16,
-    ",": 17,
-    "=": 18
+    "close-main-menu": 13
   }
 }

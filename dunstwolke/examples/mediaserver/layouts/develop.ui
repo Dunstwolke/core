@@ -1,8 +1,0 @@
-ScrollView
-{
-  margins: 0;
-  Picture {
-    margins: 0;
-    image: resource("big-fucking-image");
-  }
-}

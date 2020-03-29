@@ -8,14 +8,11 @@
 #include <list>
 #include <map>
 #include <mutex>
-#include <queue>
-#include <thread>
 #include <xcept>
 #include <xnet/dns>
 #include <xnet/select>
 #include <xnet/socket>
 #include <xnet/socket_stream>
-#include <xstd/locked_value>
 
 #include "dunstblick-internal.hpp"
 
@@ -562,6 +559,7 @@ void dunstblick_Provider::pump_events(xstd::optional<std::chrono::microseconds> 
     }
 
     size_t result = select(read_fds, write_fds, xstd::nullopt, timeout);
+    (void)result;
 
     std::array<uint8_t, 4096> blob;
 
@@ -631,7 +629,7 @@ void dunstblick_Provider::pump_events(xstd::optional<std::chrono::microseconds> 
                                     this->multicast_sock.write_to(sender, &response, sizeof response);
                                 if (sendlen < 0) {
                                     log_msg(LOG_ERROR, "%s\n", strerror(errno));
-                                } else if (sendlen < sizeof(response)) {
+                                } else if (size_t(sendlen) < sizeof(response)) {
                                     log_msg(LOG_ERROR,
                                             "expected to send %lu bytes, got %ld\n",
                                             sizeof(response),
@@ -1136,66 +1134,3 @@ void dunstblick_CancelObject(dunstblick_Object * obj)
     if (obj)
         delete obj;
 }
-
-/*
-
-
-static void receive_data(dunstblick_Connection * con)
-{
-assert(con != nullptr);
-con->shutdown_request.test_and_set();
-try
-{
-    auto stream = xnet::socket_istream { con->sock };
-
-    bool connected = true;
-    while(con->shutdown_request.test_and_set())
-    {
-        auto length = stream.read<uint32_t>();
-        if(length > 0)
-        {
-            InputPacket p(length);
-            stream.read(p.data(), p.size());
-
-            con->packets.obtain()->emplace(std::move(p));
-
-        }
-        else
-        {
-            connected = false;
-        }
-    }
-}
-catch(xcept::end_of_stream const &)
-{
-    // client closed connection...
-}
-}
-
-dunstblick_Connection * dunstblick_Open(const char * host, int portNumber)
-{
-if(host == nullptr)
-    return nullptr;
-
-if(portNumber <= 0 or portNumber >= 65536)
-    return nullptr;
-
-std::optional<xnet::socket> sock;
-
-for (auto const & entry : xnet::dns::resolve(host,
-std::to_string(portNumber), SOCK_STREAM))
-{
-    sock.emplace(entry.family, entry.socket_type, entry.protocol);
-    if(sock->connect(entry.address))
-        break;
-    else
-        sock.reset();
-}
-
-if(not sock)
-    return nullptr;
-
-return new dunstblick_Connection(std::move(*sock));
-}
-
-*/

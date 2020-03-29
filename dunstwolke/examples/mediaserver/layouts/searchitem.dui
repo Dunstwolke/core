@@ -1,0 +1,22 @@
+Panel {
+  margins: 0;
+  horizontal-alignment: stretch;
+  DockLayout {
+    Button {
+      dock-site: right;
+      Picture { image: resource("icon-open-folder"); }
+    }
+    Button {
+      dock-site: right;
+      Picture { image: resource("icon-add"); }
+    }
+    Button {
+      dock-site: right;
+      Picture { image: resource("icon-play"); }
+    }
+    Label {
+      horizontal-alignment: left;
+      text: "Gloryhammer";
+    }
+  }
+}
