@@ -32,8 +32,8 @@ NetworkSession::NetworkSession(const xnet::endpoint & target) : sock(target.fami
 
     std::map<dunstblick_ResourceID, TcpResourceDescriptor> resources;
     for (size_t i = 0; i < connect_response.resourceCount; i++) {
-        auto & res = resources[i];
-        res = stream.read<TcpResourceDescriptor>();
+
+        auto const res = stream.read<TcpResourceDescriptor>();
 
         resources.emplace(res.id, res);
 
@@ -70,9 +70,9 @@ NetworkSession::NetworkSession(const xnet::endpoint & target) : sock(target.fami
     stream.write(request_header);
 
     // request half of the resources
-    for (size_t i = 0; i < request_header.request_count; i++) {
+    for (auto const & pair : resources) {
         TcpResourceRequest request;
-        request.id = resources.at(i).id;
+        request.id = pair.second.id;
         stream.write(request);
     }
 

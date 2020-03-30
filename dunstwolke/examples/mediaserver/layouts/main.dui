@@ -1,5 +1,6 @@
 Picture
 {
+	margins: 0;
 	image: resource("wallpaper");
 	image-scaling: cover;
 	DockLayout
@@ -45,20 +46,17 @@ Picture
 		Label
 		{
 			dock-site: bottom;
-			/* text: bind("current-artist"); */
-			text: "Morgan Willis";
+			text: bind("current-artist");
 		}
 		Label
 		{
 			dock-site: bottom;
-			/* text: bind("current-song"); */
-			text: "Réalité augmentée";
+			text: bind("current-song");
 		}
 		Picture
 		{
-			/* image: bind("current-albumart"); */
+			image: bind("current-albumart"); 
 			image-scaling: zoom;
-			image: resource("demo-album-art");
 			vertical-alignment: middle;
 			horizontal-alignment: center;
 		}

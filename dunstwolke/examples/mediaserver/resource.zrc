@@ -1,0 +1,27 @@
+zrc-file 1.0
+@output:src/resources.zig
+icon_album:resources/album.png
+icon_close:resources/close.png
+icon_settings:resources/cog.png
+icon_folder:resources/folder-open.png
+icon_menu:resources/menu.png
+icon_pause:resources/pause.png
+icon_play:resources/play.png
+icon_playlist:resources/playlist-music.png
+icon_add:resources/plus.png
+icon_radio:resources/radio.png
+icon_repeat_all:resources/repeat.png
+icon_repeat_one:resources/repeat-once.png
+icon_shuffle:resources/shuffle.png
+icon_skip_next:resources/skip-next.png
+icon_skip_previous:resources/skip-previous.png
+icon_volume_high:resources/volume-high.png
+icon_volume_low:resources/volume-low.png
+icon_volume_medium:resources/volume-medium.png
+icon_volume_off:resources/volume-off.png
+img_background:resources/background.jpg
+img_placeholder:resources/placeholder.jpg
+layout_main:layouts/main.cui
+layout_menu:layouts/menu.cui
+layout_searchitem:layouts/searchitem.cui
+layout_searchlist:layouts/searchlist.cui

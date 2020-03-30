@@ -10,13 +10,31 @@ fn loword(val: u32) u16 {
     return @truncate(u16, val >> 16);
 }
 
-const resources = struct {
-    const main_view = @embedFile("../layouts/main.cui");
+const resources = @import("resources.zig");
+
+const properties = struct {
+    pub const current_artist = 1;
+    pub const current_song = 2;
+    pub const current_albumart = 3;
 };
 
 // HLS definitions (copied from BASSHLS.H)
 const BASS_SYNC_HLS_SEGMENT = 0x10300;
 const BASS_TAG_HLS_EXTINF = 0x14000;
+
+const ROOT_OBJ = 1;
+
+fn addResource(provider: *c.dunstblick_Provider, index: u32, kind: c.dunstblick_ResourceKind, data: []const u8) !void {
+    const err = c.dunstblick_AddResource(
+        provider,
+        index,
+        kind,
+        data.ptr,
+        data.len,
+    );
+    if (err != .DUNSTBLICK_ERROR_NONE)
+        return error.DunstblickError;
+}
 
 pub fn main() anyerror!u8 {
     var stderr = std.io.getStdErr().outStream();
@@ -49,13 +67,29 @@ pub fn main() anyerror!u8 {
     _ = c.dunstblick_SetConnectedCallback(dbProvider, clientConnected, null);
     _ = c.dunstblick_SetDisconnectedCallback(dbProvider, clientDisconnected, null);
 
-    _ = c.dunstblick_AddResource(
-        dbProvider,
-        1,
-        .DUNSTBLICK_RESOURCE_LAYOUT,
-        resources.main_view,
-        resources.main_view.len,
-    );
+    try addResource(dbProvider, 1, .DUNSTBLICK_RESOURCE_LAYOUT, resources.layout_main);
+
+    try addResource(dbProvider, 2, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_volume_off);
+    try addResource(dbProvider, 3, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_volume_low);
+    try addResource(dbProvider, 4, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_volume_medium);
+    try addResource(dbProvider, 5, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_volume_high);
+    try addResource(dbProvider, 6, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_skip_previous);
+    try addResource(dbProvider, 7, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_skip_next);
+    try addResource(dbProvider, 8, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_play);
+    try addResource(dbProvider, 9, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_pause);
+    try addResource(dbProvider, 10, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_menu);
+    try addResource(dbProvider, 11, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_settings);
+    try addResource(dbProvider, 12, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_repeat_one);
+    try addResource(dbProvider, 13, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_repeat_all);
+    try addResource(dbProvider, 14, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_shuffle);
+    try addResource(dbProvider, 15, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_album);
+    try addResource(dbProvider, 16, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_playlist);
+    try addResource(dbProvider, 17, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_radio);
+    try addResource(dbProvider, 18, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_add);
+    try addResource(dbProvider, 19, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_folder);
+    try addResource(dbProvider, 20, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_close);
+    try addResource(dbProvider, 22, .DUNSTBLICK_RESOURCE_BITMAP, resources.img_placeholder);
+    try addResource(dbProvider, 23, .DUNSTBLICK_RESOURCE_BITMAP, resources.img_background);
 
     try openURL("http://sentinel.scenesat.com:8000/scenesatmax");
     // try openFile("/dunstwolke/music/albums/Morgan Willis/Supernova/Morgan Willis - Supernova - 01 Opening (Vocal Marko Maric).mp3");
@@ -88,6 +122,35 @@ fn clientConnected(
     });
 
     _ = c.dunstblick_SetView(connection, 1);
+
+    if (c.dunstblick_BeginChangeObject(connection, ROOT_OBJ)) |obj| {
+        errdefer _ = c.dunstblick_CancelObject(obj);
+
+        _ = c.dunstblick_SetObjectProperty(obj, properties.current_song, &c.dunstblick_Value{
+            .type = .DUNSTBLICK_TYPE_STRING,
+            .unnamed_3 = .{
+                .string = "Current Song",
+            },
+        });
+
+        _ = c.dunstblick_SetObjectProperty(obj, properties.current_artist, &c.dunstblick_Value{
+            .type = .DUNSTBLICK_TYPE_STRING,
+            .unnamed_3 = .{
+                .string = "Current Artist",
+            },
+        });
+
+        const val = c.dunstblick_Value{
+            .type = .DUNSTBLICK_TYPE_RESOURCE,
+            .unnamed_3 = .{
+                .resource = 22,
+            },
+        };
+        std.debug.warn("val = {} / {}\n", .{ val, val.unnamed_3.resource });
+        _ = c.dunstblick_SetObjectProperty(obj, properties.current_albumart, &val);
+
+        _ = c.dunstblick_CommitObject(obj);
+    }
 }
 
 fn clientDisconnected(

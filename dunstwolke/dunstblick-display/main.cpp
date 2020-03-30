@@ -706,6 +706,11 @@ int main()
         }
     }
 
+    for (auto & s : all_sessions) {
+        s->onWidgetDestroyed = [](Widget *) {};
+    }
+    sess.onWidgetDestroyed = [](Widget *) {};
+
     current_rc.reset();
 
     SDL_DestroyWindow(window);

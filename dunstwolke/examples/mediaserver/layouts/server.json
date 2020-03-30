@@ -19,14 +19,13 @@
     "icon-add": 18,
     "icon-open-folder": 19,
     "icon-close": 20,
-    "big-fucking-image": 21,
-    "demo-album-art": 22,
+    "dummy-album-art": 22,
     "wallpaper": 23
   },
   "properties": {
     "current-artist": 1,
-    "current-song": 1,
-    "current-albumart": 1
+    "current-song": 2,
+    "current-albumart": 3
   },
   "callbacks": {
     "next-song": 1,

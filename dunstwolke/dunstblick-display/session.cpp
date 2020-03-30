@@ -15,6 +15,7 @@ Session::~Session() {}
 
 void Session::uploadResource(UIResourceID id, ResourceKind kind, const void * data, size_t len)
 {
+    xlog::log("dunstblick", xlog::message) << "Upload resource " << id.value << " with " << len << " bytes data…";
     switch (kind) {
         case ResourceKind::layout: {
             set_resource(id, LayoutResource(reinterpret_cast<uint8_t const *>(data), len));
