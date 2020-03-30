@@ -168,7 +168,7 @@ struct Widget
 
     /// Stores the context for this widget.
     /// Provides access to resources and event processing
-    IWidgetContext * widget_context;
+    IWidgetContext * widget_context = nullptr;
 
   public: // widget tree
     /// contains all child widgets

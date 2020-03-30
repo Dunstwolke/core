@@ -1108,7 +1108,8 @@ dunstblick_Error dunstblick_SetObjectProperty(dunstblick_Object * obj,
     if (value->type == 0)
         return DUNSTBLICK_ERROR_INVALID_TYPE;
 
-    log_msg(LOG_ERROR, "%d\n", value->resource);
+    // log_msg(LOG_ERROR, "%u %d\n", offsetof(dunstblick_Value, resource), value->resource);
+    // asm volatile("int $0x3");
 
     obj->commandbuffer.write_enum(value->type);
     obj->commandbuffer.write_id(name);

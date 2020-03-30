@@ -18,6 +18,29 @@ const properties = struct {
     pub const current_albumart = 3;
 };
 
+const callbacks = struct {
+    pub const next_song = 1;
+    pub const previous_song = 2;
+    pub const open_volume_control = 3;
+    pub const play_pause = 4;
+    pub const open_main_menu = 5;
+    pub const open_settings = 6;
+    pub const open_albums = 7;
+    pub const open_radio = 8;
+    pub const open_playlists = 9;
+    pub const toggle_shuffle = 10;
+    pub const toggle_repeat_one = 11;
+    pub const toggle_repeat_all = 12;
+    pub const close_main_menu = 13;
+};
+
+const views = struct {
+    pub const layout_main = 1000;
+    pub const layout_menu = 1001;
+    pub const layout_searchlist = 1002;
+    pub const layout_searchitem = 1003;
+};
+
 // HLS definitions (copied from BASSHLS.H)
 const BASS_SYNC_HLS_SEGMENT = 0x10300;
 const BASS_TAG_HLS_EXTINF = 0x14000;
@@ -67,8 +90,6 @@ pub fn main() anyerror!u8 {
     _ = c.dunstblick_SetConnectedCallback(dbProvider, clientConnected, null);
     _ = c.dunstblick_SetDisconnectedCallback(dbProvider, clientDisconnected, null);
 
-    try addResource(dbProvider, 1, .DUNSTBLICK_RESOURCE_LAYOUT, resources.layout_main);
-
     try addResource(dbProvider, 2, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_volume_off);
     try addResource(dbProvider, 3, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_volume_low);
     try addResource(dbProvider, 4, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_volume_medium);
@@ -91,6 +112,11 @@ pub fn main() anyerror!u8 {
     try addResource(dbProvider, 22, .DUNSTBLICK_RESOURCE_BITMAP, resources.img_placeholder);
     try addResource(dbProvider, 23, .DUNSTBLICK_RESOURCE_BITMAP, resources.img_background);
 
+    try addResource(dbProvider, 1000, .DUNSTBLICK_RESOURCE_LAYOUT, resources.layout_main);
+    try addResource(dbProvider, 1001, .DUNSTBLICK_RESOURCE_LAYOUT, resources.layout_menu);
+    try addResource(dbProvider, 1002, .DUNSTBLICK_RESOURCE_LAYOUT, resources.layout_searchlist);
+    try addResource(dbProvider, 1003, .DUNSTBLICK_RESOURCE_LAYOUT, resources.layout_searchitem);
+
     try openURL("http://sentinel.scenesat.com:8000/scenesatmax");
     // try openFile("/dunstwolke/music/albums/Morgan Willis/Supernova/Morgan Willis - Supernova - 01 Opening (Vocal Marko Maric).mp3");
 
@@ -103,6 +129,35 @@ pub fn main() anyerror!u8 {
     }
 
     return 0;
+}
+
+fn clientEvent(
+    connection: ?*c.dunstblick_Connection,
+    event: c.dunstblick_EventID,
+    widget: c.dunstblick_WidgetName,
+    user_data: ?*c_void,
+) callconv(.C) void {
+    std.debug.warn("event: {} {}\n", .{ event, widget });
+    switch (event) {
+        callbacks.next_song => {},
+        callbacks.previous_song => {},
+        callbacks.open_volume_control => {},
+        callbacks.play_pause => {},
+        callbacks.open_main_menu => {
+            _ = c.dunstblick_SetView(connection, views.layout_menu);
+        },
+        callbacks.open_settings => {},
+        callbacks.open_albums => {},
+        callbacks.open_radio => {},
+        callbacks.open_playlists => {},
+        callbacks.toggle_shuffle => {},
+        callbacks.toggle_repeat_one => {},
+        callbacks.toggle_repeat_all => {},
+        callbacks.close_main_menu => {
+            _ = c.dunstblick_SetView(connection, views.layout_main);
+        },
+        else => {}, // ignore
+    }
 }
 
 fn clientConnected(
@@ -121,7 +176,9 @@ fn clientConnected(
         capabilities,
     });
 
-    _ = c.dunstblick_SetView(connection, 1);
+    _ = c.dunstblick_SetEventCallback(connection, clientEvent, null);
+
+    _ = c.dunstblick_SetView(connection, 1000);
 
     if (c.dunstblick_BeginChangeObject(connection, ROOT_OBJ)) |obj| {
         errdefer _ = c.dunstblick_CancelObject(obj);
@@ -140,7 +197,9 @@ fn clientConnected(
             },
         });
 
-        const val = c.dunstblick_Value{
+        // TODO: Workaround for (probably) #4295
+        var val: c.dunstblick_Value = undefined;
+        val = c.dunstblick_Value{
             .type = .DUNSTBLICK_TYPE_RESOURCE,
             .unnamed_3 = .{
                 .resource = 22,

@@ -381,335 +381,347 @@ int main()
 
     UIPoint mouse_pos{0, 0};
 
-    // NetworkSession sess{target_endpoint};
-    LocalSession sess;
-
-    sess.onEvent = [](EventID event, WidgetName widget) {
-        if (event == local_exit_client_event) {
-            shutdown_app_requested = true;
-        } else if (event == local_open_session_event) {
-            DiscoveredClient client;
-            {
-                std::lock_guard<std::mutex> lock{discovered_clients_lock};
-                if (widget.value < 1 or widget.value > discovered_clients.size())
-                    return;
-
-                client = discovered_clients.at(widget.value - 1);
-            }
-
-            auto const net_sess = new NetworkSession(client.create_tcp_endpoint());
-
-            net_sess->title = client.name;
-
-            net_sess->onWidgetDestroyed = [](Widget * w) {
-                // focused widgets are destroyed, so remove the reference here!
-                if (keyboard_focused_widget == w)
-                    keyboard_focused_widget = nullptr;
-                if (mouse_focused_widget == w)
-                    mouse_focused_widget = nullptr;
-            };
-
-            all_sessions.emplace_back(net_sess);
-
-        } else if (event == local_close_session_event) {
-
-        } else {
-            fprintf(stderr, "Unknown event: %lu, Sender: %lu\n", event.value, widget.value);
-            // assert(false and "unhandled event detected");
-        }
-    };
-
-    // Initialize session objects
     {
-        Object obj{local_root_obj};
-        obj.add(local_discovery_list, ObjectList{});
 
-        sess.addOrUpdateObject(std::move(obj));
+        LocalSession sess;
 
-        sess.setRoot(local_root_obj);
-    }
+        sess.onEvent = [](EventID event, WidgetName widget) {
+            if (event == local_exit_client_event) {
+                shutdown_app_requested = true;
+            } else if (event == local_open_session_event) {
+                DiscoveredClient client;
+                {
+                    std::lock_guard<std::mutex> lock{discovered_clients_lock};
+                    if (widget.value < 1 or widget.value > discovered_clients.size())
+                        return;
 
-    // Initialize session resources
-    {
-        uint8_t const discovery_list_item[] = {
-#include "discovery-list-item.data.h"
-        };
-        sess.uploadResource(local_discovery_list_item,
-                            ResourceKind::layout,
-                            discovery_list_item,
-                            sizeof discovery_list_item);
-    }
-
-    // we "load" our layout by hand and store/modify pointers directly
-    // instead of utilizing the resource functions
-    sess.root_widget.reset(new TabLayout());
-    sess.root_widget->margins.set(sess.root_widget.get(), UIMargin(0));
-    {
-        auto * const menu = new DockLayout();
-        menu->tabTitle.set(menu, "Menu");
-
-        auto * const quitLabel = new Label();
-        quitLabel->text.set(quitLabel, "Exit");
-
-        auto * const quitButton = new Button();
-        quitButton->onClickEvent.set(quitButton, local_exit_client_event);
-        quitButton->dockSite.set(quitButton, DockSite::bottom);
-        quitButton->children.emplace_back(quitLabel);
-
-        menu->children.emplace_back(quitButton);
-
-        auto * const headerLabel = new Label();
-        headerLabel->text.set(headerLabel, "Available Applications");
-        headerLabel->font.set(headerLabel, UIFont::serif);
-
-        menu->children.emplace_back(headerLabel);
-
-        auto * const serviceList = new StackLayout();
-        serviceList->bindingContext.set(serviceList, ObjectRef{local_root_obj});
-        serviceList->childSource.binding = local_discovery_list;
-        serviceList->childTemplate.set(serviceList, local_discovery_list_item);
-
-        auto * const serviceScroll = new ScrollView();
-
-        serviceScroll->children.emplace_back(serviceList);
-
-        menu->children.emplace_back(serviceScroll);
-
-        sess.root_widget->children.emplace_back(menu);
-    }
-    sess.root_widget->initializeRoot(&sess);
-
-    current_session = &sess;
-
-    while (not shutdown_app_requested) {
-        for (auto & session : all_sessions) {
-            session->update();
-        }
-
-        // Remove all destroyed sessions
-        {
-            auto it = std::remove_if(all_sessions.begin(),
-                                     all_sessions.end(),
-                                     [](std::unique_ptr<Session> const & item) { return not item->is_active; });
-            all_sessions.erase(it, all_sessions.end());
-        }
-
-        // Update tab pages
-        {
-            auto & children = sess.root_widget->children;
-
-            for (size_t i = 0; i < all_sessions.size(); i++) {
-
-                auto const session = all_sessions.at(i).get();
-
-                size_t child_index = i + 1;
-
-                Widget * container;
-                if (child_index >= children.size()) {
-                    container = new Container();
-                    container->widget_context = sess.root_widget->widget_context;
-                    children.emplace_back(container);
-                } else {
-                    container = children.at(child_index).get();
-                }
-                container->tabTitle.set(container, session->title);
-
-                if (session->root_widget) {
-                    auto root = session->root_widget.get();
-                    if (container->children.size() == 0)
-                        container->children.emplace_back(root);
-                    else {
-                        container->children.at(0).release();
-                        container->children.at(0).reset(root);
-                    }
-                } else {
-                    if (container->children.size() > 0) {
-                        assert(container->children.size() == 1);
-                        container->children.at(0).release();
-                        container->children.clear();
-                    }
-                }
-            }
-            while (sess.root_widget->children.size() > all_sessions.size() + 1) {
-                // we do evel hackery above and store the same pointer in two
-                // unique pointers. We have to make sure that we don't double free it.
-                sess.root_widget->children.back().release();
-                sess.root_widget->children.pop_back();
-            }
-        }
-
-        // Update objects in local session
-        {
-            std::vector<DiscoveredClient> clients;
-            {
-                std::lock_guard<std::mutex> lock{discovered_clients_lock};
-                clients = discovered_clients;
-            }
-
-            ObjectList list;
-            list.reserve(clients.size());
-
-            for (size_t i = 0; i < clients.size(); i++) {
-                auto const id = local_session_id(i);
-
-                Object obj{id};
-
-                obj.add(local_app_name, UIValue(clients[i].name));
-                obj.add(local_app_port, UIValue(clients[i].tcp_port));
-                obj.add(local_app_ip, UIValue(xnet::to_string(clients[i].udp_ep, false)));
-                obj.add(local_app_id, UIValue(WidgetName(i + 1)));
-
-                list.emplace_back(obj);
-
-                sess.addOrUpdateObject(std::move(obj));
-            }
-
-            sess.clear(local_root_obj, local_discovery_list);
-            sess.insertRange(local_root_obj, local_discovery_list, 0, list.size(), list.data());
-        }
-
-        SDL_Event e;
-        while (SDL_PollEvent(&e)) {
-            switch (e.type) {
-                case SDL_QUIT:
-                    shutdown_app_requested = true;
-                    break;
-                case SDL_WINDOWEVENT:
-                    switch (e.window.event) {
-                        case SDL_WINDOWEVENT_RESIZED:
-                            screen_rect.w = e.window.data1;
-                            screen_rect.h = e.window.data2;
-                            current_session->update_layout();
-                            break;
-                    }
-                    break;
-
-                // keyboard events:
-                case SDL_KEYDOWN:
-                case SDL_KEYUP:
-                case SDL_TEXTEDITING:
-                case SDL_TEXTINPUT:
-                case SDL_KEYMAPCHANGED: {
-                    if (keyboard_focused_widget != nullptr) {
-                        keyboard_focused_widget->processEvent(e);
-                    }
-                    break;
+                    client = discovered_clients.at(widget.value - 1);
                 }
 
-                // mouse events:
-                case SDL_MOUSEMOTION: {
-                    mouse_pos.x = e.motion.x;
-                    mouse_pos.y = e.motion.y;
-                    if (not current_session->root_widget)
-                        break;
-                    if (auto * child = get_mouse_widget(e.motion.x, e.motion.y); child != nullptr) {
-                        // only move focus if mouse is not captured
-                        if (Widget::capturingWidget == nullptr)
-                            ui_set_mouse_focus(child);
-                        child->processEvent(e);
-                    }
-                    break;
-                }
+                auto const net_sess = new NetworkSession(client.create_tcp_endpoint());
 
-                case SDL_MOUSEBUTTONUP:
-                case SDL_MOUSEBUTTONDOWN: {
-                    // Only allow left button interaction with all widgets
-                    if (e.button.button != SDL_BUTTON_LEFT)
-                        break;
+                net_sess->title = client.name;
 
-                    if (not current_session->root_widget)
-                        break;
+                net_sess->onWidgetDestroyed = [](Widget * w) {
+                    // focused widgets are destroyed, so remove the reference here!
+                    if (keyboard_focused_widget == w)
+                        keyboard_focused_widget = nullptr;
+                    if (mouse_focused_widget == w)
+                        mouse_focused_widget = nullptr;
+                };
 
-                    if (auto * child = get_mouse_widget(e.button.x, e.button.y); child != nullptr) {
-                        ui_set_mouse_focus(child);
+                all_sessions.emplace_back(net_sess);
 
-                        if ((e.type == SDL_MOUSEBUTTONUP) and child->isKeyboardFocusable())
-                            ui_set_keyboard_focus(child);
+            } else if (event == local_close_session_event) {
 
-                        child->processEvent(e);
-                    }
-                    break;
-                }
-
-                case SDL_MOUSEWHEEL: {
-                    if (not current_session->root_widget)
-                        break;
-                    if (auto * child = get_mouse_widget(mouse_pos.x, mouse_pos.y); child != nullptr) {
-                        ui_set_mouse_focus(child);
-
-                        child->processEvent(e);
-                    }
-                    break;
-                }
-            }
-        }
-
-        SDL_SystemCursor nextCursor;
-        if (mouse_focused_widget)
-            nextCursor = mouse_focused_widget->getCursor(mouse_pos);
-        else
-            nextCursor = SDL_SYSTEM_CURSOR_ARROW;
-
-        if (nextCursor != currentCursor) {
-            currentCursor = nextCursor;
-            SDL_SetCursor(cursors[currentCursor].get());
-        }
-
-        auto const time = SDL_GetTicks() - startup;
-
-        auto const windowFlags = SDL_GetWindowFlags(window);
-
-        // draw UI when window is visible
-        if ((windowFlags & (SDL_WINDOW_MINIMIZED | SDL_WINDOW_HIDDEN)) == 0) {
-            context().renderer.resetClipRect();
-            assert(not context().renderer.isClipEnabled());
-
-            context().renderer.setColor(0x00, 0x00, 0x00, 0xFF);
-            context().renderer.fillRect(context().renderer.getViewport());
-
-            current_session->update_layout();
-
-            if (current_session->root_widget) {
-                SDL_Rect clipRect{0, 0};
-                SDL_GetRendererOutputSize(context().renderer, &clipRect.w, &clipRect.h);
-                context().renderer.setClipRect(clipRect);
-                current_session->root_widget->paint();
-            }
-
-            int mx, my;
-            SDL_GetMouseState(&mx, &my);
-
-            if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_F3]) {
-                if (mouse_focused_widget != nullptr) {
-                    context().renderer.setColor(0xFF, 0x00, 0x00);
-                    context().renderer.drawRect(mouse_focused_widget->actual_bounds);
-                }
-
-                if (keyboard_focused_widget != nullptr) {
-                    context().renderer.setColor(0x00, 0xFF, 0x00);
-                    context().renderer.drawRect(keyboard_focused_widget->actual_bounds);
-                }
-            }
-
-            context().renderer.present();
-
-            if ((windowFlags & (SDL_WINDOW_INPUT_FOCUS | SDL_WINDOW_MOUSE_FOCUS)) != 0) {
-                // 60 FPS with focused window
-                SDL_Delay(16);
             } else {
-                // 30 FPS with window in backgound
-                SDL_Delay(33);
+                fprintf(stderr, "Unknown event: %lu, Sender: %lu\n", event.value, widget.value);
+                // assert(false and "unhandled event detected");
             }
-        } else {
-            // slow update loop when window is not visible
-            SDL_Delay(100);
-        }
-    }
+        };
 
-    for (auto & s : all_sessions) {
-        s->onWidgetDestroyed = [](Widget *) {};
+        // Initialize session objects
+        {
+            Object obj{local_root_obj};
+            obj.add(local_discovery_list, ObjectList{});
+
+            sess.addOrUpdateObject(std::move(obj));
+
+            sess.setRoot(local_root_obj);
+        }
+
+        // Initialize session resources
+        {
+            uint8_t const discovery_list_item[] = {
+#include "discovery-list-item.data.h"
+            };
+            sess.uploadResource(local_discovery_list_item,
+                                ResourceKind::layout,
+                                discovery_list_item,
+                                sizeof discovery_list_item);
+        }
+
+        // we "load" our layout by hand and store/modify pointers directly
+        // instead of utilizing the resource functions
+        sess.root_widget.reset(new TabLayout());
+        sess.root_widget->margins.set(sess.root_widget.get(), UIMargin(0));
+        {
+            auto * const menu = new DockLayout();
+            menu->tabTitle.set(menu, "Menu");
+
+            auto * const quitLabel = new Label();
+            quitLabel->text.set(quitLabel, "Exit");
+
+            auto * const quitButton = new Button();
+            quitButton->onClickEvent.set(quitButton, local_exit_client_event);
+            quitButton->dockSite.set(quitButton, DockSite::bottom);
+            quitButton->children.emplace_back(quitLabel);
+
+            menu->children.emplace_back(quitButton);
+
+            auto * const headerLabel = new Label();
+            headerLabel->text.set(headerLabel, "Available Applications");
+            headerLabel->font.set(headerLabel, UIFont::serif);
+
+            menu->children.emplace_back(headerLabel);
+
+            auto * const serviceList = new StackLayout();
+            serviceList->bindingContext.set(serviceList, ObjectRef{local_root_obj});
+            serviceList->childSource.binding = local_discovery_list;
+            serviceList->childTemplate.set(serviceList, local_discovery_list_item);
+
+            auto * const serviceScroll = new ScrollView();
+
+            serviceScroll->children.emplace_back(serviceList);
+
+            menu->children.emplace_back(serviceScroll);
+
+            sess.root_widget->children.emplace_back(menu);
+        }
+        sess.root_widget->initializeRoot(&sess);
+
+        current_session = &sess;
+
+        while (not shutdown_app_requested) {
+            for (auto & session : all_sessions) {
+                session->update();
+            }
+
+            // Remove all destroyed sessions
+            {
+                auto it = std::remove_if(all_sessions.begin(),
+                                         all_sessions.end(),
+                                         [](std::unique_ptr<Session> const & item) { return not item->is_active; });
+                all_sessions.erase(it, all_sessions.end());
+            }
+
+            // Update tab pages
+            {
+                auto & children = sess.root_widget->children;
+
+                for (size_t i = 0; i < all_sessions.size(); i++) {
+
+                    auto const session = all_sessions.at(i).get();
+
+                    size_t child_index = i + 1;
+
+                    Widget * container;
+                    if (child_index >= children.size()) {
+                        container = new Container();
+                        container->widget_context = sess.root_widget->widget_context;
+                        children.emplace_back(container);
+
+                        reinterpret_cast<TabLayout *>(sess.root_widget.get())
+                            ->selectedIndex.set(sess.root_widget.get(), int(child_index));
+                    } else {
+                        container = children.at(child_index).get();
+                    }
+                    container->tabTitle.set(container, session->title);
+
+                    if (session->root_widget) {
+                        auto root = session->root_widget.get();
+                        if (container->children.size() == 0)
+                            container->children.emplace_back(root);
+                        else {
+                            container->children.at(0).release();
+                            container->children.at(0).reset(root);
+                        }
+                    } else {
+                        if (container->children.size() > 0) {
+                            assert(container->children.size() == 1);
+                            container->children.at(0).release();
+                            container->children.clear();
+                        }
+                    }
+                }
+                while (sess.root_widget->children.size() > all_sessions.size() + 1) {
+                    // we do evel hackery above and store the same pointer in two
+                    // unique pointers. We have to make sure that we don't double free it.
+                    sess.root_widget->children.back().release();
+                    sess.root_widget->children.pop_back();
+                }
+            }
+
+            // Update objects in local session
+            {
+                std::vector<DiscoveredClient> clients;
+                {
+                    std::lock_guard<std::mutex> lock{discovered_clients_lock};
+                    clients = discovered_clients;
+                }
+
+                ObjectList list;
+                list.reserve(clients.size());
+
+                for (size_t i = 0; i < clients.size(); i++) {
+                    auto const id = local_session_id(i);
+
+                    Object obj{id};
+
+                    obj.add(local_app_name, UIValue(clients[i].name));
+                    obj.add(local_app_port, UIValue(clients[i].tcp_port));
+                    obj.add(local_app_ip, UIValue(xnet::to_string(clients[i].udp_ep, false)));
+                    obj.add(local_app_id, UIValue(WidgetName(i + 1)));
+
+                    list.emplace_back(obj);
+
+                    sess.addOrUpdateObject(std::move(obj));
+                }
+
+                sess.clear(local_root_obj, local_discovery_list);
+                sess.insertRange(local_root_obj, local_discovery_list, 0, list.size(), list.data());
+            }
+
+            SDL_Event e;
+            while (SDL_PollEvent(&e)) {
+                switch (e.type) {
+                    case SDL_QUIT:
+                        shutdown_app_requested = true;
+                        break;
+                    case SDL_WINDOWEVENT:
+                        switch (e.window.event) {
+                            case SDL_WINDOWEVENT_RESIZED:
+                                screen_rect.w = e.window.data1;
+                                screen_rect.h = e.window.data2;
+                                current_session->update_layout();
+                                break;
+                        }
+                        break;
+
+                    // keyboard events:
+                    case SDL_KEYDOWN:
+                    case SDL_KEYUP:
+                    case SDL_TEXTEDITING:
+                    case SDL_TEXTINPUT:
+                    case SDL_KEYMAPCHANGED: {
+                        if (keyboard_focused_widget != nullptr) {
+                            keyboard_focused_widget->processEvent(e);
+                        }
+                        break;
+                    }
+
+                    // mouse events:
+                    case SDL_MOUSEMOTION: {
+                        mouse_pos.x = e.motion.x;
+                        mouse_pos.y = e.motion.y;
+                        if (not current_session->root_widget)
+                            break;
+                        if (auto * child = get_mouse_widget(e.motion.x, e.motion.y); child != nullptr) {
+                            // only move focus if mouse is not captured
+                            if (Widget::capturingWidget == nullptr)
+                                ui_set_mouse_focus(child);
+                            child->processEvent(e);
+                        }
+                        break;
+                    }
+
+                    case SDL_MOUSEBUTTONUP:
+                    case SDL_MOUSEBUTTONDOWN: {
+                        // Only allow left button interaction with all widgets
+                        if (e.button.button != SDL_BUTTON_LEFT)
+                            break;
+
+                        if (not current_session->root_widget)
+                            break;
+
+                        if (auto * child = get_mouse_widget(e.button.x, e.button.y); child != nullptr) {
+                            ui_set_mouse_focus(child);
+
+                            if ((e.type == SDL_MOUSEBUTTONUP) and child->isKeyboardFocusable())
+                                ui_set_keyboard_focus(child);
+
+                            child->processEvent(e);
+                        }
+                        break;
+                    }
+
+                    case SDL_MOUSEWHEEL: {
+                        if (not current_session->root_widget)
+                            break;
+                        if (auto * child = get_mouse_widget(mouse_pos.x, mouse_pos.y); child != nullptr) {
+                            ui_set_mouse_focus(child);
+
+                            child->processEvent(e);
+                        }
+                        break;
+                    }
+                }
+            }
+
+            SDL_SystemCursor nextCursor;
+            if (mouse_focused_widget)
+                nextCursor = mouse_focused_widget->getCursor(mouse_pos);
+            else
+                nextCursor = SDL_SYSTEM_CURSOR_ARROW;
+
+            if (nextCursor != currentCursor) {
+                currentCursor = nextCursor;
+                SDL_SetCursor(cursors[currentCursor].get());
+            }
+
+            auto const time = SDL_GetTicks() - startup;
+
+            auto const windowFlags = SDL_GetWindowFlags(window);
+
+            // draw UI when window is visible
+            if ((windowFlags & (SDL_WINDOW_MINIMIZED | SDL_WINDOW_HIDDEN)) == 0) {
+                context().renderer.resetClipRect();
+                assert(not context().renderer.isClipEnabled());
+
+                context().renderer.setColor(0x00, 0x00, 0x00, 0xFF);
+                context().renderer.fillRect(context().renderer.getViewport());
+
+                current_session->update_layout();
+
+                if (current_session->root_widget) {
+                    SDL_Rect clipRect{0, 0};
+                    SDL_GetRendererOutputSize(context().renderer, &clipRect.w, &clipRect.h);
+                    context().renderer.setClipRect(clipRect);
+                    current_session->root_widget->paint();
+                }
+
+                int mx, my;
+                SDL_GetMouseState(&mx, &my);
+
+                if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_F3]) {
+                    if (mouse_focused_widget != nullptr) {
+                        context().renderer.setColor(0xFF, 0x00, 0x00);
+                        context().renderer.drawRect(mouse_focused_widget->actual_bounds);
+                    }
+
+                    if (keyboard_focused_widget != nullptr) {
+                        context().renderer.setColor(0x00, 0xFF, 0x00);
+                        context().renderer.drawRect(keyboard_focused_widget->actual_bounds);
+                    }
+                }
+
+                context().renderer.present();
+
+                if ((windowFlags & (SDL_WINDOW_INPUT_FOCUS | SDL_WINDOW_MOUSE_FOCUS)) != 0) {
+                    // 60 FPS with focused window
+                    SDL_Delay(16);
+                } else {
+                    // 30 FPS with window in backgound
+                    SDL_Delay(33);
+                }
+            } else {
+                // slow update loop when window is not visible
+                SDL_Delay(100);
+            }
+        }
+
+        while (sess.root_widget->children.size() > 1) {
+            // we do evel hackery above and store the same pointer in two
+            // unique pointers. We have to make sure that we don't double free it.
+            sess.root_widget->children.back().release();
+            sess.root_widget->children.pop_back();
+        }
+
+        for (auto & s : all_sessions) {
+            s->onWidgetDestroyed = [](Widget *) {};
+        }
+        sess.onWidgetDestroyed = [](Widget *) {};
     }
-    sess.onWidgetDestroyed = [](Widget *) {};
 
     current_rc.reset();
 

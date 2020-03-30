@@ -1,7 +1,5 @@
-Spacer
+Container
 {
-  margins: 0;
-  hit-test-visible: true;
 	GridLayout
 	{
     vertical-alignment: bottom;

@@ -3,6 +3,7 @@ Picture
 	margins: 0;
 	image: resource("wallpaper");
 	image-scaling: cover;
+	hit-test-visible: true;
 	DockLayout
 	{
 		GridLayout
