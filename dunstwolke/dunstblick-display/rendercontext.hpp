@@ -18,6 +18,10 @@ struct RenderContext : IWidgetPainter
 
     FontCache & getFont(UIFont) const;
 
+    void drawRectImpl(Rectangle const & rect, SDL_Color const & top_left, SDL_Color const & bottom_right);
+
+    // IWidgetPainter:
+
     UISize measureString(std::string const & text, UIFont font, xstd::optional<int> line_width) const override;
 
     void drawString(std::string const & text, Rectangle const & target, UIFont font, TextAlign align) override;

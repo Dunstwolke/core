@@ -220,6 +220,11 @@ struct Rectangle : SDL_Rect
     {
         return (w * h) == 0;
     }
+
+    Rectangle shrink(int n) const
+    {
+        return Rectangle{x + n, y + n, w - 2 * n, h - 2 * n};
+    }
 };
 
 struct IWidgetPainter
