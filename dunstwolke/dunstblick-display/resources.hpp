@@ -24,6 +24,8 @@ struct BitmapResource
 {
     sdl2::texture texture;
 
+    UISize size;
+
     explicit BitmapResource(sdl2::texture && texture);
 };
 

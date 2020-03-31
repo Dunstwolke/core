@@ -51,7 +51,6 @@ HEADERS += \
   networksession.hpp \
   object.hpp \
   protocol.hpp \
-  rectangle_tools.hpp \
   rendercontext.hpp \
   resources.hpp \
   session.hpp \

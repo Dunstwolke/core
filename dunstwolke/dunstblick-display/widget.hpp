@@ -7,7 +7,6 @@
 #include "types.hpp"
 
 #include "inputstream.hpp"
-#include "rendercontext.hpp"
 
 #include <functional>
 #include <memory>
@@ -153,6 +152,100 @@ struct IWidgetContext
     std::unique_ptr<Widget> load_widget(UIResourceID id);
 };
 
+enum class Bevel
+{
+    edge,           ///< A small border with a 3D effect, looks like a welding around the object
+    crease,         ///< A small border with a 3D effect, looks like a crease around the object
+    raised,         ///< A small border with a 3D effect, looks like the object is raised up from the surroundings
+    sunken,         ///< A small border with a 3D effect, looks like the object is sunken into the surroundings
+    input_field,    ///< The *deep* 3D border
+    button_default, ///< Normal button outline
+    button_pressed, ///< Pressed button outline
+    button_active,  ///< Active button outline, not pressed
+};
+
+enum class LineStyle
+{
+    crease, ///< A small border with a 3D effect, looks like a welding around the object
+    edge,   ///< A small border with a 3D effect, looks like a welding around the object
+};
+
+enum class Color
+{
+    background,
+    input_field,
+    highlight,
+};
+
+enum class TextAlign
+{
+    left,
+    center,
+    right,
+    block
+};
+
+struct Rectangle : SDL_Rect
+{
+    explicit Rectangle() : SDL_Rect{0, 0, 0, 0} {}
+    Rectangle(int _x, int _y, int _w, int _h) : SDL_Rect{_x, _y, _w, _h} {}
+
+    explicit Rectangle(SDL_Rect const & r) : SDL_Rect{r} {}
+
+    static inline Rectangle intersect(Rectangle const & a, Rectangle const & b)
+    {
+        auto const left = std::max(a.x, b.x);
+        auto const top = std::max(a.y, b.y);
+
+        auto const right = std::min(a.x + a.w, b.x + b.w);
+        auto const bottom = std::min(a.y + a.h, b.y + b.h);
+
+        if (right < left or bottom < top)
+            return Rectangle{left, top, 0, 0};
+        else
+            return Rectangle{left, top, right - left, bottom - top};
+    }
+
+    inline bool contains(int px, int py) const
+    {
+        return (px >= this->x) and (py >= this->y) and (px < (this->x + this->w)) and (py < (this->y + this->h));
+    }
+
+    inline bool contains(SDL_Point const & p) const
+    {
+        return contains(p.x, p.y);
+    }
+
+    bool empty() const
+    {
+        return (w * h) == 0;
+    }
+};
+
+struct IWidgetPainter
+{
+    /// Pushes a new clipping rectangle that will also be clipped against the previous one
+    /// @returns the actual visible rectangle
+    virtual Rectangle pushClipRect(Rectangle const & rect) = 0;
+
+    virtual void popClipRect() = 0;
+
+    virtual UISize measureString(std::string const & text, UIFont font, xstd::optional<int> line_width) const = 0;
+
+    virtual void drawString(std::string const & text, Rectangle const & target, UIFont font, TextAlign align) = 0;
+
+    virtual void drawRect(Rectangle const & rect, Bevel bevel) = 0;
+
+    virtual void fillRect(Rectangle const & rect, Color color) = 0;
+
+    virtual void drawIcon(Rectangle const & rect,
+                          SDL_Texture * texture,
+                          xstd::optional<Rectangle> clip_rect = xstd::nullopt) = 0;
+
+    virtual void drawHLine(int startX, int startY, int width, LineStyle style) = 0;
+    virtual void drawVLine(int startX, int startY, int height, LineStyle style) = 0;
+};
+
 struct Widget
 {
   public:
@@ -214,7 +307,7 @@ struct Widget
 
     /// the position of the widget on the screen after layouting
     /// NOTE: this does not include the margins of the widget!
-    SDL_Rect actual_bounds;
+    Rectangle actual_bounds;
 
     /// if set to `true`, this widget has been hidden by the
     /// layout, not by the user.
@@ -241,20 +334,20 @@ struct Widget
     void updateBindings(ObjectRef parentBindingSource);
 
     /// stage1: calculates recursively the wanted size of all widgets.
-    void updateWantedSize();
+    void updateWantedSize(IWidgetPainter const &);
 
     /// stage2: recursivly lays out this widget and all child widgets.
     /// @param bounds the rectangle this widget should reside in.
     ///        These bounds will be reduced by the margins of the widget.
     ///        the widget will be positioned according to its alignments into this layout
-    void layout(SDL_Rect const & bounds);
+    void layout(Rectangle const & bounds);
 
     /// draws the widget
     /// This function is a generic purpose painter
-    virtual void paint();
+    virtual void paint(IWidgetPainter & painter);
 
     /// returns the bounds of the widget with margins
-    SDL_Rect bounds_with_margins() const;
+    Rectangle bounds_with_margins() const;
 
     /// returns the wanted_size of the widget with margins added
     UISize wanted_size_with_margins() const;
@@ -302,19 +395,29 @@ struct Widget
     /// returns true if the mouse is captured by __any__ widget.
     bool isMouseCaptured();
 
+    bool isFocused() const
+    {
+        return false;
+    }
+
+    bool isHovered() const
+    {
+        return false;
+    }
+
   protected:
     /// stage1: calculates the space this widget wants to take.
     /// MUST refresh `wanted_size` field!
     /// the default is the maximum size of all its children combined
-    virtual UISize calculateWantedSize();
+    virtual UISize calculateWantedSize(IWidgetPainter const &);
 
     /// stage2: recursively lays out all child elements to the widgets layout.
     /// the default layouting is "all children get their wanted size with alignment".
     /// note: this method should call layout(rect) on all its children!
     /// @param childArea the area where the children will be positioned in
-    virtual void layoutChildren(SDL_Rect const & childArea);
+    virtual void layoutChildren(Rectangle const & childArea);
 
-    virtual void paintWidget(SDL_Rect const & rectangle);
+    virtual void paintWidget(IWidgetPainter & painter, Rectangle const & rectangle);
 
   public:
     static std::unique_ptr<Widget> create(UIWidget id);

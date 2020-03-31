@@ -1,14 +1,13 @@
 #include "widgets.hpp"
-#include "rectangle_tools.hpp"
 #include "resources.hpp"
 
 #include <xlog>
 
-static bool is_clicked(SDL_Rect const & rect, SDL_Event const & ev)
+static bool is_clicked(Rectangle const & rect, SDL_Event const & ev)
 {
     if (ev.type != SDL_MOUSEBUTTONDOWN)
         return false;
-    return contains(rect, ev.button.x, ev.button.y);
+    return rect.contains(ev.button.x, ev.button.y);
 }
 
 Spacer::Spacer()
@@ -16,19 +15,17 @@ Spacer::Spacer()
     hitTestVisible.set(this, false);
 }
 
-void Spacer::paintWidget(const SDL_Rect &) {}
+void Spacer::paintWidget(IWidgetPainter & painter, const Rectangle &) {}
 
 Container::Container() {}
 
-void Container::paintWidget(const SDL_Rect &) {}
+void Container::paintWidget(IWidgetPainter &, const Rectangle &) {}
 
-void Button::paintWidget(const SDL_Rect & rectangle)
+void Button::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
 {
-    context().renderer.setColor(0x80, 0x80, 0x80);
-    context().renderer.fillRect(rectangle);
 
-    context().renderer.setColor(0xFF, 0xFF, 0xFF);
-    context().renderer.drawRect(rectangle);
+    painter.fillRect(rectangle, Color::background);
+    painter.drawRect(rectangle, this->isFocused() ? Bevel::button_active : Bevel::button_default);
 }
 
 Button::Button() : ClickableWidget(UIWidget::button) {}
@@ -47,89 +44,71 @@ Label::Label()
     hitTestVisible.set(this, false);
 }
 
-void Label::paintWidget(const SDL_Rect & rectangle)
+void Label::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
 {
-    auto & fc = context().getFont(font.get(this));
-    auto * tex = fc.render(text.get(this));
-
-    context().renderer.copy(tex, rectangle); // stretch for now...
+    painter.drawString(text.get(this), rectangle, font.get(this), TextAlign::left);
 }
 
-UISize Label::calculateWantedSize()
+UISize Label::calculateWantedSize(IWidgetPainter const & painter)
 {
-    auto & fc = context().getFont(font.get(this));
-    auto * tex = fc.render(text.get(this));
-    if (not tex)
-        return {0, TTF_FontHeight(fc.font.get())};
-    UISize size;
-    SDL_QueryTexture(tex, nullptr, nullptr, &size.w, &size.h);
-    return size;
+    return painter.measureString(text.get(this), font.get(this), xstd::nullopt);
 }
 
-UISize PlaceholderWidget::calculateWantedSize()
+UISize PlaceholderWidget::calculateWantedSize(IWidgetPainter const &)
 {
     return {32, 32};
 }
 
-void PlaceholderWidget::paintWidget(const SDL_Rect & rectangle)
+void PlaceholderWidget::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
 {
-    context().renderer.setColor(0xFF, 0x00, 0xFF);
-    context().renderer.fillRect(rectangle);
+    //    context().renderer.setColor(0xFF, 0x00, 0xFF);
+    //    context().renderer.fillRect(rectangle);
 
-    context().renderer.setColor(0xFF, 0xFF, 0xFF);
-    context().renderer.drawLine(rectangle.x, rectangle.y, rectangle.x + rectangle.w, rectangle.y + rectangle.h);
-    context().renderer.drawLine(rectangle.x + rectangle.w, rectangle.y, rectangle.x, rectangle.y + rectangle.h);
-    context().renderer.drawRect(rectangle);
+    //    context().renderer.setColor(0xFF, 0xFF, 0xFF);
+    //    context().renderer.drawLine(rectangle.x, rectangle.y, rectangle.x + rectangle.w, rectangle.y + rectangle.h);
+    //    context().renderer.drawLine(rectangle.x + rectangle.w, rectangle.y, rectangle.x, rectangle.y + rectangle.h);
+    //    context().renderer.drawRect(rectangle);
 }
 
-void Panel::paintWidget(const SDL_Rect & rectangle)
+void Panel::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
 {
-    context().renderer.setColor(0x30, 0x00, 0x30);
-    context().renderer.fillRect(rectangle);
-
-    context().renderer.setColor(0xFF, 0xFF, 0xFF);
-    context().renderer.drawRect(rectangle);
+    painter.fillRect(rectangle, Color::background);
+    painter.drawRect(rectangle, Bevel::crease);
 }
 
-UISize Separator::calculateWantedSize()
+UISize Separator::calculateWantedSize(IWidgetPainter const &)
 {
     return {5, 5};
 }
 
-void Separator::paintWidget(const SDL_Rect & rectangle)
+void Separator::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
 {
-    context().renderer.setColor(0xFF, 0xFF, 0xFF);
     if (rectangle.w > rectangle.h) {
         int y = rectangle.y + rectangle.h / 2;
-        context().renderer.drawLine(rectangle.x, y, rectangle.x + rectangle.w, y);
+        painter.drawHLine(rectangle.x, y, rectangle.w, LineStyle::edge);
     } else {
         int x = rectangle.x + rectangle.w / 2;
-        context().renderer.drawLine(x, rectangle.y, x, rectangle.y + rectangle.h);
+        painter.drawVLine(x, rectangle.y, rectangle.h, LineStyle::edge);
     }
 }
 
-UISize ProgressBar::calculateWantedSize()
+UISize ProgressBar::calculateWantedSize(IWidgetPainter const &)
 {
     return {256, 32};
 }
 
-void ProgressBar::paintWidget(const SDL_Rect & rectangle)
+void ProgressBar::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
 {
-    context().renderer.setColor(0x30, 0x30, 0x30);
-    context().renderer.fillRect(rectangle);
+    painter.fillRect(rectangle, Color::input_field);
 
-    context().renderer.setColor(0xFF, 0xFF, 0xFF);
-    context().renderer.drawRect(rectangle);
-
-    SDL_Rect progressArea = {
+    Rectangle progressArea = {
         rectangle.x + 1,
         rectangle.y + 1,
         int((value.get(this) - minimum.get(this)) * float(rectangle.w - 2) / (maximum.get(this) - minimum.get(this)) +
             0.5f),
         rectangle.h - 2};
 
-    context().renderer.setColor(0x00, 0x00, 0xFF);
-    context().renderer.fillRect(progressArea);
+    painter.fillRect(progressArea, Color::highlight);
 
     std::string caption;
     switch (displayProgress.get(this)) {
@@ -147,13 +126,10 @@ void ProgressBar::paintWidget(const SDL_Rect & rectangle)
             break;
     }
     if (not caption.empty()) {
-        auto * tex = context().getFont(UIFont::sans).render(caption);
-
-        int w, h;
-        SDL_QueryTexture(tex, nullptr, nullptr, &w, &h);
-        SDL_Rect label = {rectangle.x + (rectangle.w - w) / 2, rectangle.y + (rectangle.h - h) / 2, w, h};
-        context().renderer.copy(tex, label);
+        painter.drawString(caption, rectangle, UIFont::sans, TextAlign::center);
     }
+
+    painter.drawRect(rectangle, Bevel::input_field);
 }
 
 CheckBox::CheckBox() : ClickableWidget(UIWidget::checkbox)
@@ -168,30 +144,16 @@ void CheckBox::onClick()
     isChecked.set(this, not isChecked.get(this));
 }
 
-UISize CheckBox::calculateWantedSize()
+UISize CheckBox::calculateWantedSize(IWidgetPainter const &)
 {
     return {32, 32};
 }
 
-void CheckBox::paintWidget(const SDL_Rect & rectangle)
+void CheckBox::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
 {
-    context().renderer.setColor(0x30, 0x30, 0x30);
-    context().renderer.fillRect(rectangle);
+    painter.fillRect(rectangle, Color::background);
 
-    if (isChecked.get(this))
-        context().renderer.setColor(0xD0, 0xD0, 0xD0);
-    else
-        context().renderer.setColor(0x40, 0x40, 0x40);
-
-    context().renderer.fillRect({
-        rectangle.x + 6,
-        rectangle.y + 6,
-        rectangle.w - 12,
-        rectangle.h - 12,
-    });
-
-    context().renderer.setColor(0xFF, 0xFF, 0xFF);
-    context().renderer.drawRect(rectangle);
+    painter.drawRect(rectangle, isChecked.get(this) ? Bevel::button_pressed : Bevel::button_default);
 }
 
 RadioButton::RadioButton() : ClickableWidget(UIWidget::radiobutton)
@@ -206,76 +168,49 @@ void RadioButton::onClick()
     isChecked.set(this, not isChecked.get(this));
 }
 
-UISize RadioButton::calculateWantedSize()
+UISize RadioButton::calculateWantedSize(IWidgetPainter const &)
 {
     return {32, 32};
 }
 
-void RadioButton::paintWidget(const SDL_Rect & rectangle)
+void RadioButton::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
 {
-    int centerX = rectangle.x + rectangle.w / 2;
-    int centerY = rectangle.y + rectangle.h / 2;
-    int radiusA = std::min(rectangle.w, rectangle.h) / 2 - 1;
-    int radiusB = radiusA - 6;
+    painter.fillRect(rectangle, Color::background);
 
-    UIPoint circleA[37], circleB[37];
-    for (int i = 0; i <= 36; i++) {
-        circleA[i].x = int(centerX + radiusA * sin(M_PI * i / 18.0));
-        circleA[i].y = int(centerY + radiusA * cos(M_PI * i / 18.0));
-
-        circleB[i].x = int(centerX + radiusB * sin(M_PI * i / 18.0));
-        circleB[i].y = int(centerY + radiusB * cos(M_PI * i / 18.0));
-    }
-
-    if (isChecked.get(this))
-        context().renderer.setColor(0xD0, 0xD0, 0xD0);
-    else
-        context().renderer.setColor(0x40, 0x40, 0x40);
-
-    context().renderer.drawLines(circleB, 36);
-
-    context().renderer.setColor(0xFF, 0xFF, 0xFF);
-    context().renderer.drawLines(circleA, 36);
+    painter.drawRect(rectangle, isChecked.get(this) ? Bevel::button_pressed : Bevel::button_default);
 }
 
-UISize Slider::calculateWantedSize()
+UISize Slider::calculateWantedSize(IWidgetPainter const &)
 {
     return {32, 32};
 }
 
-void Slider::paintWidget(const SDL_Rect & rectangle)
+void Slider::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
 {
     int const knobThick = 12;
 
+    Rectangle knob;
     if (orientation.get(this) == Orientation::horizontal) {
         // horizontal slider
 
         int y = rectangle.y + rectangle.h / 2;
 
-        context().renderer.setColor(0xFF, 0xFF, 0xFF);
-        context().renderer.drawLine(rectangle.x + knobThick / 2, y, rectangle.x + rectangle.w - knobThick / 2, y);
+        painter.drawHLine(rectangle.x, y, rectangle.w, LineStyle::crease);
 
-        SDL_Rect knob{rectangle.x + int((rectangle.w - knobThick - 1) * (value.get(this) - minimum.get(this)) /
-                                            (maximum.get(this) - minimum.get(this)) +
-                                        0.5f),
-                      rectangle.y,
-                      knobThick,
-                      rectangle.h};
-
-        context().renderer.setColor(0xC0, 0xC0, 0xC0);
-        context().renderer.fillRect(knob);
-
-        context().renderer.setColor(0xFF, 0xFF, 0xFF);
-        context().renderer.drawRect(knob);
+        knob = Rectangle{rectangle.x + int((rectangle.w - knobThick - 1) * (value.get(this) - minimum.get(this)) /
+                                               (maximum.get(this) - minimum.get(this)) +
+                                           0.5f),
+                         rectangle.y,
+                         knobThick,
+                         rectangle.h};
     } else {
         // vertical slider
 
         int x = rectangle.x + rectangle.w / 2;
 
-        context().renderer.setColor(0xFF, 0xFF, 0xFF);
-        context().renderer.drawLine(x, rectangle.y + knobThick / 2, x, rectangle.y + rectangle.h - knobThick / 2);
+        painter.drawVLine(x, rectangle.y, rectangle.h, LineStyle::crease);
 
-        SDL_Rect knob{
+        knob = Rectangle{
             rectangle.x,
             rectangle.y + int((rectangle.h - knobThick - 1) * (value.get(this) - minimum.get(this)) /
                                   (maximum.get(this) - minimum.get(this)) +
@@ -283,13 +218,10 @@ void Slider::paintWidget(const SDL_Rect & rectangle)
             rectangle.w,
             knobThick,
         };
-
-        context().renderer.setColor(0xC0, 0xC0, 0xC0);
-        context().renderer.fillRect(knob);
-
-        context().renderer.setColor(0xFF, 0xFF, 0xFF);
-        context().renderer.drawRect(knob);
     }
+
+    painter.fillRect(knob, Color::background);
+    painter.drawRect(knob, isFocused() ? Bevel::button_active : Bevel::button_default);
 }
 
 bool Slider::processEvent(const SDL_Event & ev)
@@ -337,10 +269,10 @@ Picture::Picture()
     this->hitTestVisible.set(this, false);
 }
 
-void Picture::paintWidget(const SDL_Rect & rectangle)
+void Picture::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
 {
     if (auto bmp = widget_context->get_resource<BitmapResource>(image.get(this)); bmp) {
-        auto const [format, access, w, h] = bmp->texture.query();
+        auto const [w, h] = bmp->size;
 
         float targetAspect = float(rectangle.w) / float(rectangle.h);
         float sourceAspect = float(w) / float(h);
@@ -349,18 +281,17 @@ void Picture::paintWidget(const SDL_Rect & rectangle)
             case ImageScaling::none: {
                 int const clipped_w = std::min(w, rectangle.w);
                 int const clipped_h = std::min(h, rectangle.h);
-                context().renderer.copy(bmp->texture,
-                                        SDL_Rect{rectangle.x, rectangle.y, clipped_w, clipped_h},
-                                        SDL_Rect{0, 0, clipped_w, clipped_h});
+                painter.drawIcon(Rectangle{rectangle.x, rectangle.y, clipped_w, clipped_h},
+                                 bmp->texture,
+                                 Rectangle{0, 0, clipped_w, clipped_h});
                 break;
             }
             case ImageScaling::stretch:
-                context().renderer.copy(bmp->texture, rectangle);
+                painter.drawIcon(rectangle, bmp->texture);
                 break;
             case ImageScaling::center: {
-                context().renderer.copy(
-                    bmp->texture,
-                    {rectangle.x + (rectangle.w - w) / 2, rectangle.y + (rectangle.h - h) / 2, w, h});
+                painter.drawIcon({rectangle.x + (rectangle.w - w) / 2, rectangle.y + (rectangle.h - h) / 2, w, h},
+                                 bmp->texture);
                 break;
             }
 
@@ -378,11 +309,11 @@ void Picture::paintWidget(const SDL_Rect & rectangle)
                 int const scaled_h = int(scale * h + 0.5f);
 
                 // just center the image as it is contained
-                context().renderer.copy(bmp->texture,
-                                        {rectangle.x + (rectangle.w - scaled_w) / 2,
-                                         rectangle.y + (rectangle.h - scaled_h) / 2,
-                                         scaled_w,
-                                         scaled_h});
+                painter.drawIcon({rectangle.x + (rectangle.w - scaled_w) / 2,
+                                  rectangle.y + (rectangle.h - scaled_h) / 2,
+                                  scaled_w,
+                                  scaled_h},
+                                 bmp->texture);
                 break;
             }
 
@@ -394,11 +325,11 @@ void Picture::paintWidget(const SDL_Rect & rectangle)
                 int scaled_h = int(scale * h + 0.5f);
 
                 // just center the image as it is contained
-                context().renderer.copy(bmp->texture,
-                                        {rectangle.x + (rectangle.w - scaled_w) / 2,
-                                         rectangle.y + (rectangle.h - scaled_h) / 2,
-                                         scaled_w,
-                                         scaled_h});
+                painter.drawIcon({rectangle.x + (rectangle.w - scaled_w) / 2,
+                                  rectangle.y + (rectangle.h - scaled_h) / 2,
+                                  scaled_w,
+                                  scaled_h},
+                                 bmp->texture);
                 break;
             }
 
@@ -410,24 +341,24 @@ void Picture::paintWidget(const SDL_Rect & rectangle)
                 int scaled_h = int(scale * h + 0.5f);
 
                 // just center the image as it is contained
-                context().renderer.copy(bmp->texture,
-                                        {rectangle.x + (rectangle.w - scaled_w) / 2,
-                                         rectangle.y + (rectangle.h - scaled_h) / 2,
-                                         scaled_w,
-                                         scaled_h});
+                painter.drawIcon({rectangle.x + (rectangle.w - scaled_w) / 2,
+                                  rectangle.y + (rectangle.h - scaled_h) / 2,
+                                  scaled_w,
+                                  scaled_h},
+                                 bmp->texture);
                 break;
             }
         }
     }
 }
 
-UISize Picture::calculateWantedSize()
+UISize Picture::calculateWantedSize(IWidgetPainter const & painter)
 {
     if (auto res = widget_context->find_resource(image.get(this)); res and is_bitmap(*res)) {
         auto [format, access, w, h] = std::get<BitmapResource>(*res).texture.query();
         return {w, h};
     } else {
-        return Widget::calculateWantedSize();
+        return Widget::calculateWantedSize(painter);
     }
 }
 
@@ -453,7 +384,7 @@ bool ClickableWidget::processEvent(const SDL_Event & event)
     return Widget::processEvent(event);
 }
 
-UISize ScrollBar::calculateWantedSize()
+UISize ScrollBar::calculateWantedSize(IWidgetPainter const &)
 {
     if (orientation.get(this) == Orientation::horizontal) {
         return UISize{64, 24};
@@ -462,34 +393,45 @@ UISize ScrollBar::calculateWantedSize()
     }
 }
 
-void ScrollBar::paintWidget(const SDL_Rect & rectangle)
+void ScrollBar::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
 {
     float const progress = (value.get(this) - minimum.get(this)) / (maximum.get(this) - minimum.get(this));
 
+    painter.fillRect(rectangle, Color::background);
+
     if (orientation.get(this) == Orientation::vertical) {
-        SDL_Rect const topKnob = {rectangle.x, rectangle.y, knobSize, knobSize};
-        SDL_Rect const botKnob = {rectangle.x, rectangle.y + rectangle.h - knobSize, knobSize, knobSize};
+        Rectangle const topKnob = {rectangle.x, rectangle.y, knobSize, knobSize};
+        Rectangle const botKnob = {rectangle.x, rectangle.y + rectangle.h - knobSize, knobSize, knobSize};
 
-        SDL_Rect const slidKnob = {rectangle.x,
-                                   rectangle.y + knobSize + int(progress * (rectangle.h - 3 * knobSize) + 0.5f),
-                                   knobSize,
-                                   knobSize};
+        Rectangle const slidKnob = {rectangle.x,
+                                    rectangle.y + knobSize + int(progress * (rectangle.h - 3 * knobSize) + 0.5f),
+                                    knobSize,
+                                    knobSize};
 
-        context().drawBevel(topKnob, Bevel::raised);
-        context().drawBevel(botKnob, Bevel::raised);
-        context().drawBevel(slidKnob, Bevel::raised);
+        painter.fillRect(topKnob, Color::background);
+        painter.fillRect(botKnob, Color::background);
+        painter.fillRect(slidKnob, Color::background);
+
+        painter.drawRect(topKnob, Bevel::button_default);
+        painter.drawRect(botKnob, Bevel::button_default);
+        painter.drawRect(slidKnob, Bevel::button_default);
+
     } else {
-        SDL_Rect const leftKnob = {rectangle.x, rectangle.y, knobSize, knobSize};
-        SDL_Rect const rightKnob = {rectangle.x + rectangle.w - knobSize, rectangle.y, knobSize, knobSize};
+        Rectangle const leftKnob = {rectangle.x, rectangle.y, knobSize, knobSize};
+        Rectangle const rightKnob = {rectangle.x + rectangle.w - knobSize, rectangle.y, knobSize, knobSize};
 
-        SDL_Rect const slidKnob = {rectangle.x + knobSize + int(progress * (rectangle.w - 3 * knobSize) + 0.5f),
-                                   rectangle.y,
-                                   knobSize,
-                                   knobSize};
+        Rectangle const slidKnob = {rectangle.x + knobSize + int(progress * (rectangle.w - 3 * knobSize) + 0.5f),
+                                    rectangle.y,
+                                    knobSize,
+                                    knobSize};
 
-        context().drawBevel(leftKnob, Bevel::raised);
-        context().drawBevel(rightKnob, Bevel::raised);
-        context().drawBevel(slidKnob, Bevel::raised);
+        painter.fillRect(leftKnob, Color::background);
+        painter.fillRect(rightKnob, Color::background);
+        painter.fillRect(slidKnob, Color::background);
+
+        painter.drawRect(leftKnob, Bevel::button_default);
+        painter.drawRect(rightKnob, Bevel::button_default);
+        painter.drawRect(slidKnob, Bevel::button_default);
     }
 }
 
@@ -509,20 +451,20 @@ bool ScrollBar::processEvent(const SDL_Event & ev)
 
     auto const rectangle = actual_bounds;
     if (orientation.get(this) == Orientation::vertical) {
-        SDL_Rect const topKnob = {rectangle.x, rectangle.y, knobSize, knobSize};
-        SDL_Rect const botKnob = {rectangle.x, rectangle.y + rectangle.h - knobSize, knobSize, knobSize};
+        Rectangle const topKnob = {rectangle.x, rectangle.y, knobSize, knobSize};
+        Rectangle const botKnob = {rectangle.x, rectangle.y + rectangle.h - knobSize, knobSize, knobSize};
 
-        SDL_Rect const knobArea = {
+        Rectangle const knobArea = {
             rectangle.x,
             rectangle.y + knobSize,
             rectangle.w,
             rectangle.h - 2 * knobSize,
         };
 
-        SDL_Rect const slidKnob = {rectangle.x,
-                                   rectangle.y + knobSize + int(progress * (rectangle.h - 3 * knobSize) + 0.5f),
-                                   knobSize,
-                                   knobSize};
+        Rectangle const slidKnob = {rectangle.x,
+                                    rectangle.y + knobSize + int(progress * (rectangle.h - 3 * knobSize) + 0.5f),
+                                    knobSize,
+                                    knobSize};
 
         if (ev.type == SDL_MOUSEBUTTONUP)
             releaseMouse();
@@ -560,20 +502,20 @@ bool ScrollBar::processEvent(const SDL_Event & ev)
             return true;
         }
     } else {
-        SDL_Rect const leftKnob = {rectangle.x, rectangle.y, knobSize, knobSize};
-        SDL_Rect const rightKnob = {rectangle.x + rectangle.w - knobSize, rectangle.y, knobSize, knobSize};
+        Rectangle const leftKnob = {rectangle.x, rectangle.y, knobSize, knobSize};
+        Rectangle const rightKnob = {rectangle.x + rectangle.w - knobSize, rectangle.y, knobSize, knobSize};
 
-        SDL_Rect const knobArea = {
+        Rectangle const knobArea = {
             rectangle.x + knobSize,
             rectangle.y,
             rectangle.w - 2 * knobSize,
             rectangle.h,
         };
 
-        SDL_Rect const slidKnob = {rectangle.x + knobSize + int(progress * (rectangle.w - 3 * knobSize) + 0.5f),
-                                   rectangle.y,
-                                   knobSize,
-                                   knobSize};
+        Rectangle const slidKnob = {rectangle.x + knobSize + int(progress * (rectangle.w - 3 * knobSize) + 0.5f),
+                                    rectangle.y,
+                                    knobSize,
+                                    knobSize};
 
         if (ev.type == SDL_MOUSEBUTTONUP)
             releaseMouse();
@@ -634,7 +576,7 @@ ScrollView::ScrollView()
     vertical_bar.margins.set(&vertical_bar, UIMargin(0));
 }
 
-void ScrollView::layoutChildren(const SDL_Rect & fullArea)
+void ScrollView::layoutChildren(const Rectangle & fullArea)
 {
     auto area = calculateChildArea(fullArea);
 
@@ -665,17 +607,17 @@ void ScrollView::layoutChildren(const SDL_Rect & fullArea)
 
     for (auto & child : children) {
         auto const child_size = child->wanted_size_with_margins();
-        SDL_Rect child_rect = {childArea.x,
-                               childArea.y,
-                               std::max(childArea.w, child_size.w),
-                               std::max(childArea.h, child_size.h)};
+        Rectangle child_rect = {childArea.x,
+                                childArea.y,
+                                std::max(childArea.w, child_size.w),
+                                std::max(childArea.h, child_size.h)};
 
         child->layout(child_rect);
     }
 
-    vertical_bar.layout(SDL_Rect{area.x + area.w, area.y, horizontal_bar.wanted_size.w, area.h});
+    vertical_bar.layout(Rectangle{area.x + area.w, area.y, horizontal_bar.wanted_size.w, area.h});
 
-    horizontal_bar.layout(SDL_Rect{
+    horizontal_bar.layout(Rectangle{
         area.x,
         area.y + area.h,
         area.w,
@@ -683,19 +625,19 @@ void ScrollView::layoutChildren(const SDL_Rect & fullArea)
     });
 }
 
-SDL_Rect ScrollView::calculateChildArea(SDL_Rect rect)
+Rectangle ScrollView::calculateChildArea(Rectangle rect)
 {
     rect.w -= vertical_bar.wanted_size.w;
     rect.h -= horizontal_bar.wanted_size.h;
     return rect;
 }
 
-UISize ScrollView::calculateWantedSize()
+UISize ScrollView::calculateWantedSize(IWidgetPainter const & painter)
 {
-    auto childSize = Widget::calculateWantedSize();
+    auto childSize = Widget::calculateWantedSize(painter);
 
-    horizontal_bar.wanted_size = horizontal_bar.calculateWantedSize();
-    vertical_bar.wanted_size = vertical_bar.calculateWantedSize();
+    horizontal_bar.wanted_size = horizontal_bar.calculateWantedSize(painter);
+    vertical_bar.wanted_size = vertical_bar.calculateWantedSize(painter);
 
     childSize.w += horizontal_bar.wanted_size.w;
     childSize.h += vertical_bar.wanted_size.h;
@@ -707,16 +649,16 @@ Widget * ScrollView::hitTest(int ssx, int ssy)
 {
     if (not this->hitTestVisible.get(this))
         return nullptr;
-    if (not contains(actual_bounds, ssx, ssy))
+    if (not actual_bounds.contains(ssx, ssy))
         return nullptr;
 
-    if (contains(horizontal_bar.actual_bounds, ssx, ssy))
+    if (horizontal_bar.actual_bounds.contains(ssx, ssy))
         return &horizontal_bar;
-    if (contains(vertical_bar.actual_bounds, ssx, ssy))
+    if (vertical_bar.actual_bounds.contains(ssx, ssy))
         return &vertical_bar;
 
     auto const childArea = calculateChildArea(actual_bounds);
-    if (not contains(childArea, ssx, ssy))
+    if (not childArea.contains(ssx, ssy))
         return this;
 
     for (auto it = children.rbegin(); it != children.rend(); it++) {
@@ -726,41 +668,39 @@ Widget * ScrollView::hitTest(int ssx, int ssy)
     return this;
 }
 
-void ScrollView::paint()
+void ScrollView::paint(IWidgetPainter & painter)
 {
-    assert(SDL_RenderIsClipEnabled(context().renderer));
-    auto const currentClipRect = context().renderer.getClipRect();
+    auto const actual_clip_rect = painter.pushClipRect(actual_bounds);
 
-    SDL_Rect actual_clip_rect = intersect(currentClipRect, actual_bounds);
-    if (actual_clip_rect.w * actual_clip_rect.h > 0) {
-        auto const child_clip_rect = intersect(actual_clip_rect, calculateChildArea(actual_bounds));
+    if (not actual_clip_rect.empty()) {
+        auto const child_clip_rect = Rectangle::intersect(actual_clip_rect, calculateChildArea(actual_bounds));
 
-        context().renderer.setClipRect(child_clip_rect);
+        painter.pushClipRect(child_clip_rect);
+
         for (auto & child : children) {
             // only draw visible children
             if (child->getActualVisibility() == Visibility::visible)
-                child->paint();
+                child->paint(painter);
         }
 
-        context().renderer.setClipRect(actual_clip_rect);
+        painter.popClipRect();
 
-        horizontal_bar.paintWidget(horizontal_bar.actual_bounds);
-        vertical_bar.paintWidget(vertical_bar.actual_bounds);
-
-        context().renderer.setClipRect(currentClipRect);
+        horizontal_bar.paintWidget(painter, horizontal_bar.actual_bounds);
+        vertical_bar.paintWidget(painter, vertical_bar.actual_bounds);
     }
+    painter.popClipRect();
 }
 
-void ScrollView::paintWidget(const SDL_Rect &)
+void ScrollView::paintWidget(IWidgetPainter &, const Rectangle &)
 {
     assert(false and "should never be called!");
 }
 
 SDL_SystemCursor ScrollView::getCursor(const UIPoint & p) const
 {
-    if (contains(vertical_bar.actual_bounds, p.x, p.y))
+    if (vertical_bar.actual_bounds.contains(p.x, p.y))
         return vertical_bar.getCursor(p);
-    if (contains(horizontal_bar.actual_bounds, p.x, p.y))
+    if (horizontal_bar.actual_bounds.contains(p.x, p.y))
         return horizontal_bar.getCursor(p);
     return Widget::getCursor(p);
 }
@@ -768,9 +708,9 @@ SDL_SystemCursor ScrollView::getCursor(const UIPoint & p) const
 bool ScrollView::processEvent(const SDL_Event & ev)
 {
     auto const routeEvent = [&](int x, int y) -> bool {
-        if (contains(vertical_bar.actual_bounds, x, y))
+        if (vertical_bar.actual_bounds.contains(x, y))
             return vertical_bar.processEvent(ev);
-        if (contains(horizontal_bar.actual_bounds, x, y))
+        if (horizontal_bar.actual_bounds.contains(x, y))
             return horizontal_bar.processEvent(ev);
         return Widget::processEvent(ev);
     };

@@ -7,7 +7,8 @@
 
 #include "widget.hpp"
 
-extern SDL_Rect screen_rect;
+extern Rectangle screen_rect;
+extern std::unique_ptr<RenderContext> current_rc;
 
 Session::Session() {}
 
@@ -23,7 +24,7 @@ void Session::uploadResource(UIResourceID id, ResourceKind kind, const void * da
         }
 
         case ResourceKind::bitmap: {
-            auto * tex = IMG_LoadTexture_RW(context().renderer, SDL_RWFromConstMem(data, gsl::narrow<int>(len)), 1);
+            auto * tex = IMG_LoadTexture_RW(current_rc->renderer, SDL_RWFromConstMem(data, gsl::narrow<int>(len)), 1);
 
             if (tex == nullptr) {
                 xlog::log(xlog::error) << "could not load bitmap for resource " << id.value << ": " << SDL_GetError();
@@ -54,7 +55,7 @@ void Session::update_layout()
     if (not root_widget)
         return;
     root_widget->updateBindings(root_object);
-    root_widget->updateWantedSize();
+    root_widget->updateWantedSize(*current_rc);
     root_widget->layout(screen_rect);
 }
 

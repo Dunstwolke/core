@@ -1,7 +1,6 @@
 #include "widget.hpp"
 #include "resources.hpp"
 
-#include "rectangle_tools.hpp"
 #include <stdexcept>
 #include <xlog>
 
@@ -83,17 +82,17 @@ void Widget::updateBindings(ObjectRef parentBindingSource)
     }
 }
 
-void Widget::updateWantedSize()
+void Widget::updateWantedSize(IWidgetPainter const & painter)
 {
     for (auto & child : children)
-        child->updateWantedSize();
+        child->updateWantedSize(painter);
 
-    this->wanted_size = this->calculateWantedSize();
+    this->wanted_size = this->calculateWantedSize(painter);
     // this->wanted_size.w += this->margins.totalHorizontal();
     // this->wanted_size.h += this->margins.totalVertical();
 }
 
-UISize Widget::calculateWantedSize()
+UISize Widget::calculateWantedSize(IWidgetPainter const &)
 {
     auto const shint = sizeHint.get(this);
 
@@ -116,16 +115,16 @@ UISize Widget::calculateWantedSize()
 /// Stage 2:
 /// Layouting
 
-void Widget::layout(SDL_Rect const & _bounds)
+void Widget::layout(Rectangle const & _bounds)
 {
-    SDL_Rect const bounds = {
+    Rectangle const bounds = {
         _bounds.x + margins.get(this).left,
         _bounds.y + margins.get(this).top,
         std::max(0, _bounds.w - margins.get(this).totalHorizontal()), // safety check against underflow
         std::max(0, _bounds.h - margins.get(this).totalVertical()),
     };
 
-    SDL_Rect target;
+    Rectangle target;
     switch (horizontalAlignment.get(this)) {
         case HAlignment::stretch:
             target.w = bounds.w;
@@ -168,7 +167,7 @@ void Widget::layout(SDL_Rect const & _bounds)
 
     this->actual_bounds = target;
 
-    SDL_Rect const childArea = {
+    Rectangle const childArea = {
         this->actual_bounds.x + this->paddings.get(this).left,
         this->actual_bounds.y + this->paddings.get(this).top,
         this->actual_bounds.w - this->paddings.get(this).totalHorizontal(),
@@ -178,13 +177,13 @@ void Widget::layout(SDL_Rect const & _bounds)
     this->layoutChildren(childArea);
 }
 
-void Widget::layoutChildren(SDL_Rect const & rect)
+void Widget::layoutChildren(Rectangle const & rect)
 {
     for (auto & child : children)
         child->layout(rect);
 }
 
-void Widget::paintWidget(const SDL_Rect &)
+void Widget::paintWidget(IWidgetPainter &, const Rectangle &)
 {
     /* draw nothing by default */
 }
@@ -193,31 +192,23 @@ void Widget::paintWidget(const SDL_Rect &)
 /// Stage 3:
 /// Rendering
 
-void Widget::paint()
+void Widget::paint(IWidgetPainter & painter)
 {
-    assert(SDL_RenderIsClipEnabled(context().renderer));
-    auto const currentClipRect = context().renderer.getClipRect();
+    auto const actual_clip_rect = painter.pushClipRect(actual_bounds);
 
-    SDL_Rect actual_clip_rect = intersect(currentClipRect, actual_bounds);
-    if (actual_clip_rect.w * actual_clip_rect.h > 0) {
-        context().renderer.setClipRect(actual_clip_rect);
-
-        // context().renderer.setColor(0xFF, 0x00, 0xFF, 0x40);
-        // context().renderer.fillRect(actual_bounds);
-
-        this->paintWidget(actual_bounds);
+    if (not actual_clip_rect.empty()) {
+        this->paintWidget(painter, actual_bounds);
 
         for (auto & child : children) {
             // only draw visible children
             if (child->getActualVisibility() == Visibility::visible)
-                child->paint();
+                child->paint(painter);
         }
-
-        context().renderer.setClipRect(currentClipRect);
     }
+    painter.popClipRect();
 }
 
-SDL_Rect Widget::bounds_with_margins() const
+Rectangle Widget::bounds_with_margins() const
 {
     return {
         actual_bounds.x - margins.get(this).left,
@@ -272,7 +263,7 @@ Widget * Widget::hitTest(int ssx, int ssy)
         return nullptr;
     if (not this->hitTestVisible.get(this))
         return nullptr;
-    if (not contains(actual_bounds, ssx, ssy))
+    if (not actual_bounds.contains(ssx, ssy))
         return nullptr;
     for (auto it = children.rbegin(); it != children.rend(); it++) {
         if (auto * child = (*it)->hitTest(ssx, ssy); child != nullptr)

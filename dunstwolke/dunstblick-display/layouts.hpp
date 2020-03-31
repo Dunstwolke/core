@@ -9,16 +9,16 @@ struct StackLayout : WidgetIs<UIWidget::stack_layout>
 
     explicit StackLayout(StackDirection dir = StackDirection::vertical);
 
-    void layoutChildren(SDL_Rect const & childArea) override;
+    void layoutChildren(Rectangle const & childArea) override;
 
-    UISize calculateWantedSize() override;
+    UISize calculateWantedSize(IWidgetPainter const &) override;
 };
 
 struct DockLayout : WidgetIs<UIWidget::dock_layout>
 {
-    void layoutChildren(SDL_Rect const & childArea) override;
+    void layoutChildren(Rectangle const & childArea) override;
 
-    UISize calculateWantedSize() override;
+    UISize calculateWantedSize(IWidgetPainter const &) override;
 
     DockSite getDockSite(size_t index) const;
 
@@ -29,13 +29,13 @@ struct TabLayout : WidgetIs<UIWidget::tab_layout>
 {
     property<int> selectedIndex = 0;
 
-    std::vector<SDL_Rect> tabButtons;
+    std::vector<Rectangle> tabButtons;
 
-    void paintWidget(const SDL_Rect &) override;
+    void paintWidget(IWidgetPainter & painter, const Rectangle &) override;
 
-    void layoutChildren(SDL_Rect const & childArea) override;
+    void layoutChildren(Rectangle const & childArea) override;
 
-    UISize calculateWantedSize() override;
+    UISize calculateWantedSize(IWidgetPainter const & painter) override;
 
     virtual bool processEvent(SDL_Event const & event) override;
 
@@ -52,9 +52,9 @@ struct GridLayout : WidgetIs<UIWidget::grid_layout>
     // both store
     std::vector<int> row_heights, column_widths;
 
-    void layoutChildren(SDL_Rect const & childArea) override;
+    void layoutChildren(Rectangle const & childArea) override;
 
-    UISize calculateWantedSize() override;
+    UISize calculateWantedSize(IWidgetPainter const &) override;
 
     size_t getRowCount() const;
     size_t getColumnCount() const;
@@ -62,14 +62,14 @@ struct GridLayout : WidgetIs<UIWidget::grid_layout>
 
 struct CanvasLayout : WidgetIs<UIWidget::canvas_layout>
 {
-    void layoutChildren(SDL_Rect const & childArea) override;
+    void layoutChildren(Rectangle const & childArea) override;
 
-    UISize calculateWantedSize() override;
+    UISize calculateWantedSize(IWidgetPainter const &) override;
 };
 
 struct FlowLayout : WidgetIs<UIWidget::flow_layout>
 {
-    void layoutChildren(SDL_Rect const & childArea) override;
+    void layoutChildren(Rectangle const & childArea) override;
 };
 
 #endif // LAYOUTS_HPP

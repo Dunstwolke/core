@@ -1,5 +1,4 @@
 #include "layouts.hpp"
-#include "rectangle_tools.hpp"
 
 /*******************************************************************************
  * Stack Layout                                                                *
@@ -7,10 +6,10 @@
 
 StackLayout::StackLayout(StackDirection dir) : direction(dir) {}
 
-void StackLayout::layoutChildren(const SDL_Rect & _rect)
+void StackLayout::layoutChildren(const Rectangle & _rect)
 {
     if (direction.get(this) == StackDirection::vertical) {
-        SDL_Rect rect = _rect;
+        Rectangle rect = _rect;
         for (auto & child : children) {
             if (child->getActualVisibility() == Visibility::collapsed)
                 continue;
@@ -19,7 +18,7 @@ void StackLayout::layoutChildren(const SDL_Rect & _rect)
             rect.y += rect.h;
         }
     } else {
-        SDL_Rect rect = _rect;
+        Rectangle rect = _rect;
         for (auto & child : children) {
             if (child->getActualVisibility() == Visibility::collapsed)
                 continue;
@@ -30,7 +29,7 @@ void StackLayout::layoutChildren(const SDL_Rect & _rect)
     }
 }
 
-UISize StackLayout::calculateWantedSize()
+UISize StackLayout::calculateWantedSize(IWidgetPainter const &)
 {
     UISize size = {0, 0};
     if (direction.get(this) == StackDirection::vertical) {
@@ -57,12 +56,12 @@ UISize StackLayout::calculateWantedSize()
  * Dock  Layout                                                                *
  ******************************************************************************/
 
-void DockLayout::layoutChildren(const SDL_Rect & _rect)
+void DockLayout::layoutChildren(const Rectangle & _rect)
 {
     if (children.size() == 0)
         return;
 
-    SDL_Rect childArea = _rect; // will decrease for each child until last.
+    Rectangle childArea = _rect; // will decrease for each child until last.
     for (size_t i = 0; i < children.size() - 1; i++) {
         if (children[i]->getActualVisibility() == Visibility::collapsed)
             continue;
@@ -96,7 +95,7 @@ void DockLayout::layoutChildren(const SDL_Rect & _rect)
     children.back()->layout(childArea);
 }
 
-UISize DockLayout::calculateWantedSize()
+UISize DockLayout::calculateWantedSize(IWidgetPainter const &)
 {
     if (children.size() == 0)
         return {0, 0};
@@ -144,7 +143,7 @@ void DockLayout::setDockSite(size_t index, DockSite site)
     children.at(index)->dockSite.set(this, site);
 }
 
-UISize TabLayout::calculateWantedSize()
+UISize TabLayout::calculateWantedSize(IWidgetPainter const & painter)
 {
     UISize size = {0, 0};
     for (auto & child : children) {
@@ -155,17 +154,12 @@ UISize TabLayout::calculateWantedSize()
 
     tabButtons.resize(children.size());
     for (size_t i = 0; i < children.size(); i++) {
-        auto * tex = context().getFont(UIFont::sans).render(children.at(i)->tabTitle.get(this));
+        auto const text_size = painter.measureString(children.at(i)->tabTitle.get(this), UIFont::sans, xstd::nullopt);
 
-        int w = 0, h = 0;
-        if (tex != nullptr) {
-            SDL_QueryTexture(tex, nullptr, nullptr, &w, &h);
-        }
-
-        tabButtons.at(i) = SDL_Rect{
+        tabButtons.at(i) = Rectangle{
             0,
             0,
-            w + 8,
+            text_size.w + 8,
             32,
         };
     }
@@ -178,7 +172,7 @@ bool TabLayout::processEvent(const SDL_Event & event)
     if (event.type != SDL_MOUSEBUTTONDOWN)
         return false;
     for (size_t i = 0; i < tabButtons.size(); i++) {
-        if (contains(tabButtons.at(i), event.button.x, event.button.y)) {
+        if (tabButtons.at(i).contains(event.button.x, event.button.y)) {
             selectedIndex.set(this, gsl::narrow<int>(i));
             return true;
         }
@@ -189,13 +183,13 @@ bool TabLayout::processEvent(const SDL_Event & event)
 SDL_SystemCursor TabLayout::getCursor(const UIPoint & p) const
 {
     for (auto const & rect : tabButtons) {
-        if (contains(rect, p))
+        if (rect.contains(p))
             return SDL_SYSTEM_CURSOR_HAND;
     }
     return SDL_SYSTEM_CURSOR_ARROW;
 }
 
-void TabLayout::layoutChildren(const SDL_Rect & childArea)
+void TabLayout::layoutChildren(const Rectangle & childArea)
 {
     auto const selected_index = gsl::narrow<size_t>(selectedIndex.get(this));
     if (children.size() > 0 and selected_index >= children.size()) {
@@ -222,18 +216,19 @@ void TabLayout::layoutChildren(const SDL_Rect & childArea)
     }
 }
 
-void TabLayout::paintWidget(const SDL_Rect & rectangle)
+void TabLayout::paintWidget(IWidgetPainter & ren, const Rectangle & rectangle)
 {
-    auto & ren = context().renderer;
+    ren.fillRect(rectangle, Color::background);
 
-    ren.setColor(0x30, 0x30, 0x30);
-    ren.fillRect(rectangle);
-
-    SDL_Rect topbar = rectangle;
+    Rectangle topbar = rectangle;
     topbar.h = 32;
 
-    ren.setColor(0x30, 0x30, 0x40);
-    ren.fillRect(topbar);
+    Rectangle content = rectangle;
+    content.y += 32;
+    content.h -= 32;
+
+    // TODO: Impove tab rendering
+    ren.fillRect(topbar, Color::input_field);
 
     auto const selected_index = gsl::narrow<size_t>(selectedIndex.get(this));
 
@@ -242,32 +237,26 @@ void TabLayout::paintWidget(const SDL_Rect & rectangle)
         if (not children[index]->hidden_by_layout and children[index]->getActualVisibility() != Visibility::visible)
             continue;
 
-        auto * tex = context().getFont(UIFont::sans).render(children[index]->tabTitle.get(this));
-
         auto const tab = tabButtons[index];
 
-        if (index == selected_index)
-            ren.setColor(0x30, 0x30, 0x60);
-        else
-            ren.setColor(0x30, 0x30, 0x30);
-        ren.fillRect(tab);
+        ren.fillRect(tab, Color::background);
 
-        if (tex != nullptr) {
-            ren.copy(tex, {tab.x + 4, tab.y + (32 - tab.h) / 2, tab.w - 8, tab.h});
+        auto const title = children[index]->tabTitle.get(this);
+
+        if (not title.empty()) {
+            ren.drawString(title, tab, UIFont::sans, TextAlign::center);
         }
 
-        ren.setColor(0xFF, 0xFF, 0xFF);
-        ren.drawRect(tab);
+        if (index == selected_index)
+            ren.drawRect(tab, Bevel::sunken);
+        else
+            ren.drawRect(tab, Bevel::crease);
     }
 
-    ren.setColor(0xFF, 0xFF, 0xFF);
-    ren.drawRect(topbar);
-
-    ren.setColor(0xFF, 0xFF, 0xFF);
-    ren.drawRect(rectangle);
+    ren.drawRect(content, Bevel::sunken);
 }
 
-void GridLayout::layoutChildren(const SDL_Rect & childArea)
+void GridLayout::layoutChildren(const Rectangle & childArea)
 {
     auto calculate_sizes = [](std::vector<int> & sizes, UISizeList const & list, int availableSize) {
         int rest = availableSize;
@@ -301,7 +290,7 @@ void GridLayout::layoutChildren(const SDL_Rect & childArea)
     size_t row = 0;
     size_t col = 0;
 
-    SDL_Rect cursor = {childArea.x, childArea.y, 0, 0};
+    Rectangle cursor = {childArea.x, childArea.y, 0, 0};
 
     size_t index;
     for (index = 0; index < children.size(); index++) {
@@ -335,7 +324,7 @@ void GridLayout::layoutChildren(const SDL_Rect & childArea)
     }
 }
 
-UISize GridLayout::calculateWantedSize()
+UISize GridLayout::calculateWantedSize(IWidgetPainter const &)
 {
     row_heights.resize(getRowCount());
     column_widths.resize(getColumnCount());
@@ -392,7 +381,7 @@ size_t GridLayout::getColumnCount() const
         return (children.size() + rows.get(this).size() - 1) / rows.get(this).size();
 }
 
-void CanvasLayout::layoutChildren(const SDL_Rect & childArea)
+void CanvasLayout::layoutChildren(const Rectangle & childArea)
 {
     for (auto & child : this->children) {
         if (child->visibility.get(this) == Visibility::collapsed)
@@ -406,7 +395,7 @@ void CanvasLayout::layoutChildren(const SDL_Rect & childArea)
     }
 }
 
-UISize CanvasLayout::calculateWantedSize()
+UISize CanvasLayout::calculateWantedSize(IWidgetPainter const &)
 {
     UISize size = {0, 0};
     for (auto & child : this->children) {
@@ -419,9 +408,9 @@ UISize CanvasLayout::calculateWantedSize()
     return size;
 }
 
-void FlowLayout::layoutChildren(const SDL_Rect & childArea)
+void FlowLayout::layoutChildren(const Rectangle & childArea)
 {
-    SDL_Rect rect{childArea.x, childArea.y, 0, 0};
+    Rectangle rect{childArea.x, childArea.y, 0, 0};
     int max_h = 0;
     size_t i;
     bool first_in_line = true;

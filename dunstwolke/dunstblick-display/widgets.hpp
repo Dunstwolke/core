@@ -7,14 +7,14 @@ struct Spacer : WidgetIs<UIWidget::spacer>
 {
     Spacer();
 
-    void paintWidget(const SDL_Rect & rectangle) override;
+    void paintWidget(IWidgetPainter & painter, const Rectangle & rectangle) override;
 };
 
 struct Container : WidgetIs<UIWidget::container>
 {
     Container();
 
-    void paintWidget(const SDL_Rect & rectangle) override;
+    void paintWidget(IWidgetPainter & painter, const Rectangle & rectangle) override;
 };
 
 struct ClickableWidget : Widget
@@ -38,7 +38,7 @@ struct Button : ClickableWidget
 
     void onClick() override;
 
-    void paintWidget(const SDL_Rect & rectangle) override;
+    void paintWidget(IWidgetPainter & painter, const Rectangle & rectangle) override;
 };
 
 struct Label : WidgetIs<UIWidget::label>
@@ -48,16 +48,16 @@ struct Label : WidgetIs<UIWidget::label>
 
     explicit Label();
 
-    void paintWidget(const SDL_Rect & rectangle) override;
+    void paintWidget(IWidgetPainter & painter, const Rectangle & rectangle) override;
 
-    UISize calculateWantedSize() override;
+    UISize calculateWantedSize(IWidgetPainter const &) override;
 };
 
 struct PlaceholderWidget : WidgetIs<UIWidget::spacer>
 {
-    UISize calculateWantedSize() override;
+    UISize calculateWantedSize(IWidgetPainter const &) override;
 
-    void paintWidget(const SDL_Rect & rectangle) override;
+    void paintWidget(IWidgetPainter & painter, const Rectangle & rectangle) override;
 };
 
 #define ComboBox PlaceholderWidget
@@ -73,9 +73,9 @@ struct Picture : WidgetIs<UIWidget::picture>
 
     Picture();
 
-    void paintWidget(const SDL_Rect & rectangle) override;
+    void paintWidget(IWidgetPainter & painter, const Rectangle & rectangle) override;
 
-    UISize calculateWantedSize() override;
+    UISize calculateWantedSize(IWidgetPainter const &) override;
 };
 
 #define TextBox PlaceholderWidget
@@ -88,9 +88,9 @@ struct CheckBox : ClickableWidget
 
     void onClick() override;
 
-    UISize calculateWantedSize() override;
+    UISize calculateWantedSize(IWidgetPainter const &) override;
 
-    void paintWidget(const SDL_Rect & rectangle) override;
+    void paintWidget(IWidgetPainter & painter, const Rectangle & rectangle) override;
 };
 
 struct RadioButton : ClickableWidget
@@ -101,9 +101,9 @@ struct RadioButton : ClickableWidget
 
     void onClick() override;
 
-    UISize calculateWantedSize() override;
+    UISize calculateWantedSize(IWidgetPainter const &) override;
 
-    void paintWidget(const SDL_Rect & rectangle) override;
+    void paintWidget(IWidgetPainter & painter, const Rectangle & rectangle) override;
 };
 
 struct ScrollBar : WidgetIs<UIWidget::scrollbar>
@@ -117,9 +117,9 @@ struct ScrollBar : WidgetIs<UIWidget::scrollbar>
 
     int knobOffset;
 
-    UISize calculateWantedSize() override;
+    UISize calculateWantedSize(IWidgetPainter const &) override;
 
-    void paintWidget(const SDL_Rect & rectangle) override;
+    void paintWidget(IWidgetPainter & painter, const Rectangle & rectangle) override;
 
     bool processEvent(SDL_Event const & ev) override;
 
@@ -139,16 +139,16 @@ struct ScrollView : WidgetIs<UIWidget::scrollview>
 
     ScrollView();
 
-    void layoutChildren(SDL_Rect const & childArea) override;
+    void layoutChildren(Rectangle const & childArea) override;
 
-    SDL_Rect calculateChildArea(SDL_Rect rect);
+    Rectangle calculateChildArea(Rectangle rect);
 
-    UISize calculateWantedSize() override;
+    UISize calculateWantedSize(IWidgetPainter const &) override;
 
     Widget * hitTest(int ssx, int ssy) override;
 
-    void paint() override;
-    void paintWidget(const SDL_Rect & rectangle) override;
+    void paint(IWidgetPainter & painter) override;
+    void paintWidget(IWidgetPainter & painter, const Rectangle & rectangle) override;
 
     SDL_SystemCursor getCursor(UIPoint const &) const override;
 
@@ -162,9 +162,9 @@ struct Slider : WidgetIs<UIWidget::slider>
     property<float> value = 0.0f;
     property<Orientation> orientation = Orientation::horizontal;
 
-    UISize calculateWantedSize() override;
+    UISize calculateWantedSize(IWidgetPainter const &) override;
 
-    void paintWidget(const SDL_Rect & rectangle) override;
+    void paintWidget(IWidgetPainter & painter, const Rectangle & rectangle) override;
 
     bool processEvent(SDL_Event const & ev) override;
 
@@ -186,23 +186,23 @@ struct ProgressBar : WidgetIs<UIWidget::progressbar>
     property<float> value = 0.0f;
     property<DisplayProgressStyle> displayProgress = DisplayProgressStyle::percent;
 
-    UISize calculateWantedSize() override;
+    UISize calculateWantedSize(IWidgetPainter const &) override;
 
-    void paintWidget(const SDL_Rect & rectangle) override;
+    void paintWidget(IWidgetPainter & painter, const Rectangle & rectangle) override;
 };
 
 #define SpinEdit PlaceholderWidget
 
 struct Separator : WidgetIs<UIWidget::separator>
 {
-    UISize calculateWantedSize() override;
+    UISize calculateWantedSize(IWidgetPainter const &) override;
 
-    void paintWidget(const SDL_Rect & rectangle) override;
+    void paintWidget(IWidgetPainter & painter, const Rectangle & rectangle) override;
 };
 
 struct Panel : WidgetIs<UIWidget::panel>
 {
-    void paintWidget(const SDL_Rect & rectangle) override;
+    void paintWidget(IWidgetPainter & painter, const Rectangle & rectangle) override;
 };
 
 #endif // WIDGETS_HPP

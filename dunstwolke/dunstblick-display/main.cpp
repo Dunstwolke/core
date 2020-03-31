@@ -23,6 +23,7 @@
 
 #include "localsession.hpp"
 #include "networksession.hpp"
+#include "rendercontext.hpp"
 
 #include <dunstblick-internal.hpp>
 
@@ -36,14 +37,9 @@ static bool shutdown_app_requested = false;
     exit(1);
 }
 
-static std::unique_ptr<RenderContext> current_rc;
+std::unique_ptr<RenderContext> current_rc;
 
 SDL_Rect screen_rect = {0, 0, 0, 0};
-
-RenderContext & context()
-{
-    return *current_rc;
-}
 
 #include <iostream>
 
@@ -366,7 +362,7 @@ int main()
                                                  "./fonts/CrimsonPro-Regular.ttf",
                                                  "./fonts/SourceCodePro-Regular.ttf");
 
-    context().renderer.setBlendMode(SDL_BLENDMODE_BLEND); // enable alpha blend
+    current_rc->renderer.setBlendMode(SDL_BLENDMODE_BLEND); // enable alpha blend
 
     auto const startup = SDL_GetTicks();
 
@@ -665,19 +661,19 @@ int main()
 
             // draw UI when window is visible
             if ((windowFlags & (SDL_WINDOW_MINIMIZED | SDL_WINDOW_HIDDEN)) == 0) {
-                context().renderer.resetClipRect();
-                assert(not context().renderer.isClipEnabled());
+                current_rc->renderer.resetClipRect();
+                assert(not current_rc->renderer.isClipEnabled());
 
-                context().renderer.setColor(0x00, 0x00, 0x00, 0xFF);
-                context().renderer.fillRect(context().renderer.getViewport());
+                current_rc->renderer.setColor(0x00, 0x00, 0x00, 0xFF);
+                current_rc->renderer.fillRect(current_rc->renderer.getViewport());
 
                 current_session->update_layout();
 
                 if (current_session->root_widget) {
-                    SDL_Rect clipRect{0, 0};
-                    SDL_GetRendererOutputSize(context().renderer, &clipRect.w, &clipRect.h);
-                    context().renderer.setClipRect(clipRect);
-                    current_session->root_widget->paint();
+                    Rectangle clipRect{0, 0, 0, 0};
+                    SDL_GetRendererOutputSize(current_rc->renderer, &clipRect.w, &clipRect.h);
+                    current_rc->renderer.setClipRect(clipRect);
+                    current_session->root_widget->paint(*current_rc);
                 }
 
                 int mx, my;
@@ -685,17 +681,17 @@ int main()
 
                 if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_F3]) {
                     if (mouse_focused_widget != nullptr) {
-                        context().renderer.setColor(0xFF, 0x00, 0x00);
-                        context().renderer.drawRect(mouse_focused_widget->actual_bounds);
+                        current_rc->renderer.setColor(0xFF, 0x00, 0x00);
+                        current_rc->renderer.drawRect(mouse_focused_widget->actual_bounds);
                     }
 
                     if (keyboard_focused_widget != nullptr) {
-                        context().renderer.setColor(0x00, 0xFF, 0x00);
-                        context().renderer.drawRect(keyboard_focused_widget->actual_bounds);
+                        current_rc->renderer.setColor(0x00, 0xFF, 0x00);
+                        current_rc->renderer.drawRect(keyboard_focused_widget->actual_bounds);
                     }
                 }
 
-                context().renderer.present();
+                current_rc->renderer.present();
 
                 if ((windowFlags & (SDL_WINDOW_INPUT_FOCUS | SDL_WINDOW_MOUSE_FOCUS)) != 0) {
                     // 60 FPS with focused window
