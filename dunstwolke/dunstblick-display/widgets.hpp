@@ -19,6 +19,9 @@ struct Container : WidgetIs<UIWidget::container>
 
 struct ClickableWidget : Widget
 {
+    bool is_pressable = false;
+    bool is_pressed = false;
+
     explicit ClickableWidget(UIWidget type);
 
     bool isKeyboardFocusable() const override;
@@ -135,7 +138,9 @@ struct ScrollBar : WidgetIs<UIWidget::scrollbar>
 
 struct ScrollView : WidgetIs<UIWidget::scrollview>
 {
-    ScrollBar horizontal_bar, vertical_bar;
+    ScrollBar * horizontal_bar;
+    ScrollBar * vertical_bar;
+    Container * container;
 
     ScrollView();
 
@@ -145,14 +150,9 @@ struct ScrollView : WidgetIs<UIWidget::scrollview>
 
     UISize calculateWantedSize(IWidgetPainter const &) override;
 
-    Widget * hitTest(int ssx, int ssy) override;
-
-    void paint(IWidgetPainter & painter) override;
     void paintWidget(IWidgetPainter & painter, const Rectangle & rectangle) override;
 
-    SDL_SystemCursor getCursor(UIPoint const &) const override;
-
-    bool processEvent(SDL_Event const & ev) override;
+    std::vector<std::unique_ptr<Widget>> & getChildContainer() override;
 };
 
 struct Slider : WidgetIs<UIWidget::slider>

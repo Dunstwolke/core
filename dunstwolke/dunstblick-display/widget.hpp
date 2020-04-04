@@ -175,6 +175,7 @@ enum class Color
     background,
     input_field,
     highlight,
+    checkered,
 };
 
 enum class TextAlign
@@ -409,6 +410,10 @@ struct Widget
     {
         return false;
     }
+
+    //! Gets the container where the logical children (from the layout)
+    //! are contained in.
+    virtual std::vector<std::unique_ptr<Widget>> & getChildContainer();
 
   protected:
     /// stage1: calculates the space this widget wants to take.

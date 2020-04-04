@@ -23,9 +23,12 @@ void Container::paintWidget(IWidgetPainter &, const Rectangle &) {}
 
 void Button::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
 {
-
     painter.fillRect(rectangle, Color::background);
-    painter.drawRect(rectangle, this->isFocused() ? Bevel::button_active : Bevel::button_default);
+    if (this->is_pressed) {
+        painter.drawRect(rectangle, Bevel::button_pressed);
+    } else {
+        painter.drawRect(rectangle, this->isFocused() ? Bevel::button_active : Bevel::button_default);
+    }
 }
 
 Button::Button() : ClickableWidget(UIWidget::button) {}
@@ -376,9 +379,29 @@ SDL_SystemCursor ClickableWidget::getCursor(UIPoint const &) const
 
 bool ClickableWidget::processEvent(const SDL_Event & event)
 {
+    int mx, my;
+    SDL_GetMouseState(&mx, &my);
+
+    if (event.type == SDL_MOUSEBUTTONDOWN) {
+        this->captureMouse();
+        this->is_pressed = true;
+        this->is_pressable = true;
+        return true;
+    }
+
+    if (this->is_pressable) {
+        if (event.type == SDL_MOUSEMOTION) {
+            this->is_pressed = this->actual_bounds.contains(event.motion.x, event.motion.y);
+        }
+    }
+
     if (event.type == SDL_MOUSEBUTTONUP) {
-        onClick();
-        xlog::log(xlog::verbose) << "clicked on a " << to_string(type) << " widget!";
+        this->releaseMouse();
+        if (this->is_pressed) {
+            onClick();
+        }
+        this->is_pressable = false;
+        this->is_pressed = false;
         return true;
     }
     return Widget::processEvent(event);
@@ -397,7 +420,7 @@ void ScrollBar::paintWidget(IWidgetPainter & painter, const Rectangle & rectangl
 {
     float const progress = (value.get(this) - minimum.get(this)) / (maximum.get(this) - minimum.get(this));
 
-    painter.fillRect(rectangle, Color::background);
+    painter.fillRect(rectangle, Color::checkered);
 
     if (orientation.get(this) == Orientation::vertical) {
         Rectangle const topKnob = {rectangle.x, rectangle.y, knobSize, knobSize};
@@ -569,11 +592,22 @@ void ScrollBar::scroll(float amount)
 
 ScrollView::ScrollView()
 {
-    horizontal_bar.orientation.set(&horizontal_bar, Orientation::horizontal);
-    vertical_bar.orientation.set(&vertical_bar, Orientation::vertical);
+    horizontal_bar = new ScrollBar();
+    horizontal_bar->orientation.set(horizontal_bar, Orientation::horizontal);
+    horizontal_bar->margins.set(horizontal_bar, UIMargin(0));
 
-    horizontal_bar.margins.set(&horizontal_bar, UIMargin(0));
-    vertical_bar.margins.set(&vertical_bar, UIMargin(0));
+    vertical_bar = new ScrollBar();
+    vertical_bar->orientation.set(vertical_bar, Orientation::vertical);
+    vertical_bar->margins.set(vertical_bar, UIMargin(0));
+
+    container = new Container();
+    container->margins.set(container, UIMargin(0));
+
+    // Scroll bars overlap the container, so
+    // insert container first
+    children.emplace_back(container);
+    children.emplace_back(horizontal_bar);
+    children.emplace_back(vertical_bar);
 }
 
 void ScrollView::layoutChildren(const Rectangle & fullArea)
@@ -582,159 +616,63 @@ void ScrollView::layoutChildren(const Rectangle & fullArea)
 
     auto childArea = area;
 
-    int extend_x = 0;
-    int extend_y = 0;
-    for (auto & child : children) {
-        auto const child_size = child->wanted_size_with_margins();
+    auto const child_size = container->wanted_size_with_margins();
 
-        extend_x = std::max(extend_x, child_size.w - childArea.w);
-        extend_y = std::max(extend_y, child_size.h - childArea.h);
+    int const extend_x = std::max(0, child_size.w - childArea.w);
+    int const extend_y = std::max(0, child_size.h - childArea.h);
+
+    horizontal_bar->maximum.set(this, extend_x);
+    vertical_bar->maximum.set(this, extend_y);
+
+    if (horizontal_bar->value.get(this) > horizontal_bar->maximum.get(this)) {
+        horizontal_bar->value.set(this, extend_x);
     }
 
-    horizontal_bar.maximum.set(this, extend_x);
-    vertical_bar.maximum.set(this, extend_y);
-
-    if (horizontal_bar.value.get(this) > horizontal_bar.maximum.get(this)) {
-        horizontal_bar.value.set(this, extend_x);
+    if (vertical_bar->value.get(this) > vertical_bar->maximum.get(this)) {
+        vertical_bar->value.set(this, extend_y);
     }
 
-    if (vertical_bar.value.get(this) > vertical_bar.maximum.get(this)) {
-        vertical_bar.value.set(this, extend_y);
-    }
+    childArea.x -= int(horizontal_bar->value.get(this) + 0.5f);
+    childArea.y -= int(vertical_bar->value.get(this) + 0.5f);
 
-    childArea.x -= int(horizontal_bar.value.get(this) + 0.5f);
-    childArea.y -= int(vertical_bar.value.get(this) + 0.5f);
+    Rectangle child_rect = {childArea.x,
+                            childArea.y,
+                            std::max(childArea.w, child_size.w),
+                            std::max(childArea.h, child_size.h)};
 
-    for (auto & child : children) {
-        auto const child_size = child->wanted_size_with_margins();
-        Rectangle child_rect = {childArea.x,
-                                childArea.y,
-                                std::max(childArea.w, child_size.w),
-                                std::max(childArea.h, child_size.h)};
+    container->layout(child_rect);
 
-        child->layout(child_rect);
-    }
+    vertical_bar->layout(Rectangle{area.x + area.w, area.y, horizontal_bar->wanted_size.w, area.h});
 
-    vertical_bar.layout(Rectangle{area.x + area.w, area.y, horizontal_bar.wanted_size.w, area.h});
-
-    horizontal_bar.layout(Rectangle{
+    horizontal_bar->layout(Rectangle{
         area.x,
         area.y + area.h,
         area.w,
-        vertical_bar.wanted_size.h,
+        vertical_bar->wanted_size.h,
     });
 }
 
 Rectangle ScrollView::calculateChildArea(Rectangle rect)
 {
-    rect.w -= vertical_bar.wanted_size.w;
-    rect.h -= horizontal_bar.wanted_size.h;
+    rect.w -= vertical_bar->wanted_size.w;
+    rect.h -= horizontal_bar->wanted_size.h;
     return rect;
 }
 
-UISize ScrollView::calculateWantedSize(IWidgetPainter const & painter)
+UISize ScrollView::calculateWantedSize(IWidgetPainter const &)
 {
-    auto childSize = Widget::calculateWantedSize(painter);
-
-    horizontal_bar.wanted_size = horizontal_bar.calculateWantedSize(painter);
-    vertical_bar.wanted_size = vertical_bar.calculateWantedSize(painter);
-
-    childSize.w += horizontal_bar.wanted_size.w;
-    childSize.h += vertical_bar.wanted_size.h;
-
+    auto childSize = container->wanted_size;
+    childSize.w += horizontal_bar->wanted_size.w;
+    childSize.h += vertical_bar->wanted_size.h;
     return childSize;
 }
 
-Widget * ScrollView::hitTest(int ssx, int ssy)
+void ScrollView::paintWidget(IWidgetPainter & painter, const Rectangle & rect)
 {
-    if (not this->hitTestVisible.get(this))
-        return nullptr;
-    if (not actual_bounds.contains(ssx, ssy))
-        return nullptr;
-
-    if (horizontal_bar.actual_bounds.contains(ssx, ssy))
-        return &horizontal_bar;
-    if (vertical_bar.actual_bounds.contains(ssx, ssy))
-        return &vertical_bar;
-
-    auto const childArea = calculateChildArea(actual_bounds);
-    if (not childArea.contains(ssx, ssy))
-        return this;
-
-    for (auto it = children.rbegin(); it != children.rend(); it++) {
-        if (auto * child = (*it)->hitTest(ssx, ssy); child != nullptr)
-            return child;
-    }
-    return this;
+    painter.drawRect(calculateChildArea(rect), Bevel::raised);
 }
 
-void ScrollView::paint(IWidgetPainter & painter)
+std::vector<std::unique_ptr<Widget>> & ScrollView::getChildContainer()
 {
-    auto const actual_clip_rect = painter.pushClipRect(actual_bounds);
-
-    if (not actual_clip_rect.empty()) {
-        auto const child_clip_rect = Rectangle::intersect(actual_clip_rect, calculateChildArea(actual_bounds));
-
-        painter.pushClipRect(child_clip_rect);
-
-        for (auto & child : children) {
-            // only draw visible children
-            if (child->getActualVisibility() == Visibility::visible)
-                child->paint(painter);
-        }
-
-        painter.popClipRect();
-
-        horizontal_bar.paintWidget(painter, horizontal_bar.actual_bounds);
-        vertical_bar.paintWidget(painter, vertical_bar.actual_bounds);
-    }
-    painter.popClipRect();
-}
-
-void ScrollView::paintWidget(IWidgetPainter &, const Rectangle &)
-{
-    assert(false and "should never be called!");
-}
-
-SDL_SystemCursor ScrollView::getCursor(const UIPoint & p) const
-{
-    if (vertical_bar.actual_bounds.contains(p.x, p.y))
-        return vertical_bar.getCursor(p);
-    if (horizontal_bar.actual_bounds.contains(p.x, p.y))
-        return horizontal_bar.getCursor(p);
-    return Widget::getCursor(p);
-}
-
-bool ScrollView::processEvent(const SDL_Event & ev)
-{
-    auto const routeEvent = [&](int x, int y) -> bool {
-        if (vertical_bar.actual_bounds.contains(x, y))
-            return vertical_bar.processEvent(ev);
-        if (horizontal_bar.actual_bounds.contains(x, y))
-            return horizontal_bar.processEvent(ev);
-        return Widget::processEvent(ev);
-    };
-
-    switch (ev.type) {
-        case SDL_MOUSEWHEEL: {
-            int ssx, ssy;
-            SDL_GetMouseState(&ssx, &ssy);
-
-            if (routeEvent(ssx, ssy))
-                return true;
-
-            horizontal_bar.scroll(ev.wheel.x);
-            vertical_bar.scroll(ev.wheel.y);
-
-            return true;
-        }
-        case SDL_MOUSEMOTION:
-            return routeEvent(ev.motion.x, ev.motion.y);
-        case SDL_MOUSEBUTTONDOWN:
-            return routeEvent(ev.button.x, ev.button.y);
-        case SDL_MOUSEBUTTONUP:
-            return routeEvent(ev.button.x, ev.button.y);
-        default:
-            return Widget::processEvent(ev);
-    }
+    return container->getChildContainer();
 }

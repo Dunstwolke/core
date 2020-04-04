@@ -451,15 +451,15 @@ int main()
             auto * const quitButton = new Button();
             quitButton->onClickEvent.set(quitButton, local_exit_client_event);
             quitButton->dockSite.set(quitButton, DockSite::bottom);
-            quitButton->children.emplace_back(quitLabel);
+            quitButton->getChildContainer().emplace_back(quitLabel);
 
-            menu->children.emplace_back(quitButton);
+            menu->getChildContainer().emplace_back(quitButton);
 
             auto * const headerLabel = new Label();
             headerLabel->text.set(headerLabel, "Available Applications");
             headerLabel->font.set(headerLabel, UIFont::serif);
 
-            menu->children.emplace_back(headerLabel);
+            menu->getChildContainer().emplace_back(headerLabel);
 
             auto * const serviceList = new StackLayout();
             serviceList->bindingContext.set(serviceList, ObjectRef{local_root_obj});
@@ -468,11 +468,11 @@ int main()
 
             auto * const serviceScroll = new ScrollView();
 
-            serviceScroll->children.emplace_back(serviceList);
+            serviceScroll->getChildContainer().emplace_back(serviceList);
 
-            menu->children.emplace_back(serviceScroll);
+            menu->getChildContainer().emplace_back(serviceScroll);
 
-            sess.root_widget->children.emplace_back(menu);
+            sess.root_widget->getChildContainer().emplace_back(menu);
         }
         sess.root_widget->initializeRoot(&sess);
 
@@ -493,7 +493,7 @@ int main()
 
             // Update tab pages
             {
-                auto & children = sess.root_widget->children;
+                auto & children = sess.root_widget->getChildContainer();
 
                 for (size_t i = 0; i < all_sessions.size(); i++) {
 
@@ -516,25 +516,25 @@ int main()
 
                     if (session->root_widget) {
                         auto root = session->root_widget.get();
-                        if (container->children.size() == 0)
-                            container->children.emplace_back(root);
+                        if (container->getChildContainer().size() == 0)
+                            container->getChildContainer().emplace_back(root);
                         else {
-                            container->children.at(0).release();
-                            container->children.at(0).reset(root);
+                            container->getChildContainer().at(0).release();
+                            container->getChildContainer().at(0).reset(root);
                         }
                     } else {
-                        if (container->children.size() > 0) {
-                            assert(container->children.size() == 1);
-                            container->children.at(0).release();
-                            container->children.clear();
+                        if (container->getChildContainer().size() > 0) {
+                            assert(container->getChildContainer().size() == 1);
+                            container->getChildContainer().at(0).release();
+                            container->getChildContainer().clear();
                         }
                     }
                 }
-                while (sess.root_widget->children.size() > all_sessions.size() + 1) {
+                while (sess.root_widget->getChildContainer().size() > all_sessions.size() + 1) {
                     // we do evel hackery above and store the same pointer in two
                     // unique pointers. We have to make sure that we don't double free it.
-                    sess.root_widget->children.back().release();
-                    sess.root_widget->children.pop_back();
+                    sess.root_widget->getChildContainer().back().release();
+                    sess.root_widget->getChildContainer().pop_back();
                 }
             }
 
@@ -706,11 +706,11 @@ int main()
             }
         }
 
-        while (sess.root_widget->children.size() > 1) {
+        while (sess.root_widget->getChildContainer().size() > 1) {
             // we do evel hackery above and store the same pointer in two
             // unique pointers. We have to make sure that we don't double free it.
-            sess.root_widget->children.back().release();
-            sess.root_widget->children.pop_back();
+            sess.root_widget->getChildContainer().back().release();
+            sess.root_widget->getChildContainer().pop_back();
         }
 
         for (auto & s : all_sessions) {

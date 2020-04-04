@@ -3,6 +3,7 @@
 auto constexpr color_highlight = SDL_Color{0x00, 0x00, 0x80, 0xFF};
 auto constexpr color_background = SDL_Color{0xd6, 0xd3, 0xce, 0xFF};
 auto constexpr color_input_field = SDL_Color{0xFF, 0xFF, 0xFF, 0xFF};
+auto constexpr color_checker = SDL_Color{0xec, 0xeb, 0xe9, 0xFF};
 
 auto constexpr color_3d_bright = SDL_Color{0xFF, 0xFF, 0xFF, 0xFF};
 auto constexpr color_3d_medium = SDL_Color{0x84, 0x82, 0x84, 0xFF};
@@ -131,11 +132,13 @@ void RenderContext::drawRect(const Rectangle & rect, Bevel bevel)
             drawRectImpl(rect, color_3d_medium, color_3d_bright);
             drawRectImpl(rect.shrink(1), color_3d_bright, color_3d_medium);
             break;
+
         case Bevel::raised:
-            drawRectImpl(rect, color_3d_medium, color_3d_bright);
-            break;
-        case Bevel::sunken:
             drawRectImpl(rect, color_3d_bright, color_3d_medium);
+            break;
+
+        case Bevel::sunken:
+            drawRectImpl(rect, color_3d_medium, color_3d_bright);
             break;
 
         case Bevel::input_field:
@@ -178,6 +181,9 @@ void RenderContext::fillRect(const Rectangle & rect, Color color)
             break;
         case Color::input_field:
             c = color_input_field;
+            break;
+        case Color::checkered:
+            c = color_checker;
             break;
     }
     renderer.setColor(c);

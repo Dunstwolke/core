@@ -55,14 +55,16 @@ void Widget::updateBindings(ObjectRef parentBindingSource)
         }
     }
 
+    auto & child_container = this->getChildContainer();
+
     // STAGE 2: Update child widgets.
     if (auto ct = childTemplate.get(this); not ct.is_null()) {
         // if we have a child binding, update the child list
         auto list = childSource.get(this);
-        if (this->children.size() != list.size())
-            this->children.resize(list.size());
+        if (child_container.size() != list.size())
+            child_container.resize(list.size());
         for (size_t i = 0; i < list.size(); i++) {
-            auto & child = this->children[i];
+            auto & child = child_container[i];
             if (not child or (child->templateID != ct)) {
                 child = widget_context->load_widget(ct);
                 child->initializeRoot(widget_context);
@@ -77,7 +79,7 @@ void Widget::updateBindings(ObjectRef parentBindingSource)
         }
     } else {
         // if not, just update all children regulary
-        for (auto & child : children)
+        for (auto & child : child_container)
             child->updateBindings(this->bindingSource);
     }
 }
@@ -186,6 +188,11 @@ void Widget::layoutChildren(Rectangle const & rect)
 void Widget::paintWidget(IWidgetPainter &, const Rectangle &)
 {
     /* draw nothing by default */
+}
+
+std::vector<std::unique_ptr<Widget>> & Widget::getChildContainer()
+{
+    return this->children;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -414,8 +421,9 @@ static std::unique_ptr<Widget> deserialize_widget(UIWidget widgetType, InputStre
     UIWidget childType;
     do {
         childType = stream.read_enum<UIWidget>();
-        if (childType != UIWidget::invalid)
-            widget->children.emplace_back(deserialize_widget(childType, stream));
+        if (childType != UIWidget::invalid) {
+            widget->getChildContainer().emplace_back(deserialize_widget(childType, stream));
+        }
     } while (childType != UIWidget::invalid);
 
     return widget;
