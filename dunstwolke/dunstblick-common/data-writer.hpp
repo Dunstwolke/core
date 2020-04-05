@@ -5,7 +5,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <gsl/gsl>
 #include <vector>
 
 #include "dunst-encoding.h"
@@ -106,13 +105,13 @@ struct CommandBuffer
     void write_string(char const * text)
     {
         size_t len = strlen(text);
-        write_varint(gsl::narrow<uint32_t>(len));
+        write_varint(static_cast<uint32_t>(len));
         write(text, len);
     }
 
     void write_string(char const * text, size_t length)
     {
-        write_varint(gsl::narrow<uint32_t>(length));
+        write_varint(static_cast<uint32_t>(length));
         write(text, length);
     }
 
@@ -123,7 +122,7 @@ struct CommandBuffer
             write_enum(val.type);
         switch (val.type) {
             case DUNSTBLICK_TYPE_INTEGER: {
-                write_varint(gsl::narrow<uint32_t>(val.integer));
+                write_varsint(val.integer);
                 return;
             }
 
@@ -143,10 +142,10 @@ struct CommandBuffer
             }
 
             case DUNSTBLICK_TYPE_MARGINS: {
-                write_varint(gsl::narrow<uint32_t>(val.margins.left));
-                write_varint(gsl::narrow<uint32_t>(val.margins.top));
-                write_varint(gsl::narrow<uint32_t>(val.margins.right));
-                write_varint(gsl::narrow<uint32_t>(val.margins.bottom));
+                write_varint(static_cast<uint32_t>(val.margins.left));
+                write_varint(static_cast<uint32_t>(val.margins.top));
+                write_varint(static_cast<uint32_t>(val.margins.right));
+                write_varint(static_cast<uint32_t>(val.margins.bottom));
                 return;
             }
 
@@ -159,14 +158,14 @@ struct CommandBuffer
             }
 
             case DUNSTBLICK_TYPE_SIZE: {
-                write_varint(gsl::narrow<uint32_t>(val.size.w));
-                write_varint(gsl::narrow<uint32_t>(val.size.h));
+                write_varint(static_cast<uint32_t>(val.size.w));
+                write_varint(static_cast<uint32_t>(val.size.h));
                 return;
             }
 
             case DUNSTBLICK_TYPE_POINT: {
-                write_varint(gsl::narrow<uint32_t>(val.point.x));
-                write_varint(gsl::narrow<uint32_t>(val.point.y));
+                write_varsint(val.point.x);
+                write_varsint(val.point.y);
                 return;
             }
 
@@ -196,7 +195,7 @@ struct CommandBuffer
     void write_value(UIValue const & val, bool prefixType)
     {
         if (prefixType)
-            write_enum(gsl::narrow<uint8_t>(val.index()));
+            write_enum(static_cast<uint8_t>(val.index()));
         switch (UIType(val.index())) {
             case UIType::integer: {
                 write_varsint(std::get<int32_t>(val));
@@ -224,10 +223,10 @@ struct CommandBuffer
 
             case UIType::margins: {
                 auto const & margins = std::get<UIMargin>(val);
-                write_varsint(gsl::narrow<int32_t>(margins.left));
-                write_varsint(gsl::narrow<int32_t>(margins.top));
-                write_varsint(gsl::narrow<int32_t>(margins.right));
-                write_varsint(gsl::narrow<int32_t>(margins.bottom));
+                write_varsint(static_cast<int32_t>(margins.left));
+                write_varsint(static_cast<int32_t>(margins.top));
+                write_varsint(static_cast<int32_t>(margins.right));
+                write_varsint(static_cast<int32_t>(margins.bottom));
                 return;
             }
 
@@ -235,7 +234,7 @@ struct CommandBuffer
                 auto const & list = std::get<UISizeList>(val);
 
                 // size of the list
-                write_varint(gsl::narrow<uint32_t>(list.size()));
+                write_varint(static_cast<uint32_t>(list.size()));
 
                 // bitmask containing two bits per entry:
                 // 00 = auto
@@ -252,7 +251,7 @@ struct CommandBuffer
                 for (size_t i = 0; i < list.size(); i++) {
                     switch (list[i].index()) {
                         case 2: // pixels
-                            write_varint(gsl::narrow<uint32_t>(std::get<int>(list[i])));
+                            write_varint(static_cast<uint32_t>(std::get<int>(list[i])));
                             break;
                         case 3: // percentage
                             write_number(std::get<float>(list[i]));
@@ -264,17 +263,17 @@ struct CommandBuffer
             }
 
             case UIType::resource: {
-                write_varint(gsl::narrow<uint32_t>(std::get<UIResourceID>(val).value));
+                write_varint(static_cast<uint32_t>(std::get<UIResourceID>(val).value));
                 return;
             }
 
             case UIType::object: {
-                write_varint(gsl::narrow<uint32_t>(std::get<ObjectRef>(val).id.value));
+                write_varint(static_cast<uint32_t>(std::get<ObjectRef>(val).id.value));
                 return;
             }
 
             case UIType::event: {
-                write_varint(gsl::narrow<uint32_t>(std::get<EventID>(val).value));
+                write_varint(static_cast<uint32_t>(std::get<EventID>(val).value));
                 return;
             }
 
@@ -289,15 +288,15 @@ struct CommandBuffer
 
             case UIType::size: {
                 auto const & size = std::get<UISize>(val);
-                write_varint(gsl::narrow<uint32_t>(size.w));
-                write_varint(gsl::narrow<uint32_t>(size.h));
+                write_varint(static_cast<uint32_t>(size.w));
+                write_varint(static_cast<uint32_t>(size.h));
                 return;
             }
 
             case UIType::point: {
                 auto const & point = std::get<UIPoint>(val);
-                write_varsint(gsl::narrow<int32_t>(point.x));
-                write_varsint(gsl::narrow<int32_t>(point.y));
+                write_varsint(static_cast<int32_t>(point.x));
+                write_varsint(static_cast<int32_t>(point.y));
                 return;
             }
 
@@ -305,7 +304,7 @@ struct CommandBuffer
                 auto const & list = std::get<ObjectList>(val);
                 for (size_t i = 0; i < list.size(); i++) {
                     if (not list[i].id.is_null())
-                        write_varint(gsl::narrow<uint32_t>(list[i].id.value));
+                        write_varint(static_cast<uint32_t>(list[i].id.value));
                 }
                 write_varint(0);
                 return;

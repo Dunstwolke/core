@@ -2,39 +2,26 @@ const std = @import("std");
 
 const Builder = std.build.Builder;
 
-const layout_files = [_][]const u8{
-    "layouts/main.dui",
-    "layouts/menu.dui",
-    "layouts/searchlist.dui",
-    "layouts/searchitem.dui",
-};
+const LibDunstblick = @import("../libdunstblick/build.zig");
 
-pub fn build(b: *Builder) !void {
-    // Standard target options allows the person running `zig build` to choose
-    // what target to build for. Here we do not override the defaults, which
-    // means any target is allowed, and the default is native. Other options
-    // for restricting supported target set are available.
-    const target = b.standardTargetOptions(.{});
-
-    // Standard release options allow the person running `zig build` to select
-    // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
-    const mode = b.standardReleaseOptions();
-
-    const exe = b.addExecutable("mediaserver", "src/main.zig");
-    exe.setTarget(target);
-    exe.setBuildMode(mode);
+pub fn createExe(b: *Builder, comptime prefix: []const u8) !*std.build.LibExeObjStep {
+    const exe = b.addExecutable("mediaserver", prefix ++ "/src/main.zig");
     exe.linkLibC();
-    exe.addIncludeDir("../../libdunstblick");
-    exe.addIncludeDir("./bass");
-    exe.addLibPath("./bass/x86_64");
-    exe.addLibPath("../../libdunstblick/zig-cache/lib");
+    exe.addIncludeDir(prefix ++ "/../../libdunstblick");
+    exe.addIncludeDir(prefix ++ "/./bass");
+    exe.addLibPath(prefix ++ "/./bass/x86_64");
     exe.linkSystemLibrary("c++");
     exe.linkSystemLibrary("c++abi");
     exe.linkSystemLibrary("bass");
-    exe.linkSystemLibrary("dunstblick");
     exe.install();
 
-    for (layout_files) |infile| {
+    const layout_files = [_][]const u8{
+        prefix ++ "/layouts/main.dui",
+        prefix ++ "/layouts/menu.dui",
+        prefix ++ "/layouts/searchlist.dui",
+        prefix ++ "/layouts/searchitem.dui",
+    };
+    inline for (layout_files) |infile| {
         const outfile = try std.mem.dupe(b.allocator, u8, infile);
         outfile[outfile.len - 3] = 'c';
 
@@ -44,17 +31,11 @@ pub fn build(b: *Builder) !void {
             "-o",
             outfile,
             "-c",
-            "layouts/server.json",
+            prefix ++ "/layouts/server.json",
         });
 
         exe.step.dependOn(&step.step);
     }
 
-    const run_cmd = exe.run();
-    run_cmd.step.dependOn(b.getInstallStep());
-
-    run_cmd.setEnvironmentVariable("LD_LIBRARY_PATH", "/home/felix/build/dunstwolke-Desktop-Debug/libdunstblick/:./bass/x86_64");
-
-    const run_step = b.step("run", "Run the app");
-    run_step.dependOn(&run_cmd.step);
+    return exe;
 }

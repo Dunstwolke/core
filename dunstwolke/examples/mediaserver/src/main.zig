@@ -53,7 +53,7 @@ fn addResource(provider: *c.dunstblick_Provider, index: u32, kind: c.dunstblick_
         index,
         kind,
         data.ptr,
-        data.len,
+        @intCast(u32, data.len),
     );
     if (err != .DUNSTBLICK_ERROR_NONE)
         return error.DunstblickError;

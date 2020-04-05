@@ -8,11 +8,7 @@
 #include <list>
 #include <map>
 #include <mutex>
-#include <xcept>
-#include <xnet/dns>
-#include <xnet/select>
-#include <xnet/socket>
-#include <xnet/socket_stream>
+#include <optional>
 
 #include "dunstblick-internal.hpp"
 
@@ -199,7 +195,7 @@ struct dunstblick_Provider
 
     ~dunstblick_Provider();
 
-    void pump_events(xstd::optional<std::chrono::microseconds> timeout);
+    void pump_events(std::optional<std::chrono::microseconds> timeout);
 };
 
 struct dunstblick_Object
@@ -544,7 +540,7 @@ dunstblick_Object::dunstblick_Object(dunstblick_Connection * con) :
 
 dunstblick_Object::~dunstblick_Object() {}
 
-void dunstblick_Provider::pump_events(xstd::optional<std::chrono::microseconds> timeout)
+void dunstblick_Provider::pump_events(std::optional<std::chrono::microseconds> timeout)
 {
     xnet::socket_set read_fds, write_fds;
     read_fds.add(this->multicast_sock.handle);
@@ -1039,8 +1035,8 @@ dunstblick_Error dunstblick_InsertRange(dunstblick_Connection * con,
     CommandBuffer buffer{ClientMessageType::insertRange};
     buffer.write_id(oid);
     buffer.write_id(name);
-    buffer.write_varint(gsl::narrow<uint32_t>(index));
-    buffer.write_varint(gsl::narrow<uint32_t>(count));
+    buffer.write_varint(static_cast<uint32_t>(index));
+    buffer.write_varint(static_cast<uint32_t>(count));
     for (size_t i = 0; i < count; i++)
         buffer.write_id(values[i]);
 
@@ -1060,8 +1056,8 @@ dunstblick_Error dunstblick_RemoveRange(
     CommandBuffer buffer{ClientMessageType::removeRange};
     buffer.write_id(oid);
     buffer.write_id(name);
-    buffer.write_varint(gsl::narrow<uint32_t>(index));
-    buffer.write_varint(gsl::narrow<uint32_t>(count));
+    buffer.write_varint(static_cast<uint32_t>(index));
+    buffer.write_varint(static_cast<uint32_t>(count));
 
     return con->send(buffer);
 }
@@ -1083,9 +1079,9 @@ dunstblick_Error dunstblick_MoveRange(dunstblick_Connection * con,
     CommandBuffer buffer{ClientMessageType::moveRange};
     buffer.write_id(oid);
     buffer.write_id(name);
-    buffer.write_varint(gsl::narrow<uint32_t>(indexFrom));
-    buffer.write_varint(gsl::narrow<uint32_t>(indexTo));
-    buffer.write_varint(gsl::narrow<uint32_t>(count));
+    buffer.write_varint(static_cast<uint32_t>(indexFrom));
+    buffer.write_varint(static_cast<uint32_t>(indexTo));
+    buffer.write_varint(static_cast<uint32_t>(count));
 
     return con->send(buffer);
 }

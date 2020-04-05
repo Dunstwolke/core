@@ -69,6 +69,7 @@ extern "C"
         DUNSTBLICK_ERROR_NETWORK = 2,               ///< A network error happened.
         DUNSTBLICK_ERROR_INVALID_TYPE = 3,          ///< An invalid type was passed to a function.
         DUNSTBLICK_ERROR_ARGUMENT_OUT_OF_RANGE = 4, ///< An argument was not in the allowed range.
+        DUNSTBLICK_ERROR_OUT_OF_MEMORY = 5,         ///< An allocation failed.
     };
     typedef enum dunstblick_Error dunstblick_Error;
 
@@ -268,7 +269,7 @@ extern "C"
         dunstblick_ResourceID resourceID, ///< The ID of the resource
         dunstblick_ResourceKind type,     ///< Specifies the type of the resource data.
         void const * data,                ///< Pointer to resource data. The encoding of the data is defined by `type`.
-        size_t length                     ///< Size of the resource in bytes.
+        uint32_t length                   ///< Size of the resource in bytes.
     );
 
     /// Deletes a resource from the UI system.
@@ -397,8 +398,8 @@ extern "C"
         dunstblick_Connection *,           ///< The connection where the action should be applied.
         dunstblick_ObjectID,               ///< target object
         dunstblick_PropertyName,           ///< target property
-        size_t index,                      ///< start index of insertion
-        size_t count,                      ///< number of object references to insert.
+        uint32_t index,                    ///< start index of insertion
+        uint32_t count,                    ///< number of object references to insert.
         dunstblick_ObjectID const * values ///< Pointer to an array of object IDs that should be inserted into the list.
     );
 
@@ -407,8 +408,8 @@ extern "C"
         dunstblick_Connection *, ///< The connection where the action should be applied.
         dunstblick_ObjectID,     ///< target object
         dunstblick_PropertyName, ///< target property
-        size_t index,            ///< first index of the object references to be removed.
-        size_t count             ///< number of references that should be removed
+        uint32_t index,          ///< first index of the object references to be removed.
+        uint32_t count           ///< number of references that should be removed
     );
 
     /// Moves a given range in a list property.
@@ -417,9 +418,9 @@ extern "C"
         dunstblick_Connection *, ///< The connection where the action should be applied.
         dunstblick_ObjectID,     ///< target object
         dunstblick_PropertyName, ///< target property
-        size_t indexFrom,
-        size_t indexTo,
-        size_t count);
+        uint32_t indexFrom,
+        uint32_t indexTo,
+        uint32_t count);
 
     // Object functions:
 

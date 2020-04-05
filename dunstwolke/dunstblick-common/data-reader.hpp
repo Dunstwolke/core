@@ -3,7 +3,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <gsl/gsl>
 #include <string_view>
 #include <tuple>
 
@@ -129,8 +128,8 @@ struct DataReader
                 break;
 
             case DUNSTBLICK_TYPE_SIZE:
-                val.size.w = gsl::narrow<int>(this->read_uint());
-                val.size.h = gsl::narrow<int>(this->read_uint());
+                val.size.w = static_cast<int>(this->read_uint());
+                val.size.h = static_cast<int>(this->read_uint());
                 break;
 
             case DUNSTBLICK_TYPE_POINT:
