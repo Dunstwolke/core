@@ -51,7 +51,26 @@ fn mapDunstblickErrorVoid(value: DunstblickError!void) NativeErrorCode {
     return .DUNSTBLICK_ERROR_NONE;
 }
 
-const log_level = LogLevel.@"error";
+const NetworkError = error{
+    InsufficientBytes,
+    UnsupportedAddressFamily,
+    SystemResources,
+    Unexpected,
+    ConnectionAborted,
+    ProcessFdQuotaExceeded,
+    SystemFdQuotaExceeded,
+    ProtocolFailure,
+    BlockedByFirewall,
+    WouldBlock,
+    NotConnected,
+};
+fn mapNetworkError(value: NetworkError) DunstblickError {
+    switch (value) {
+        else => |e| return error.NetworkError,
+    }
+}
+
+const log_level = LogLevel.diagnostic;
 
 fn log_msg(level: LogLevel, comptime fmt: []const u8, args: var) void {
     if (@enumToInt(level) > @enumToInt(log_level))
@@ -181,6 +200,8 @@ pub const dunstblick_Connection = struct {
         READY,
     };
 
+    const PacketQueue = std.atomic.Queue([]const u8);
+
     mutex: std.Mutex,
 
     sock: xnet.Socket,
@@ -200,7 +221,7 @@ pub const dunstblick_Connection = struct {
     ///< total number of resources required by the display client
     required_resource_count: usize,
     ///< ids of the required resources
-    required_resources: []ResourceID,
+    required_resources: std.ArrayList(ResourceID),
     ///< currently transmitted resource
     resource_send_index: usize,
     ///< current byte offset in the resource
@@ -209,27 +230,27 @@ pub const dunstblick_Connection = struct {
     user_data_pointer: ?*c_void,
 
     /// Stores packets received in message pumping
-    incoming_packets: std.atomic.Queue([]const u8),
+    incoming_packets: PacketQueue,
 
     onEvent: Callback(EventCallback),
     onPropertyChanged: Callback(PropertyChangedCallback),
 
-    fn init(provider: *dunstblick_Provider, sock: xnet.Socket, ep: xnet.EndPoint) dunstblick_Connection {
-        log_msg(LOG_DIAGNOSTIC, "connection from %s\n", to_string(remote).c_str());
+    fn init(provider: *dunstblick_Provider, sock: xnet.Socket, endpoint: xnet.EndPoint) dunstblick_Connection {
+        log_msg(.diagnostic, "connection from {}\n", .{endpoint});
         return dunstblick_Connection{
             .mutex = std.Mutex.init(),
             .sock = sock,
-            .endpoint = endpoint,
+            .remote = endpoint,
             .provider = provider,
             .header = undefined,
             .screenResolution = undefined,
             .receive_buffer = std.ArrayList(u8).init(provider.allocator),
             .required_resource_count = undefined,
-            .required_resources = undefined,
+            .required_resources = std.ArrayList(ResourceID).init(provider.allocator),
             .resource_send_index = undefined,
             .resource_send_offset = undefined,
             .user_data_pointer = null,
-            .incoming_packets = std.atomic.Queue(Packet).init(),
+            .incoming_packets = PacketQueue.init(),
             .onEvent = .{ .function = null, .user_data = null },
             .onPropertyChanged = .{ .function = null, .user_data = null },
         };
@@ -249,12 +270,7 @@ pub const dunstblick_Connection = struct {
         self.provider.allocator.free(self.header.password);
         self.provider.allocator.free(self.header.clientName);
 
-        switch (self.state) {
-            .READ_REQUIRED_RESOURCES, .SEND_RESOURCES, .READY => {
-                self.provider.allocator.free(self.required_resources);
-            },
-            else => {},
-        }
+        self.required_resources.deinit();
     }
 
     fn drop(self: *Self, reason: DisconnectReason) void {
@@ -341,82 +357,80 @@ pub const dunstblick_Connection = struct {
                     break :blk @sizeOf(TcpConnectHeader);
                 },
 
-                // . READ_REQUIRED_RESOURCE_HEADER=>  {
+                .READ_REQUIRED_RESOURCE_HEADER => {
+                    if (stream_data.len < @sizeOf(TcpResourceRequestHeader))
+                        return;
 
-                //     if (stream_data.len < @sizeOf(TcpResourceRequestHeader))
-                //         return;
+                    const header = @ptrCast(*align(1) const TcpResourceRequestHeader, stream_data.ptr);
 
-                //     auto const & header = *reinterpret_cast<TcpResourceRequestHeader const *>(receive_buffer.data());
+                    self.required_resource_count = header.request_count;
 
-                //     required_resource_count = header.request_count;
+                    if (self.required_resource_count > 0) {
+                        std.debug.assert(false);
+                        self.required_resources.clear();
+                        try self.required_resources.ensureCapacity(self.required_resource_count);
 
-                //     if (required_resource_count > 0) {
+                        self.state = .READ_REQUIRED_RESOURCES;
+                    } else {
+                        self.state = .READY;
 
-                //         self.required_resources.clear();
-                //         state = READ_REQUIRED_RESOURCES;
-                //     } else {
-                //         state = READY;
+                        // handshake phase is complete,
+                        // switch over to main phase
+                        self.is_initialized = true;
+                    }
 
-                //         // handshake phase is complete,
-                //         // switch over to main phase
-                //         is_initialized = true;
-                //     }
+                    break :blk @sizeOf(TcpResourceRequestHeader);
+                },
 
-                //     consumed_size = @sizeOf(TcpResourceRequestHeader);
+                .READ_REQUIRED_RESOURCES => {
+                    if (stream_data.len < @sizeOf(TcpResourceRequest))
+                        return;
 
-                //     break;
-                // }
+                    const request = @ptrCast(*align(1) const TcpResourceRequest, stream_data.ptr);
 
-                // . READ_REQUIRED_RESOURCES=>  {
-                //     if (stream_data.len < @sizeOf(TcpResourceRequest))
-                //         return;
+                    self.required_resources.append(request.id);
 
-                //     auto const & request = *reinterpret_cast<TcpResourceRequest const *>(receive_buffer.data());
+                    assert(required_resources.items.len <= required_resource_count);
+                    if (required_resources.items.len == required_resource_count) {
+                        if (stream_data.len > @sizeOf(TcpResourceRequest)) {
+                            // If excess data was sent, we drop the connection
+                            return self.drop(.DUNSTBLICK_DISCONNECT_INVALID_DATA);
+                        }
 
-                //     self.required_resources.emplace_back(request.id);
+                        self.resource_send_index = 0;
+                        self.resource_send_offset = 0;
+                        self.state = .SEND_RESOURCES;
+                    }
 
-                //     assert(required_resources.size() <= required_resource_count);
-                //     if (required_resources.size() == required_resource_count) {
+                    // wait for a packet of all required resources
 
-                //         if (stream_data.len > @sizeOf(TcpResourceRequest)) {
-                //             // If excess data was sent, we drop the connection
-                //             return drop(DUNSTBLICK_DISCONNECT_INVALID_DATA);
-                //         }
+                    break :blk @sizeOf(TcpResourceRequest);
+                },
 
-                //         resource_send_index = 0;
-                //         resource_send_offset = 0;
-                //         state = SEND_RESOURCES;
-                //     }
+                .SEND_RESOURCES => {
+                    // we are currently uploading all resources,
+                    // receiving anything here would be protocol violation
+                    return self.drop(.DUNSTBLICK_DISCONNECT_INVALID_DATA);
+                },
 
-                //     // wait for a packet of all required resources
+                .READY => {
+                    if (stream_data.len < 4)
+                        return; // Not enough data for size decoding
 
-                //     consumed_size = @sizeOf(TcpResourceRequest);
-                //     break;
-                // }
+                    const length = std.mem.readIntLittle(stream_data[0..]);
 
-                // . SEND_RESOURCES=> {
-                //     // we are currently uploading all resources,
-                //     // receiving anything here would be protocol violation
-                //     return drop(DUNSTBLICK_DISCONNECT_INVALID_DATA);
-                // }
+                    if (stream_data.len < (4 + length))
+                        return; // not enough data
 
-                // . READY => {
-                //     if (stream_data.len < 4)
-                //         return; // Not enough data for size decoding
+                    const buffer = try self.provider.allocator.alignedAlloc(u8, @alignOf(PacketQueue.Node), @sizeOf(PacketQueue.Node) + length);
 
-                //     uint32_t const length = *reinterpret_cast<uint32_t const *>(receive_buffer.data());
+                    const node = @ptrCast(*PacketQueue.Node, buffer.ptr);
+                    node.* = PacketQueue.Node.init(buffer[@sizeOf(PacketQueue.Node)..]);
 
-                //     if (stream_data.len < (4 + length))
-                //         return; // not enough data
+                    self.incoming_packets.append(node);
 
-                //     Packet packet(length);
-                //     memcpy(packet.data(), receive_buffer.data() + 4, length);
-
-                //     self.incoming_packets.enqueue(std::move(packet));
-
-                //     consumed_size = length + 4;
-                //     break;
-                // }
+                    break :blk (length + 4);
+                },
             };
             std.debug.assert(consumed_size > 0);
             std.debug.assert(consumed_size <= self.receive_buffer.items.len);
@@ -620,6 +634,8 @@ pub const dunstblick_Provider = struct {
     onConnected: Callback(ConnectedCallback),
     onDisconnected: Callback(DisconnectedCallback),
 
+    socket_set: xnet.SocketSet,
+
     pub fn init(allocator: *std.mem.Allocator, discoveryName: []const u8) !Self {
         var provider = Self{
             .mutex = std.Mutex.init(),
@@ -633,6 +649,8 @@ pub const dunstblick_Provider = struct {
 
             .onConnected = .{ .function = null, .user_data = null },
             .onDisconnected = .{ .function = null, .user_data = null },
+
+            .socket_set = xnet.SocketSet.init(allocator),
 
             // will be initialized in sequence:
             .discovery_name = undefined,
@@ -665,6 +683,8 @@ pub const dunstblick_Provider = struct {
             .interface = xnet.Address.IPv4.any,
             .group = DUNSTBLICK_MULTICAST_GROUP,
         });
+
+        log_msg(.diagnostic, "provider ready at {}\n", .{try provider.tcp_sock.getLocalEndPoint()});
 
         return provider;
     }
@@ -701,11 +721,225 @@ pub const dunstblick_Provider = struct {
         self.tcp_sock.close();
         self.multicast_sock.close();
         self.allocator.free(self.discovery_name);
+        self.socket_set.deinit();
     }
 
     /// timeout is in nanoseconds.
     fn pumpEvents(self: *Self, timeout: ?u64) !void {
-        unreachable;
+        self.socket_set.clear();
+
+        try self.socket_set.add(self.multicast_sock, .{ .read = true, .write = false });
+        try self.socket_set.add(self.tcp_sock, .{ .read = true, .write = false });
+
+        {
+            var iter = self.pending_connections.first;
+            while (iter) |node| : (iter = node.next) {
+                try self.socket_set.add(node.data.sock, .{ .read = true, .write = true });
+            }
+        }
+        {
+            var iter = self.established_connections.first;
+            while (iter) |node| : (iter = node.next) {
+                try self.socket_set.add(node.data.sock, .{ .read = true, .write = false });
+            }
+        }
+
+        const result = xnet.waitForSocketEvent(&self.socket_set, timeout);
+
+        //     auto const readAndPushToConnection = [&](dunstblick_Connection & con) . void {
+        //         if (not read_fds.contains(con.sock))
+        //             return;
+
+        //         ssize_t len = con.sock.read(blob.data(), blob.size());
+        //         if (len < 0) {
+        //             con.disconnect_reason = DUNSTBLICK_DISCONNECT_NETWORK_ERROR;
+        //             perror("failed to read from connection");
+        //         } else if (len == 0) {
+        //             con.disconnect_reason = DUNSTBLICK_DISCONNECT_QUIT;
+        //         } else if (len > 0) {
+        //             con.push_data(blob.data(), size_t(len));
+        //         }
+        //     };
+
+        //     // REQUIRED send_data must be called before push_data:
+        //     // Sending is not allowed to be called on established connections,
+        //     // but receiving a frame of "i don't require resources" will
+        //     // switch the connection in READY state without having the need of
+        //     // ever sending data.
+
+        //     // FIRST self
+        //     for (auto & connection : self.pending_connections) {
+        //         if (not write_fds.contains(connection.sock))
+        //             continue;
+        //         connection.send_data();
+        //     }
+
+        //     // THEN self
+        //     for (auto & connection : self.pending_connections) {
+        //         readAndPushToConnection(connection);
+        //     }
+        //     for (auto & connection : self.established_connections) {
+        //         readAndPushToConnection(connection);
+        //     }
+
+        // if (self.socket_set.isReadyRead(self.multicast_sock)) {
+
+        //     var message : UdpBaseMessage = undefined ;
+
+        //     auto const [ssize, sender] = self.multicast_sock.receiveFrom(&message, @sizeOf(UdpBaseMessage));
+        //     if (ssize < 0) {
+        //         perror("read udp failed");
+        //     } else {
+        //         size_t size = size_t(ssize);
+        //         if (size < @sizeOf(message.header)) {
+        //             log_msg(LOG_ERROR, "udp message too small…\n");
+        //         } else {
+        //             if (message.header.magic == UdpHeader::real_magic) {
+        //                 switch (message.header.type) {
+        //                     case UDP_DISCOVER: {
+        //                         if (size >= @sizeOf(message.discover)) {
+        //                             UdpDiscoverResponse response;
+        //                             response.header = UdpHeader::create(UDP_RESPOND_DISCOVER);
+        //                             response.tcp_port = uint16_t(tcp_listener_ep.port());
+        //                             response.length = self.discovery_name.size();
+
+        //                             strncpy(response.name.data(), self.discovery_name.c_str(), response.name.size());
+
+        //                             log_msg(LOG_DIAGNOSTIC, "response to %s\n", xnet::to_string(sender).c_str());
+
+        //                             ssize_t const sendlen =
+        //                                 self.multicast_sock.write_to(sender, &response, sizeof response);
+        //                             if (sendlen < 0) {
+        //                                 log_msg(LOG_ERROR, "%s\n", strerror(errno));
+        //                             } else if (size_t(sendlen) < @sizeOf(response)) {
+        //                                 log_msg(LOG_ERROR,
+        //                                         "expected to send %lu bytes, got %ld\n",
+        //                                         @sizeOf(response),
+        //                                         sendlen);
+        //                             }
+        //                         } else {
+        //                             log_msg(LOG_ERROR, "expected %lu bytes, got %ld\n", @sizeOf(message.discover), size);
+        //                         }
+        //                         break;
+        //                     }
+        //                     case UDP_RESPOND_DISCOVER: {
+        //                         if (size >= @sizeOf(message.discover_response)) {
+        //                             log_msg(LOG_DIAGNOSTIC, "got udp response\n");
+        //                         } else {
+        //                             log_msg(LOG_ERROR,
+        //                                     "expected %lu bytes, got %ld\n",
+        //                                     @sizeOf(message.discover_response),
+        //                                     size);
+        //                         }
+        //                         break;
+        //                     }
+        //                     default:
+        //                         log_msg(LOG_ERROR, "invalid packet type: %u\n", message.header.type);
+        //                 }
+        //             } else {
+        //                 log_msg(LOG_ERROR,
+        //                         "Invalid packet magic: %02X%02X%02X%02X\n",
+        //                         message.header.magic[0],
+        //                         message.header.magic[1],
+        //                         message.header.magic[2],
+        //                         message.header.magic[3]);
+        //             }
+        //         }
+        //     }
+        // }
+        if (self.socket_set.isReadyRead(self.tcp_sock)) {
+            const socket = self.tcp_sock.accept() catch |err| return mapNetworkError(err);
+            errdefer socket.close();
+
+            const ep = socket.getRemoteEndPoint() catch |err| return mapNetworkError(err);
+
+            const node = try self.allocator.create(ConnectionNode);
+            errdefer self.allocator.destroy(node);
+
+            node.* = ConnectionNode.init(dunstblick_Connection.init(self, socket, ep));
+            self.pending_connections.append(node);
+        }
+
+        //     self.pending_connections.remove_if(
+        //         [&](dunstblick_Connection & con) . bool { return con.disconnect_reason.has_value(); });
+
+        //     // Sorts connections from "pending" to "ready"
+        //     self.pending_connections.sort([](dunstblick_Connection const & a, dunstblick_Connection const & b) . bool {
+        //         return a.is_initialized < b.is_initialized;
+        //     });
+
+        //     auto it = self.pending_connections.begin();
+        //     auto end = self.pending_connections.end();
+        //     while (it != end and not it.is_initialized) {
+        //         std::advance(it, 1);
+        //     }
+        //     if (it != end) {
+        //         // we found connections that are ready
+        //         auto const start = it;
+
+        //         do {
+        //             self.onConnected.invoke(self,
+        //                                      &(*it),
+        //                                      it.header.clientName.c_str(),
+        //                                      it.header.password.c_str(),
+        //                                      it.screenResolution,
+        //                                      it.header.capabilities);
+
+        //             std::advance(it, 1);
+        //         } while (it != end);
+
+        //         // Now transfer all established connections to the other set.
+        //         self.established_connections.splice(self.established_connections.begin(),
+        //                                              self.pending_connections,
+        //                                              start,
+        //                                              end);
+        //     }
+
+        //     self.established_connections.remove_if([&](dunstblick_Connection & con) . bool {
+        //         if (not con.disconnect_reason)
+        //             return false;
+        //         self.onDisconnected.invoke(self, &con, *con.disconnect_reason);
+        //         return true;
+        //     });
+
+        //     for (auto & con : self.established_connections) {
+        //         Packet packet;
+        //         while (con.incoming_packets.try_dequeue(packet)) {
+
+        //             DataReader reader{packet.data(), packet.size()};
+
+        //             auto const msgtype = ServerMessageType(reader.read_byte());
+
+        //             switch (msgtype) {
+        //                 case ServerMessageType::eventCallback: {
+        //                     auto const id = reader.read_uint();
+        //                     auto const widget = reader.read_uint();
+
+        //                     con.onEvent.invoke(&con, id, widget);
+
+        //                     break;
+        //                 }
+        //                 case ServerMessageType::propertyChanged: {
+        //                     auto const obj_id = reader.read_uint();
+        //                     auto const property = reader.read_uint();
+        //                     auto const type = dunstblick_Type(reader.read_byte());
+
+        //                     Value value = reader.read_value(type);
+
+        //                     con.onPropertyChanged.invoke(&con, obj_id, property, &value);
+
+        //                     break;
+        //                 }
+        //                 default:
+        //                     log_msg(LOG_ERROR,
+        //                             "Received %lu bytes of an unknown message type %u\n",
+        //                             packet.size(),
+        //                             uint32_t(msgtype));
+        //                     // log some message?
+        //                     break;
+        //             }
+        //         }
+        //     }
     }
 
     // Public API
@@ -773,215 +1007,6 @@ const dunstblick_Object = struct {
         self.connection.provider.allocator.destroy(self);
     }
 };
-
-// void dunstblick_Provider::pump_events(std::optional<std::chrono::microseconds> timeout)
-// {
-//     xnet::socket_set read_fds, write_fds;
-//     read_fds.add(self.multicast_sock.handle);
-//     read_fds.add(self.tcp_sock.handle);
-
-//     for (auto const & connection : self.pending_connections) {
-//         read_fds.add(connection.sock);
-//         write_fds.add(connection.sock);
-//     }
-//     for (auto const & connection : self.established_connections) {
-//         read_fds.add(connection.sock);
-//     }
-
-//     size_t result = select(read_fds, write_fds, xstd::nullopt, timeout);
-//     (void)result;
-
-//     std::array<uint8_t, 4096> blob;
-
-//     auto const readAndPushToConnection = [&](dunstblick_Connection & con) . void {
-//         if (not read_fds.contains(con.sock))
-//             return;
-
-//         ssize_t len = con.sock.read(blob.data(), blob.size());
-//         if (len < 0) {
-//             con.disconnect_reason = DUNSTBLICK_DISCONNECT_NETWORK_ERROR;
-//             perror("failed to read from connection");
-//         } else if (len == 0) {
-//             con.disconnect_reason = DUNSTBLICK_DISCONNECT_QUIT;
-//         } else if (len > 0) {
-//             con.push_data(blob.data(), size_t(len));
-//         }
-//     };
-
-//     // REQUIRED send_data must be called before push_data:
-//     // Sending is not allowed to be called on established connections,
-//     // but receiving a frame of "i don't require resources" will
-//     // switch the connection in READY state without having the need of
-//     // ever sending data.
-
-//     // FIRST self
-//     for (auto & connection : self.pending_connections) {
-//         if (not write_fds.contains(connection.sock))
-//             continue;
-//         connection.send_data();
-//     }
-
-//     // THEN self
-//     for (auto & connection : self.pending_connections) {
-//         readAndPushToConnection(connection);
-//     }
-//     for (auto & connection : self.established_connections) {
-//         readAndPushToConnection(connection);
-//     }
-
-//     if (read_fds.contains(self.multicast_sock)) {
-//         fflush(stdout);
-
-//         UdpBaseMessage message;
-
-//         auto const [ssize, sender] = self.multicast_sock.read_from(&message, sizeof message);
-//         if (ssize < 0) {
-//             perror("read udp failed");
-//         } else {
-//             size_t size = size_t(ssize);
-//             if (size < @sizeOf(message.header)) {
-//                 log_msg(LOG_ERROR, "udp message too small…\n");
-//             } else {
-//                 if (message.header.magic == UdpHeader::real_magic) {
-//                     switch (message.header.type) {
-//                         case UDP_DISCOVER: {
-//                             if (size >= @sizeOf(message.discover)) {
-//                                 UdpDiscoverResponse response;
-//                                 response.header = UdpHeader::create(UDP_RESPOND_DISCOVER);
-//                                 response.tcp_port = uint16_t(tcp_listener_ep.port());
-//                                 response.length = self.discovery_name.size();
-
-//                                 strncpy(response.name.data(), self.discovery_name.c_str(), response.name.size());
-
-//                                 log_msg(LOG_DIAGNOSTIC, "response to %s\n", xnet::to_string(sender).c_str());
-
-//                                 ssize_t const sendlen =
-//                                     self.multicast_sock.write_to(sender, &response, sizeof response);
-//                                 if (sendlen < 0) {
-//                                     log_msg(LOG_ERROR, "%s\n", strerror(errno));
-//                                 } else if (size_t(sendlen) < @sizeOf(response)) {
-//                                     log_msg(LOG_ERROR,
-//                                             "expected to send %lu bytes, got %ld\n",
-//                                             @sizeOf(response),
-//                                             sendlen);
-//                                 }
-//                             } else {
-//                                 log_msg(LOG_ERROR, "expected %lu bytes, got %ld\n", @sizeOf(message.discover), size);
-//                             }
-//                             break;
-//                         }
-//                         case UDP_RESPOND_DISCOVER: {
-//                             if (size >= @sizeOf(message.discover_response)) {
-//                                 log_msg(LOG_DIAGNOSTIC, "got udp response\n");
-//                             } else {
-//                                 log_msg(LOG_ERROR,
-//                                         "expected %lu bytes, got %ld\n",
-//                                         @sizeOf(message.discover_response),
-//                                         size);
-//                             }
-//                             break;
-//                         }
-//                         default:
-//                             log_msg(LOG_ERROR, "invalid packet type: %u\n", message.header.type);
-//                     }
-//                 } else {
-//                     log_msg(LOG_ERROR,
-//                             "Invalid packet magic: %02X%02X%02X%02X\n",
-//                             message.header.magic[0],
-//                             message.header.magic[1],
-//                             message.header.magic[2],
-//                             message.header.magic[3]);
-//                 }
-//             }
-//         }
-//     }
-//     if (read_fds.contains(self.tcp_sock)) {
-//         auto [socket, endpoint] = self.tcp_sock.accept();
-
-//         self.pending_connections.emplace_back(self, std::move(socket), endpoint);
-//     }
-
-//     self.pending_connections.remove_if(
-//         [&](dunstblick_Connection & con) . bool { return con.disconnect_reason.has_value(); });
-
-//     // Sorts connections from "pending" to "ready"
-//     self.pending_connections.sort([](dunstblick_Connection const & a, dunstblick_Connection const & b) . bool {
-//         return a.is_initialized < b.is_initialized;
-//     });
-
-//     auto it = self.pending_connections.begin();
-//     auto end = self.pending_connections.end();
-//     while (it != end and not it.is_initialized) {
-//         std::advance(it, 1);
-//     }
-//     if (it != end) {
-//         // we found connections that are ready
-//         auto const start = it;
-
-//         do {
-//             self.onConnected.invoke(self,
-//                                      &(*it),
-//                                      it.header.clientName.c_str(),
-//                                      it.header.password.c_str(),
-//                                      it.screenResolution,
-//                                      it.header.capabilities);
-
-//             std::advance(it, 1);
-//         } while (it != end);
-
-//         // Now transfer all established connections to the other set.
-//         self.established_connections.splice(self.established_connections.begin(),
-//                                              self.pending_connections,
-//                                              start,
-//                                              end);
-//     }
-
-//     self.established_connections.remove_if([&](dunstblick_Connection & con) . bool {
-//         if (not con.disconnect_reason)
-//             return false;
-//         self.onDisconnected.invoke(self, &con, *con.disconnect_reason);
-//         return true;
-//     });
-
-//     for (auto & con : self.established_connections) {
-//         Packet packet;
-//         while (con.incoming_packets.try_dequeue(packet)) {
-
-//             DataReader reader{packet.data(), packet.size()};
-
-//             auto const msgtype = ServerMessageType(reader.read_byte());
-
-//             switch (msgtype) {
-//                 case ServerMessageType::eventCallback: {
-//                     auto const id = reader.read_uint();
-//                     auto const widget = reader.read_uint();
-
-//                     con.onEvent.invoke(&con, id, widget);
-
-//                     break;
-//                 }
-//                 case ServerMessageType::propertyChanged: {
-//                     auto const obj_id = reader.read_uint();
-//                     auto const property = reader.read_uint();
-//                     auto const type = dunstblick_Type(reader.read_byte());
-
-//                     Value value = reader.read_value(type);
-
-//                     con.onPropertyChanged.invoke(&con, obj_id, property, &value);
-
-//                     break;
-//                 }
-//                 default:
-//                     log_msg(LOG_ERROR,
-//                             "Received %lu bytes of an unknown message type %u\n",
-//                             packet.size(),
-//                             uint32_t(msgtype));
-//                     // log some message?
-//                     break;
-//             }
-//         }
-//     }
-// }
 
 // /*******************************************************************************
 //  * Provider Implementation *
