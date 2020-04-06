@@ -5,6 +5,7 @@ comptime {
     // std.debug.assert(@sizeOf(std.os.sockaddr) >= @sizeOf(std.os.sockaddr_in6));
 }
 
+/// A network address abstraction. Contains one member for each possible type of address.
 pub const Address = union(AddressFamily) {
     ipv4: IPv4,
     ipv6: IPv6,
@@ -73,6 +74,7 @@ pub const AddressFamily = enum {
     }
 };
 
+/// Protocols supported by this library.
 pub const Protocol = enum {
     const Self = @This();
 
@@ -87,6 +89,7 @@ pub const Protocol = enum {
     }
 };
 
+/// A network end point. Is composed of an address and a port.
 pub const EndPoint = struct {
     const Self = @This();
 
@@ -144,6 +147,8 @@ pub const EndPoint = struct {
     }
 };
 
+/// A network socket, can receive and send data for TCP/UDP and accept
+/// incoming connections if bound as a TCP server.
 pub const Socket = struct {
     pub const Error = error{
         AccessDenied,
@@ -162,6 +167,8 @@ pub const Socket = struct {
     family: AddressFamily,
     internal: NativeSocket,
 
+    /// Spawns a new socket that must be freed with `close()`.
+    /// `family` defines the socket family, `protocol` the protocol used.
     pub fn create(family: AddressFamily, protocol: Protocol) !Self {
         return Self{
             .family = family,
@@ -169,15 +176,19 @@ pub const Socket = struct {
         };
     }
 
+    /// Closes the socket and releases its resources.
     pub fn close(self: Self) void {
         std.os.close(self.internal);
     }
 
+    /// Binds the socket to the given end point.
     pub fn bind(self: Self, ep: EndPoint) !void {
         var sockaddr = ep.toSocketAddress();
         try std.os.bind(self.internal, &sockaddr, @sizeOf(@TypeOf(sockaddr)));
     }
 
+    /// Binds the socket to all supported addresses on the local device.
+    /// This will use the any IP (`0.0.0.0` for IPv4).
     pub fn bindToPort(self: Self, port: u16) !void {
         return switch (self.family) {
             .ipv4 => self.bind(EndPoint{
@@ -213,15 +224,24 @@ pub const Socket = struct {
         };
     }
 
+    /// Send some data to the connected peer. In UDP, this
+    /// will always send full packets, on TCP it will append
+    /// to the stream.
     pub fn send(self: Self, data: []const u8) !usize {
         return try std.os.send(self.internal, data, 0);
     }
 
+    /// Blockingly receives some data from the connected peer.
+    /// Will read all available data from the TCP stream or
+    /// a UDP packet.
     pub fn receive(self: Self, data: []u8) !usize {
         return try std.os.read(self.internal, data);
     }
 
     const ReceiveFrom = struct { numberOfBytes: usize, sender: EndPoint };
+
+    /// Same as ´receive`, but will also return the end point from which the data
+    /// was received. This is only a valid operation on UDP sockets.
     pub fn receiveFrom(self: Self, data: []u8) !ReceiveFrom {
         var addr: std.os.sockaddr align(4) = undefined;
         var size: std.os.socklen_t = @sizeOf(std.os.sockaddr);
@@ -234,6 +254,8 @@ pub const Socket = struct {
         };
     }
 
+    /// Sends a packet to a given network end point. Behaves the same as `send()`, but will only work for
+    /// for UDP sockets.
     pub fn sendTo(self: Self, receiver: EndPoint, data: []const u8) !usize {
         const sa = receiver.toSocketAddress();
         return try std.os.sendto(self.internal, data, 0, &sa, @sizeOf(std.os.sockaddr));
@@ -271,6 +293,10 @@ pub const Socket = struct {
         interface: Address.IPv4,
         group: Address.IPv4,
     };
+
+    /// Joins the UDP socket into a multicast group.
+    /// Multicast enables sending packets to the group and all joined peers
+    /// will receive the sent data.
     pub fn joinMulticastGroup(self: Self, group: MulticastGroup) !void {
         const ip_mreq = extern struct {
             imr_multiaddr: u32,
@@ -289,12 +315,14 @@ pub const Socket = struct {
         try std.os.setsockopt(self.internal, std.os.SOL_SOCKET, IP_ADD_MEMBERSHIP, std.mem.asBytes(&request));
     }
 
+    /// Gets an input stream that allows reading data from the socket.
     pub fn inStream(self: Self) std.io.InStream(Socket, Error, receive) {
         return .{
             .context = self,
         };
     }
 
+    /// Gets an output stream that allows writing data to the socket.
     pub fn outStream(self: Self) std.io.OutStream(Socket, Error, send) {
         return .{
             .context = self,
@@ -302,34 +330,104 @@ pub const Socket = struct {
     }
 };
 
+/// A socket event that can be waited for.
 pub const SocketEvent = struct {
+    /// Wait for data ready to be read.
     read: bool,
+
+    /// Wait for all pending data to be sent and the socket accepting
+    /// non-blocking writes.
     write: bool,
-    fault: bool = false,
 };
 
+/// A set of sockets that can be used to query socket readiness.
+/// This is similar to `select()´ or `poll()` and provides a way to
+/// create non-blocking socket I/O.
+/// This is intented to be used with `waitForSocketEvents()`.
+pub const SocketSet = struct {
+    const Self = @This();
+
+    internal: OSLogic,
+
+    /// Initialize a new socket set. This can be reused for
+    /// multiple queries without having to reset the set every time.
+    /// Call `deinit()` to free the socket set.
+    pub fn init(allocator: *std.mem.Allocator) Self {
+        return Self{
+            .internal = OSLogic.init(allocator),
+        };
+    }
+
+    /// Frees the contained resources.
+    pub fn deinit(self: Self) void {
+        self.internal.deinit();
+    }
+
+    /// Removes all sockets from the set.
+    pub fn clear(self: *Self) void {
+        self.internal.clear();
+    }
+
+    /// Adds a socket to the set and enables waiting for any of the events
+    /// in `events`.
+    pub fn add(self: *Self, sock: Socket, events: SocketEvent) !void {
+        try self.internal.add(sock, events);
+    }
+
+    /// Removes the socket from the set.
+    pub fn remove(self: *Self, sock: Socket) void {
+        self.internal.remove(sock);
+    }
+
+    /// Checks if the socket is ready to be read.
+    /// Only valid after the first call to `waitForSocketEvents()`.
+    pub fn isReadyRead(self: Self, sock: Socket) bool {
+        return self.internal.isReadyRead(sock);
+    }
+
+    /// Checks if the socket is ready to be written.
+    /// Only valid after the first call to `waitForSocketEvents()`.
+    pub fn isReadyWrite(self: Self, sock: Socket) bool {
+        return self.internal.isReadyWrite(sock);
+    }
+
+    /// Checks if the socket is faulty and cannot be used anymore.
+    /// Only valid after the first call to `waitForSocketEvents()`.
+    pub fn isFaulted(self: Self, sock: Socket) bool {
+        return self.internal.isFaulted(sock);
+    }
+};
+
+/// Implementation of SocketSet for each platform,
+/// keeps the thing above nice and clean, all functions get inlined.
 const OSLogic = switch (std.builtin.os.tag) {
+
+    // Windows afaik provides fd_set to be used with ws2_32.
+    .windows => @compileError("Not supported yet."),
+
+    // Linux uses `poll()` syscall to wait for socket events.
+    // This allows an arbitrary number of sockets to be handled.
     .linux => struct {
         const Self = @This();
         // use poll on linux
 
         fds: std.ArrayList(std.os.pollfd),
 
-        fn init(allocator: *std.mem.Allocator) Self {
+        inline fn init(allocator: *std.mem.Allocator) Self {
             return Self{
                 .fds = std.ArrayList(std.os.pollfd).init(allocator),
             };
         }
 
-        fn deinit(self: Self) void {
+        inline fn deinit(self: Self) void {
             self.fds.deinit();
         }
 
-        fn clear(self: *Self) void {
+        inline fn clear(self: *Self) void {
             self.fds.shrink(0);
         }
 
-        fn add(self: *Self, sock: Socket, events: SocketEvent) !void {
+        inline fn add(self: *Self, sock: Socket, events: SocketEvent) !void {
             var mask: i16 = 0;
 
             if (events.read)
@@ -353,7 +451,7 @@ const OSLogic = switch (std.builtin.os.tag) {
             });
         }
 
-        fn remove(self: *Self, sock: Socket) void {
+        inline fn remove(self: *Self, sock: Socket) void {
             const index = for (self.fds.items) |item, i| {
                 if (item.fd == sock.internal)
                     break i;
@@ -364,7 +462,7 @@ const OSLogic = switch (std.builtin.os.tag) {
             }
         }
 
-        fn checkMaskAnyBit(self: Self, sock: Socket, mask: i16) bool {
+        inline fn checkMaskAnyBit(self: Self, sock: Socket, mask: i16) bool {
             for (self.fds.items) |item| {
                 if (item.fd != sock.internal)
                     continue;
@@ -378,60 +476,19 @@ const OSLogic = switch (std.builtin.os.tag) {
             return false;
         }
 
-        fn isReadyRead(self: Self, sock: Socket) bool {
+        inline fn isReadyRead(self: Self, sock: Socket) bool {
             return self.checkMaskAnyBit(sock, std.os.POLLIN);
         }
 
-        fn isReadyWrite(self: Self, sock: Socket) bool {
+        inline fn isReadyWrite(self: Self, sock: Socket) bool {
             return self.checkMaskAnyBit(sock, std.os.POLLOUT);
         }
 
-        fn isFaulted(self: Self, sock: Socket) bool {
+        inline fn isFaulted(self: Self, sock: Socket) bool {
             return self.checkMaskAnyBit(sock, std.os.POLLERR);
         }
     },
     else => @compileError("unsupported os " ++ @tagName(std.builtin.os.tag) ++ " for SocketSet!"),
-};
-
-/// A set of sockets that can be used to query socket readiness.
-pub const SocketSet = struct {
-    const Self = @This();
-
-    internal: OSLogic,
-
-    pub fn init(allocator: *std.mem.Allocator) Self {
-        return Self{
-            .internal = OSLogic.init(allocator),
-        };
-    }
-
-    pub fn deinit(self: Self) void {
-        self.internal.deinit();
-    }
-
-    pub fn clear(self: *Self) void {
-        self.internal.clear();
-    }
-
-    pub fn add(self: *Self, sock: Socket, events: SocketEvent) !void {
-        try self.internal.add(sock, events);
-    }
-
-    pub fn remove(self: *Self, sock: Socket) void {
-        self.internal.remove(sock);
-    }
-
-    pub fn isReadyRead(self: Self, sock: Socket) bool {
-        return self.internal.isReadyRead(sock);
-    }
-
-    pub fn isReadyWrite(self: Self, sock: Socket) bool {
-        return self.internal.isReadyWrite(sock);
-    }
-
-    pub fn isFaulted(self: Self, sock: Socket) bool {
-        return self.internal.isFaulted(sock);
-    }
 };
 
 /// Waits until sockets in SocketSet are ready to read/write or have a fault condition.
