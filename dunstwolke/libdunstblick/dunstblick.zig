@@ -146,6 +146,10 @@ const CommandBuffer = struct {
         try self.buffer.append(byte);
     }
 
+    fn writeRaw(self: *Self, data: []const u8) !void {
+        try self.buffer.appendSlice(data);
+    }
+
     fn writeEnum(self: *Self, e: u8) !void {
         try self.writeByte(e);
     }
@@ -155,7 +159,8 @@ const CommandBuffer = struct {
     }
 
     fn writeString(self: *Self, string: []const u8) !void {
-        unreachable;
+        try self.writeVarUInt(@intCast(u32, string.len));
+        try self.writeRaw(string);
     }
 
     fn writeValue(self: *Self, value: Value, prefixType: bool) !void {
@@ -163,13 +168,45 @@ const CommandBuffer = struct {
     }
 
     fn writeVarUInt(self: *Self, value: u32) !void {
-        unreachable;
+        var buf: [5]u8 = undefined;
+
+        var maxidx: usize = 4;
+
+        comptime var n: usize = 0;
+        inline while (n < 5) : (n += 1) {
+            const chr = &buf[4 - n];
+            chr.* = @truncate(u8, (value >> (7 * n)) & 0x7F);
+            if (chr.* != 0)
+                maxidx = 4 - n;
+            if (n > 0)
+                chr.* |= 0x80;
+        }
+
+        std.debug.assert(maxidx < 5);
+        try self.writeRaw(buf[maxidx..]);
     }
 
     fn writeVarSInt(self: *Self, value: i32) !void {
-        unreachable;
+        try self.writeVarUInt(ZigZagInt.encode(value));
     }
 };
+
+const ZigZagInt = struct {
+    fn encode(n: i32) u32 {
+        const v = (n << 1) ^ (n >> 31);
+        return @bitCast(u32, v);
+    }
+    fn decode(u: u32) i32 {
+        const n = @bitCast(i32, u);
+        return (n << 1) ^ (n >> 31);
+    }
+};
+
+test "ZigZag" {
+    const input = 42;
+    std.debug.assert(ZigZagInt.encode(input) == 84);
+    std.debug.assert(ZigZagInt.decode(84) == input);
+}
 
 fn Callback(comptime F: type) type {
     return struct {
