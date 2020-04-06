@@ -36,7 +36,7 @@ const LogLevel = enum {
     diagnostic = 2,
 };
 
-const DunstblickError = error{ OutOfMemory, NetworkError, OutOfRange };
+const DunstblickError = error{ OutOfMemory, NetworkError, OutOfRange, EndOfStream };
 
 fn mapDunstblickError(err: DunstblickError) NativeErrorCode {
     log_msg(.diagnostic, "error return trace for {}:\n", .{err});
@@ -48,6 +48,7 @@ fn mapDunstblickError(err: DunstblickError) NativeErrorCode {
         error.OutOfMemory => .DUNSTBLICK_ERROR_OUT_OF_MEMORY,
         error.NetworkError => .DUNSTBLICK_ERROR_NETWORK,
         error.OutOfRange => .DUNSTBLICK_ERROR_ARGUMENT_OUT_OF_RANGE,
+        error.EndOfStream => .DUNSTBLICK_ERROR_NETWORK,
     };
 }
 
@@ -674,6 +675,7 @@ pub const dunstblick_Connection = struct {
         self.pushData(buffer[0..len]) catch |err| return switch (err) {
             error.OutOfMemory => error.OutOfMemory,
             error.UnknownPacket => error.NetworkError,
+            error.EndOfStream => error.EndOfStream,
             else => |e| mapNetworkError(e),
         };
     }
@@ -1470,15 +1472,29 @@ const DataReader = struct {
     }
 
     fn readByte(self: *Self) !u8 {
-        unreachable;
+        if (self.offset >= self.source.len)
+            return error.EndOfStream;
+        const value = self.source[self.offset];
+        self.offset += 1;
+        return value;
     }
 
     fn readVarUInt(self: *Self) !u32 {
-        unreachable;
+        var number: u32 = 0;
+
+        while (true) {
+            const value = try self.readByte();
+            number <<= 7;
+            number |= value & 0x7F;
+            if ((value & 0x80) == 0)
+                break;
+        }
+
+        return number;
     }
 
     fn readVarSInt(self: *Self) !i32 {
-        unreachable;
+        return ZigZagInt.decode(try self.readVarUInt());
     }
 
     fn readValue(self: *Self, _type: c.dunstblick_Type) !Value {
