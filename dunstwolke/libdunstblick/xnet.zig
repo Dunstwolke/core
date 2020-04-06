@@ -118,7 +118,10 @@ pub const EndPoint = struct {
             std.os.AF_INET6 => {
                 unreachable;
             },
-            else => return error.UnsupportedAddressFamily,
+            else => {
+                std.debug.warn("got invalid socket address: {}\n", .{src});
+                return error.UnsupportedAddressFamily;
+            },
         }
     }
 
@@ -142,7 +145,16 @@ pub const EndPoint = struct {
 };
 
 pub const Socket = struct {
-    pub const Error = error{};
+    pub const Error = error{
+        AccessDenied,
+        WouldBlock,
+        FastOpenAlreadyInProgress,
+        ConnectionResetByPeer,
+        MessageTooBig,
+        SystemResources,
+        BrokenPipe,
+        Unexpected,
+    };
     const Self = @This();
 
     const NativeSocket = if (std.builtin.os.tag == .windows) @compileError("windows not supported yet") else std.os.fd_t;
@@ -202,17 +214,17 @@ pub const Socket = struct {
     }
 
     pub fn send(self: Self, data: []const u8) !usize {
-        unreachable;
+        return try std.os.send(self.internal, data, 0);
     }
 
     pub fn receive(self: Self, data: []u8) !usize {
-        unreachable;
+        return try std.os.read(self.internal, data);
     }
 
     const ReceiveFrom = struct { numberOfBytes: usize, sender: EndPoint };
     pub fn receiveFrom(self: Self, data: []u8) !ReceiveFrom {
         var addr: std.os.sockaddr align(4) = undefined;
-        var size: std.os.socklen_t = @sizeOf(@TypeOf(addr));
+        var size: std.os.socklen_t = @sizeOf(std.os.sockaddr);
 
         const len = try std.os.recvfrom(self.internal, data, 0, &addr, &size);
 
@@ -224,7 +236,6 @@ pub const Socket = struct {
 
     pub fn sendTo(self: Self, receiver: EndPoint, data: []const u8) !usize {
         const sa = receiver.toSocketAddress();
-
         return try std.os.sendto(self.internal, data, 0, &sa, @sizeOf(std.os.sockaddr));
     }
 
@@ -358,8 +369,9 @@ const OSLogic = switch (std.builtin.os.tag) {
                 if (item.fd != sock.internal)
                     continue;
 
-                if ((item.revents & mask) != 0)
+                if ((item.revents & mask) != 0) {
                     return true;
+                }
 
                 return false;
             }

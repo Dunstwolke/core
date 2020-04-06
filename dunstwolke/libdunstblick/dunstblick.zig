@@ -39,6 +39,11 @@ const LogLevel = enum {
 const DunstblickError = error{ OutOfMemory, NetworkError, OutOfRange };
 
 fn mapDunstblickError(err: DunstblickError) NativeErrorCode {
+    log_msg(.diagnostic, "error return trace for {}:\n", .{err});
+    if (@errorReturnTrace()) |trace| {
+        std.debug.dumpStackTrace(trace.*);
+    }
+
     return switch (err) {
         error.OutOfMemory => .DUNSTBLICK_ERROR_OUT_OF_MEMORY,
         error.NetworkError => .DUNSTBLICK_ERROR_NETWORK,
@@ -63,8 +68,19 @@ const NetworkError = error{
     BlockedByFirewall,
     WouldBlock,
     NotConnected,
+    AccessDenied,
+    FastOpenAlreadyInProgress,
+    ConnectionResetByPeer,
+    MessageTooBig,
+    BrokenPipe,
+    ConnectionRefused,
+    InputOutput,
+    IsDir,
+    OperationAborted,
 };
+
 fn mapNetworkError(value: NetworkError) DunstblickError {
+    log_msg(.diagnostic, "network error: {}:\n", .{value});
     switch (value) {
         else => |e| return error.NetworkError,
     }
@@ -76,6 +92,14 @@ fn log_msg(level: LogLevel, comptime fmt: []const u8, args: var) void {
     if (@enumToInt(level) > @enumToInt(log_level))
         return;
     std.debug.warn(fmt, args);
+}
+
+fn extractString(str: []const u8) []const u8 {
+    for (str) |chr, i| {
+        if (chr == 0)
+            return str[0..i];
+    }
+    return str;
 }
 
 const NetworkCommand = enum(u8) {
@@ -91,6 +115,13 @@ const NetworkCommand = enum(u8) {
     insertRange = 8, // (oid, name, index, count, value …) // manipulate lists
     removeRange = 9, // (oid, name, index, count) // manipulate lists
     moveRange = 10, // (oid, name, indexFrom, indexTo, count) // manipulate lists
+    _,
+};
+
+const ServerMessageType = enum(u8) {
+    eventCallback = 1, // (cid)
+    propertyChanged = 2, // (oid, name, type, value)
+    _,
 };
 
 const CommandBuffer = struct {
@@ -120,8 +151,7 @@ const CommandBuffer = struct {
     }
 
     fn writeID(self: *Self, id: u32) !void {
-        // TODO: Implement
-        unreachable;
+        try self.writeVarUInt(id);
     }
 
     fn writeString(self: *Self, string: []const u8) !void {
@@ -212,7 +242,7 @@ pub const dunstblick_Connection = struct {
     is_initialized: bool = false,
     disconnect_reason: ?DisconnectReason = null,
 
-    header: ConnectionHeader,
+    header: ?ConnectionHeader,
     screenResolution: Size,
 
     receive_buffer: std.ArrayList(u8),
@@ -229,9 +259,6 @@ pub const dunstblick_Connection = struct {
 
     user_data_pointer: ?*c_void,
 
-    /// Stores packets received in message pumping
-    incoming_packets: PacketQueue,
-
     onEvent: Callback(EventCallback),
     onPropertyChanged: Callback(PropertyChangedCallback),
 
@@ -242,7 +269,7 @@ pub const dunstblick_Connection = struct {
             .sock = sock,
             .remote = endpoint,
             .provider = provider,
-            .header = undefined,
+            .header = null,
             .screenResolution = undefined,
             .receive_buffer = std.ArrayList(u8).init(provider.allocator),
             .required_resource_count = undefined,
@@ -250,7 +277,6 @@ pub const dunstblick_Connection = struct {
             .resource_send_index = undefined,
             .resource_send_offset = undefined,
             .user_data_pointer = null,
-            .incoming_packets = PacketQueue.init(),
             .onEvent = .{ .function = null, .user_data = null },
             .onPropertyChanged = .{ .function = null, .user_data = null },
         };
@@ -260,15 +286,12 @@ pub const dunstblick_Connection = struct {
         log_msg(.diagnostic, "connection lost to {}\n", .{self.remote});
         self.receive_buffer.deinit();
 
-        while (self.incoming_packets.get()) |packet| {
-            self.provider.allocator.free(packet.data);
-            self.provider.allocator.destroy(packet);
-        }
-
         self.sock.close();
 
-        self.provider.allocator.free(self.header.password);
-        self.provider.allocator.free(self.header.clientName);
+        if (self.header) |hdr| {
+            self.provider.allocator.free(hdr.password);
+            self.provider.allocator.free(hdr.clientName);
+        }
 
         self.required_resources.deinit();
     }
@@ -284,7 +307,7 @@ pub const dunstblick_Connection = struct {
     fn pushData(self: *Self, blob: []const u8) !void {
         const MAX_BUFFER_LIMIT = 5 * 1024 * 1024; // 5 MeBiByte
 
-        if (self.receive_buffer.items.len + blob.len >= max_buffer_limit) {
+        if (self.receive_buffer.items.len + blob.len >= MAX_BUFFER_LIMIT) {
             return self.drop(.DUNSTBLICK_DISCONNECT_INVALID_DATA);
         }
 
@@ -293,35 +316,47 @@ pub const dunstblick_Connection = struct {
         log_msg(.diagnostic, "read {} bytes from {} into buffer of {}\n", .{
             blob.len,
             self.remote,
-            receive_buffer.len,
+            self.receive_buffer.items.len,
         });
 
         while (self.receive_buffer.items.len > 0) {
             const stream_data = self.receive_buffer.items;
-            const consumed_size = switch (state) {
+            const consumed_size = switch (self.state) {
                 .READ_HEADER => blk: {
-                    if (stream_data.len > @sizeOf(TcpConnectHeader)) {
+                    if (stream_data.len > @sizeOf(protocol.TcpConnectHeader)) {
                         // Drop if we received too much data.
                         // Server is not allowed to send more than the actual
                         // connect header.
-                        return self.drop(DUNSTBLICK_DISCONNECT_INVALID_DATA);
+                        return self.drop(.DUNSTBLICK_DISCONNECT_INVALID_DATA);
                     }
-                    if (stream_data.len < @sizeOf(TcpConnectHeader)) {
+                    if (stream_data.len < @sizeOf(protocol.TcpConnectHeader)) {
                         // not yet enough data
                         return;
                     }
-                    assert(stream_data.len == @sizeOf(TcpConnectHeader));
+                    std.debug.assert(stream_data.len == @sizeOf(protocol.TcpConnectHeader));
 
-                    const net_header = @ptrCast(*align(1) const TcpConnectHeader, stream_data.data);
+                    const net_header = @ptrCast(*align(1) const protocol.TcpConnectHeader, stream_data.ptr);
 
-                    if (net_header.magic != TcpConnectHeader.real_magic)
-                        return drop(DUNSTBLICK_DISCONNECT_INVALID_DATA);
-                    if (net_header.protocol_version != TcpConnectHeader.current_protocol_version)
-                        return drop(DUNSTBLICK_DISCONNECT_PROTOCOL_MISMATCH);
+                    if (!std.mem.eql(u8, &net_header.magic, &protocol.TcpConnectHeader.real_magic))
+                        return self.drop(.DUNSTBLICK_DISCONNECT_INVALID_DATA);
+                    if (net_header.protocol_version != protocol.TcpConnectHeader.current_protocol_version)
+                        return self.drop(.DUNSTBLICK_DISCONNECT_PROTOCOL_MISMATCH);
 
-                    self.header.password = try std.mem.dupe(self.provider.allocator, u8, extract_string(net_header.password));
-                    self.header.clientName = try std.mem.dupe(self.provider.allocator, u8, extract_string(net_header.name));
-                    self.header.capabilities = @intToEnum(ClientCapabilities, net_header.capabilities);
+                    {
+                        var header = ConnectionHeader{
+                            .password = undefined,
+                            .clientName = undefined,
+                            .capabilities = @intToEnum(ClientCapabilities, @intCast(c_int, net_header.capabilities)),
+                        };
+
+                        header.password = try std.mem.dupeZ(self.provider.allocator, u8, extractString(&net_header.password));
+                        errdefer self.provider.allocator.free(header.password);
+
+                        header.clientName = try std.mem.dupeZ(self.provider.allocator, u8, extractString(&net_header.name));
+                        errdefer self.provider.allocator.free(header.clientName);
+
+                        self.header = header;
+                    }
 
                     self.screenResolution.w = net_header.screenSizeX;
                     self.screenResolution.h = net_header.screenSizeY;
@@ -332,42 +367,41 @@ pub const dunstblick_Connection = struct {
 
                         var stream = self.sock.outStream();
 
-                        var response = TcpConnectResponse{
+                        var response = protocol.TcpConnectResponse{
                             .success = 1,
-                            .resourceCount = provider.resources.count(),
+                            .resourceCount = @intCast(u32, self.provider.resources.count()),
                         };
 
-                        stream.writeAll(std.mem.asBytes(&response));
+                        try stream.writeAll(std.mem.asBytes(&response));
 
-                        var iter = provider.resources.iterator();
+                        var iter = self.provider.resources.iterator();
                         while (iter.next()) |kv| {
                             const resource = &kv.value;
-                            var descriptor = TcpResourceDescriptor{
+                            var descriptor = protocol.TcpResourceDescriptor{
                                 .id = resource.id,
-                                .size = resource.data.len,
+                                .size = @intCast(u32, resource.data.len),
                                 .type = resource.type,
                                 .md5sum = resource.hash,
                             };
-                            stream.writeAll(std.mem.asBytes(&descriptor));
+                            try stream.writeAll(std.mem.asBytes(&descriptor));
                         }
                     }
 
-                    state = .READ_REQUIRED_RESOURCE_HEADER;
+                    self.state = .READ_REQUIRED_RESOURCE_HEADER;
 
-                    break :blk @sizeOf(TcpConnectHeader);
+                    break :blk @sizeOf(protocol.TcpConnectHeader);
                 },
 
-                .READ_REQUIRED_RESOURCE_HEADER => {
-                    if (stream_data.len < @sizeOf(TcpResourceRequestHeader))
+                .READ_REQUIRED_RESOURCE_HEADER => blk: {
+                    if (stream_data.len < @sizeOf(protocol.TcpResourceRequestHeader))
                         return;
 
-                    const header = @ptrCast(*align(1) const TcpResourceRequestHeader, stream_data.ptr);
+                    const header = @ptrCast(*align(1) const protocol.TcpResourceRequestHeader, stream_data.ptr);
 
                     self.required_resource_count = header.request_count;
 
                     if (self.required_resource_count > 0) {
-                        std.debug.assert(false);
-                        self.required_resources.clear();
+                        self.required_resources.shrink(0);
                         try self.required_resources.ensureCapacity(self.required_resource_count);
 
                         self.state = .READ_REQUIRED_RESOURCES;
@@ -379,20 +413,20 @@ pub const dunstblick_Connection = struct {
                         self.is_initialized = true;
                     }
 
-                    break :blk @sizeOf(TcpResourceRequestHeader);
+                    break :blk @sizeOf(protocol.TcpResourceRequestHeader);
                 },
 
-                .READ_REQUIRED_RESOURCES => {
-                    if (stream_data.len < @sizeOf(TcpResourceRequest))
+                .READ_REQUIRED_RESOURCES => blk: {
+                    if (stream_data.len < @sizeOf(protocol.TcpResourceRequest))
                         return;
 
-                    const request = @ptrCast(*align(1) const TcpResourceRequest, stream_data.ptr);
+                    const request = @ptrCast(*align(1) const protocol.TcpResourceRequest, stream_data.ptr);
 
-                    self.required_resources.append(request.id);
+                    try self.required_resources.append(request.id);
 
-                    assert(required_resources.items.len <= required_resource_count);
-                    if (required_resources.items.len == required_resource_count) {
-                        if (stream_data.len > @sizeOf(TcpResourceRequest)) {
+                    std.debug.assert(self.required_resources.items.len <= self.required_resource_count);
+                    if (self.required_resources.items.len == self.required_resource_count) {
+                        if (stream_data.len > @sizeOf(protocol.TcpResourceRequest)) {
                             // If excess data was sent, we drop the connection
                             return self.drop(.DUNSTBLICK_DISCONNECT_INVALID_DATA);
                         }
@@ -404,7 +438,7 @@ pub const dunstblick_Connection = struct {
 
                     // wait for a packet of all required resources
 
-                    break :blk @sizeOf(TcpResourceRequest);
+                    break :blk @sizeOf(protocol.TcpResourceRequest);
                 },
 
                 .SEND_RESOURCES => {
@@ -413,23 +447,16 @@ pub const dunstblick_Connection = struct {
                     return self.drop(.DUNSTBLICK_DISCONNECT_INVALID_DATA);
                 },
 
-                .READY => {
+                .READY => blk: {
                     if (stream_data.len < 4)
                         return; // Not enough data for size decoding
 
-                    const length = std.mem.readIntLittle(u32, stream_data[0..]);
+                    const length = std.mem.readIntLittle(u32, stream_data[0..4]);
 
                     if (stream_data.len < (4 + length))
                         return; // not enough data
 
-                    // const buffer = try self.provider.allocator.alignedAlloc(u8, @alignOf(PacketQueue.Node), @sizeOf(PacketQueue.Node) + length);
-
-                    // const node = @ptrCast(*PacketQueue.Node, buffer.ptr);
-                    // node.* = PacketQueue.Node.init(buffer[@sizeOf(PacketQueue.Node)..]);
-
-                    // self.incoming_packets.append(node);
-
-                    self.decodePacket(stream_data[4..]);
+                    try self.decodePacket(stream_data[4..]);
 
                     break :blk (length + 4);
                 },
@@ -501,14 +528,16 @@ pub const dunstblick_Connection = struct {
         if (packet.buffer.items.len > std.math.maxInt(u32))
             return error.OutOfRange;
 
+        errdefer self.drop(.DUNSTBLICK_DISCONNECT_NETWORK_ERROR);
+
         const length = @truncate(u32, packet.buffer.items.len);
 
         const lock = self.mutex.acquire();
         defer lock.release();
 
         var stream = self.sock.outStream();
-        try stream.writeIntLittle(u32, length);
-        try stream.writeAll(packet.buffer.items[0..length]);
+        stream.writeIntLittle(u32, length) catch |err| return mapNetworkError(err);
+        stream.writeAll(packet.buffer.items[0..length]) catch |err| return mapNetworkError(err);
     }
 
     fn decodePacket(self: *Self, packet: []const u8) !void {
@@ -518,8 +547,8 @@ pub const dunstblick_Connection = struct {
 
         switch (msgtype) {
             .eventCallback => {
-                const id = try reader.readVarUint();
-                const widget = try reader.readVarUint();
+                const id = try reader.readVarUInt();
+                const widget = try reader.readVarUInt();
 
                 self.onEvent.invoke(.{
                     @ptrCast(*c.dunstblick_Connection, self),
@@ -528,11 +557,11 @@ pub const dunstblick_Connection = struct {
                 });
             },
             .propertyChanged => {
-                const obj_id = try reader.read_uint();
-                const property = try reader.read_uint();
-                const @"type" = @intToEnum(c.dunstblick_Type, try reader.readByte());
+                const obj_id = try reader.readVarUInt();
+                const property = try reader.readVarUInt();
+                const _type = @intToEnum(c.dunstblick_Type, try reader.readByte());
 
-                const value = reader.readValue(@"type");
+                const value = try reader.readValue(_type);
 
                 self.onPropertyChanged.invoke(.{
                     @ptrCast(*c.dunstblick_Connection, self),
@@ -541,11 +570,24 @@ pub const dunstblick_Connection = struct {
                     &value,
                 });
             },
-            else => {
-                log_msg(.@"error", "Received {} bytes of an unknown message type {}\n", packet.len, msgtype);
+            _ => {
+                log_msg(.@"error", "Received {} bytes of an unknown message type {}\n", .{ packet.len, msgtype });
                 return error.UnknownPacket;
             },
         }
+    }
+
+    fn receiveData(self: *Self) DunstblickError!void {
+        var buffer: [4096]u8 = undefined;
+        const len = self.sock.receive(&buffer) catch |err| return mapNetworkError(err);
+        if (len == 0)
+            return self.drop(.DUNSTBLICK_DISCONNECT_QUIT);
+
+        self.pushData(buffer[0..len]) catch |err| return switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            error.UnknownPacket => error.NetworkError,
+            else => |e| mapNetworkError(e),
+        };
     }
 
     // User API
@@ -787,20 +829,20 @@ pub const dunstblick_Provider = struct {
 
         const result = xnet.waitForSocketEvent(&self.socket_set, timeout);
 
-        //     auto const readAndPushToConnection = [&](dunstblick_Connection & con) . void {
-        //         if (not read_fds.contains(con.sock))
-        //             return;
-
-        //         ssize_t len = con.sock.read(blob.data(), blob.size());
-        //         if (len < 0) {
-        //             con.disconnect_reason = DUNSTBLICK_DISCONNECT_NETWORK_ERROR;
-        //             perror("failed to read from connection");
-        //         } else if (len == 0) {
-        //             con.disconnect_reason = DUNSTBLICK_DISCONNECT_QUIT;
-        //         } else if (len > 0) {
-        //             con.push_data(blob.data(), size_t(len));
-        //         }
-        //     };
+        {
+            var iter = self.pending_connections.first;
+            while (iter) |item| : (iter = item.next) {
+                if (self.socket_set.isFaulted(item.data.sock))
+                    item.data.drop(.DUNSTBLICK_DISCONNECT_NETWORK_ERROR);
+            }
+        }
+        {
+            var iter = self.established_connections.first;
+            while (iter) |item| : (iter = item.next) {
+                if (self.socket_set.isFaulted(item.data.sock))
+                    item.data.drop(.DUNSTBLICK_DISCONNECT_NETWORK_ERROR);
+            }
+        }
 
         // REQUIRED send_data must be called before push_data:
         // Sending is not allowed to be called on established connections,
@@ -808,23 +850,40 @@ pub const dunstblick_Provider = struct {
         // switch the connection in READY state without having the need of
         // ever sending data.
 
-        // FIRST self
+        // FIRST THIS
         {
             var iter = self.pending_connections.first;
             while (iter) |item| : (iter = item.next) {
-                if (self.socket_set.isReadyWrite(item.data.sock))
+                if (item.data.disconnect_reason != null)
                     continue;
-                item.data.sendData() catch item.data.drop(.DUNSTBLICK_DISCONNECT_INVALID_DATA);
+
+                if (self.socket_set.isReadyWrite(item.data.sock)) {
+                    item.data.sendData() catch item.data.drop(.DUNSTBLICK_DISCONNECT_INVALID_DATA);
+                }
             }
         }
 
-        //     // THEN self
-        //     for (auto & connection : self.pending_connections) {
-        //         readAndPushToConnection(connection);
-        //     }
-        //     for (auto & connection : self.established_connections) {
-        //         readAndPushToConnection(connection);
-        //     }
+        // THEN THIS
+        {
+            var iter = self.pending_connections.first;
+            while (iter) |item| : (iter = item.next) {
+                if (item.data.disconnect_reason != null)
+                    continue;
+                if (self.socket_set.isReadyRead(item.data.sock)) {
+                    try item.data.receiveData();
+                }
+            }
+        }
+        {
+            var iter = self.established_connections.first;
+            while (iter) |item| : (iter = item.next) {
+                if (item.data.disconnect_reason != null)
+                    continue;
+                if (self.socket_set.isReadyRead(item.data.sock)) {
+                    try item.data.receiveData();
+                }
+            }
+        }
 
         if (self.socket_set.isReadyRead(self.multicast_sock)) {
             var message: UdpBaseMessage = undefined;
@@ -935,10 +994,10 @@ pub const dunstblick_Provider = struct {
                     self.onConnected.invoke(.{
                         @ptrCast(*c.dunstblick_Provider, self),
                         @ptrCast(*c.dunstblick_Connection, &item.data),
-                        item.data.header.clientName,
-                        item.data.header.password,
+                        item.data.header.?.clientName,
+                        item.data.header.?.password,
                         item.data.screenResolution,
-                        item.data.header.capabilities,
+                        item.data.header.?.capabilities,
                     });
 
                     self.established_connections.append(item);
@@ -1120,7 +1179,7 @@ export fn dunstblick_CloseConnection(connection: *dunstblick_Connection, reason:
 }
 
 export fn dunstblick_GetClientName(connection: *dunstblick_Connection) callconv(.C) [*:0]const u8 {
-    return connection.header.clientName;
+    return connection.header.?.clientName;
 }
 
 export fn dunstblick_GetDisplaySize(connection: *dunstblick_Connection) callconv(.C) Size {
@@ -1308,3 +1367,33 @@ comptime {
     std.debug.assert(@sizeOf(UdpDiscover) == 6);
     std.debug.assert(@sizeOf(UdpDiscoverResponse) == 74);
 }
+
+const DataReader = struct {
+    const Self = @This();
+
+    source: []const u8,
+    offset: usize,
+
+    fn init(data: []const u8) Self {
+        return Self{
+            .source = data,
+            .offset = 0,
+        };
+    }
+
+    fn readByte(self: *Self) !u8 {
+        unreachable;
+    }
+
+    fn readVarUInt(self: *Self) !u32 {
+        unreachable;
+    }
+
+    fn readVarSInt(self: *Self) !i32 {
+        unreachable;
+    }
+
+    fn readValue(self: *Self, _type: c.dunstblick_Type) !Value {
+        unreachable;
+    }
+};

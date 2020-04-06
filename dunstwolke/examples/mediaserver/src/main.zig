@@ -117,8 +117,8 @@ pub fn main() anyerror!u8 {
     try addResource(dbProvider, 1002, .DUNSTBLICK_RESOURCE_LAYOUT, resources.layout_searchlist);
     try addResource(dbProvider, 1003, .DUNSTBLICK_RESOURCE_LAYOUT, resources.layout_searchitem);
 
-    try openURL("http://sentinel.scenesat.com:8000/scenesatmax");
-    // try openFile("/dunstwolke/music/albums/Morgan Willis/Supernova/Morgan Willis - Supernova - 01 Opening (Vocal Marko Maric).mp3");
+    //try openURL("http://sentinel.scenesat.com:8000/scenesatmax");
+    try openFile("/dunstwolke/music/albums/Morgan Willis/Supernova/Morgan Willis - Supernova - 01 Opening (Vocal Marko Maric).mp3");
 
     while (true) {
         const err = c.dunstblick_WaitEvents(dbProvider);
