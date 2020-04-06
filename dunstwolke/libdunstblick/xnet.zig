@@ -209,6 +209,25 @@ pub const Socket = struct {
         unreachable;
     }
 
+    const ReceiveFrom = struct { numberOfBytes: usize, sender: EndPoint };
+    pub fn receiveFrom(self: Self, data: []u8) !ReceiveFrom {
+        var addr: std.os.sockaddr align(4) = undefined;
+        var size: std.os.socklen_t = @sizeOf(@TypeOf(addr));
+
+        const len = try std.os.recvfrom(self.internal, data, 0, &addr, &size);
+
+        return ReceiveFrom{
+            .numberOfBytes = len,
+            .sender = try EndPoint.fromSocketAddress(&addr, size),
+        };
+    }
+
+    pub fn sendTo(self: Self, receiver: EndPoint, data: []const u8) !usize {
+        const sa = receiver.toSocketAddress();
+
+        return try std.os.sendto(self.internal, data, 0, &sa, @sizeOf(std.os.sockaddr));
+    }
+
     /// Sets the socket option `SO_REUSEPORT` which allows
     /// multiple bindings of the same socket to the same address
     /// on UDP sockets and allows quicker re-binding of TCP sockets.

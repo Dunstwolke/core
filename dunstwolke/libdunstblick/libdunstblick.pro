@@ -18,8 +18,7 @@ QMAKE_CFLAGS += $$SYSTEM_INCLUDEPATH
 QMAKE_CXXFLAGS += $$SYSTEM_INCLUDEPATH
 
 SOURCES += \
-  dunstblick.cpp \
-  picohash.c
+  dunstblick.cpp
 
 HEADERS += \
   dunstblick-internal.hpp \

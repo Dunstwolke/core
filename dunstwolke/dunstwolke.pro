@@ -3,10 +3,8 @@ TEMPLATE = subdirs
 CONFIG += ordered
 
 SUBDIRS += \
-  libdunstblick \
   dunstblick-compiler \
-  dunstblick-display \
-  examples
+  dunstblick-display
 
 DISTFILES += ../.clang-format\
   dunstblick-common/definitions.lua
