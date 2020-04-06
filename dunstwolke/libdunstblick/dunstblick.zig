@@ -163,8 +163,9 @@ const CommandBuffer = struct {
         try self.writeRaw(string);
     }
 
-    fn writeValue(self: *Self, value: Value, prefixType: bool) !void {
-        unreachable;
+    fn writeNumber(self: *Self, number: f32) !void {
+        std.debug.assert(std.builtin.endian == .Little);
+        try self.writeRaw(std.mem.asBytes(&number));
     }
 
     fn writeVarUInt(self: *Self, value: u32) !void {
@@ -188,6 +189,56 @@ const CommandBuffer = struct {
 
     fn writeVarSInt(self: *Self, value: i32) !void {
         try self.writeVarUInt(ZigZagInt.encode(value));
+    }
+
+    fn writeValue(self: *Self, value: Value, prefixType: bool) !void {
+        if (prefixType) {
+            try self.writeEnum(@intCast(u8, @enumToInt(value.type)));
+        }
+        const val = &value.unnamed_3;
+        switch (value.type) {
+            .DUNSTBLICK_TYPE_INTEGER => try self.writeVarSInt(val.integer),
+
+            .DUNSTBLICK_TYPE_NUMBER => try self.writeNumber(val.number),
+
+            .DUNSTBLICK_TYPE_STRING => try self.writeString(std.mem.span(val.string)),
+
+            .DUNSTBLICK_TYPE_ENUMERATION => try self.writeEnum(val.enumeration),
+
+            .DUNSTBLICK_TYPE_MARGINS => {
+                try self.writeVarUInt(val.margins.left);
+                try self.writeVarUInt(val.margins.top);
+                try self.writeVarUInt(val.margins.right);
+                try self.writeVarUInt(val.margins.bottom);
+            },
+
+            .DUNSTBLICK_TYPE_COLOR => {
+                try self.writeByte(val.color.r);
+                try self.writeByte(val.color.g);
+                try self.writeByte(val.color.b);
+                try self.writeByte(val.color.a);
+            },
+
+            .DUNSTBLICK_TYPE_SIZE => {
+                try self.writeVarUInt(val.size.w);
+                try self.writeVarUInt(val.size.h);
+            },
+
+            .DUNSTBLICK_TYPE_POINT => {
+                try self.writeVarSInt(val.point.x);
+                try self.writeVarSInt(val.point.y);
+            },
+
+            .DUNSTBLICK_TYPE_RESOURCE => try self.writeVarUInt(val.resource),
+
+            .DUNSTBLICK_TYPE_BOOLEAN => try self.writeByte(if (val.boolean) 1 else 0),
+
+            .DUNSTBLICK_TYPE_OBJECT => try self.writeVarUInt(val.resource),
+
+            .DUNSTBLICK_TYPE_OBJECTLIST => unreachable, // not implemented yet
+
+            else => unreachable,
+        }
     }
 };
 

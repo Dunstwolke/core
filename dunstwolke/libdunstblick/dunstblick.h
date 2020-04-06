@@ -118,23 +118,23 @@ extern "C"
     /// @brief 2D point in screen space coordinates.
     struct dunstblick_Point
     {
-        int x; ///< distance to the left screen border
-        int y; ///< distance to the upper screen border
+        int32_t x; ///< distance to the left screen border
+        int32_t y; ///< distance to the upper screen border
     };
     typedef struct dunstblick_Point dunstblick_Point;
 
     /// @brief 2D dimensions.
     struct dunstblick_Size
     {
-        int w; ///< Horizontal extends.
-        int h; ///< Vertical extends.
+        uint32_t w; ///< Horizontal extends.
+        uint32_t h; ///< Vertical extends.
     };
     typedef struct dunstblick_Size dunstblick_Size;
 
     /// @brief Width of margins of a rectangle.
     struct dunstblick_Margins
     {
-        int left, top, right, bottom;
+        uint32_t left, top, right, bottom;
     };
     typedef struct dunstblick_Margins dunstblick_Margins;
 
@@ -144,7 +144,7 @@ extern "C"
         dunstblick_Type type; ///< Type of the value. The union field corresponding to this field is active.
         union
         {
-            int integer;
+            int32_t integer;
             uint8_t enumeration;
             float number;
             char const * string;
