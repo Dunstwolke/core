@@ -19,7 +19,10 @@ static bool app_running = true;
 static uint8_t const compiled_layout[] = {
     0x01, 0x1e, 0x2a, 0x00, 0x02, 0x0a, 0x09, 0x43, 0x6c, 0x69, 0x63, 0x6b, 0x20, 0x6d, 0x65, 0x21, 0x00, 0x00, 0x00};
 
-static void on_event(dunstblick_Connection * connection, dunstblick_EventID event, void * userData)
+static void on_event(dunstblick_Connection * connection,
+                     dunstblick_EventID event,
+                     dunstblick_WidgetName widget,
+                     void * userData)
 {
     assert(event == 42);
     app_running = false;
