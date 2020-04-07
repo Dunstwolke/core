@@ -46,12 +46,9 @@ pub fn build(b: *Builder) !void {
 
     // mediaserver project
     const mediaserver = b.addExecutable("mediaserver", "./examples/mediaserver/src/main.zig");
-    mediaserver.linkLibC();
     mediaserver.addIncludeDir("./libdunstblick/include");
     mediaserver.addIncludeDir("./examples/mediaserver/bass");
     mediaserver.addLibPath("./examples/mediaserver/bass/x86_64");
-    mediaserver.linkSystemLibrary("c++");
-    mediaserver.linkSystemLibrary("c++abi");
     mediaserver.linkSystemLibrary("bass");
     mediaserver.linkLibrary(lib);
     mediaserver.install();
