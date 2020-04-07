@@ -2,10 +2,12 @@ const std = @import("std");
 
 const xnet = @import("xnet.zig");
 
-const c = @cImport({
-    @cInclude("dunstblick.h");
-    @cInclude("picohash.h");
-});
+// Enforce creation of the library C bindings
+comptime {
+    _ = @import("c-binding.zig");
+}
+
+const c = @import("c.zig");
 
 const DUNSTBLICK_DEFAULT_PORT = 1309;
 const DUNSTBLICK_MULTICAST_GROUP = xnet.Address.IPv4.init(224, 0, 0, 1);
@@ -36,26 +38,12 @@ const LogLevel = enum {
     diagnostic = 2,
 };
 
-const DunstblickError = error{ OutOfMemory, NetworkError, OutOfRange, EndOfStream };
-
-fn mapDunstblickError(err: DunstblickError) NativeErrorCode {
-    log_msg(.diagnostic, "error return trace for {}:\n", .{err});
-    if (@errorReturnTrace()) |trace| {
-        std.debug.dumpStackTrace(trace.*);
-    }
-
-    return switch (err) {
-        error.OutOfMemory => .DUNSTBLICK_ERROR_OUT_OF_MEMORY,
-        error.NetworkError => .DUNSTBLICK_ERROR_NETWORK,
-        error.OutOfRange => .DUNSTBLICK_ERROR_ARGUMENT_OUT_OF_RANGE,
-        error.EndOfStream => .DUNSTBLICK_ERROR_NETWORK,
-    };
-}
-
-fn mapDunstblickErrorVoid(value: DunstblickError!void) NativeErrorCode {
-    value catch |err| return mapDunstblickError(err);
-    return .DUNSTBLICK_ERROR_NONE;
-}
+pub const DunstblickError = error{
+    OutOfMemory,
+    NetworkError,
+    OutOfRange,
+    EndOfStream,
+};
 
 const NetworkError = error{
     InsufficientBytes,
@@ -238,7 +226,7 @@ const CommandBuffer = struct {
 
             .DUNSTBLICK_TYPE_OBJECTLIST => unreachable, // not implemented yet
 
-            else => unreachable,
+            else => unreachable, // api violation
         }
     }
 };
@@ -348,8 +336,8 @@ pub const dunstblick_Connection = struct {
 
     user_data_pointer: ?*c_void,
 
-    onEvent: Callback(EventCallback),
-    onPropertyChanged: Callback(PropertyChangedCallback),
+    onEvent: Callback(EventCallback), // Lock access to event in multithreaded scenarios!
+    onPropertyChanged: Callback(PropertyChangedCallback), // Lock access to event in multithreaded scenarios!
 
     fn init(provider: *dunstblick_Provider, sock: xnet.Socket, endpoint: xnet.EndPoint) dunstblick_Connection {
         log_msg(.diagnostic, "connection from {}\n", .{endpoint});
@@ -676,11 +664,31 @@ pub const dunstblick_Connection = struct {
             error.OutOfMemory => error.OutOfMemory,
             error.UnknownPacket => error.NetworkError,
             error.EndOfStream => error.EndOfStream,
+            error.NotSupported => error.NetworkError,
             else => |e| mapNetworkError(e),
         };
     }
 
     // User API
+    pub fn close(self: *Self, actual_reason: []const u8) void {
+        {
+            const lock = self.mutex.acquire();
+            defer lock.release();
+
+            if (self.disconnect_reason != null)
+                return;
+
+            self.disconnect_reason = .DUNSTBLICK_DISCONNECT_SHUTDOWN;
+        }
+
+        var buffer = CommandBuffer.init(.disconnect, self.provider.allocator) catch return;
+        defer buffer.deinit();
+
+        buffer.writeString(actual_reason) catch return;
+
+        self.send(buffer) catch return;
+    }
+
     pub fn setView(self: *Self, id: ResourceID) !void {
         var buffer = try CommandBuffer.init(.setView, self.provider.allocator);
         defer buffer.deinit();
@@ -874,7 +882,7 @@ pub const dunstblick_Provider = struct {
                     @ptrCast(*c.struct_dunstblick_Connection, &item.data),
                     .DUNSTBLICK_DISCONNECT_SHUTDOWN,
                 });
-                dunstblick_CloseConnection(&item.data, "The provider has been shut down.");
+                item.data.close("The provider has been shut down.");
                 item.data.deinit();
                 self.allocator.destroy(item);
             }
@@ -898,7 +906,7 @@ pub const dunstblick_Provider = struct {
     }
 
     /// timeout is in nanoseconds.
-    fn pumpEvents(self: *Self, timeout: ?u64) !void {
+    pub fn pumpEvents(self: *Self, timeout: ?u64) !void {
         self.socket_set.clear();
 
         try self.socket_set.add(self.multicast_sock, .{ .read = true, .write = false });
@@ -1144,7 +1152,7 @@ pub const dunstblick_Provider = struct {
     }
 };
 
-const dunstblick_Object = struct {
+pub const dunstblick_Object = struct {
     const Self = @This();
     connection: *dunstblick_Connection,
     commandbuffer: CommandBuffer,
@@ -1158,197 +1166,24 @@ const dunstblick_Object = struct {
 
     fn deinit(self: Self) void {}
 
-    fn setProperty(self: *Self, name: PropertyName, value: Value) !void {
+    pub fn setProperty(self: *Self, name: PropertyName, value: Value) !void {
         try self.commandbuffer.writeEnum(@intCast(u8, @enumToInt(value.type)));
         try self.commandbuffer.writeID(name);
         try self.commandbuffer.writeValue(value, false);
     }
 
-    fn commit(self: *Self) !void {
+    pub fn commit(self: *Self) !void {
         defer self.cancel(); // self will free the memory
 
         try self.commandbuffer.writeEnum(0);
         try self.connection.send(self.commandbuffer);
     }
 
-    fn cancel(self: *Self) void {
+    pub fn cancel(self: *Self) void {
         self.commandbuffer.deinit();
         self.connection.provider.allocator.destroy(self);
     }
 };
-
-// /*******************************************************************************
-//  * Provider Implementation *
-//  *******************************************************************************/
-
-export fn dunstblick_OpenProvider(discoveryName: [*:0]const u8) callconv(.C) ?*dunstblick_Provider {
-    const H = struct {
-        inline fn open(dname: []const u8) !*dunstblick_Provider {
-            const allocator = std.heap.c_allocator;
-
-            const provider = try allocator.create(dunstblick_Provider);
-            errdefer allocator.destroy(provider);
-
-            provider.* = try dunstblick_Provider.init(allocator, dname);
-
-            return provider;
-        }
-    };
-
-    const name = std.mem.span(discoveryName);
-    if (name.len > DUNSTBLICK_MAX_APP_NAME_LENGTH)
-        return null;
-
-    return H.open(name) catch return null;
-}
-
-export fn dunstblick_CloseProvider(provider: *dunstblick_Provider) callconv(.C) void {
-    provider.close();
-    provider.allocator.destroy(provider);
-}
-
-export fn dunstblick_PumpEvents(provider: *dunstblick_Provider) callconv(.C) NativeErrorCode {
-    const lock = provider.mutex.acquire();
-    defer lock.release();
-
-    return mapDunstblickErrorVoid(provider.pumpEvents(10 * std.time.microsecond));
-}
-
-export fn dunstblick_WaitEvents(provider: *dunstblick_Provider) callconv(.C) NativeErrorCode {
-    const lock = provider.mutex.acquire();
-    defer lock.release();
-
-    return mapDunstblickErrorVoid(provider.pumpEvents(null));
-}
-
-export fn dunstblick_SetConnectedCallback(provider: *dunstblick_Provider, callback: ?ConnectedCallback, userData: ?*c_void) callconv(.C) NativeErrorCode {
-    const lock = provider.mutex.acquire();
-    defer lock.release();
-
-    provider.onConnected = .{ .function = callback, .user_data = userData };
-    return .DUNSTBLICK_ERROR_NONE;
-}
-
-export fn dunstblick_SetDisconnectedCallback(provider: *dunstblick_Provider, callback: ?DisconnectedCallback, userData: ?*c_void) callconv(.C) NativeErrorCode {
-    const lock = provider.mutex.acquire();
-    defer lock.release();
-
-    provider.onDisconnected = .{ .function = callback, .user_data = userData };
-    return .DUNSTBLICK_ERROR_NONE;
-}
-
-export fn dunstblick_AddResource(provider: *dunstblick_Provider, resourceID: ResourceID, kind: ResourceKind, data: *const c_void, length: usize) callconv(.C) NativeErrorCode {
-    return mapDunstblickErrorVoid(provider.addResource(resourceID, kind, @ptrCast([*]const u8, data)[0..length]));
-}
-
-export fn dunstblick_RemoveResource(provider: *dunstblick_Provider, resourceID: ResourceID) callconv(.C) NativeErrorCode {
-    return mapDunstblickErrorVoid(provider.removeResource(resourceID));
-}
-
-// *******************************************************************************
-//  Connection Implementation *
-// *******************************************************************************
-
-export fn dunstblick_CloseConnection(connection: *dunstblick_Connection, reason: ?[*:0]const u8) void {
-    const actual_reason = if (reason) |r| std.mem.span(r) else "The provider closed the connection.";
-
-    const lock = connection.mutex.acquire();
-    defer lock.release();
-
-    if (connection.disconnect_reason != null)
-        return;
-
-    connection.disconnect_reason = .DUNSTBLICK_DISCONNECT_SHUTDOWN;
-
-    var buffer = CommandBuffer.init(.disconnect, connection.provider.allocator) catch return;
-    defer buffer.deinit();
-
-    buffer.writeString(actual_reason) catch return;
-
-    connection.send(buffer) catch return;
-}
-
-export fn dunstblick_GetClientName(connection: *dunstblick_Connection) callconv(.C) [*:0]const u8 {
-    return connection.header.?.clientName;
-}
-
-export fn dunstblick_GetDisplaySize(connection: *dunstblick_Connection) callconv(.C) Size {
-    const lock = connection.mutex.acquire();
-    defer lock.release();
-    return connection.screenResolution;
-}
-
-export fn dunstblick_SetEventCallback(connection: *dunstblick_Connection, callback: EventCallback, userData: ?*c_void) callconv(.C) void {
-    const lock = connection.mutex.acquire();
-    defer lock.release();
-    connection.onEvent = .{ .function = callback, .user_data = userData };
-}
-
-export fn dunstblick_SetPropertyChangedCallback(connection: *dunstblick_Connection, callback: PropertyChangedCallback, userData: ?*c_void) callconv(.C) void {
-    const lock = connection.mutex.acquire();
-    defer lock.release();
-    connection.onPropertyChanged = .{ .function = callback, .user_data = userData };
-}
-
-export fn dunstblick_GetUserData(connection: *dunstblick_Connection) callconv(.C) ?*c_void {
-    return connection.user_data_pointer;
-}
-
-export fn dunstblick_SetUserData(connection: *dunstblick_Connection, userData: ?*c_void) callconv(.C) void {
-    connection.user_data_pointer = userData;
-}
-
-export fn dunstblick_BeginChangeObject(con: *dunstblick_Connection, id: ObjectID) callconv(.C) ?*dunstblick_Object {
-    return con.beginChangeObject(id) catch null;
-}
-
-export fn dunstblick_RemoveObject(con: *dunstblick_Connection, oid: ObjectID) callconv(.C) NativeErrorCode {
-    return mapDunstblickErrorVoid(con.removeObject(oid));
-}
-
-export fn dunstblick_SetView(con: *dunstblick_Connection, id: ResourceID) callconv(.C) NativeErrorCode {
-    return mapDunstblickErrorVoid(con.setView(id));
-}
-
-export fn dunstblick_SetRoot(con: *dunstblick_Connection, id: ObjectID) callconv(.C) NativeErrorCode {
-    return mapDunstblickErrorVoid(con.setRoot(id));
-}
-
-export fn dunstblick_SetProperty(con: *dunstblick_Connection, oid: ObjectID, name: PropertyName, value: *const Value) callconv(.C) NativeErrorCode {
-    return mapDunstblickErrorVoid(con.setProperty(oid, name, value.*));
-}
-
-export fn dunstblick_Clear(con: *dunstblick_Connection, oid: ObjectID, name: PropertyName) callconv(.C) NativeErrorCode {
-    return mapDunstblickErrorVoid(con.clear(oid, name));
-}
-
-export fn dunstblick_InsertRange(con: *dunstblick_Connection, oid: ObjectID, name: PropertyName, index: u32, count: u32, values: [*]const ObjectID) callconv(.C) NativeErrorCode {
-    return mapDunstblickErrorVoid(con.insertRange(oid, name, index, values[0..count]));
-}
-
-export fn dunstblick_RemoveRange(con: *dunstblick_Connection, oid: ObjectID, name: PropertyName, index: u32, count: u32) callconv(.C) NativeErrorCode {
-    return mapDunstblickErrorVoid(con.removeRange(oid, name, index, count));
-}
-
-export fn dunstblick_MoveRange(con: *dunstblick_Connection, oid: ObjectID, name: PropertyName, indexFrom: u32, indexTo: u32, count: u32) callconv(.C) NativeErrorCode {
-    return mapDunstblickErrorVoid(con.moveRange(oid, name, indexFrom, indexTo, count));
-}
-
-// /*******************************************************************************
-//  * Object Implementation *
-//  *******************************************************************************/
-
-export fn dunstblick_SetObjectProperty(obj: *dunstblick_Object, name: PropertyName, value: *const Value) callconv(.C) NativeErrorCode {
-    return mapDunstblickErrorVoid(obj.setProperty(name, value.*));
-}
-
-export fn dunstblick_CommitObject(obj: *dunstblick_Object) callconv(.C) NativeErrorCode {
-    return mapDunstblickErrorVoid(obj.commit());
-}
-
-export fn dunstblick_CancelObject(obj: *dunstblick_Object) callconv(.C) void {
-    obj.cancel();
-}
 
 const protocol = protocol_v1;
 const protocol_v1 = struct {
@@ -1497,7 +1332,69 @@ const DataReader = struct {
         return ZigZagInt.decode(try self.readVarUInt());
     }
 
+    fn readRaw(self: *Self, n: usize) ![]const u8 {
+        if (self.offset + n > self.source.len)
+            return error.EndOfStream;
+        const value = self.source[self.offset .. self.offset + n];
+        self.offset += n;
+        return value;
+    }
+
+    fn readNumber(self: *Self) !f32 {
+        const bits = try self.readRaw(4);
+        return @bitCast(f32, bits[0..4].*);
+    }
+
     fn readValue(self: *Self, _type: c.dunstblick_Type) !Value {
-        unreachable;
+        var value = Value{
+            .type = _type,
+            .unnamed_3 = undefined,
+        };
+        const val = &value.unnamed_3;
+        switch (_type) {
+            .DUNSTBLICK_TYPE_ENUMERATION => val.enumeration = try self.readByte(),
+
+            .DUNSTBLICK_TYPE_INTEGER => val.integer = try self.readVarSInt(),
+
+            .DUNSTBLICK_TYPE_RESOURCE => val.resource = try self.readVarUInt(),
+
+            .DUNSTBLICK_TYPE_OBJECT => val.object = try self.readVarUInt(),
+
+            .DUNSTBLICK_TYPE_NUMBER => val.number = try self.readNumber(),
+
+            .DUNSTBLICK_TYPE_BOOLEAN => val.boolean = ((try self.readByte()) != 0),
+
+            .DUNSTBLICK_TYPE_COLOR => {
+                val.color.r = try self.readByte();
+                val.color.g = try self.readByte();
+                val.color.b = try self.readByte();
+                val.color.a = try self.readByte();
+            },
+
+            .DUNSTBLICK_TYPE_SIZE => {
+                val.size.w = try self.readVarUInt();
+                val.size.h = try self.readVarUInt();
+            },
+
+            .DUNSTBLICK_TYPE_POINT => {
+                val.point.x = try self.readVarSInt();
+                val.point.y = try self.readVarSInt();
+            },
+
+            // HOW?
+            .DUNSTBLICK_TYPE_STRING => return error.NotSupported, // not implemented yet
+
+            .DUNSTBLICK_TYPE_MARGINS => {
+                val.margins.left = try self.readVarUInt();
+                val.margins.top = try self.readVarUInt();
+                val.margins.right = try self.readVarUInt();
+                val.margins.bottom = try self.readVarUInt();
+            },
+
+            .DUNSTBLICK_TYPE_OBJECTLIST => return error.NotSupported, // not implemented yet
+
+            _ => return error.NotSupported,
+        }
+        return value;
     }
 };

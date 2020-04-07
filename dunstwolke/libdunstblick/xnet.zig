@@ -428,14 +428,13 @@ const OSLogic = switch (std.builtin.os.tag) {
         }
 
         inline fn add(self: *Self, sock: Socket, events: SocketEvent) !void {
-            var mask: i16 = 0;
+            // Always poll for errors as this is done anyways
+            var mask: i16 = std.os.POLLERR;
 
             if (events.read)
                 mask |= std.os.POLLIN;
             if (events.write)
                 mask |= std.os.POLLOUT;
-            if (events.fault)
-                mask |= std.os.POLLERR;
 
             for (self.fds.items) |*pfd| {
                 if (pfd.fd == sock.internal) {
