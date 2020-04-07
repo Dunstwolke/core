@@ -6,8 +6,6 @@
 #include <getopt.h>
 #include <iostream>
 
-#include <xio/simple>
-
 #include <nlohmann/json.hpp>
 
 int main(int argc, char * const * argv)
@@ -71,25 +69,31 @@ int main(int argc, char * const * argv)
     LayoutParser layout_parser;
 
     if (cfgFile != nullptr) {
-        auto const file = xio::load_raw(cfgFile);
+        std::ifstream cfg_input_stream(cfgFile);
+
+        std::stringstream config_file;
+        config_file << cfg_input_stream.rdbuf();
+
+        auto const file = config_file.str();
 
         auto const json = nlohmann::json::parse(file.begin(), file.end());
 
         if (auto props = json.find("properties"); props != json.end()) {
             for (auto it = props.value().begin(); it != props.value().end(); it++) {
-                layout_parser.knownProperties.emplace(it.key(), PropertyName(it.value().get<unsigned int>()));
+                layout_parser.knownProperties.emplace(it.key(),
+                                                      dunstblick_PropertyName(it.value().get<unsigned int>()));
             }
         }
 
         if (auto props = json.find("resources"); props != json.end()) {
             for (auto it = props.value().begin(); it != props.value().end(); it++) {
-                layout_parser.knownResources.emplace(it.key(), UIResourceID(it.value().get<unsigned int>()));
+                layout_parser.knownResources.emplace(it.key(), dunstblick_ResourceID(it.value().get<unsigned int>()));
             }
         }
 
         if (auto props = json.find("callbacks"); props != json.end()) {
             for (auto it = props.value().begin(); it != props.value().end(); it++) {
-                layout_parser.knownCallbacks.emplace(it.key(), EventID(it.value().get<unsigned int>()));
+                layout_parser.knownCallbacks.emplace(it.key(), dunstblick_EventID(it.value().get<unsigned int>()));
             }
         }
     }

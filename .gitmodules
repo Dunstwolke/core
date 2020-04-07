@@ -4,3 +4,9 @@
 [submodule "dunstwolke/ext/concurrentqueue"]
 	path = dunstwolke/ext/concurrentqueue
 	url = https://github.com/cameron314/concurrentqueue
+[submodule "dunstwolke/ext/json"]
+	path = dunstwolke/ext/json
+	url = https://github.com/nlohmann/json
+[submodule "dunstwolke/ext/GSL"]
+	path = dunstwolke/ext/GSL
+	url = https://github.com/microsoft/GSL

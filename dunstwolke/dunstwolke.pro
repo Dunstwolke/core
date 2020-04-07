@@ -3,7 +3,6 @@ TEMPLATE = subdirs
 CONFIG += ordered
 
 SUBDIRS += \
-  dunstblick-compiler \
   dunstblick-display
 
 DISTFILES += ../.clang-format\

@@ -1,12 +1,12 @@
 #ifndef LAYOUTPARSER_HPP
 #define LAYOUTPARSER_HPP
 
-#include "types.hpp"
+#include "dunstblick.h"
 
+#include <map>
 #include <memory>
 #include <optional>
 #include <sstream>
-#include <map>
 
 class FlexLexer;
 
@@ -24,8 +24,8 @@ enum class LexerTokenType : int
     comma = 8,
     string = 9,
     percentage = 10,
-	openParens = 11,
-	closeParens = 12,
+    openParens = 11,
+    closeParens = 12,
 };
 
 struct Token
@@ -38,11 +38,11 @@ struct LayoutParser
 {
     static FlexLexer * AllocLexer(std::istream * input);
     static void FreeLexer(FlexLexer *);
-    static std::optional<Token> Lex(FlexLexer*);
+    static std::optional<Token> Lex(FlexLexer *);
 
-	std::map<std::string, PropertyName> knownProperties;
-	std::map<std::string, UIResourceID> knownResources;
-	std::map<std::string, EventID>   knownCallbacks;
+    std::map<std::string, dunstblick_PropertyName> knownProperties;
+    std::map<std::string, dunstblick_ResourceID> knownResources;
+    std::map<std::string, dunstblick_EventID> knownCallbacks;
 
     LayoutParser();
 

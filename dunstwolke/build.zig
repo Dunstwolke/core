@@ -5,6 +5,37 @@ pub fn build(b: *Builder) !void {
     const mode = b.standardReleaseOptions();
     const target = b.standardTargetOptions(.{});
 
+    const compiler_options = [_][]const u8{
+        "-DDUNSTBLICK_COMPILER",
+        "-std=c++17",
+    };
+
+    const gen_compiler_lexer = b.addSystemCommand(&[_][]const u8{
+        "flex",
+        "--prefix=Layout",
+        "--nounistd",
+        "--outfile=layout.lexer.cpp",
+        "layout.l",
+    });
+    gen_compiler_lexer.cwd = "./dunstblick-compiler";
+
+    const compiler = b.addExecutable("dunstblick-compiler", null);
+    compiler.addIncludeDir("./ext/json/include");
+    compiler.addIncludeDir("./ext/flex"); // for FlexLexer.h
+    compiler.addIncludeDir("./ext/GSL/include");
+    compiler.addIncludeDir("./dunstblick-display");
+    compiler.addIncludeDir("./libdunstblick/include");
+    compiler.addCSourceFile("./dunstblick-compiler/main.cpp", &compiler_options);
+    compiler.addCSourceFile("./dunstblick-display/enums.cpp", &compiler_options);
+    compiler.addCSourceFile("./dunstblick-compiler/layoutparser.cpp", &compiler_options);
+    compiler.addCSourceFile("./dunstblick-compiler/layout.lexer.cpp", &compiler_options);
+    compiler.linkLibC();
+    compiler.linkSystemLibrary("c++");
+    compiler.setTarget(target);
+    compiler.setBuildMode(mode);
+    compiler.step.dependOn(&gen_compiler_lexer.step);
+    compiler.install();
+
     const lib = b.addStaticLibrary("dunstblick", "./libdunstblick/src/dunstblick.zig");
     lib.addIncludeDir("./libdunstblick/include");
     lib.addIncludeDir("./ext/picohash");
@@ -35,15 +66,14 @@ pub fn build(b: *Builder) !void {
         const outfile = try std.mem.dupe(b.allocator, u8, infile);
         outfile[outfile.len - 3] = 'c';
 
-        const step = b.addSystemCommand(&[_][]const u8{
-            "/home/felix/build/dunstwolke-Desktop-Debug/dunstblick-compiler/dunstblick-compiler",
+        const step = compiler.run();
+        step.addArgs(&[_][]const u8{
             infile,
             "-o",
             outfile,
             "-c",
             "./examples/mediaserver/layouts/server.json",
         });
-
         mediaserver.step.dependOn(&step.step);
     }
 
@@ -61,8 +91,8 @@ pub fn build(b: *Builder) !void {
     calculator.setBuildMode(mode);
     calculator.install();
 
-    const calculator_headerGen = b.addSystemCommand(&[_][]const u8{
-        "/home/felix/build/dunstwolke-Desktop-Debug/dunstblick-compiler/dunstblick-compiler",
+    const calculator_headerGen = compiler.run();
+    calculator_headerGen.addArgs(&[_][]const u8{
         "./examples/calculator/layout.ui",
         "-o",
         "./examples/calculator/layout.h",
@@ -85,7 +115,7 @@ pub fn build(b: *Builder) !void {
     const run_cmd = mediaserver.run();
     run_cmd.step.dependOn(b.getInstallStep());
 
-    run_cmd.setEnvironmentVariable("LD_LIBRARY_PATH", "/home/felix/build/dunstwolke-Desktop-Debug/libdunstblick/:examples/mediaserver/bass/x86_64");
+    run_cmd.setEnvironmentVariable("LD_LIBRARY_PATH", "examples/mediaserver/bass/x86_64");
 
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);

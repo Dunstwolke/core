@@ -6,11 +6,46 @@
 #include <map>
 #include <stdexcept>
 #include <string>
-#include <xstd/format>
-#include <xstd/resource>
+#include <variant>
+#include <vector>
+// #include <xstd/format>
+// #include <xstd/resource>
+
+using UISize = dunstblick_Size;
+using UIPoint = dunstblick_Point;
+
+struct UISizeAutoTag
+{};
+struct UISizeExpandTag
+{};
+//                             "auto",        "expand",        px,  percent
+using UISizeDef = std::variant<UISizeAutoTag, UISizeExpandTag, int, float>;
+static_assert(std::is_same_v<std::variant_alternative_t<0, UISizeDef>, UISizeAutoTag>);
+static_assert(std::is_same_v<std::variant_alternative_t<1, UISizeDef>, UISizeExpandTag>);
+static_assert(std::is_same_v<std::variant_alternative_t<2, UISizeDef>, int>);
+static_assert(std::is_same_v<std::variant_alternative_t<3, UISizeDef>, float>);
+
+using UISizeList = std::vector<UISizeDef>;
+
+inline bool operator==(UISizeExpandTag, UISizeExpandTag)
+{
+    return true;
+}
+inline bool operator!=(UISizeExpandTag, UISizeExpandTag)
+{
+    return false;
+}
+
+inline bool operator==(UISizeAutoTag, UISizeAutoTag)
+{
+    return true;
+}
+inline bool operator!=(UISizeAutoTag, UISizeAutoTag)
+{
+    return false;
+}
 
 #include "enums.hpp"
-#include "types.hpp"
 
 #define INCLUDE_PARSER_FIELDS
 #include "parser-info.hpp"
@@ -65,7 +100,7 @@ LayoutParser::LayoutParser() {}
 
 struct Lexer
 {
-    xstd::resource<FlexLexer *, LayoutParser::FreeLexer> lexer;
+    FlexLexer * lexer;
 
     std::optional<Token> peeked_token; // 0…1 element buffer
 
@@ -73,12 +108,16 @@ struct Lexer
     {
         assert(lexer != nullptr);
     }
+    ~Lexer()
+    {
+        LayoutParser::FreeLexer(lexer);
+    }
 
     std::optional<Token> peek()
     {
         if (peeked_token)
             return peeked_token;
-        peeked_token = LayoutParser::Lex(lexer.get());
+        peeked_token = LayoutParser::Lex(lexer);
         return peeked_token;
     }
 
@@ -89,7 +128,7 @@ struct Lexer
             peeked_token.reset();
             return result;
         }
-        return LayoutParser::Lex(lexer.get());
+        return LayoutParser::Lex(lexer);
     }
 
     std::string accept(LexerTokenType type)
@@ -365,7 +404,7 @@ static void parse_and_translate(
                 if (auto it = parser.knownResources.find(name); it == parser.knownResources.end())
                     throw std::runtime_error("unknown resource: '" + name + "'!");
                 else
-                    write_varint(output, gsl::narrow<uint32_t>(it->second.value));
+                    write_varint(output, gsl::narrow<uint32_t>(it->second));
             } else {
                 write_varint(output, std::get<1>(callbackName));
             }
@@ -391,7 +430,7 @@ static void parse_and_translate(
                 if (auto it = parser.knownCallbacks.find(name); it == parser.knownCallbacks.end())
                     throw std::runtime_error("unknown callback: '" + name + "'!");
                 else
-                    write_varint(output, gsl::narrow<uint32_t>(it->second.value));
+                    write_varint(output, gsl::narrow<uint32_t>(it->second));
             } else {
                 write_varint(output, std::get<1>(callbackName));
             }
@@ -414,7 +453,7 @@ static void parse_and_translate(LayoutParser const & parser,
     if (auto it = widgetTypes.find(widgetName); it != widgetTypes.end())
         widgetType = it->second;
     else
-        errors.push_back(ParseError{0, 0, xstd::format("Widget type '%0' not found").arg(widgetName)});
+        errors.push_back(ParseError{0, 0, "Widget type '" + widgetName + "' not found"});
 
     write_enum(output, widgetType);
 
@@ -460,7 +499,7 @@ static void parse_and_translate(LayoutParser const & parser,
                         if (it3 == parser.knownProperties.end())
                             throw std::runtime_error("unknown property: " + name);
 
-                        propertyKey = gsl::narrow<uint32_t>(it3->second.value);
+                        propertyKey = gsl::narrow<uint32_t>(it3->second);
                     } else {
                         propertyKey = std::get<1>(propertyName);
                     }
