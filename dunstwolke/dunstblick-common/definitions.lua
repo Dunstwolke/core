@@ -30,6 +30,13 @@ local function Property(p)
     return p
 end
 
+local function Type(t)
+    t.id = t[1] or error("id missing")
+    t.name = t[2] or error("id missing")
+    t.cpptype = t[3] or error("id missing")
+    return t
+end
+
 return {
 
     widget = function(self, id)
@@ -122,22 +129,22 @@ return {
     -- Each type has a unique ID that can be used to identify a property.
     types =
     {--   ID,  Name,         C++ Type
-        {   0, "invalid",     "std::monostate"        },
-        {   1, "integer",     "int32_t"               },
-        {   2, "number",      "float"                 },
-        {   3, "string",      "std::string"           },
-        {   4, "enumeration", "uint8_t"               },
-        {   5, "margins",     "UIMargin"              },
-        {   6, "color",       "UIColor"               },
-        {   7, "size",        "UISize"                },
-        {   8, "point",       "UIPoint"               },
-        {   9, "resource",    "UIResourceID"          },
-        {  10, "boolean",     "bool"                  },
-        {  11, "sizelist",    "UISizeList"            },
-        {  12, "object",      "ObjectRef"             },
-        {  13, "objectlist",  "ObjectList"            },
-        {  14, "event",       "EventID"               },
-        {  15, "name",        "WidgetName"            },
+        Type {   0, "invalid",     "std::monostate"        },
+        Type {   1, "integer",     "int32_t"               },
+        Type {   2, "number",      "float"                 },
+        Type {   3, "string",      "std::string"           },
+        Type {   4, "enumeration", "uint8_t"               },
+        Type {   5, "margins",     "UIMargin"              },
+        Type {   6, "color",       "UIColor"               },
+        Type {   7, "size",        "UISize"                },
+        Type {   8, "point",       "UIPoint"               },
+        Type {   9, "resource",    "UIResourceID"          },
+        Type {  10, "boolean",     "bool"                  },
+        Type {  11, "sizelist",    "UISizeList"            },
+        Type {  12, "object",      "ObjectRef"             },
+        Type {  13, "objectlist",  "ObjectList"            },
+        Type {  14, "event",       "EventID"               },
+        Type {  15, "name",        "WidgetName"            },
     },
 
     -- This table contains the definitions for each possible widget property.

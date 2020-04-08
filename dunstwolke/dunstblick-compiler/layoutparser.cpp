@@ -1,9 +1,9 @@
 #include "layoutparser.hpp"
-#include "FlexLexer.h"
 
 #include <cassert>
 #include <gsl/gsl>
 #include <map>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <variant>
@@ -98,26 +98,42 @@ static std::string toString(LexerTokenType type)
 
 LayoutParser::LayoutParser() {}
 
+struct Token
+{
+    LexerTokenType type;
+    std::string text;
+};
+
 struct Lexer
 {
-    FlexLexer * lexer;
+    FlexLexer lexer;
+    std::string text;
 
     std::optional<Token> peeked_token; // 0…1 element buffer
 
-    Lexer(std::istream & input) : lexer(LayoutParser::AllocLexer(&input))
+    Lexer(std::istream & input)
     {
-        assert(lexer != nullptr);
+        std::stringstream str;
+        str << input.rdbuf();
+        text = str.str();
+
+        FlexLexer_init(&lexer, text.data(), text.size());
     }
-    ~Lexer()
+
+    std::optional<Token> lex_one()
     {
-        LayoutParser::FreeLexer(lexer);
+        FlexLexer_Token tok;
+        if (FlexLexer_lex(&lexer, &tok))
+            return Token{tok.type, std::string{tok.string, tok.length}};
+        else
+            return std::nullopt;
     }
 
     std::optional<Token> peek()
     {
         if (peeked_token)
             return peeked_token;
-        peeked_token = LayoutParser::Lex(lexer);
+        peeked_token = lex_one();
         return peeked_token;
     }
 
@@ -128,7 +144,7 @@ struct Lexer
             peeked_token.reset();
             return result;
         }
-        return LayoutParser::Lex(lexer);
+        return lex_one();
     }
 
     std::string accept(LexerTokenType type)

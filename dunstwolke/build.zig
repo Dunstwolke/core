@@ -10,31 +10,14 @@ pub fn build(b: *Builder) !void {
         "-std=c++17",
     };
 
-    const gen_compiler_lexer = b.addSystemCommand(&[_][]const u8{
-        "flex",
-        "--prefix=Layout",
-        "--nounistd",
-        "--outfile=layout.lexer.cpp",
-        "layout.l",
-    });
-    gen_compiler_lexer.cwd = "./dunstblick-compiler";
-
-    const compiler = b.addExecutable("dunstblick-compiler", null);
-    compiler.addIncludeDir("./ext/json/include");
-    compiler.addIncludeDir("./ext/flex"); // for FlexLexer.h
-    compiler.addIncludeDir("./ext/GSL/include");
-    compiler.addIncludeDir("./dunstblick-display");
+    const compiler = b.addExecutable("dunstblick-compiler", "./dunstblick-compiler/main.zig");
+    compiler.addPackagePath("args", "./ext/zig-args/args.zig");
     compiler.addIncludeDir("./libdunstblick/include");
-    compiler.addCSourceFile("./dunstblick-compiler/main.cpp", &compiler_options);
-    compiler.addCSourceFile("./dunstblick-display/enums.cpp", &compiler_options);
-    compiler.addCSourceFile("./dunstblick-compiler/layoutparser.cpp", &compiler_options);
-    compiler.addCSourceFile("./dunstblick-compiler/layout.lexer.cpp", &compiler_options);
-    compiler.linkLibC();
-    compiler.linkSystemLibrary("c++");
     compiler.setTarget(target);
     compiler.setBuildMode(mode);
-    compiler.step.dependOn(&gen_compiler_lexer.step);
     compiler.install();
+
+    const compiler_test = b.addTest("./dunstblick-compiler/main.zig");
 
     const lib = b.addStaticLibrary("dunstblick", "./libdunstblick/src/dunstblick.zig");
     lib.addIncludeDir("./libdunstblick/include");
@@ -116,4 +99,7 @@ pub fn build(b: *Builder) !void {
 
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
+
+    const test_step = b.step("test", "Runs all required tests.");
+    test_step.dependOn(&compiler_test.step);
 }

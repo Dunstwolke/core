@@ -10,3 +10,9 @@
 [submodule "dunstwolke/ext/GSL"]
 	path = dunstwolke/ext/GSL
 	url = https://github.com/microsoft/GSL
+[submodule "dunstwolke/ext/flex"]
+	path = dunstwolke/ext/flex
+	url = https://github.com/MasterQ32/flex
+[submodule "dunstwolke/ext/zig-args"]
+	path = dunstwolke/ext/zig-args
+	url = https://github.com/MasterQ32/zig-args
