@@ -14,7 +14,7 @@ f:write [[};
 pub const properties = .{
 ]]
 	for i,v in ipairs(UI.properties) do
-    	f:write('    .{ .property = "', v.name, '", .value = .', v.identifier, ' },\n')
+    	f:write('    .{ .property = "', v.name, '", .value = .', v.identifier, ', .type = .', v.type, ' },\n')
 	end
 
 f:write [[};
