@@ -829,7 +829,7 @@ WARN_LOGFILE           =
 # spaces. See also FILE_PATTERNS and EXTENSION_MAPPING
 # Note: If this tag is empty the current directory is searched.
 
-INPUT                  = dunstwolke/libdunstblick/dunstblick.h \
+INPUT                  = dunstwolke/libdunstblick/include/dunstblick.h \
                          docs/dox
 
 # This tag can be used to specify the character encoding of the source files
