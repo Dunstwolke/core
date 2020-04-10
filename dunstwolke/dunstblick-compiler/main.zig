@@ -57,6 +57,11 @@ pub fn main() !u8 {
         defer parser.deinit();
 
         config = try parser.parse(buffer);
+
+        validateConfig(config.?) catch |err| {
+            try std.io.getStdOut().outStream().writeAll("invalid config file!\n");
+            return 1;
+        };
     }
 
     var resources = IDMap.init(std.heap.page_allocator);
@@ -87,10 +92,17 @@ pub fn main() !u8 {
     };
     defer std.heap.page_allocator.free(src);
 
-    // const outfile_path = if (args.options.output == null) |outfile| outfile else {
-    //     try std.io.getStdOut().outStream().writeAll("implicit outfile not supported yet!\n");
-    //     return 1;
-    // };
+    if (config) |cfg| {
+        try loadIdMap(cfg, "resources", &resources);
+        try loadIdMap(cfg, "callbacks", &events);
+        try loadIdMap(cfg, "properties", &variables);
+        try loadIdMap(cfg, "objects", &objects);
+    }
+
+    const outfile_path = if (args.options.output) |outfile| outfile else {
+        try std.io.getStdOut().outStream().writeAll("implicit outfile not supported yet!\n");
+        return 1;
+    };
 
     var data = std.ArrayList(u8).init(std.heap.page_allocator);
     defer data.deinit();
@@ -99,8 +111,6 @@ pub fn main() !u8 {
     defer errors.deinit();
     {
         var outstream = data.outStream();
-
-        try outstream.writeAll("HELLO");
 
         var tokenIterator = TokenIterator.init(src);
 
@@ -125,13 +135,69 @@ pub fn main() !u8 {
         };
     }
 
-    for (errors.items) |err| {
-        std.debug.warn("error: {}\n", .{err});
+    if (errors.items.len > 0) {
+        for (errors.items) |err| {
+            std.debug.warn("error: {}\n", .{err});
+        }
+        return 1;
     }
 
-    std.debug.warn("result:\n{X}\n", .{data.items});
+    {
+        var file = try std.fs.cwd().createFile(outfile_path, .{ .exclusive = false, .read = false });
+        defer file.close();
 
-    return 1;
+        var stream = file.outStream();
+
+        switch (args.options.@"file-type") {
+            .binary => try stream.writeAll(data.items),
+
+            .header => {
+                for (data.items) |c, i| {
+                    try stream.print("0x{X}, ", .{c});
+                }
+            },
+        }
+    }
+
+    return 0;
+}
+
+fn validateObjectMap(list: std.json.Value) !void {
+    if (list != .Object)
+        return error.InvalidConfig;
+    var iter = list.Object.iterator();
+    while (iter.next()) |kv| {
+        if (kv.value != .Integer)
+            return error.InvalidConfig;
+    }
+}
+
+fn validateConfig(config: std.json.ValueTree) !void {
+    const root = config.root;
+    if (root != .Object)
+        return error.InvalidConfig;
+
+    if (root.Object.get("resources")) |resources| {
+        try validateObjectMap(resources.value);
+    }
+    if (root.Object.get("properties")) |properties| {
+        try validateObjectMap(properties.value);
+    }
+    if (root.Object.get("callbacks")) |callbacks| {
+        try validateObjectMap(callbacks.value);
+    }
+    if (root.Object.get("objects")) |objects| {
+        try validateObjectMap(objects.value);
+    }
+}
+
+fn loadIdMap(config: std.json.ValueTree, key: []const u8, map: *IDMap) !void {
+    if (config.root.Object.get(key)) |src| {
+        var items = src.value.Object.iterator();
+        while (items.next()) |kv| {
+            try map.putNoClobber(kv.key, @intCast(u32, kv.value.Integer));
+        }
+    }
 }
 
 fn widgetFromName(name: []const u8) ?enums.WidgetType {
@@ -174,6 +240,13 @@ fn getTypeOfProperty(prop: enums.Property) enums.Type {
 const CompileError = struct {
     where: Location,
     message: []const u8,
+
+    pub fn format(value: @This(), fmt: []const u8, options: std.fmt.FormatOptions, stream: var) !void {
+        try stream.print("{}: {}", .{
+            value.where,
+            value.message,
+        });
+    }
 };
 
 const Parser = struct {
@@ -214,7 +287,13 @@ fn tokenToNumber(tok: Token) !f32 {
 fn parseString(parser: Parser) ![]const u8 {
     var input = try parser.tokens.expect(.string);
 
-    var output = try parser.allocator.alloc(u8, input.text.len);
+    return try convertString(parser, input.text);
+}
+
+/// converts a raw string in token form "\"adksakd\\n\"" into
+/// the *real* byte sequence "adksakd\n"
+fn convertString(parser: Parser, input: []const u8) ![]const u8 {
+    var output = try parser.allocator.alloc(u8, input.len - 2);
     errdefer parser.allocator.free(output);
 
     const State = union(enum) {
@@ -224,7 +303,7 @@ fn parseString(parser: Parser) ![]const u8 {
 
     var outptr: usize = 0;
     var state = State{ .default = {} };
-    for (input.text) |c| {
+    for (input[1 .. input.len - 1]) |c| {
         switch (state) {
             .escape => switch (c) {
                 'r' => {
@@ -265,10 +344,13 @@ fn parseID(parser: Parser, outStream: var, functionName: []const u8, map: *IDMap
 
     var value = try parser.tokens.expectOneOf(.{ .integer, .string });
     const rid = switch (value.type) {
-        .integer => tokenToUnsignedInteger(value),
+        .integer => try tokenToUnsignedInteger(value),
         .string => blk: {
+            const name = try convertString(parser, value.text);
+            defer parser.allocator.free(name);
+
             if (parser.allow_new_items) {
-                const res = try map.getOrPut(value.text);
+                const res = try map.getOrPut(name);
                 if (!res.found_existing) {
                     var limit: u32 = 1;
 
@@ -281,8 +363,9 @@ fn parseID(parser: Parser, outStream: var, functionName: []const u8, map: *IDMap
                 }
                 break :blk res.kv.value;
             } else {
-                if (map.get(value.text)) |kv|
+                if (map.get(name)) |kv| {
                     break :blk kv.value;
+                }
 
                 try parser.errors.append(CompileError{
                     .where = parser.tokens.location,
@@ -295,6 +378,8 @@ fn parseID(parser: Parser, outStream: var, functionName: []const u8, map: *IDMap
     };
     _ = try parser.tokens.expect(.closeParens);
     _ = try parser.tokens.expect(.semiColon);
+
+    try writeVarUInt(outStream, rid);
 }
 
 fn parseProperty(parser: Parser, outStream: var, property: enums.Property, propertyType: enums.Type) !void {
@@ -335,6 +420,8 @@ fn parseProperty(parser: Parser, outStream: var, property: enums.Property, prope
         .string => {
             var string = try parseString(parser);
             defer parser.allocator.free(string);
+
+            _ = try parser.tokens.expect(.semiColon);
 
             try writeVarUInt(outStream, @intCast(u32, string.len));
             try outStream.writeAll(string);
@@ -627,6 +714,13 @@ const TokenType = enum {
 const Location = struct {
     line: u32,
     column: u32,
+
+    pub fn format(value: @This(), fmt: []const u8, options: std.fmt.FormatOptions, stream: var) !void {
+        try stream.print("{}:{}", .{
+            value.line,
+            value.column,
+        });
+    }
 };
 
 const Token = struct {
@@ -701,6 +795,7 @@ const TokenIterator = struct {
                 if (tok.type == t)
                     return tok;
             }
+            std.debug.warn("found: {}\n", .{tok});
             return error.UnexpectedToken;
         } else {
             return error.UnexpectedEndOfStream;
@@ -808,6 +903,27 @@ const TokenIterator = struct {
             },
 
             ' ', '\n', '\r', '\t' => initSingle(self.data, .whitespace),
+
+            // comment
+            '/' => blk: {
+                if (self.data.len < 4)
+                    return error.UnexpectedEndOfStream;
+                if (self.data[1] != '*')
+                    return error.UnexpectedToken;
+
+                var offset: usize = 3;
+                while (offset < self.data.len and self.data[offset - 1] != '*' and self.data[offset] != '/') {
+                    offset += 1;
+                }
+                if (offset >= self.data.len)
+                    return error.UnexpectedEndOfStream;
+                offset += 1;
+                break :blk Token{
+                    .type = .whitespace,
+                    .text = self.data[0..offset],
+                    .location = undefined,
+                };
+            },
 
             else => return error.UnrecognizedChar,
         };

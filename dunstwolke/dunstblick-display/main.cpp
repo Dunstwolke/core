@@ -25,7 +25,7 @@
 #include "networksession.hpp"
 #include "rendercontext.hpp"
 
-#include <dunstblick-internal.hpp>
+#include "dunstblick-internal.hpp"
 
 static bool shutdown_app_requested = false;
 

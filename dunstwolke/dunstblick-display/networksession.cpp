@@ -3,7 +3,7 @@
 #include <xnet/select>
 #include <xnet/socket_stream>
 
-#include <dunstblick-internal.hpp>
+#include "dunstblick-internal.hpp"
 #include <xcept>
 #include <xlog>
 

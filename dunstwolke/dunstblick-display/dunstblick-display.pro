@@ -15,7 +15,7 @@ XQLIB += sdl2 sdl2_image sdl2_ttf network io
 
 include($$(XQLIB_ROOT)/xqlib.pri)
 
-INCLUDEPATH += $$PWD/../libdunstblick
+INCLUDEPATH += $$PWD/../libdunstblick/include
 
 SOURCES += \
         api.cpp \
