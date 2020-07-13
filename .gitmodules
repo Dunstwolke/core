@@ -16,3 +16,6 @@
 [submodule "dunstwolke/ext/zig-args"]
 	path = dunstwolke/ext/zig-args
 	url = https://github.com/MasterQ32/zig-args
+[submodule "dunstwolke/ext/zig-network"]
+	path = dunstwolke/ext/zig-network
+	url = https://github.com/MasterQ32/zig-network

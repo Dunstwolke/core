@@ -25,7 +25,7 @@ const Address = packed struct {
         return std.mem.eql(u8, a.value, b.value);
     }
 
-    pub fn format(self: Address, comptime fmt: []const u8, options: std.fmt.FormatOptions, context: var, comptime Errors: type, output: fn (@typeOf(context), []const u8) Errors!void) Errors!void {
+    pub fn format(self: Address, comptime fmt: []const u8, options: std.fmt.FormatOptions, context: anytype, comptime Errors: type, output: fn (@typeOf(context), []const u8) Errors!void) Errors!void {
         try std.fmt.format(context, Errors, output, "{X:0^2}:{X:0^2}:{X:0^2}:{X:0^2}:{X:0^2}:{X:0^2}", self.value[0], self.value[1], self.value[2], self.value[3], self.value[4], self.value[5]);
     }
 

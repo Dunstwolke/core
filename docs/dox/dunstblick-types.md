@@ -171,3 +171,42 @@ struct {
   int bottom;
 }
 ```
+
+## `sizelist`
+Used in the grid widget to configure the rows/columns of the grid and their
+respective sizes.
+
+Sizelists store the number of rows/columns, the type for each element (`auto`, `expand`, size in pixels or size in percent) and the size for sized columns.
+
+First, the number of elements is encoded as a `uint`, followed by `ceil(number/4)`
+bytes containing the size specification for each element:
+
+The elements are encoded by two bits each, starting with the least significant
+bits and going up. If the number of elements is not divisible by 4, the rest 
+of the bits is padded with zero.
+
+After that, for each element which encodes a size in pixels, a `uint` follows.
+For each element in percent, a single byte follows, encoding the percentage
+in the value range `0 … 100. The most significant bit is reserved for future use
+and must be 0.
+
+### Element Type Encoding
+
+| Element Type | Bits   |
+|--------------|--------|
+| `auto`       | `0b00` |
+| `expand`     | `0b01` |
+| `pixels`     | `0b10` |
+| `percentage` | `0b11` |
+
+### Example
+
+The encoding of the list `expand, auto, auto, 374px, 10%, 15%` is the following
+byte sequence:
+```rb
+06    # length
+81 0F # element encoding
+82 76 # 374 pixels
+10    # 10%
+15    # 15%
+```

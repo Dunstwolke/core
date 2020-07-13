@@ -105,4 +105,3 @@ pub const Type = enum(u8) {
     event = 14,
     name = 15,
 };
-

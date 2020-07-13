@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const xnet = @import("xnet.zig");
+const xnet = @import("network");
 
 // Enforce creation of the library C bindings
 comptime {
@@ -43,6 +43,7 @@ pub const DunstblickError = error{
     NetworkError,
     OutOfRange,
     EndOfStream,
+    ResourceNotFound,
 };
 
 const NetworkError = error{
@@ -66,6 +67,7 @@ const NetworkError = error{
     InputOutput,
     IsDir,
     OperationAborted,
+    PermissionDenied,
 };
 
 fn mapNetworkError(value: NetworkError) DunstblickError {
@@ -77,7 +79,7 @@ fn mapNetworkError(value: NetworkError) DunstblickError {
 
 const log_level = LogLevel.diagnostic;
 
-fn log_msg(level: LogLevel, comptime fmt: []const u8, args: var) void {
+fn log_msg(level: LogLevel, comptime fmt: []const u8, args: anytype) void {
     if (@enumToInt(level) > @enumToInt(log_level))
         return;
     std.debug.warn(fmt, args);
@@ -131,33 +133,33 @@ const CommandBuffer = struct {
         self.buffer.deinit();
     }
 
-    fn writeByte(self: *Self, byte: u8) !void {
+    fn writeByte(self: *Self, byte: u8) DunstblickError!void {
         try self.buffer.append(byte);
     }
 
-    fn writeRaw(self: *Self, data: []const u8) !void {
+    fn writeRaw(self: *Self, data: []const u8) DunstblickError!void {
         try self.buffer.appendSlice(data);
     }
 
-    fn writeEnum(self: *Self, e: u8) !void {
+    fn writeEnum(self: *Self, e: u8) DunstblickError!void {
         try self.writeByte(e);
     }
 
-    fn writeID(self: *Self, id: u32) !void {
+    fn writeID(self: *Self, id: u32) DunstblickError!void {
         try self.writeVarUInt(id);
     }
 
-    fn writeString(self: *Self, string: []const u8) !void {
+    fn writeString(self: *Self, string: []const u8) DunstblickError!void {
         try self.writeVarUInt(@intCast(u32, string.len));
         try self.writeRaw(string);
     }
 
-    fn writeNumber(self: *Self, number: f32) !void {
+    fn writeNumber(self: *Self, number: f32) DunstblickError!void {
         std.debug.assert(std.builtin.endian == .Little);
         try self.writeRaw(std.mem.asBytes(&number));
     }
 
-    fn writeVarUInt(self: *Self, value: u32) !void {
+    fn writeVarUInt(self: *Self, value: u32) DunstblickError!void {
         var buf: [5]u8 = undefined;
 
         var maxidx: usize = 4;
@@ -176,15 +178,15 @@ const CommandBuffer = struct {
         try self.writeRaw(buf[maxidx..]);
     }
 
-    fn writeVarSInt(self: *Self, value: i32) !void {
+    fn writeVarSInt(self: *Self, value: i32) DunstblickError!void {
         try self.writeVarUInt(ZigZagInt.encode(value));
     }
 
-    fn writeValue(self: *Self, value: Value, prefixType: bool) !void {
+    fn writeValue(self: *Self, value: Value, prefixType: bool) DunstblickError!void {
         if (prefixType) {
             try self.writeEnum(@intCast(u8, @enumToInt(value.type)));
         }
-        const val = &value.unnamed_3;
+        const val = &value.value;
         switch (value.type) {
             .DUNSTBLICK_TYPE_INTEGER => try self.writeVarSInt(val.integer),
 
@@ -254,7 +256,7 @@ fn Callback(comptime F: type) type {
         function: ?F,
         user_data: ?*c_void,
 
-        fn invoke(self: Self, args: var) void {
+        fn invoke(self: Self, args: anytype) void {
             if (self.function) |function| {
                 @call(.{}, function, args ++ .{self.user_data});
             } else {
@@ -270,15 +272,20 @@ const ConnectionHeader = struct {
     capabilities: ClientCapabilities,
 };
 
-const Md5Hash = [16]u8;
+const SipHash = [8]u8;
 
-fn computeHash(data: []const u8) Md5Hash {
-    var hash: Md5Hash = undefined;
+fn computeHash(data: []const u8) SipHash {
+    var hash: SipHash = undefined;
 
-    var ctx: c._picohash_md5_ctx_t = undefined;
-    c._picohash_md5_init(&ctx);
-    c._picohash_md5_update(&ctx, data.ptr, data.len);
-    c._picohash_md5_final(&ctx, &hash);
+    const key = "DUNSTBLICK Hash!";
+
+    const int_hash = std.hash.SipHash64(3, 2).hash(key, data);
+
+    std.mem.writeIntLittle(
+        u64,
+        &hash,
+        int_hash,
+    );
 
     return hash;
 }
@@ -289,7 +296,7 @@ const StoredResource = struct {
     id: ResourceID,
     type: ResourceKind,
     data: []u8, // allocated with dunstblick_Provider.allocator
-    hash: Md5Hash,
+    hash: SipHash,
 
     fn updateHash(self: *Self) void {
         self.hash = computeHash(self.data);
@@ -442,7 +449,7 @@ pub const dunstblick_Connection = struct {
                         const lock = self.provider.resource_lock.acquire();
                         defer lock.release();
 
-                        var stream = self.sock.outStream();
+                        var stream = self.sock.writer();
 
                         var response = protocol.TcpConnectResponse{
                             .success = 1,
@@ -458,7 +465,7 @@ pub const dunstblick_Connection = struct {
                                 .id = resource.id,
                                 .size = @intCast(u32, resource.data.len),
                                 .type = resource.type,
-                                .md5sum = resource.hash,
+                                .sipsum = resource.hash,
                             };
                             try stream.writeAll(std.mem.asBytes(&descriptor));
                         }
@@ -558,9 +565,9 @@ pub const dunstblick_Connection = struct {
                 defer lock.release();
 
                 const resource_id = self.required_resources.items[self.resource_send_index];
-                const resource = &(self.provider.resources.get(resource_id) orelse return error.ResourceNotFound).value;
+                const resource = &(self.provider.resources.getEntry(resource_id) orelse return error.ResourceNotFound).value;
 
-                var stream = self.sock.outStream();
+                var stream = self.sock.writer();
 
                 if (self.resource_send_offset == 0) {
                     const header = protocol.TcpResourceHeader{
@@ -612,7 +619,7 @@ pub const dunstblick_Connection = struct {
         const lock = self.mutex.acquire();
         defer lock.release();
 
-        var stream = self.sock.outStream();
+        var stream = self.sock.writer();
         stream.writeIntLittle(u32, length) catch |err| return mapNetworkError(err);
         stream.writeAll(packet.buffer.items[0..length]) catch |err| return mapNetworkError(err);
     }
@@ -654,7 +661,7 @@ pub const dunstblick_Connection = struct {
         }
     }
 
-    fn receiveData(self: *Self) DunstblickError!void {
+    fn receiveData(self: *Self) !void {
         var buffer: [4096]u8 = undefined;
         const len = self.sock.receive(&buffer) catch |err| return mapNetworkError(err);
         if (len == 0)
@@ -689,7 +696,7 @@ pub const dunstblick_Connection = struct {
         self.send(buffer) catch return;
     }
 
-    pub fn setView(self: *Self, id: ResourceID) !void {
+    pub fn setView(self: *Self, id: ResourceID) DunstblickError!void {
         var buffer = try CommandBuffer.init(.setView, self.provider.allocator);
         defer buffer.deinit();
 
@@ -697,7 +704,7 @@ pub const dunstblick_Connection = struct {
         try self.send(buffer);
     }
 
-    pub fn setRoot(self: *Self, id: ObjectID) !void {
+    pub fn setRoot(self: *Self, id: ObjectID) DunstblickError!void {
         var buffer = try CommandBuffer.init(.setRoot, self.provider.allocator);
         defer buffer.deinit();
 
@@ -717,7 +724,7 @@ pub const dunstblick_Connection = struct {
         return object;
     }
 
-    pub fn removeObject(self: *Self, id: ObjectID) !void {
+    pub fn removeObject(self: *Self, id: ObjectID) DunstblickError!void {
         var buffer = try CommandBuffer.init(.setRoot, self.provider.allocator);
         defer buffer.deinit();
 
@@ -725,7 +732,7 @@ pub const dunstblick_Connection = struct {
         try self.send(buffer);
     }
 
-    pub fn moveRange(self: *Self, object: ObjectID, name: PropertyName, indexFrom: u32, indexTo: u32, count: u32) !void {
+    pub fn moveRange(self: *Self, object: ObjectID, name: PropertyName, indexFrom: u32, indexTo: u32, count: u32) DunstblickError!void {
         var buffer = try CommandBuffer.init(.moveRange, self.provider.allocator);
         defer buffer.deinit();
 
@@ -738,7 +745,7 @@ pub const dunstblick_Connection = struct {
         try self.send(buffer);
     }
 
-    pub fn setProperty(self: *Self, object: ObjectID, name: PropertyName, value: Value) !void {
+    pub fn setProperty(self: *Self, object: ObjectID, name: PropertyName, value: Value) DunstblickError!void {
         var buffer = try CommandBuffer.init(.setProperty, self.provider.allocator);
         defer buffer.deinit();
 
@@ -749,7 +756,7 @@ pub const dunstblick_Connection = struct {
         try self.send(buffer);
     }
 
-    pub fn clear(self: *Self, object: ObjectID, name: PropertyName) !void {
+    pub fn clear(self: *Self, object: ObjectID, name: PropertyName) DunstblickError!void {
         var buffer = try CommandBuffer.init(.clear, self.provider.allocator);
         defer buffer.deinit();
 
@@ -759,7 +766,7 @@ pub const dunstblick_Connection = struct {
         try self.send(buffer);
     }
 
-    pub fn insertRange(self: *Self, object: ObjectID, name: PropertyName, index: u32, values: []const ObjectID) !void {
+    pub fn insertRange(self: *Self, object: ObjectID, name: PropertyName, index: u32, values: []const ObjectID) DunstblickError!void {
         var buffer = try CommandBuffer.init(.insertRange, self.provider.allocator);
         defer buffer.deinit();
 
@@ -775,7 +782,7 @@ pub const dunstblick_Connection = struct {
         try self.send(buffer);
     }
 
-    pub fn removeRange(self: *Self, object: ObjectID, name: PropertyName, index: u32, count: u32) !void {
+    pub fn removeRange(self: *Self, object: ObjectID, name: PropertyName, index: u32, count: u32) DunstblickError!void {
         var buffer = try CommandBuffer.init(.removeRange, self.provider.allocator);
         defer buffer.deinit();
 
@@ -793,6 +800,9 @@ pub const dunstblick_Provider = struct {
 
     const ResourceMap = std.AutoHashMap(ResourceID, StoredResource);
 
+    const ConnectionList = std.TailQueue(dunstblick_Connection);
+    const ConnectionNode = ConnectionList.Node;
+
     mutex: std.Mutex,
     allocator: *std.mem.Allocator,
 
@@ -805,9 +815,6 @@ pub const dunstblick_Provider = struct {
     resource_lock: std.Mutex,
 
     resources: ResourceMap,
-
-    const ConnectionList = std.TailQueue(dunstblick_Connection);
-    const ConnectionNode = ConnectionList.Node;
 
     pending_connections: ConnectionList,
     established_connections: ConnectionList,
@@ -831,7 +838,7 @@ pub const dunstblick_Provider = struct {
             .onConnected = .{ .function = null, .user_data = null },
             .onDisconnected = .{ .function = null, .user_data = null },
 
-            .socket_set = xnet.SocketSet.init(allocator),
+            .socket_set = try xnet.SocketSet.init(allocator),
 
             // will be initialized in sequence:
             .discovery_name = undefined,
@@ -906,7 +913,7 @@ pub const dunstblick_Provider = struct {
     }
 
     /// timeout is in nanoseconds.
-    pub fn pumpEvents(self: *Self, timeout: ?u64) !void {
+    pub fn pumpEvents(self: *Self, timeout: ?u64) DunstblickError!void {
         self.socket_set.clear();
 
         try self.socket_set.add(self.multicast_sock, .{ .read = true, .write = false });
@@ -1121,7 +1128,7 @@ pub const dunstblick_Provider = struct {
 
     // Public API
 
-    pub fn addResource(self: *Self, id: ResourceID, kind: ResourceKind, data: []const u8) !void {
+    pub fn addResource(self: *Self, id: ResourceID, kind: ResourceKind, data: []const u8) DunstblickError!void {
         const lock = self.mutex.acquire();
         defer lock.release();
 
@@ -1130,19 +1137,19 @@ pub const dunstblick_Provider = struct {
 
         const result = try self.resources.getOrPut(id);
 
-        std.debug.assert(result.kv.key == id);
+        std.debug.assert(result.entry.key == id);
         if (result.found_existing) {
-            std.debug.assert(result.kv.value.id == id);
-            self.allocator.free(result.kv.value.data);
+            std.debug.assert(result.entry.value.id == id);
+            self.allocator.free(result.entry.value.data);
         } else {
-            result.kv.value.id = id;
+            result.entry.value.id = id;
         }
-        result.kv.value.type = kind;
-        result.kv.value.data = cloned_data;
-        result.kv.value.updateHash();
+        result.entry.value.type = kind;
+        result.entry.value.data = cloned_data;
+        result.entry.value.updateHash();
     }
 
-    pub fn removeResource(self: *Self, id: ResourceID) !void {
+    pub fn removeResource(self: *Self, id: ResourceID) DunstblickError!void {
         const lock = self.mutex.acquire();
         defer lock.release();
 
@@ -1166,13 +1173,13 @@ pub const dunstblick_Object = struct {
 
     fn deinit(self: Self) void {}
 
-    pub fn setProperty(self: *Self, name: PropertyName, value: Value) !void {
+    pub fn setProperty(self: *Self, name: PropertyName, value: Value) DunstblickError!void {
         try self.commandbuffer.writeEnum(@intCast(u8, @enumToInt(value.type)));
         try self.commandbuffer.writeID(name);
         try self.commandbuffer.writeValue(value, false);
     }
 
-    pub fn commit(self: *Self) !void {
+    pub fn commit(self: *Self) DunstblickError!void {
         defer self.cancel(); // self will free the memory
 
         try self.commandbuffer.writeEnum(0);
@@ -1218,14 +1225,15 @@ const protocol_v1 = struct {
     /// Followed after the @ref TcpConnectResponse, `resourceCount` descriptors
     /// are transferred to the display client.
     const TcpResourceDescriptor = packed struct {
-        ///< The unique resource identifier.
+        /// The unique resource identifier.
         id: ResourceID,
-        ///< The type of the resource.
+        /// The type of the resource.
         type: ResourceKind,
-        ///< Size of the resource in bytes.
+        /// Size of the resource in bytes.
         size: u32,
-        ///< MD5sum of the resource data.
-        md5sum: [16]u8,
+        /// Siphash of the resource data.
+        /// Key used is
+        sipsum: [8]u8,
     };
 
     /// Followed after the set of @ref TcpResourceDescriptor
@@ -1348,9 +1356,9 @@ const DataReader = struct {
     fn readValue(self: *Self, _type: c.dunstblick_Type) !Value {
         var value = Value{
             .type = _type,
-            .unnamed_3 = undefined,
+            .value = undefined,
         };
-        const val = &value.unnamed_3;
+        const val = &value.value;
         switch (_type) {
             .DUNSTBLICK_TYPE_ENUMERATION => val.enumeration = try self.readByte(),
 

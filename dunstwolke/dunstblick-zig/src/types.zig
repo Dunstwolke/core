@@ -270,7 +270,7 @@ pub const Value = union(Type) {
         };
     }
 
-    pub fn initFrom(value: var) Value {
+    pub fn initFrom(value: anytype) Value {
         const T = @TypeOf(value);
         if (@typeInfo(T) == .Enum)
             return Value{ .enumeration = @enumToInt(value) };

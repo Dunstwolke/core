@@ -73,7 +73,10 @@ static void refresh_screen(dunstblick_Connection * con)
 
     dunstblick_Value result = {
         .type = DUNSTBLICK_TYPE_STRING,
-        .string = app->current_input,
+        .value =
+            {
+                .string = app->current_input,
+            },
     };
 
     dunstblick_Error error = dunstblick_SetProperty(con, OBJ_ROOT, PROP_RESULT, &result);
@@ -221,7 +224,10 @@ static void cb_onConnected(dunstblick_Provider * provider,
         // with an empty string as initial value.
         dunstblick_Value result = {
             .type = DUNSTBLICK_TYPE_STRING,
-            .string = "",
+            .value =
+                {
+                    .string = "",
+                },
         };
         DBCHECKED(dunstblick_SetObjectProperty(root_obj, PROP_RESULT, &result));
 

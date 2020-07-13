@@ -132,7 +132,7 @@ UIValue InputStream::read_value(UIType type)
                         list[i] = int(this->read_uint());
                         break;
                     case 3: // percentage
-                        list[i] = this->read_float();
+                        list[i] = this->read_byte() / 100.0f;
                         break;
                 }
             }

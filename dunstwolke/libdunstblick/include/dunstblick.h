@@ -70,6 +70,7 @@ extern "C"
         DUNSTBLICK_ERROR_INVALID_TYPE = 3,          ///< An invalid type was passed to a function.
         DUNSTBLICK_ERROR_ARGUMENT_OUT_OF_RANGE = 4, ///< An argument was not in the allowed range.
         DUNSTBLICK_ERROR_OUT_OF_MEMORY = 5,         ///< An allocation failed.
+        DUNSTBLICK_ERROR_RESOURCE_NOT_FOUND = 6,    ///< A requested resource was not found.
     };
     typedef enum dunstblick_Error dunstblick_Error;
 
@@ -155,7 +156,7 @@ extern "C"
             dunstblick_Point point;
             dunstblick_Margins margins;
             bool boolean;
-        };
+        } value;
     };
     typedef struct dunstblick_Value dunstblick_Value;
 

@@ -185,14 +185,14 @@ fn clientConnected(
 
         _ = c.dunstblick_SetObjectProperty(obj, properties.current_song, &c.dunstblick_Value{
             .type = .DUNSTBLICK_TYPE_STRING,
-            .unnamed_3 = .{
+            .value = .{
                 .string = "Current Song",
             },
         });
 
         _ = c.dunstblick_SetObjectProperty(obj, properties.current_artist, &c.dunstblick_Value{
             .type = .DUNSTBLICK_TYPE_STRING,
-            .unnamed_3 = .{
+            .value = .{
                 .string = "Current Artist",
             },
         });
@@ -201,11 +201,11 @@ fn clientConnected(
         var val: c.dunstblick_Value = undefined;
         val = c.dunstblick_Value{
             .type = .DUNSTBLICK_TYPE_RESOURCE,
-            .unnamed_3 = .{
+            .value = .{
                 .resource = 22,
             },
         };
-        std.debug.warn("val = {} / {}\n", .{ val, val.unnamed_3.resource });
+        std.debug.warn("val = {} / {}\n", .{ val, val.value.resource });
         _ = c.dunstblick_SetObjectProperty(obj, properties.current_albumart, &val);
 
         _ = c.dunstblick_CommitObject(obj);

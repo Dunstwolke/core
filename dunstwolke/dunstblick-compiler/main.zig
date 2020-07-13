@@ -29,7 +29,7 @@ pub fn main() !u8 {
     switch (args.positionals.len) {
         0 => {
             try std.io.getStdOut().outStream().print("usage: {} [-c config] [-u] [-o output] layoutfile\n", .{
-                args.exeName,
+                args.executable_name,
             });
             return 1;
         },
@@ -65,7 +65,7 @@ pub fn main() !u8 {
     }
 
     var resources = IDMap.init(std.heap.page_allocator);
-    resources.deinit();
+    defer resources.deinit();
 
     var events = IDMap.init(std.heap.page_allocator);
     defer events.deinit();
@@ -177,25 +177,25 @@ fn validateConfig(config: std.json.ValueTree) !void {
     if (root != .Object)
         return error.InvalidConfig;
 
-    if (root.Object.get("resources")) |resources| {
-        try validateObjectMap(resources.value);
+    if (root.Object.get("resources")) |value| {
+        try validateObjectMap(value);
     }
-    if (root.Object.get("properties")) |properties| {
-        try validateObjectMap(properties.value);
+    if (root.Object.get("properties")) |value| {
+        try validateObjectMap(value);
     }
-    if (root.Object.get("callbacks")) |callbacks| {
-        try validateObjectMap(callbacks.value);
+    if (root.Object.get("callbacks")) |value| {
+        try validateObjectMap(value);
     }
-    if (root.Object.get("objects")) |objects| {
-        try validateObjectMap(objects.value);
+    if (root.Object.get("objects")) |value| {
+        try validateObjectMap(value);
     }
 }
 
 fn loadIdMap(config: std.json.ValueTree, key: []const u8, map: *IDMap) !void {
-    if (config.root.Object.get(key)) |src| {
-        var items = src.value.Object.iterator();
+    if (config.root.Object.get(key)) |value| {
+        var items = value.Object.iterator();
         while (items.next()) |kv| {
-            try map.putNoClobber(kv.key, @intCast(u32, kv.value.Integer));
+            try map.put(kv.key, @intCast(u32, kv.value.Integer));
         }
     }
 }
@@ -241,7 +241,7 @@ const CompileError = struct {
     where: Location,
     message: []const u8,
 
-    pub fn format(value: @This(), fmt: []const u8, options: std.fmt.FormatOptions, stream: var) !void {
+    pub fn format(value: @This(), fmt: []const u8, options: std.fmt.FormatOptions, stream: anytype) !void {
         try stream.print("{}: {}", .{
             value.where,
             value.message,
@@ -261,7 +261,7 @@ const Parser = struct {
     objects: *IDMap,
 };
 
-fn parseFile(parser: Parser, outStream: var) !void {
+fn parseFile(parser: Parser, outStream: anytype) !void {
     var identifier = try parser.tokens.expect(.identifier);
     try parseWidget(parser, outStream, identifier.text);
 }
@@ -336,7 +336,7 @@ fn convertString(parser: Parser, input: []const u8) ![]const u8 {
     return output[0..outptr];
 }
 
-fn parseID(parser: Parser, outStream: var, functionName: []const u8, map: *IDMap) !void {
+fn parseID(parser: Parser, outStream: anytype, functionName: []const u8, map: *IDMap) !void {
     var resource = try parser.tokens.expect(.identifier);
     if (!std.mem.eql(u8, resource.text, functionName))
         return error.UnexpectedToken;
@@ -359,12 +359,12 @@ fn parseID(parser: Parser, outStream: var, functionName: []const u8, map: *IDMap
                         limit = std.math.max(kv.value, limit);
                     }
 
-                    res.kv.value = limit + 1;
+                    res.entry.value = limit + 1;
                 }
-                break :blk res.kv.value;
+                break :blk res.entry.value;
             } else {
-                if (map.get(name)) |kv| {
-                    break :blk kv.value;
+                if (map.get(name)) |val| {
+                    break :blk val;
                 }
 
                 try parser.errors.append(CompileError{
@@ -382,7 +382,7 @@ fn parseID(parser: Parser, outStream: var, functionName: []const u8, map: *IDMap
     try writeVarUInt(outStream, rid);
 }
 
-fn parseProperty(parser: Parser, outStream: var, property: enums.Property, propertyType: enums.Type) !void {
+fn parseProperty(parser: Parser, outStream: anytype, property: enums.Property, propertyType: enums.Type) !void {
     if (try parser.tokens.peekNextWhitespace()) |tok| {
         if (tok.type == .identifier) {
             if (std.mem.eql(u8, tok.text, "bind")) {
@@ -542,7 +542,7 @@ fn parseProperty(parser: Parser, outStream: var, property: enums.Property, prope
                 auto: void,
                 expand: void,
                 pixels: u32,
-                percentage: f32,
+                percentage: u7,
             };
 
             var list = std.ArrayList(SizeEntry).init(parser.allocator);
@@ -553,7 +553,7 @@ fn parseProperty(parser: Parser, outStream: var, property: enums.Property, prope
                 switch (item.type) {
                     .percentage => {
                         try list.append(SizeEntry{
-                            .percentage = 0.01 * @intToFloat(f32, try std.fmt.parseInt(u7, item.text[0 .. item.text.len - 1], 10)),
+                            .percentage = try std.fmt.parseInt(u7, item.text[0 .. item.text.len - 1], 10),
                         });
                     },
                     .integer => {
@@ -599,7 +599,7 @@ fn parseProperty(parser: Parser, outStream: var, property: enums.Property, prope
             for (list.items) |item| {
                 switch (item) {
                     .pixels => |v| try writeVarUInt(outStream, v),
-                    .percentage => |v| try outStream.writeAll(std.mem.asBytes(&v)),
+                    .percentage => |v| try outStream.writeByte(@as(u8, v) | 0x80),
                     else => {},
                 }
             }
@@ -630,7 +630,7 @@ const ParseWidgetError = error{
     InvalidCharacter,
     UnknownEnum,
 };
-fn parseWidget(parser: Parser, outStream: var, widgetTypeName: []const u8) ParseWidgetError!void {
+fn parseWidget(parser: Parser, outStream: anytype, widgetTypeName: []const u8) ParseWidgetError!void {
     if (widgetFromName(widgetTypeName)) |widget| {
         try outStream.writeByte(@enumToInt(widget));
     } else {
@@ -715,7 +715,7 @@ const Location = struct {
     line: u32,
     column: u32,
 
-    pub fn format(value: @This(), fmt: []const u8, options: std.fmt.FormatOptions, stream: var) !void {
+    pub fn format(value: @This(), fmt: []const u8, options: std.fmt.FormatOptions, stream: anytype) !void {
         try stream.print("{}:{}", .{
             value.line,
             value.column,
@@ -788,7 +788,7 @@ const TokenIterator = struct {
         }
     }
 
-    fn expectOneOf(self: *Self, comptime types: var) !Token {
+    fn expectOneOf(self: *Self, comptime types: anytype) !Token {
         var token = try self.nextSkipWhitespace();
         if (token) |tok| {
             inline for (types) |t| {
@@ -1034,7 +1034,7 @@ test "Tokenizer strings" {
 }
 
 // TODO: Codesmell, merge with libdunstblick
-fn writeVarUInt(stream: var, value: u32) !void {
+fn writeVarUInt(stream: anytype, value: u32) !void {
     var buf: [5]u8 = undefined;
 
     var maxidx: usize = 4;
@@ -1054,7 +1054,7 @@ fn writeVarUInt(stream: var, value: u32) !void {
 }
 
 // TODO: Codesmell, merge with libdunstblick
-fn writeVarSInt(stream: var, value: i32) !void {
+fn writeVarSInt(stream: anytype, value: i32) !void {
     try writeVarUInt(stream, ZigZagInt.encode(value));
 }
 

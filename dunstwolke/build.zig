@@ -5,11 +5,6 @@ pub fn build(b: *Builder) !void {
     const mode = b.standardReleaseOptions();
     const target = b.standardTargetOptions(.{});
 
-    const compiler_options = [_][]const u8{
-        "-DDUNSTBLICK_COMPILER",
-        "-std=c++17",
-    };
-
     const compiler = b.addExecutable("dunstblick-compiler", "./dunstblick-compiler/main.zig");
     compiler.addPackagePath("args", "./ext/zig-args/args.zig");
     compiler.addIncludeDir("./libdunstblick/include");
@@ -20,6 +15,10 @@ pub fn build(b: *Builder) !void {
     const compiler_test = b.addTest("./dunstblick-compiler/main.zig");
 
     const lib = b.addStaticLibrary("dunstblick", "./libdunstblick/src/dunstblick.zig");
+    lib.addPackage(std.build.Pkg{
+        .name = "network",
+        .path = "./ext/zig-network/network.zig",
+    });
     lib.addIncludeDir("./libdunstblick/include");
     lib.addIncludeDir("./ext/picohash");
     lib.linkLibC();

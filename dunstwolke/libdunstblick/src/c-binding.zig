@@ -32,6 +32,7 @@ fn mapDunstblickError(err: DunstblickError) NativeErrorCode {
         error.NetworkError => .DUNSTBLICK_ERROR_NETWORK,
         error.OutOfRange => .DUNSTBLICK_ERROR_ARGUMENT_OUT_OF_RANGE,
         error.EndOfStream => .DUNSTBLICK_ERROR_NETWORK,
+        error.ResourceNotFound => .DUNSTBLICK_ERROR_RESOURCE_NOT_FOUND,
     };
 }
 
@@ -73,7 +74,7 @@ export fn dunstblick_PumpEvents(provider: *dunstblick_Provider) callconv(.C) Nat
     const lock = provider.mutex.acquire();
     defer lock.release();
 
-    return mapDunstblickErrorVoid(provider.pumpEvents(10 * std.time.microsecond));
+    return mapDunstblickErrorVoid(provider.pumpEvents(10 * std.time.ms_per_s));
 }
 
 export fn dunstblick_WaitEvents(provider: *dunstblick_Provider) callconv(.C) NativeErrorCode {
