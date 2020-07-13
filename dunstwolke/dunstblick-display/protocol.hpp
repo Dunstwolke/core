@@ -4,7 +4,7 @@
 #include <optional>
 #include <vector>
 
-#include "../dunstblick-common/data-writer.hpp"
+#include "data-writer.hpp"
 
 /*
 enum class ClientMessageType : uint8_t

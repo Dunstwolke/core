@@ -95,10 +95,10 @@ struct PACKED TcpConnectResponse
 /// are transferred to the display client.
 struct PACKED TcpResourceDescriptor
 {
-    dunstblick_ResourceID id;     ///< The unique resource identifier.
-    dunstblick_ResourceKind type; ///< The type of the resource.
-    uint32_t size;                ///< Size of the resource in bytes.
-    uint8_t md5sum[16];           ///< MD5sum of the resource data.
+    dunstblick_ResourceID id;       ///< The unique resource identifier.
+    dunstblick_ResourceKind type;   ///< The type of the resource.
+    uint32_t size;                  ///< Size of the resource in bytes.
+    std::array<uint8_t, 8> siphash; ///< MD5sum of the resource data.
 };
 
 /// Followed after the set of @ref TcpResourceDescriptor

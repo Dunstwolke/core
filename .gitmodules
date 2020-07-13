@@ -19,3 +19,6 @@
 [submodule "dunstwolke/ext/zig-network"]
 	path = dunstwolke/ext/zig-network
 	url = https://github.com/MasterQ32/zig-network
+[submodule "dunstwolke/ext/xqlib"]
+	path = dunstwolke/ext/xqlib
+	url = https://github.com/MasterQ32/xqlib

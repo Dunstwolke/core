@@ -91,6 +91,35 @@ pub fn build(b: *Builder) !void {
     minimal.setBuildMode(mode);
     minimal.install();
 
+    const display_client = b.addExecutable("dunstblick-display", null);
+    display_client.linkLibC();
+    display_client.linkSystemLibrary("c++");
+    display_client.linkSystemLibrary("sdl2");
+    display_client.linkSystemLibrary("SDL2_image");
+    display_client.linkSystemLibrary("SDL2_ttf");
+    display_client.addIncludeDir("./libdunstblick/include");
+    display_client.addIncludeDir("./ext/xqlib/include");
+    display_client.addIncludeDir("./ext/xqlib/extern/optional/tl");
+    display_client.addIncludeDir("./ext/xqlib/extern/GSL/include");
+    display_client.defineCMacro("DUNSTBLICK_SERVER");
+    display_client.setBuildMode(mode);
+    display_client.setTarget(target);
+    display_client.install();
+
+    for (display_client_sources) |src| {
+        display_client.addCSourceFile(src, &[_][]const u8{
+            "-std=c++17",
+            "-fno-sanitize=undefined",
+        });
+    }
+
+    for (xqlib_sources) |src| {
+        display_client.addCSourceFile(src, &[_][]const u8{
+            "-std=c++17",
+            "-fno-sanitize=undefined",
+        });
+    }
+
     const run_cmd = mediaserver.run();
     run_cmd.step.dependOn(b.getInstallStep());
 
@@ -102,3 +131,34 @@ pub fn build(b: *Builder) !void {
     const test_step = b.step("test", "Runs all required tests.");
     test_step.dependOn(&compiler_test.step);
 }
+
+const display_client_sources = [_][]const u8{
+    "./dunstblick-display/api.cpp",
+    "./dunstblick-display/enums.cpp",
+    "./dunstblick-display/fontcache.cpp",
+    "./dunstblick-display/inputstream.cpp",
+    "./dunstblick-display/layouts.cpp",
+    "./dunstblick-display/localsession.cpp",
+    "./dunstblick-display/main.cpp",
+    "./dunstblick-display/networksession.cpp",
+    "./dunstblick-display/object.cpp",
+    "./dunstblick-display/protocol.cpp",
+    "./dunstblick-display/rendercontext.cpp",
+    "./dunstblick-display/resources.cpp",
+    "./dunstblick-display/session.cpp",
+    "./dunstblick-display/tcphost.cpp",
+    "./dunstblick-display/testhost.cpp",
+    "./dunstblick-display/types.cpp",
+    "./dunstblick-display/widget.cpp",
+    "./dunstblick-display/widget.create.cpp",
+    "./dunstblick-display/widgets.cpp",
+};
+
+const xqlib_sources = [_][]const u8{
+    "./ext/xqlib/src/sdl2++.cpp",
+    "./ext/xqlib/src/xio.cpp",
+    "./ext/xqlib/src/xlog.cpp",
+    "./ext/xqlib/src/xnet.cpp",
+    "./ext/xqlib/src/xception.cpp",
+    "./ext/xqlib/src/xstd_format.cpp",
+};

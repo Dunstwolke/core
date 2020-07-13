@@ -7,7 +7,7 @@
 #include <xcept>
 #include <xlog>
 
-#include "../dunstblick-common/data-writer.hpp"
+#include "data-writer.hpp"
 
 NetworkSession::NetworkSession(const xnet::endpoint & target) : sock(target.family(), SOCK_STREAM, 0)
 {
@@ -42,27 +42,28 @@ NetworkSession::NetworkSession(const xnet::endpoint & target) : sock(target.fami
                 "\tid:   %u\n"
                 "\ttype: %u\n"
                 "\tsize: %u\n"
-                "\thash: %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n",
+                "\thash: %02X%02X%02X%02X%02X%02X%02X%02X\n",
                 i,
                 res.id,
                 res.type,
                 res.size,
-                res.md5sum[0],
-                res.md5sum[1],
-                res.md5sum[2],
-                res.md5sum[3],
-                res.md5sum[4],
-                res.md5sum[5],
-                res.md5sum[6],
-                res.md5sum[7],
-                res.md5sum[8],
-                res.md5sum[9],
-                res.md5sum[10],
-                res.md5sum[11],
-                res.md5sum[12],
-                res.md5sum[13],
-                res.md5sum[14],
-                res.md5sum[15]);
+                res.siphash[0],
+                res.siphash[1],
+                res.siphash[2],
+                res.siphash[3],
+                res.siphash[4],
+                res.siphash[5],
+                res.siphash[6],
+                res.siphash[7]
+                // res.md5sum[8],
+                // res.md5sum[9],
+                // res.md5sum[10],
+                // res.md5sum[11],
+                // res.md5sum[12],
+                // res.md5sum[13],
+                // res.md5sum[14],
+                // res.md5sum[15]
+        );
     }
 
     TcpResourceRequestHeader request_header;
