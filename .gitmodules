@@ -22,3 +22,12 @@
 [submodule "dunstwolke/ext/xqlib"]
 	path = dunstwolke/ext/xqlib
 	url = https://github.com/MasterQ32/xqlib
+[submodule "dunstwolke/ext/zig-sdl"]
+	path = dunstwolke/ext/zig-sdl
+	url = https://github.com/MasterQ32/SDL.zig
+[submodule "dunstwolke/ext/zig-uri"]
+	path = dunstwolke/ext/zig-uri
+	url = https://github.com/MasterQ32/zig-uri
+[submodule "dunstwolke/ext/stb"]
+	path = dunstwolke/ext/stb
+	url = https://github.com/nothings/stb

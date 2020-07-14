@@ -1,5 +1,7 @@
 #include "fontcache.hpp"
 
+#include "stb_truetype.h"
+
 FontCache::FontCache(TTF_Font * _font, sdl2::renderer * _renderer) : cache(), font(_font), renderer(_renderer)
 {
     assert(font);

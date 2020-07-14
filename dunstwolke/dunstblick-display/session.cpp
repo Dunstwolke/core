@@ -3,7 +3,7 @@
 #include "rendercontext.hpp"
 #include <xlog>
 
-#include <SDL_image.h>
+#include <stb_image.h>
 
 #include "widget.hpp"
 
@@ -24,12 +24,31 @@ void Session::uploadResource(UIResourceID id, ResourceKind kind, const void * da
         }
 
         case ResourceKind::bitmap: {
-            auto * tex = IMG_LoadTexture_RW(current_rc->renderer, SDL_RWFromConstMem(data, gsl::narrow<int>(len)), 1);
+            int w, h;
+            stbi_uc * pixels = stbi_load_from_memory(reinterpret_cast<stbi_uc const *>(data),
+                                                     gsl::narrow<int>(len),
+                                                     &w,
+                                                     &h,
+                                                     nullptr,
+                                                     4);
+
+            if (pixels == nullptr) {
+                xlog::log(xlog::error) << "could not load pixels for resource " << id.value << ": " << SDL_GetError();
+                return;
+            }
+
+            auto * tex =
+                SDL_CreateTexture(current_rc->renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STATIC, w, h);
 
             if (tex == nullptr) {
+                stbi_image_free(pixels);
                 xlog::log(xlog::error) << "could not load bitmap for resource " << id.value << ": " << SDL_GetError();
                 return;
             }
+
+            SDL_UpdateTexture(tex, nullptr, pixels, w * 4);
+
+            stbi_image_free(pixels);
 
             set_resource(id, BitmapResource(sdl2::texture(std::move(tex))));
             break;

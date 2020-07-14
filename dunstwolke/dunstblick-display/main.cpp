@@ -323,7 +323,8 @@ void ui_set_mouse_focus(Widget * widget)
         mouse_focused_widget->processEvent(e);
     }
 }
-int main()
+
+int old_main()
 {
     std::thread discovery_thread(refresh_discovery);
 
@@ -332,16 +333,6 @@ int main()
         exit_sdl_error();
     }
     atexit(SDL_Quit);
-
-    if (TTF_Init() < 0) {
-        exit_sdl_error();
-    }
-    atexit(TTF_Quit);
-
-    if (IMG_Init(IMG_INIT_PNG) < 0) {
-        exit_sdl_error();
-    }
-    atexit(IMG_Quit);
 
     //////////////////////////////////////////////////////////////////////////////
 
