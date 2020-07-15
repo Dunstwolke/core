@@ -9,7 +9,7 @@ const pkgs = struct {
 
     const sdl2 = std.build.Pkg{
         .name = "sdl2",
-        .path = "./lib/zig-sdl/src/lib.zig",
+        .path = "./lib/SDL.zig/src/lib.zig",
     };
 
     const args = std.build.Pkg{
@@ -28,7 +28,7 @@ pub fn build(b: *Builder) !void {
     const target = b.standardTargetOptions(.{});
 
     const compiler = b.addExecutable("dunstblick-compiler", "./src/dunstblick-compiler/main.zig");
-    compiler.addPackagePath("args", "./ext/zig-args/args.zig");
+    compiler.addPackage(pkgs.args);
     compiler.addIncludeDir("./src/libdunstblick/include");
     compiler.setTarget(target);
     compiler.setBuildMode(mode);
@@ -38,7 +38,7 @@ pub fn build(b: *Builder) !void {
 
     const lib = b.addStaticLibrary("dunstblick", "./src/libdunstblick/src/dunstblick.zig");
     lib.addPackage(pkgs.network);
-    lib.addIncludeDir("./libdunstblick/include");
+    lib.addIncludeDir("./src/libdunstblick/include");
     lib.linkLibC();
     lib.setTarget(target);
     lib.setBuildMode(mode);
@@ -119,11 +119,12 @@ pub fn build(b: *Builder) !void {
     display_client.linkLibC();
     display_client.linkSystemLibrary("c++");
     display_client.linkSystemLibrary("sdl2");
+    display_client.addIncludeDir("./lib/stb");
+
     // display_client.addIncludeDir("./src/libdunstblick/include");
     // display_client.addIncludeDir("./lib/xqlib/include");
     // display_client.addIncludeDir("./lib/xqlib/extern/optional/tl");
     // display_client.addIncludeDir("./lib/xqlib/extern/GSL/include");
-    // display_client.addIncludeDir("./lib/stb");
     // display_client.defineCMacro("DUNSTBLICK_SERVER");
     display_client.setBuildMode(mode);
     display_client.setTarget(target);
