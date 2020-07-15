@@ -133,21 +133,21 @@ pub fn build(b: *Builder) !void {
         "-std=c99",
     });
 
-    for (display_client_sources) |src| {
-        display_client.addCSourceFile(src, &[_][]const u8{
-            "-std=c++17",
-            "-fno-sanitize=undefined",
-        });
-    }
+    // for (display_client_sources) |src| {
+    //     display_client.addCSourceFile(src, &[_][]const u8{
+    //         "-std=c++17",
+    //         "-fno-sanitize=undefined",
+    //     });
+    // }
 
-    for (xqlib_sources) |src| {
-        display_client.addCSourceFile(src, &[_][]const u8{
-            "-std=c++17",
-            "-fno-sanitize=undefined",
-        });
-    }
+    // for (xqlib_sources) |src| {
+    //     display_client.addCSourceFile(src, &[_][]const u8{
+    //         "-std=c++17",
+    //         "-fno-sanitize=undefined",
+    //     });
+    // }
 
-    const run_cmd = mediaserver.run();
+    const run_cmd = display_client.run();
     run_cmd.step.dependOn(b.getInstallStep());
 
     run_cmd.setEnvironmentVariable("LD_LIBRARY_PATH", "examples/mediaserver/bass/x86_64");
