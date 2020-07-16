@@ -2,6 +2,7 @@ const std = @import("std");
 const args_parser = @import("args");
 const sdl = @import("sdl2");
 const uri = @import("uri");
+const painterz = @import("painterz");
 
 pub fn main() !u8 {
     var counter = std.testing.LeakCountAllocator.init(std.heap.c_allocator);
@@ -218,17 +219,49 @@ const UiContext = struct {
     }
 
     fn render(self: *Self) !void {
-        var pixels = try self.back_buffer.lock(null);
-        defer pixels.release();
+        {
+            var pixels = try self.back_buffer.lock(null);
+            defer pixels.release();
 
-        var y: usize = 0;
-        while (y < self.screen_size.height) : (y += 1) {
-            var x: usize = 0;
-            while (x < self.screen_size.width) : (x += 1) {
-                pixels.scanline(y, [4]u8)[x] = [4]u8{
-                    0x00, 0x80, 0x80, 0xFF,
-                };
+            {
+                var y: usize = 0;
+
+                while (y < self.screen_size.height) : (y += 1) {
+                    var x: usize = 0;
+                    while (x < self.screen_size.width) : (x += 1) {
+                        pixels.scanline(y, [4]u8)[x] = [4]u8{
+                            0x00, 0x80, 0x80, 0xFF,
+                        };
+                    }
+                }
             }
+
+            const Pixel = packed struct {
+                r: u8, g: u8, b: u8, a: u8
+            };
+
+            const Framebuffer = struct {
+                win: *Self,
+                pix: *sdl.Texture.PixelData,
+
+                fn setPixel(fb: @This(), x: isize, y: isize, c: Pixel) void {
+                    if (x < 0 or y < 0) return;
+                    if (x >= fb.win.screen_size.width or y >= fb.win.screen_size.height) return;
+                    fb.pix.scanline(std.math.absCast(y), Pixel)[std.math.absCast(x)] = c;
+                }
+            };
+
+            var canvas = painterz.Canvas(Framebuffer, Pixel, Framebuffer.setPixel).init(Framebuffer{
+                .win = self,
+                .pix = &pixels,
+            });
+
+            canvas.drawLine(100, 120, 110, 90, Pixel{
+                .r = 0xFF,
+                .g = 0x00,
+                .b = 0xFF,
+                .a = 0xFF,
+            });
         }
 
         try self.renderer.setColor(sdl.Color.white);

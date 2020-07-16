@@ -21,6 +21,11 @@ const pkgs = struct {
         .name = "uri",
         .path = "./lib/zig-uri/uri.zig",
     };
+
+    const painterz = std.build.Pkg{
+        .name = "painterz",
+        .path = "./lib/painterz/painterz.zig",
+    };
 };
 
 pub fn build(b: *Builder) !void {
@@ -115,6 +120,7 @@ pub fn build(b: *Builder) !void {
     display_client.addPackage(pkgs.args);
     display_client.addPackage(pkgs.sdl2);
     display_client.addPackage(pkgs.uri);
+    display_client.addPackage(pkgs.painterz);
 
     display_client.linkLibC();
     display_client.linkSystemLibrary("c++");
