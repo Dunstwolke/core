@@ -13,3 +13,6 @@
 [submodule "lib/stb"]
 	path = lib/stb
 	url = https://github.com/nothings/stb
+[submodule "lib/painterz"]
+	path = lib/painterz
+	url = https://github.com/ziglibs/painterz

@@ -2,7 +2,10 @@ const std = @import("std");
 const args_parser = @import("args");
 const sdl = @import("sdl2");
 const uri = @import("uri");
-const painterz = @import("painterz");
+
+const painting = @import("painting.zig");
+
+usingnamespace @import("types.zig");
 
 pub fn main() !u8 {
     var counter = std.testing.LeakCountAllocator.init(std.heap.c_allocator);
@@ -11,6 +14,9 @@ pub fn main() !u8 {
     }
 
     const gpa = &counter.allocator;
+
+    try painting.init(gpa);
+    defer painting.deinit();
 
     try sdl.init(sdl.InitFlags.everything);
     defer sdl.quit();
@@ -223,45 +229,114 @@ const UiContext = struct {
             var pixels = try self.back_buffer.lock(null);
             defer pixels.release();
 
-            {
-                var y: usize = 0;
-
-                while (y < self.screen_size.height) : (y += 1) {
-                    var x: usize = 0;
-                    while (x < self.screen_size.width) : (x += 1) {
-                        pixels.scanline(y, [4]u8)[x] = [4]u8{
-                            0x00, 0x80, 0x80, 0xFF,
-                        };
-                    }
-                }
-            }
-
-            const Pixel = packed struct {
-                r: u8, g: u8, b: u8, a: u8
+            var fb = painting.Painter{
+                .pixels = &pixels,
+                .size = self.screen_size,
+                .scheme = painting.ColorScheme{},
             };
 
-            const Framebuffer = struct {
-                win: *Self,
-                pix: *sdl.Texture.PixelData,
+            fb.fill(fb.scheme.background);
 
-                fn setPixel(fb: @This(), x: isize, y: isize, c: Pixel) void {
-                    if (x < 0 or y < 0) return;
-                    if (x >= fb.win.screen_size.width or y >= fb.win.screen_size.height) return;
-                    fb.pix.scanline(std.math.absCast(y), Pixel)[std.math.absCast(x)] = c;
-                }
-            };
+            fb.drawHLine(10, 10, 220, .edge);
+            fb.drawHLine(10, 30, 220, .crease);
 
-            var canvas = painterz.Canvas(Framebuffer, Pixel, Framebuffer.setPixel).init(Framebuffer{
-                .win = self,
-                .pix = &pixels,
-            });
+            fb.drawVLine(10, 40, 220, .edge);
+            fb.drawVLine(230, 40, 220, .crease);
 
-            canvas.drawLine(100, 120, 110, 90, Pixel{
-                .r = 0xFF,
-                .g = 0x00,
-                .b = 0xFF,
-                .a = 0xFF,
-            });
+            // filled rectangles
+
+            fb.fillRectangle(Rectangle{
+                .x = 25,
+                .y = 45,
+                .width = 40,
+                .height = 40,
+            }, .highlight);
+
+            fb.fillRectangle(Rectangle{
+                .x = 75,
+                .y = 45,
+                .width = 40,
+                .height = 40,
+            }, .background);
+
+            fb.fillRectangle(Rectangle{
+                .x = 125,
+                .y = 45,
+                .width = 40,
+                .height = 40,
+            }, .input_field);
+
+            fb.fillRectangle(Rectangle{
+                .x = 175,
+                .y = 45,
+                .width = 40,
+                .height = 40,
+            }, .checkered);
+
+            // rectangle outlines
+
+            fb.drawRectangle(Rectangle{
+                .x = 25,
+                .y = 95,
+                .width = 40,
+                .height = 40,
+            }, .edge);
+
+            fb.drawRectangle(Rectangle{
+                .x = 75,
+                .y = 95,
+                .width = 40,
+                .height = 40,
+            }, .crease);
+
+            fb.drawRectangle(Rectangle{
+                .x = 125,
+                .y = 95,
+                .width = 40,
+                .height = 40,
+            }, .raised);
+
+            fb.drawRectangle(Rectangle{
+                .x = 175,
+                .y = 95,
+                .width = 40,
+                .height = 40,
+            }, .sunken);
+
+            fb.drawRectangle(Rectangle{
+                .x = 25,
+                .y = 145,
+                .width = 40,
+                .height = 40,
+            }, .input_field);
+
+            fb.drawRectangle(Rectangle{
+                .x = 75,
+                .y = 145,
+                .width = 40,
+                .height = 40,
+            }, .button_default);
+
+            fb.drawRectangle(Rectangle{
+                .x = 125,
+                .y = 145,
+                .width = 40,
+                .height = 40,
+            }, .button_active);
+
+            fb.drawRectangle(Rectangle{
+                .x = 175,
+                .y = 145,
+                .width = 40,
+                .height = 40,
+            }, .button_pressed);
+
+            fb.drawString("Зарегистрируйтесь", Rectangle{
+                .x = 25,
+                .y = 195,
+                .width = 190,
+                .height = 40,
+            }, .sans, .left);
         }
 
         try self.renderer.setColor(sdl.Color.white);
