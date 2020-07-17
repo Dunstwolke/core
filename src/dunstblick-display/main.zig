@@ -7,6 +7,8 @@ const painting = @import("painting.zig");
 
 usingnamespace @import("types.zig");
 
+var test_icon: painting.Image = undefined;
+
 pub fn main() !u8 {
     var counter = std.testing.LeakCountAllocator.init(std.heap.c_allocator);
     defer {
@@ -17,6 +19,9 @@ pub fn main() !u8 {
 
     try painting.init(gpa);
     defer painting.deinit();
+
+    test_icon = try painting.Image.load(@embedFile("../images/kristall-32.png"));
+    defer test_icon.deinit();
 
     try sdl.init(sdl.InitFlags.everything);
     defer sdl.quit();
@@ -365,6 +370,13 @@ const UiContext = struct {
                 .width = 220,
                 .height = 80,
             }, .sans, .left);
+
+            fb.drawIcon(test_icon, Rectangle{
+                .x = 0,
+                .y = 380,
+                .width = 240,
+                .height = 240,
+            });
         }
 
         try self.renderer.setColor(sdl.Color.white);

@@ -215,6 +215,11 @@ pub const Painter = struct {
         );
     }
 
+    pub fn drawIcon(self: *Self, icon: Image, rectangle: Rectangle) void {
+        var canvas = Canvas.init(self);
+        canvas.copyRectangle(rectangle.x, rectangle.y, 0, 0, rectangle.width, rectangle.height, icon, Image.getPixel);
+    }
+
     fn scaleInt(ival: isize, scale: f32) isize {
         return @floatToInt(isize, std.math.round(@intToFloat(f32, ival) * scale));
     }
@@ -271,9 +276,13 @@ pub const Painter = struct {
         }
     }
 
-    pub fn pushClipRect(self: *Self, rectangle: Rectangle) !Rectangle {}
+    pub fn pushClipRect(self: *Self, rectangle: Rectangle) !Rectangle {
+        unreachable;
+    }
 
-    pub fn popClipRect() void {}
+    pub fn popClipRect() void {
+        unreachable;
+    }
 };
 
 // get the bbox of the bitmap centered around the glyph origin; so the
@@ -444,6 +453,54 @@ const fonts = struct {
     var mono: FontBuffer = undefined;
     var sans: FontBuffer = undefined;
     var serif: FontBuffer = undefined;
+};
+
+pub const Image = struct {
+    const Self = @This();
+
+    /// row-major  pixels of the target map
+    pixels: []Color,
+
+    /// width of the image in pixels
+    width: usize,
+
+    /// height of the image in pixels
+    height: usize,
+
+    pub fn load(data: []const u8) !Self {
+        var iwidth: c_int = undefined;
+        var iheight: c_int = undefined;
+
+        const ptr = c.stbi_load_from_memory(
+            data.ptr,
+            @intCast(c_int, data.len),
+            &iwidth,
+            &iheight,
+            null,
+            4,
+        ) orelse return error.InvalidFile;
+
+        const width = @intCast(usize, iwidth);
+        const height = @intCast(usize, iheight);
+
+        return Self{
+            .pixels = @ptrCast([*]Color, ptr)[0 .. width * height],
+            .width = width,
+            .height = height,
+        };
+    }
+
+    pub fn deinit(self: *Self) void {
+        c.free(self.pixels.ptr);
+        self.* = undefined;
+    }
+
+    pub fn getPixel(self: Self, x: isize, y: isize) Color {
+        const ux = @bitCast(usize, x);
+        const uy = @bitCast(usize, y);
+
+        return self.pixels[self.width * (uy % self.height) + (ux % self.width)];
+    }
 };
 
 pub fn init(allocator: *std.mem.Allocator) !void {
