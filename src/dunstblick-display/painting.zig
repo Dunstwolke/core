@@ -215,6 +215,10 @@ pub const Painter = struct {
         );
     }
 
+    fn scaleInt(ival: isize, scale: f32) isize {
+        return @floatToInt(isize, std.math.round(@intToFloat(f32, ival) * scale));
+    }
+
     pub fn measureString(self: *Self, text: []const u8, font: Font, line_width: ?usize) Size {}
 
     pub fn drawString(self: *Self, text: []const u8, target: Rectangle, font: Font, alignment: TextAlign) void {
@@ -234,9 +238,17 @@ pub const Painter = struct {
         var y: isize = target.y;
 
         var dx: isize = 0;
+        var dy: isize = scaleInt(font_cache.ascent, font_cache.scale);
 
         var previous_codepoint: ?u24 = null;
         while (utf8.nextCodepoint()) |codepoint| {
+            if (codepoint == '\n') {
+                dx = 0;
+                dy += scaleInt(font_cache.ascent - font_cache.descent + font_cache.line_gap, font_cache.scale);
+                previous_codepoint = null;
+                continue;
+            }
+
             const glyph = font_cache.getGlyph(codepoint) catch continue;
 
             if (previous_codepoint) |prev| {
@@ -245,8 +257,8 @@ pub const Painter = struct {
             previous_codepoint = codepoint;
 
             canvas.copyRectangle(
-                x + @floatToInt(i32, std.math.round(@intToFloat(f32, dx + glyph.left_side_bearing) * glyph.scale)),
-                y + glyph.offset_y + @intCast(isize, font_cache.font_size),
+                x + scaleInt(dx + glyph.left_side_bearing, font_cache.scale),
+                y + glyph.offset_y + dy,
                 0,
                 0,
                 glyph.width,
@@ -292,9 +304,6 @@ const Glyph = struct {
     /// leftSideBearing is the offset from the current horizontal position to the left edge of the character
     left_side_bearing: isize,
 
-    /// Scale of `advance_width` and `left_side_bearing`
-    scale: f32,
-
     fn getPixel(self: Self, x: isize, y: isize) Color {
         if (x < 0 or y < 0)
             return Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
@@ -322,6 +331,13 @@ const FontBuffer = struct {
 
     font_size: usize,
 
+    ascent: isize,
+    descent: isize,
+    line_gap: isize,
+
+    /// Scale of `advance_width` and `left_side_bearing`
+    scale: f32,
+
     fn init(allocator: *std.mem.Allocator, ttf: []const u8, font_size: usize) !Self {
         var info: c.stbtt_fontinfo = undefined;
 
@@ -334,18 +350,16 @@ const FontBuffer = struct {
         var line_gap: c_int = undefined;
         c.stbtt_GetFontVMetrics(&info, &ascent, &descent, &line_gap);
 
-        std.debug.print("{} {} {}\n", .{
-            ascent,
-            descent,
-            line_gap,
-        });
-
         return Self{
             .font = info,
             .allocator = allocator,
             .arena = std.heap.ArenaAllocator.init(allocator),
             .glyphs = std.AutoHashMap(u24, Glyph).init(allocator),
             .font_size = font_size,
+            .ascent = ascent,
+            .descent = descent,
+            .line_gap = line_gap,
+            .scale = c.stbtt_ScaleForPixelHeight(&info, @intToFloat(f32, font_size)),
         };
     }
 
@@ -359,9 +373,6 @@ const FontBuffer = struct {
         if (self.glyphs.get(codepoint)) |glyph| {
             return glyph;
         } else {
-            // Create new one
-            const scale = c.stbtt_ScaleForPixelHeight(&self.font, @intToFloat(f32, self.font_size)); // 20 Pixel size
-
             var ix0: c_int = undefined;
             var iy0: c_int = undefined;
             var ix1: c_int = undefined;
@@ -370,8 +381,8 @@ const FontBuffer = struct {
             c.stbtt_GetCodepointBitmapBox(
                 &self.font,
                 codepoint,
-                scale,
-                scale,
+                self.scale,
+                self.scale,
                 &ix0,
                 &iy0,
                 &ix1,
@@ -392,8 +403,8 @@ const FontBuffer = struct {
                 @intCast(c_int, width),
                 @intCast(c_int, height),
                 @intCast(c_int, width), // stride
-                scale,
-                scale,
+                self.scale,
+                self.scale,
                 codepoint,
             );
 
@@ -419,7 +430,6 @@ const FontBuffer = struct {
                 .height = height,
                 .advance_width = advance_width,
                 .left_side_bearing = left_side_bearing,
-                .scale = scale,
                 .offset_y = iy0,
             };
 
@@ -440,6 +450,8 @@ pub fn init(allocator: *std.mem.Allocator) !void {
     fonts.serif = try FontBuffer.init(allocator, @embedFile("./fonts/CrimsonPro-Regular.ttf"), 20);
     fonts.sans = try FontBuffer.init(allocator, @embedFile("./fonts/Roboto-Regular.ttf"), 20);
     fonts.mono = try FontBuffer.init(allocator, @embedFile("./fonts/SourceCodePro-Regular.ttf"), 20);
+
+    std.debug.print("{}\n", .{fonts.sans});
 }
 
 pub fn deinit() void {

@@ -331,11 +331,39 @@ const UiContext = struct {
                 .height = 40,
             }, .button_pressed);
 
-            fb.drawString("Зарегистрируйтесь", Rectangle{
+            fb.drawString("¡Hello, Wörld!", Rectangle{
                 .x = 25,
                 .y = 195,
                 .width = 190,
                 .height = 40,
+            }, .sans, .left);
+
+            fb.drawString("¡Hello, Wörld!", Rectangle{
+                .x = 25,
+                .y = 215,
+                .width = 190,
+                .height = 40,
+            }, .serif, .right);
+
+            fb.drawString("¡Hello, Wörld!", Rectangle{
+                .x = 25,
+                .y = 235,
+                .width = 190,
+                .height = 40,
+            }, .monospace, .center);
+
+            fb.drawString(
+                \\Li Europan lingues es membres
+                \\del sam familie. Lor separat
+                \\existentie es un myth. Por
+                \\scientie, musica, sport etc,
+                \\litot Europa usa li sam vocabular.
+                \\Li lingues differe solmen in li
+            , Rectangle{
+                .x = 10,
+                .y = 260,
+                .width = 220,
+                .height = 80,
             }, .sans, .left);
         }
 
