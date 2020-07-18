@@ -26,6 +26,8 @@ const PropertyChangedCallback = std.meta.Child(c.dunstblick_PropertyChangedCallb
 const DisconnectedCallback = std.meta.Child(c.dunstblick_DisconnectedCallback);
 const ConnectedCallback = std.meta.Child(c.dunstblick_ConnectedCallback);
 
+pub var log_level: std.log.Level = .err;
+
 fn mapDunstblickError(err: DunstblickError) NativeErrorCode {
     return switch (err) {
         error.OutOfMemory => .DUNSTBLICK_ERROR_OUT_OF_MEMORY,

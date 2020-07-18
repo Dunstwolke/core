@@ -2,24 +2,49 @@ const std = @import("std");
 const network = @import("network");
 const protocol = @import("dunstblick-protocol");
 
-pub const Application = struct {
-    name: []const u8,
+var global_allocator: *std.mem.Allocator = undefined;
+var current_thread: ?*std.Thread = null;
+var shutdown_requested: bool = false;
+var clients_locked: std.Mutex = std.Mutex.init();
 
-    address: network.Address,
-    tcp_port: u16,
-    udp_port: u16,
-};
+var current_client_list: ?DiscoveryResult = null;
 
-pub const DiscoveryResult = struct {
-    const Self = @This();
-    arena: std.heap.ArenaAllocator,
-    applications: []Application,
+pub fn init(allocator: *std.mem.Allocator) void {
+    global_allocator = allocator;
+}
 
-    pub fn deinit(self: *Self) void {
-        self.arena.deinit();
-        self.* = undefined;
+pub fn start() !void {
+    if (current_thread != null)
+        return;
+    shutdown_requested = false;
+    current_thread = try std.Thread.spawn(global_allocator, thread_proc);
+}
+
+pub fn stop() void {
+    if (current_thread) |thread| {
+        shutdown_requested = true;
+        thread.wait();
     }
-};
+    if (current_client_list) |*list| {
+        list.deinit();
+    }
+}
+
+pub fn getDiscovereyApplications() ClientAccess {
+    var held = clients_locked.acquire();
+    if (current_client_list) |list| {
+        return ClientAccess{
+            .mutex_held = held,
+            .applications = list.applications,
+        };
+    } else {
+        held.release();
+        return ClientAccess{
+            .mutex_held = null,
+            .applications = &[_]Application{},
+        };
+    }
+}
 
 const multicast_ep = network.EndPoint{
     .address = network.Address{
@@ -46,8 +71,6 @@ fn thread_proc(allocator: *std.mem.Allocator) !void {
 
         var new_clients = std.ArrayList(Application).init(&arena.allocator);
         errdefer new_clients.deinit();
-
-        std.debug.print("Starting discovery…\n", .{});
 
         var round: usize = 0;
         while (round < 10) : (round += 1) {
@@ -112,51 +135,53 @@ fn thread_proc(allocator: *std.mem.Allocator) !void {
             }
         }.lessThan);
 
-        //        size_t idx = 0;
-        //        for (auto const & client : new_clients) {
-        //            fprintf(stderr,
-        //                    "[%lu] %s:\n"
-        //                    "\tname: %s\n"
-        //                    "\tport: %d\n",
-        //                    idx++,
-        //                    xnet::to_string(client.udp_ep).c_str(),
-        //                    client.name.c_str(),
-        //                    client.tcp_port);
-        //            fflush(stderr);
-        //        }
+        var result = DiscoveryResult{
+            .arena = arena,
+            .applications = new_clients.toOwnedSlice(),
+        };
 
         {
-            // std::lock_guard<std::mutex> lock{discovered_clients_lock};
-            // discovered_clients = std::move(new_clients);
-        }
+            var handle = clients_locked.acquire();
+            defer handle.release();
 
-        std.debug.print("Found {} clients!\n", .{
-            new_clients.items.len,
-        });
+            if (current_client_list) |*list| {
+                list.deinit();
+            }
+
+            current_client_list = result;
+        }
 
         std.time.sleep(1 * std.time.ns_per_s);
     }
 }
 
-var global_allocator: *std.mem.Allocator = undefined;
-var current_thread: ?*std.Thread = null;
+pub const Application = struct {
+    name: []const u8,
 
-var shutdown_requested: bool = false;
+    address: network.Address,
+    tcp_port: u16,
+    udp_port: u16,
+};
 
-pub fn init(allocator: *std.mem.Allocator) void {
-    global_allocator = allocator;
-}
+pub const DiscoveryResult = struct {
+    const Self = @This();
+    arena: std.heap.ArenaAllocator,
+    applications: []Application,
 
-pub fn start() !void {
-    if (current_thread != null)
-        return;
-    shutdown_requested = false;
-    current_thread = try std.Thread.spawn(global_allocator, thread_proc);
-}
-
-pub fn stop() void {
-    if (current_thread) |thread| {
-        shutdown_requested = true;
-        thread.wait();
+    pub fn deinit(self: *Self) void {
+        self.arena.deinit();
+        self.* = undefined;
     }
-}
+};
+
+pub const ClientAccess = struct {
+    mutex_held: ?std.Mutex.Held,
+    applications: []Application,
+
+    pub fn release(self: *@This()) void {
+        if (self.mutex_held) |*held| {
+            held.release();
+        }
+        self.* = undefined;
+    }
+};

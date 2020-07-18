@@ -125,122 +125,6 @@ static void dump_object(Object const & obj)
 
 static Session * current_session;
 
-struct DiscoveredClient
-{
-    std::string name;
-    uint16_t tcp_port;
-    xnet::endpoint udp_ep;
-
-    xnet::endpoint create_tcp_endpoint() const
-    {
-        switch (udp_ep.family()) {
-            case AF_INET:
-                return xnet::endpoint(udp_ep.get_addr_v4(), tcp_port);
-            case AF_INET6:
-                return xnet::endpoint(udp_ep.get_addr_v6(), tcp_port);
-            default:
-                assert(false and "not supported yet");
-        }
-    }
-};
-
-std::vector<DiscoveredClient> discovered_clients;
-std::mutex discovered_clients_lock;
-
-static std::atomic_flag shutdown_discovery_flag{true};
-
-static void refresh_discovery()
-{
-    xnet::socket multicast_sock(AF_INET, SOCK_DGRAM, 0);
-
-    // multicast_sock.set_option<int>(SOL_SOCKET, SO_REUSEADDR, 1);
-    // multicast_sock.set_option<int>(SOL_SOCKET, SO_BROADCAST, 1);
-
-    // multicast_sock.bind(xnet::parse_ipv4("0.0.0.0", DUNSTBLICK_DEFAULT_PORT));
-
-    // multicast_sock.set_option<int>(SOL_SOCKET, IP_MULTICAST_LOOP, 1);
-
-    auto const multicast_ep = xnet::parse_ipv4(DUNSTBLICK_MULTICAST_GROUP, DUNSTBLICK_DEFAULT_PORT);
-
-    timeval timeout;
-    timeout.tv_sec = 0;
-    timeout.tv_usec = 50000;
-
-    multicast_sock.set_option<timeval>(SOL_SOCKET, SO_RCVTIMEO, timeout);
-
-    while (shutdown_discovery_flag.test_and_set()) {
-
-        std::vector<DiscoveredClient> new_clients;
-        for (int i = 0; i < 10; i++) {
-            UdpDiscover discoverMsg;
-            discoverMsg.header = UdpHeader::create(UDP_DISCOVER);
-
-            ssize_t sendlen = multicast_sock.write_to(multicast_ep, &discoverMsg, sizeof discoverMsg);
-            if (sendlen < 0)
-                perror("send failed");
-            while (true) {
-                UdpBaseMessage message;
-                auto const [len, sender] = multicast_sock.read_from(&message, sizeof message);
-                if (len < 0) {
-                    if (errno != EWOULDBLOCK and errno != EAGAIN)
-                        perror("receive failed");
-                    break;
-                }
-                if (len >= sizeof(UdpDiscoverResponse) and message.header.type == UDP_RESPOND_DISCOVER) {
-                    auto & resp = message.discover_response;
-                    if (resp.length < DUNSTBLICK_MAX_APP_NAME_LENGTH)
-                        resp.name[resp.length] = 0;
-                    else
-                        resp.name.back() = 0;
-
-                    DiscoveredClient client;
-
-                    client.name = std::string(resp.name.data());
-                    client.tcp_port = resp.tcp_port;
-                    client.udp_ep = sender;
-
-                    bool found = false;
-                    for (auto const & other : new_clients) {
-                        if (client.tcp_port != other.tcp_port)
-                            continue;
-                        if (client.udp_ep != other.udp_ep)
-                            continue;
-                        found = true;
-                        break;
-                    }
-                    if (found)
-                        continue;
-                    new_clients.emplace_back(std::move(client));
-                }
-            }
-        }
-
-        std::sort(new_clients.begin(), new_clients.end(), [](DiscoveredClient const & a, DiscoveredClient const & b) {
-            return (a.name < b.name);
-        });
-
-        //        size_t idx = 0;
-        //        for (auto const & client : new_clients) {
-        //            fprintf(stderr,
-        //                    "[%lu] %s:\n"
-        //                    "\tname: %s\n"
-        //                    "\tport: %d\n",
-        //                    idx++,
-        //                    xnet::to_string(client.udp_ep).c_str(),
-        //                    client.name.c_str(),
-        //                    client.tcp_port);
-        //            fflush(stderr);
-        //        }
-
-        {
-            std::lock_guard<std::mutex> lock{discovered_clients_lock};
-            discovered_clients = std::move(new_clients);
-        }
-
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-}
-
 static std::vector<std::unique_ptr<Session>> all_sessions;
 
 ObjectID constexpr local_root_obj{1};
@@ -326,13 +210,6 @@ void ui_set_mouse_focus(Widget * widget)
 
 int old_main()
 {
-    std::thread discovery_thread(refresh_discovery);
-
-    //////////////////////////////////////////////////////////////////////////////
-    if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
-        exit_sdl_error();
-    }
-    atexit(SDL_Quit);
 
     //////////////////////////////////////////////////////////////////////////////
 
@@ -713,9 +590,6 @@ int old_main()
     current_rc.reset();
 
     SDL_DestroyWindow(window);
-
-    shutdown_discovery_flag.clear();
-    discovery_thread.join();
 
     return 0;
 }

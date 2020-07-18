@@ -386,6 +386,18 @@ const UiContext = struct {
                 .width = 240,
                 .height = 240,
             });
+
+            var list = app_discovery.getDiscovereyApplications();
+            defer list.release();
+
+            for (list.applications) |app, i| {
+                fb.drawString(app.name, Rectangle{
+                    .x = 240,
+                    .y = 10 + 40 * @intCast(isize, i),
+                    .width = 200,
+                    .height = 40,
+                }, .monospace, .center);
+            }
         }
 
         try self.renderer.setColor(sdl.Color.white);
