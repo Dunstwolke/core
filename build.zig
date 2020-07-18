@@ -26,6 +26,11 @@ const pkgs = struct {
         .name = "painterz",
         .path = "./lib/painterz/painterz.zig",
     };
+
+    const dunstblick_protocol = std.build.Pkg{
+        .name = "dunstblick-protocol",
+        .path = "./src/dunstblick-protocol/protocol.zig",
+    };
 };
 
 pub fn build(b: *Builder) !void {
@@ -43,6 +48,7 @@ pub fn build(b: *Builder) !void {
 
     const lib = b.addStaticLibrary("dunstblick", "./src/libdunstblick/src/dunstblick.zig");
     lib.addPackage(pkgs.network);
+    lib.addPackage(pkgs.dunstblick_protocol);
     lib.addIncludeDir("./src/libdunstblick/include");
     lib.linkLibC();
     lib.setTarget(target);
@@ -116,6 +122,7 @@ pub fn build(b: *Builder) !void {
 
     const display_client = b.addExecutable("dunstblick-display", "./src/dunstblick-display/main.zig");
 
+    display_client.addPackage(pkgs.dunstblick_protocol);
     display_client.addPackage(pkgs.network);
     display_client.addPackage(pkgs.args);
     display_client.addPackage(pkgs.sdl2);

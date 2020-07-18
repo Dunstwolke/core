@@ -1,6 +1,6 @@
 const std = @import("std");
-
 const xnet = @import("network");
+const protocol = @import("dunstblick-protocol");
 
 // Enforce creation of the library C bindings
 comptime {
@@ -293,8 +293,8 @@ fn computeHash(data: []const u8) SipHash {
 const StoredResource = struct {
     const Self = @This();
 
-    id: ResourceID,
-    type: ResourceKind,
+    id: protocol.ResourceID,
+    type: protocol.ResourceKind,
     data: []u8, // allocated with dunstblick_Provider.allocator
     hash: SipHash,
 
@@ -407,23 +407,23 @@ pub const dunstblick_Connection = struct {
             const stream_data = self.receive_buffer.items;
             const consumed_size = switch (self.state) {
                 .READ_HEADER => blk: {
-                    if (stream_data.len > @sizeOf(protocol.TcpConnectHeader)) {
+                    if (stream_data.len > @sizeOf(protocol.tcp.ConnectHeader)) {
                         // Drop if we received too much data.
                         // Server is not allowed to send more than the actual
                         // connect header.
                         return self.drop(.DUNSTBLICK_DISCONNECT_INVALID_DATA);
                     }
-                    if (stream_data.len < @sizeOf(protocol.TcpConnectHeader)) {
+                    if (stream_data.len < @sizeOf(protocol.tcp.ConnectHeader)) {
                         // not yet enough data
                         return;
                     }
-                    std.debug.assert(stream_data.len == @sizeOf(protocol.TcpConnectHeader));
+                    std.debug.assert(stream_data.len == @sizeOf(protocol.tcp.ConnectHeader));
 
-                    const net_header = @ptrCast(*align(1) const protocol.TcpConnectHeader, stream_data.ptr);
+                    const net_header = @ptrCast(*align(1) const protocol.tcp.ConnectHeader, stream_data.ptr);
 
-                    if (!std.mem.eql(u8, &net_header.magic, &protocol.TcpConnectHeader.real_magic))
+                    if (!std.mem.eql(u8, &net_header.magic, &protocol.tcp.magic))
                         return self.drop(.DUNSTBLICK_DISCONNECT_INVALID_DATA);
-                    if (net_header.protocol_version != protocol.TcpConnectHeader.current_protocol_version)
+                    if (net_header.protocol_version != protocol.tcp.protocol_version)
                         return self.drop(.DUNSTBLICK_DISCONNECT_PROTOCOL_MISMATCH);
 
                     {
@@ -442,8 +442,8 @@ pub const dunstblick_Connection = struct {
                         self.header = header;
                     }
 
-                    self.screenResolution.w = net_header.screenSizeX;
-                    self.screenResolution.h = net_header.screenSizeY;
+                    self.screenResolution.w = net_header.screen_size_x;
+                    self.screenResolution.h = net_header.screen_size_y;
 
                     {
                         const lock = self.provider.resource_lock.acquire();
@@ -451,9 +451,9 @@ pub const dunstblick_Connection = struct {
 
                         var stream = self.sock.writer();
 
-                        var response = protocol.TcpConnectResponse{
+                        var response = protocol.tcp.ConnectResponse{
                             .success = 1,
-                            .resourceCount = @intCast(u32, self.provider.resources.count()),
+                            .resource_count = @intCast(u32, self.provider.resources.count()),
                         };
 
                         try stream.writeAll(std.mem.asBytes(&response));
@@ -461,7 +461,7 @@ pub const dunstblick_Connection = struct {
                         var iter = self.provider.resources.iterator();
                         while (iter.next()) |kv| {
                             const resource = &kv.value;
-                            var descriptor = protocol.TcpResourceDescriptor{
+                            var descriptor = protocol.tcp.ResourceDescriptor{
                                 .id = resource.id,
                                 .size = @intCast(u32, resource.data.len),
                                 .type = resource.type,
@@ -473,14 +473,14 @@ pub const dunstblick_Connection = struct {
 
                     self.state = .READ_REQUIRED_RESOURCE_HEADER;
 
-                    break :blk @sizeOf(protocol.TcpConnectHeader);
+                    break :blk @sizeOf(protocol.tcp.ConnectHeader);
                 },
 
                 .READ_REQUIRED_RESOURCE_HEADER => blk: {
-                    if (stream_data.len < @sizeOf(protocol.TcpResourceRequestHeader))
+                    if (stream_data.len < @sizeOf(protocol.tcp.ResourceRequestHeader))
                         return;
 
-                    const header = @ptrCast(*align(1) const protocol.TcpResourceRequestHeader, stream_data.ptr);
+                    const header = @ptrCast(*align(1) const protocol.tcp.ResourceRequestHeader, stream_data.ptr);
 
                     self.required_resource_count = header.request_count;
 
@@ -497,20 +497,20 @@ pub const dunstblick_Connection = struct {
                         self.is_initialized = true;
                     }
 
-                    break :blk @sizeOf(protocol.TcpResourceRequestHeader);
+                    break :blk @sizeOf(protocol.tcp.ResourceRequestHeader);
                 },
 
                 .READ_REQUIRED_RESOURCES => blk: {
-                    if (stream_data.len < @sizeOf(protocol.TcpResourceRequest))
+                    if (stream_data.len < @sizeOf(protocol.tcp.ResourceRequest))
                         return;
 
-                    const request = @ptrCast(*align(1) const protocol.TcpResourceRequest, stream_data.ptr);
+                    const request = @ptrCast(*align(1) const protocol.tcp.ResourceRequest, stream_data.ptr);
 
                     try self.required_resources.append(request.id);
 
                     std.debug.assert(self.required_resources.items.len <= self.required_resource_count);
                     if (self.required_resources.items.len == self.required_resource_count) {
-                        if (stream_data.len > @sizeOf(protocol.TcpResourceRequest)) {
+                        if (stream_data.len > @sizeOf(protocol.tcp.ResourceRequest)) {
                             // If excess data was sent, we drop the connection
                             return self.drop(.DUNSTBLICK_DISCONNECT_INVALID_DATA);
                         }
@@ -522,7 +522,7 @@ pub const dunstblick_Connection = struct {
 
                     // wait for a packet of all required resources
 
-                    break :blk @sizeOf(protocol.TcpResourceRequest);
+                    break :blk @sizeOf(protocol.tcp.ResourceRequest);
                 },
 
                 .SEND_RESOURCES => {
@@ -570,7 +570,7 @@ pub const dunstblick_Connection = struct {
                 var stream = self.sock.writer();
 
                 if (self.resource_send_offset == 0) {
-                    const header = protocol.TcpResourceHeader{
+                    const header = protocol.tcp.ResourceHeader{
                         .id = resource_id,
                         .size = @intCast(u32, resource.data.len),
                     };
@@ -991,23 +991,23 @@ pub const dunstblick_Provider = struct {
         }
 
         if (self.socket_set.isReadyRead(self.multicast_sock)) {
-            var message: UdpBaseMessage = undefined;
+            var message: protocol.udp.Message = undefined;
 
             if (self.multicast_sock.receiveFrom(std.mem.asBytes(&message))) |msg| {
-                if (msg.numberOfBytes < @sizeOf(UdpHeader)) {
+                if (msg.numberOfBytes < @sizeOf(protocol.udp.Header)) {
                     log_msg(.@"error", "udp message too small…\n", .{});
                 } else {
-                    if (std.mem.eql(u8, &message.header.magic, &UdpHeader.real_magic)) {
-                        switch (@intToEnum(UdpAnnouncementType, message.header.type)) {
-                            .UDP_DISCOVER => {
-                                if (msg.numberOfBytes >= @sizeOf(UdpDiscover)) {
-                                    var response = UdpDiscoverResponse{
+                    if (std.mem.eql(u8, &message.header.magic, &protocol.udp.magic)) {
+                        switch (message.header.type) {
+                            .discover => {
+                                if (msg.numberOfBytes >= @sizeOf(protocol.udp.Discover)) {
+                                    var response = protocol.udp.DiscoverResponse{
                                         .header = undefined,
                                         .tcp_port = self.tcp_listener_ep.port,
                                         .length = undefined,
                                         .name = undefined,
                                     };
-                                    response.header = UdpHeader.create(UdpAnnouncementType.UDP_RESPOND_DISCOVER);
+                                    response.header = protocol.udp.Header.create(.respond_discover);
 
                                     response.length = @intCast(u16, std.math.min(response.name.len, self.discovery_name.len));
 
@@ -1017,9 +1017,9 @@ pub const dunstblick_Provider = struct {
                                     log_msg(.diagnostic, "response to {}\n", .{msg.sender});
 
                                     if (self.multicast_sock.sendTo(msg.sender, std.mem.asBytes(&response))) |sendlen| {
-                                        if (sendlen < @sizeOf(UdpDiscoverResponse)) {
+                                        if (sendlen < @sizeOf(protocol.udp.DiscoverResponse)) {
                                             log_msg(.@"error", "expected to send {} bytes, got {}\n", .{
-                                                @sizeOf(UdpDiscoverResponse),
+                                                @sizeOf(protocol.udp.DiscoverResponse),
                                                 sendlen,
                                             });
                                         }
@@ -1027,15 +1027,15 @@ pub const dunstblick_Provider = struct {
                                         log_msg(.@"error", "failed to send udp response: {}\n", .{err});
                                     }
                                 } else {
-                                    log_msg(.@"error", "expected {} bytes, got {}\n", .{ @sizeOf(UdpDiscover), msg.numberOfBytes });
+                                    log_msg(.@"error", "expected {} bytes, got {}\n", .{ @sizeOf(protocol.udp.Discover), msg.numberOfBytes });
                                 }
                             },
-                            .UDP_RESPOND_DISCOVER => {
-                                if (msg.numberOfBytes >= @sizeOf(UdpDiscoverResponse)) {
+                            .respond_discover => {
+                                if (msg.numberOfBytes >= @sizeOf(protocol.udp.DiscoverResponse)) {
                                     log_msg(.diagnostic, "got udp response\n", .{});
                                 } else {
                                     log_msg(.@"error", "expected {} bytes, got {}\n", .{
-                                        @sizeOf(UdpDiscoverResponse),
+                                        @sizeOf(protocol.udp.DiscoverResponse),
                                         msg.numberOfBytes,
                                     });
                                 }
@@ -1144,7 +1144,7 @@ pub const dunstblick_Provider = struct {
         } else {
             result.entry.value.id = id;
         }
-        result.entry.value.type = kind;
+        result.entry.value.type = @intToEnum(protocol.ResourceKind, @enumToInt(kind));
         result.entry.value.data = cloned_data;
         result.entry.value.updateHash();
     }
@@ -1191,115 +1191,6 @@ pub const dunstblick_Object = struct {
         self.connection.provider.allocator.destroy(self);
     }
 };
-
-const protocol = protocol_v1;
-const protocol_v1 = struct {
-    /// Protocol initiating message sent from the display client to
-    /// the UI provider.
-    const TcpConnectHeader = packed struct {
-        const real_magic = [4]u8{ 0x21, 0x06, 0xc1, 0x62 };
-        const current_protocol_version: u16 = 1;
-
-        // protocol header, must not be changed or reordered between
-        // different protocol versions!
-        magic: [4]u8,
-        protocol_version: u16,
-
-        // data header
-        name: [32]u8,
-        password: [32]u8,
-        capabilities: u32,
-        screenSizeX: u16,
-        screenSizeY: u16,
-    };
-
-    /// Response from the ui provider to the display client.
-    /// Is the direct answer to @ref TcpConnectHeader.
-    const TcpConnectResponse = packed struct {
-        ///< is `1` if the connection was successful, otherwise `0`.
-        success: u32,
-        ///< Number of resources that should be transferred to the display client.
-        resourceCount: u32,
-    };
-
-    /// Followed after the @ref TcpConnectResponse, `resourceCount` descriptors
-    /// are transferred to the display client.
-    const TcpResourceDescriptor = packed struct {
-        /// The unique resource identifier.
-        id: ResourceID,
-        /// The type of the resource.
-        type: ResourceKind,
-        /// Size of the resource in bytes.
-        size: u32,
-        /// Siphash of the resource data.
-        /// Key used is
-        sipsum: [8]u8,
-    };
-
-    /// Followed after the set of @ref TcpResourceDescriptor
-    /// the display client answers with the number of required resources.
-    const TcpResourceRequestHeader = packed struct {
-        request_count: u32,
-    };
-
-    /// Sent `request_count` times by the display server after the
-    /// @ref TcpResourceRequestHeader.
-    const TcpResourceRequest = packed struct {
-        id: ResourceID,
-    };
-
-    /// Sent after the last @ref TcpResourceRequest for each
-    /// requested resource. Each @ref TcpResourceHeader is followed by a
-    /// blob containing the resource itself.
-    const TcpResourceHeader = packed struct {
-        ///< id of the resource
-        id: ResourceID,
-        ///< size of the transferred resource
-        size: u32,
-    };
-};
-
-const UdpAnnouncementType = enum(u16) {
-    UDP_DISCOVER, UDP_RESPOND_DISCOVER, _
-};
-
-const UdpHeader = extern struct {
-    const Self = @This();
-
-    const real_magic = [4]u8{ 0x73, 0xe6, 0x37, 0x28 };
-    magic: [4]u8,
-    type: u16,
-
-    fn create(_type: UdpAnnouncementType) Self {
-        return Self{
-            .magic = real_magic,
-            .type = @enumToInt(_type),
-        };
-    }
-};
-
-const UdpDiscover = extern struct {
-    header: UdpHeader,
-};
-
-const UdpDiscoverResponse = extern struct {
-    header: UdpHeader,
-    tcp_port: u16,
-    length: u16,
-    name: [DUNSTBLICK_MAX_APP_NAME_LENGTH]u8,
-};
-
-const UdpBaseMessage = extern union {
-    header: UdpHeader,
-    discover: UdpDiscover,
-    discover_response: UdpDiscoverResponse,
-};
-
-comptime {
-    std.debug.assert(@sizeOf(UdpHeader) == 6);
-    std.debug.assert(@sizeOf(UdpDiscover) == 6);
-    std.debug.assert(@sizeOf(UdpDiscoverResponse) == 74);
-}
 
 const DataReader = struct {
     const Self = @This();

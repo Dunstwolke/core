@@ -507,8 +507,6 @@ pub fn init(allocator: *std.mem.Allocator) !void {
     fonts.serif = try FontBuffer.init(allocator, @embedFile("./fonts/CrimsonPro-Regular.ttf"), 20);
     fonts.sans = try FontBuffer.init(allocator, @embedFile("./fonts/Roboto-Regular.ttf"), 20);
     fonts.mono = try FontBuffer.init(allocator, @embedFile("./fonts/SourceCodePro-Regular.ttf"), 20);
-
-    std.debug.print("{}\n", .{fonts.sans});
 }
 
 pub fn deinit() void {

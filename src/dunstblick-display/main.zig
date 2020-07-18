@@ -2,7 +2,9 @@ const std = @import("std");
 const args_parser = @import("args");
 const sdl = @import("sdl2");
 const uri = @import("uri");
+const network = @import("network");
 
+const app_discovery = @import("app-discovery.zig");
 const painting = @import("painting.zig");
 
 usingnamespace @import("types.zig");
@@ -16,6 +18,13 @@ pub fn main() !u8 {
     }
 
     const gpa = &counter.allocator;
+
+    try network.init();
+    defer network.deinit();
+
+    app_discovery.init(gpa);
+    try app_discovery.start();
+    defer app_discovery.stop();
 
     try painting.init(gpa);
     defer painting.deinit();
