@@ -12,6 +12,7 @@
 using Packet = std::vector<uint8_t>;
 
 struct Widget;
+struct RenderContext;
 
 struct Session : IWidgetContext
 {
@@ -29,11 +30,16 @@ struct Session : IWidgetContext
 
     std::string title = "Unnamed Session";
 
+    UIPoint mouse_pos;
+
+    Widget * keyboard_focused_widget = nullptr;
+    Widget * mouse_focused_widget = nullptr;
+
+    Rectangle screen_rect;
+
     Session();
     Session(Session const &) = delete;
     virtual ~Session();
-
-    virtual void update() = 0;
 
     xstd::optional<Object &> try_resolve(ObjectID) override;
 
@@ -54,7 +60,7 @@ struct Session : IWidgetContext
     void moveRange(ObjectID obj, PropertyName prop, size_t indexFrom, size_t indexTo, size_t count); // manipulate lists
 
     // Layouting and stuff
-    void update_layout();
+    void update_layout(IWidgetPainter & painter);
 
     void notify_destroy(Widget *) override;
 

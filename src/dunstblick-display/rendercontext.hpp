@@ -8,19 +8,7 @@
 
 struct RenderContext : IWidgetPainter
 {
-    sdl2::renderer renderer;
-    mutable FontCache sansFont;
-    mutable FontCache serifFont;
-    mutable FontCache monospaceFont;
     std::stack<Rectangle> clip_rects;
-
-    explicit RenderContext(sdl2::renderer && ren, char const * sansTTF, char const * serifTTF, char const * monoTTF);
-
-    FontCache & getFont(UIFont) const;
-
-    void drawRectImpl(Rectangle const & rect, SDL_Color const & top_left, SDL_Color const & bottom_right);
-
-    // IWidgetPainter:
 
     UISize measureString(std::string const & text, UIFont font, xstd::optional<int> line_width) const override;
 

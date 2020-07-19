@@ -1,10 +1,6 @@
 #include "networksession.hpp"
 
-#include <xnet/select>
-#include <xnet/socket_stream>
-
 #include "dunstblick-internal.hpp"
-#include <xcept>
 #include <xlog>
 
 #include "data-writer.hpp"
@@ -54,16 +50,7 @@ NetworkSession::NetworkSession(const xnet::endpoint & target) : sock(target.fami
                 res.siphash[4],
                 res.siphash[5],
                 res.siphash[6],
-                res.siphash[7]
-                // res.md5sum[8],
-                // res.md5sum[9],
-                // res.md5sum[10],
-                // res.md5sum[11],
-                // res.md5sum[12],
-                // res.md5sum[13],
-                // res.md5sum[14],
-                // res.md5sum[15]
-        );
+                res.siphash[7]);
     }
 
     TcpResourceRequestHeader request_header;
@@ -130,7 +117,7 @@ void NetworkSession::send_message(CommandBuffer const & buffer)
     std::lock_guard _{send_lock};
     xnet::socket_ostream stream{this->sock};
 
-    auto const len = gsl::narrow<uint32_t>(buffer.buffer.size());
+    auto const len = static_cast<uint32_t>(buffer.buffer.size());
 
     stream.write<uint32_t>(len);
     stream.write(buffer.buffer.data(), len);

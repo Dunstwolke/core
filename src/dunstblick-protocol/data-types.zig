@@ -1,17 +1,17 @@
-pub const ResourceID = u32;
-pub const ObjectID = u32;
-pub const PropertyName = u32;
-pub const EventID = u32;
-pub const WidgetName = u32;
+pub const ResourceID = extern enum(u32) { invalid, _ };
+pub const ObjectID = extern enum(u32) { invalid, _ };
+pub const PropertyName = extern enum(u32) { invalid, _ };
+pub const EventID = extern enum(u32) { invalid, _ };
+pub const WidgetName = extern enum(u32) { none, _ };
 
-pub const ResourceKind = extern enum(c_int) {
+pub const ResourceKind = extern enum(u8) {
     layout = 0,
     bitmap = 1,
     drawing = 2,
     _,
 };
 
-pub const Type = extern enum(c_int) {
+pub const Type = extern enum(u8) {
     integer = 1,
     number = 2,
     string = 3,
@@ -74,24 +74,24 @@ pub const Margins = extern struct {
 };
 
 // only required for the API
-// const ValueStorage = extern union {
-//     integer: i32,
-//     enumeration: u8,
-//     number: f32,
-//     string: [*:0]const u8,
-//     resource: ResourceID,
-//     object: ObjectID,
-//     color: Color,
-//     size: Size,
-//     point: Point,
-//     margins: Margins,
-//     boolean: bool,
-// };
+pub const ValueStorage = extern union {
+    integer: i32,
+    enumeration: u8,
+    number: f32,
+    string: [*:0]const u8,
+    resource: ResourceID,
+    object: ObjectID,
+    color: Color,
+    size: Size,
+    point: Point,
+    margins: Margins,
+    boolean: bool,
+};
 
-// pub const Value = extern struct {
-//     type: Type,
-//     value: ValueStorage,
-// };
+pub const Value = extern struct {
+    type: Type,
+    value: ValueStorage,
+};
 
 // Required for C api
 // pub const Provider = @Type(.Opaque);

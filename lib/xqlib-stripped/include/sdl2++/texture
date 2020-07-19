@@ -1,0 +1,59 @@
+#ifndef XQLIB_SDL2PP_TEXTURE_HPP
+#define XQLIB_SDL2PP_TEXTURE_HPP
+
+#include "../xstd/resource"
+
+#include <SDL.h>
+
+namespace sdl2
+{
+	struct texture
+	{
+		xstd::resource<SDL_Texture*, SDL_DestroyTexture> ptr;
+
+		explicit texture(SDL_Texture * && init);
+
+		explicit texture(SDL_Renderer * ren, int width, int height , SDL_PixelFormatEnum format = SDL_PIXELFORMAT_RGBA32, SDL_TextureAccess access = SDL_TEXTUREACCESS_STATIC);
+
+		explicit texture(SDL_Renderer * ren, SDL_Surface * surface);
+
+
+		std::tuple<SDL_PixelFormatEnum, SDL_TextureAccess, int, int> query() const;
+
+		void update(void * pixels, size_t pitch);
+
+		void update(SDL_Rect const & rect, void * pixels, size_t pitch);
+
+		Uint8 getAlphaMod() const;
+
+		SDL_BlendMode getBlendMode() const;
+
+		SDL_Color getColorMod() const;
+
+		/// returns <pixels, pitch>
+		std::tuple<void *, size_t> lock();
+
+		/// returns <pixels, pitch>
+		std::tuple<void *, size_t> lock(SDL_Rect const & rect);
+
+		void setAlphaMod(Uint8 alpha);
+
+		void setBlendMode(SDL_BlendMode mode);
+
+		void setColorMod(Uint8 r, Uint8 g, Uint8 b);
+
+		void setColorMod(SDL_Color color);
+
+		void unlock();
+
+
+
+		// implicit cast operator
+		operator SDL_Texture* () const {
+			return ptr.get();
+		}
+	};
+
+}
+
+#endif // TEXTURE_HPP

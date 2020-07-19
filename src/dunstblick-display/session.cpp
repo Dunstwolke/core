@@ -7,9 +7,6 @@
 
 #include "widget.hpp"
 
-extern Rectangle screen_rect;
-extern std::unique_ptr<RenderContext> current_rc;
-
 Session::Session() {}
 
 Session::~Session() {}
@@ -24,33 +21,35 @@ void Session::uploadResource(UIResourceID id, ResourceKind kind, const void * da
         }
 
         case ResourceKind::bitmap: {
-            int w, h;
-            stbi_uc * pixels = stbi_load_from_memory(reinterpret_cast<stbi_uc const *>(data),
-                                                     gsl::narrow<int>(len),
-                                                     &w,
-                                                     &h,
-                                                     nullptr,
-                                                     4);
+            // int w, h;
+            // stbi_uc * pixels = stbi_load_from_memory(reinterpret_cast<stbi_uc const *>(data),
+            //                                          static_cast<int>(len),
+            //                                          &w,
+            //                                          &h,
+            //                                          nullptr,
+            //                                          4);
 
-            if (pixels == nullptr) {
-                xlog::log(xlog::error) << "could not load pixels for resource " << id.value << ": " << SDL_GetError();
-                return;
-            }
+            // if (pixels == nullptr) {
+            //     xlog::log(xlog::error) << "could not load pixels for resource " << id.value << ": " <<
+            //     SDL_GetError(); return;
+            // }
 
-            auto * tex =
-                SDL_CreateTexture(current_rc->renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STATIC, w, h);
+            // auto * tex =
+            //     SDL_CreateTexture(current_rc->renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STATIC, w, h);
 
-            if (tex == nullptr) {
-                stbi_image_free(pixels);
-                xlog::log(xlog::error) << "could not load bitmap for resource " << id.value << ": " << SDL_GetError();
-                return;
-            }
+            // if (tex == nullptr) {
+            //     stbi_image_free(pixels);
+            //     xlog::log(xlog::error) << "could not load bitmap for resource " << id.value << ": " <<
+            //     SDL_GetError(); return;
+            // }
 
-            SDL_UpdateTexture(tex, nullptr, pixels, w * 4);
+            // SDL_UpdateTexture(tex, nullptr, pixels, w * 4);
 
-            stbi_image_free(pixels);
+            // stbi_image_free(pixels);
 
-            set_resource(id, BitmapResource(sdl2::texture(std::move(tex))));
+            // set_resource(id, BitmapResource(sdl2::texture(std::move(tex))));
+
+            assert(false and "not implemented yet");
             break;
         }
 
@@ -69,18 +68,27 @@ void Session::addOrUpdateObject(Object && obj)
     add_or_update_object(std::move(obj));
 }
 
-void Session::update_layout()
+void Session::update_layout(IWidgetPainter & painter)
 {
     if (not root_widget)
         return;
     root_widget->updateBindings(root_object);
-    root_widget->updateWantedSize(*current_rc);
-    root_widget->layout(screen_rect);
+    root_widget->updateWantedSize(painter);
+    root_widget->layout(this->screen_rect);
 }
 
 void Session::notify_destroy(Widget * w)
 {
     assert(w != nullptr);
+
+    if (keyboard_focused_widget == w) {
+        keyboard_focused_widget = nullptr;
+    }
+
+    if (mouse_focused_widget == w) {
+        mouse_focused_widget = nullptr;
+    }
+
     if (onWidgetDestroyed)
         onWidgetDestroyed(w);
 }
@@ -90,7 +98,7 @@ void Session::setView(UIResourceID id)
     root_widget = load_widget(id);
     root_widget->initializeRoot(this);
 
-    update_layout();
+    // TODO: update_layout();
 }
 
 void Session::setRoot(ObjectID id)
@@ -98,7 +106,9 @@ void Session::setRoot(ObjectID id)
     auto ref = ObjectRef{id};
     if (auto obj = ref.try_resolve(*this); obj) {
         root_object = ref;
-        update_layout();
+        // TODO: update_layout();
+    } else {
+        xlog::log("dunstblick", xlog::error) << "Could not find object(" << id.value << ")";
     }
 }
 
@@ -151,7 +161,7 @@ void Session::insertRange(ObjectID obj, PropertyName prop, size_t index, size_t 
 {
     if (auto list = get_list(*this, obj, prop); list) {
         for (size_t i = 0; i < count; i++, index++) {
-            list->emplace((index >= list->size()) ? list->end() : list->begin() + gsl::narrow<ssize_t>(index),
+            list->emplace((index >= list->size()) ? list->end() : list->begin() + static_cast<ssize_t>(index),
                           value[i]);
         }
     }
@@ -163,7 +173,7 @@ void Session::removeRange(ObjectID obj, PropertyName prop, size_t index, size_t 
         if (list->empty())
             return;
         for (size_t i = 0; (i < count) and (index < list->size()); i++, index++) {
-            list->erase(list->begin() + gsl::narrow<ssize_t>(index));
+            list->erase(list->begin() + static_cast<ssize_t>(index));
         }
     }
 }

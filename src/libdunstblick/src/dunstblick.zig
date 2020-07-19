@@ -16,13 +16,13 @@ const DUNSTBLICK_MAX_APP_NAME_LENGTH = 64;
 const DisconnectReason = c.dunstblick_DisconnectReason;
 const ClientCapabilities = c.dunstblick_ClientCapabilities;
 const Size = c.dunstblick_Size;
-const ResourceID = c.dunstblick_ResourceID;
-const ObjectID = c.dunstblick_ObjectID;
-const EventID = c.dunstblick_EventID;
+const ResourceID = protocol.ResourceID;
+const ObjectID = protocol.ObjectID;
+const EventID = protocol.EventID;
 const NativeErrorCode = c.dunstblick_Error;
-const PropertyName = c.dunstblick_PropertyName;
+const PropertyName = protocol.PropertyName;
 const Value = c.dunstblick_Value;
-const ResourceKind = c.dunstblick_ResourceKind;
+const ResourceKind = c.ResourceKind;
 
 // C function pointers are actually optional:
 // We remove the optional field here to make that explicit in later
@@ -327,7 +327,7 @@ pub const dunstblick_Connection = struct {
     ///< total number of resources required by the display client
     required_resource_count: usize,
     ///< ids of the required resources
-    required_resources: std.ArrayList(ResourceID),
+    required_resources: std.ArrayList(protocol.ResourceID),
     ///< currently transmitted resource
     resource_send_index: usize,
     ///< current byte offset in the resource
@@ -692,7 +692,7 @@ pub const dunstblick_Connection = struct {
         var buffer = try CommandBuffer.init(.setView, self.provider.allocator);
         defer buffer.deinit();
 
-        try buffer.writeID(id);
+        try buffer.writeID(@enumToInt(id));
         try self.send(buffer);
     }
 
@@ -700,7 +700,7 @@ pub const dunstblick_Connection = struct {
         var buffer = try CommandBuffer.init(.setRoot, self.provider.allocator);
         defer buffer.deinit();
 
-        try buffer.writeID(id);
+        try buffer.writeID(@enumToInt(id));
         try self.send(buffer);
     }
 
@@ -711,7 +711,7 @@ pub const dunstblick_Connection = struct {
         object.* = try dunstblick_Object.init(self);
         errdefer object.deinit();
 
-        try object.commandbuffer.writeID(id);
+        try object.commandbuffer.writeID(@enumToInt(id));
 
         return object;
     }
@@ -720,7 +720,7 @@ pub const dunstblick_Connection = struct {
         var buffer = try CommandBuffer.init(.setRoot, self.provider.allocator);
         defer buffer.deinit();
 
-        try buffer.writeID(id);
+        try buffer.writeID(@enumToInt(id));
         try self.send(buffer);
     }
 
@@ -728,8 +728,8 @@ pub const dunstblick_Connection = struct {
         var buffer = try CommandBuffer.init(.moveRange, self.provider.allocator);
         defer buffer.deinit();
 
-        try buffer.writeID(object);
-        try buffer.writeID(name);
+        try buffer.writeID(@enumToInt(object));
+        try buffer.writeID(@enumToInt(name));
         try buffer.writeVarUInt(indexFrom);
         try buffer.writeVarUInt(indexTo);
         try buffer.writeVarUInt(count);
@@ -741,8 +741,8 @@ pub const dunstblick_Connection = struct {
         var buffer = try CommandBuffer.init(.setProperty, self.provider.allocator);
         defer buffer.deinit();
 
-        try buffer.writeID(object);
-        try buffer.writeID(name);
+        try buffer.writeID(@enumToInt(object));
+        try buffer.writeID(@enumToInt(name));
         try buffer.writeValue(value, true);
 
         try self.send(buffer);
@@ -752,8 +752,8 @@ pub const dunstblick_Connection = struct {
         var buffer = try CommandBuffer.init(.clear, self.provider.allocator);
         defer buffer.deinit();
 
-        try buffer.writeID(object);
-        try buffer.writeID(name);
+        try buffer.writeID(@enumToInt(object));
+        try buffer.writeID(@enumToInt(name));
 
         try self.send(buffer);
     }
@@ -762,13 +762,13 @@ pub const dunstblick_Connection = struct {
         var buffer = try CommandBuffer.init(.insertRange, self.provider.allocator);
         defer buffer.deinit();
 
-        try buffer.writeID(object);
-        try buffer.writeID(name);
+        try buffer.writeID(@enumToInt(object));
+        try buffer.writeID(@enumToInt(name));
         try buffer.writeVarUInt(index);
         try buffer.writeVarUInt(@intCast(u32, values.len));
 
         for (values) |id| {
-            try buffer.writeID(id);
+            try buffer.writeID(@enumToInt(id));
         }
 
         try self.send(buffer);
@@ -778,8 +778,8 @@ pub const dunstblick_Connection = struct {
         var buffer = try CommandBuffer.init(.removeRange, self.provider.allocator);
         defer buffer.deinit();
 
-        try buffer.writeID(object);
-        try buffer.writeID(name);
+        try buffer.writeID(@enumToInt(object));
+        try buffer.writeID(@enumToInt(name));
         try buffer.writeVarUInt(index);
         try buffer.writeVarUInt(count);
 
@@ -790,7 +790,7 @@ pub const dunstblick_Connection = struct {
 pub const dunstblick_Provider = struct {
     const Self = @This();
 
-    const ResourceMap = std.AutoHashMap(ResourceID, StoredResource);
+    const ResourceMap = std.AutoHashMap(protocol.ResourceID, StoredResource);
 
     const ConnectionList = std.TailQueue(dunstblick_Connection);
     const ConnectionNode = ConnectionList.Node;
@@ -1120,7 +1120,7 @@ pub const dunstblick_Provider = struct {
 
     // Public API
 
-    pub fn addResource(self: *Self, id: ResourceID, kind: ResourceKind, data: []const u8) DunstblickError!void {
+    pub fn addResource(self: *Self, id: protocol.ResourceID, kind: protocol.ResourceKind, data: []const u8) DunstblickError!void {
         const lock = self.mutex.acquire();
         defer lock.release();
 
@@ -1141,7 +1141,7 @@ pub const dunstblick_Provider = struct {
         result.entry.value.updateHash();
     }
 
-    pub fn removeResource(self: *Self, id: ResourceID) DunstblickError!void {
+    pub fn removeResource(self: *Self, id: protocol.ResourceID) DunstblickError!void {
         const lock = self.mutex.acquire();
         defer lock.release();
 
@@ -1165,9 +1165,9 @@ pub const dunstblick_Object = struct {
 
     fn deinit(self: Self) void {}
 
-    pub fn setProperty(self: *Self, name: PropertyName, value: Value) DunstblickError!void {
+    pub fn setProperty(self: *Self, name: protocol.PropertyName, value: Value) DunstblickError!void {
         try self.commandbuffer.writeEnum(@intCast(u8, @enumToInt(value.type)));
-        try self.commandbuffer.writeID(name);
+        try self.commandbuffer.writeID(@enumToInt(name));
         try self.commandbuffer.writeValue(value, false);
     }
 

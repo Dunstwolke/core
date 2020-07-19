@@ -1,5 +1,7 @@
 #include "layouts.hpp"
 
+#include <numeric>
+
 /*******************************************************************************
  * Stack Layout                                                                *
  ******************************************************************************/
@@ -173,7 +175,7 @@ bool TabLayout::processEvent(const SDL_Event & event)
         return false;
     for (size_t i = 0; i < tabButtons.size(); i++) {
         if (tabButtons.at(i).contains(event.button.x, event.button.y)) {
-            selectedIndex.set(this, gsl::narrow<int>(i));
+            selectedIndex.set(this, static_cast<int>(i));
             return true;
         }
     }
@@ -191,9 +193,9 @@ SDL_SystemCursor TabLayout::getCursor(const UIPoint & p) const
 
 void TabLayout::layoutChildren(const Rectangle & childArea)
 {
-    auto const selected_index = gsl::narrow<size_t>(selectedIndex.get(this));
+    auto const selected_index = static_cast<size_t>(selectedIndex.get(this));
     if (children.size() > 0 and selected_index >= children.size()) {
-        selectedIndex.set(this, gsl::narrow<int>(children.size() - 1));
+        selectedIndex.set(this, static_cast<int>(children.size() - 1));
     }
 
     auto area = childArea;
@@ -230,7 +232,7 @@ void TabLayout::paintWidget(IWidgetPainter & ren, const Rectangle & rectangle)
     // TODO: Impove tab rendering
     ren.fillRect(topbar, Color::input_field);
 
-    auto const selected_index = gsl::narrow<size_t>(selectedIndex.get(this));
+    auto const selected_index = static_cast<size_t>(selectedIndex.get(this));
 
     assert(children.size() == tabButtons.size());
     for (size_t index = 0; index < children.size(); index++) {

@@ -1,0 +1,65 @@
+#ifndef XQLIB_UNIQUE_ID_HPP
+#define XQLIB_UNIQUE_ID_HPP
+
+#include <cstddef>
+
+namespace xstd
+{
+	//! Type-safe generic unique identifier.
+	//!
+	//! @tparam tag The tag type provides a simple distinction between different
+	//!             identifiers. It is not used in the unique_id itself.
+	template<typename tag>
+	struct unique_id
+	{
+		unsigned long const value;
+
+		constexpr unique_id() noexcept : value(0) { }
+		explicit constexpr unique_id(unsigned long _value) noexcept : value(_value) { }
+		constexpr unique_id(unique_id const & other) noexcept = default;
+		constexpr unique_id(unique_id && other) noexcept :
+		  value(other.value)
+		{
+			const_cast<unsigned long &>(other.value) = 0;
+		}
+		~unique_id() noexcept = default;
+
+		//! returns true if the unique_id is a null-id.
+		constexpr bool is_null() const {
+			return (this->value == 0);
+		}
+
+		//! returns an invalid id.
+		static constexpr unique_id null() { return unique_id{0}; }
+
+	public: // operator implementations
+		constexpr unique_id & operator= (unique_id const & other) noexcept
+		{
+			const_cast<unsigned long&>(value) = other.value;
+			return *this;
+		}
+
+		constexpr bool operator==(unique_id const & other) const noexcept {
+			return (this->value == other.value);
+		}
+
+		constexpr bool operator!=(unique_id const & other) const noexcept {
+			return !(*this == other);
+		}
+
+		constexpr bool operator<(unique_id const & other) const noexcept {
+			return this->value < other.value;
+		}
+	public:
+		//! hash type for the unique_id. is required to use in some containers.
+		struct hash
+		{
+			constexpr std::size_t operator()(unique_id const & id) const noexcept
+			{
+				return id.value;
+			}
+		};
+	};
+}
+
+#endif // XCOMMON_HPP

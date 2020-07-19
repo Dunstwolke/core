@@ -107,10 +107,11 @@ pub fn main() !u8 {
     var data = std.ArrayList(u8).init(std.heap.page_allocator);
     defer data.deinit();
 
-    var errors = std.ArrayList(CompileError).init(std.heap.page_allocator);
+    var errors = ErrorCollection.init(std.heap.page_allocator);
     defer errors.deinit();
-    {
-        var outstream = data.outStream();
+
+    const success = blk: {
+        var outstream = data.writer();
 
         var tokenIterator = TokenIterator.init(src);
 
@@ -127,18 +128,26 @@ pub fn main() !u8 {
         };
 
         parseFile(parser, &outstream) catch |err| {
-            std.debug.warn("unhandled error: {} at {}\n", .{
-                err,
+            std.debug.print("{}:{}: error: {}\n", .{
+                inputFile,
                 tokenIterator.location,
+                err,
             });
             return err;
+            // break :blk false;
         };
+
+        break :blk true;
+    };
+
+    if (errors.list.items.len > 0) {
+        for (errors.list.items) |err| {
+            std.debug.print("error: {}\n", .{err});
+        }
+        return 1;
     }
 
-    if (errors.items.len > 0) {
-        for (errors.items) |err| {
-            std.debug.warn("error: {}\n", .{err});
-        }
+    if (success == false) {
         return 1;
     }
 
@@ -249,10 +258,40 @@ const CompileError = struct {
     }
 };
 
+const ErrorCollection = struct {
+    const Self = @This();
+
+    arena: std.heap.ArenaAllocator,
+    list: std.ArrayList(CompileError),
+
+    pub fn init(allocator: *std.mem.Allocator) Self {
+        return Self{
+            .arena = std.heap.ArenaAllocator.init(allocator),
+            .list = std.ArrayList(CompileError).init(allocator),
+        };
+    }
+
+    pub fn deinit(self: *Self) void {
+        self.arena.deinit();
+        self.list.deinit();
+        self.* = undefined;
+    }
+
+    pub fn add(self: *Self, where: Location, comptime fmt: []const u8, args: anytype) !void {
+        const msg = try std.fmt.allocPrint(&self.arena.allocator, fmt, args);
+        errdefer self.arena.allocator.free(msg);
+
+        try self.list.append(CompileError{
+            .where = where,
+            .message = msg,
+        });
+    }
+};
+
 const Parser = struct {
     allocator: *std.mem.Allocator,
     tokens: *TokenIterator,
-    errors: *std.ArrayList(CompileError),
+    errors: *ErrorCollection,
 
     allow_new_items: bool,
     resources: *IDMap,
@@ -337,10 +376,25 @@ fn convertString(parser: Parser, input: []const u8) ![]const u8 {
 }
 
 fn parseID(parser: Parser, outStream: anytype, functionName: []const u8, map: *IDMap) !void {
-    var resource = try parser.tokens.expect(.identifier);
-    if (!std.mem.eql(u8, resource.text, functionName))
-        return error.UnexpectedToken;
-    _ = try parser.tokens.expect(.openParens);
+    var resource = parser.tokens.expect(.identifier) catch {
+        try parser.errors.add(parser.tokens.location, "Expected identifier.", .{});
+        try parser.tokens.readUntil(.{.semiColon});
+        return;
+    };
+    if (!std.mem.eql(u8, resource.text, functionName)) {
+        try parser.errors.add(
+            parser.tokens.location,
+            "Expected {}, found '{}'.",
+            .{ functionName, resource.text },
+        );
+        try parser.tokens.readUntil(.{.semiColon});
+        return;
+    }
+    _ = parser.tokens.expect(.openParens) catch {
+        try parser.errors.add(parser.tokens.location, "Expected opening parens.", .{});
+        try parser.tokens.readUntil(.{.semiColon});
+        return;
+    };
 
     var value = try parser.tokens.expectOneOf(.{ .integer, .string });
     const rid = switch (value.type) {
@@ -367,17 +421,23 @@ fn parseID(parser: Parser, outStream: anytype, functionName: []const u8, map: *I
                     break :blk val;
                 }
 
-                try parser.errors.append(CompileError{
-                    .where = parser.tokens.location,
-                    .message = "Unkown alias",
-                });
+                try parser.errors.add(parser.tokens.location, "Unkown {} alias '{}'", .{ functionName, name });
             }
             break :blk @as(u32, 0);
         },
         else => unreachable,
     };
-    _ = try parser.tokens.expect(.closeParens);
-    _ = try parser.tokens.expect(.semiColon);
+    _ = parser.tokens.expect(.closeParens) catch {
+        try parser.errors.add(parser.tokens.location, "Expected closing parens.", .{});
+        try parser.tokens.readUntil(.{.semiColon});
+        return;
+    };
+
+    _ = parser.tokens.expect(.semiColon) catch {
+        try parser.errors.add(parser.tokens.location, "Expected semicolon.", .{});
+        try parser.tokens.readUntil(.{.semiColon});
+        return;
+    };
 
     try writeVarUInt(outStream, rid);
 }
@@ -634,10 +694,11 @@ fn parseWidget(parser: Parser, outStream: anytype, widgetTypeName: []const u8) P
     if (widgetFromName(widgetTypeName)) |widget| {
         try outStream.writeByte(@enumToInt(widget));
     } else {
-        try parser.errors.append(CompileError{
-            .where = parser.tokens.location,
-            .message = "Unkown widget type",
-        });
+        try parser.errors.add(
+            parser.tokens.location,
+            "Unkown widget type {}",
+            .{widgetTypeName},
+        );
     }
 
     _ = try parser.tokens.expect(.openBrace);
@@ -657,11 +718,13 @@ fn parseWidget(parser: Parser, outStream: anytype, widgetTypeName: []const u8) P
             .identifier => {
                 var widgetOrProperty = if (widgetOrPropertyFromName(id_or_closing.text)) |wop| wop else {
                     // TODO: try to recover here!
-                    try parser.errors.append(CompileError{
-                        .where = parser.tokens.location,
-                        .message = "Unkown widget or property",
-                    });
-                    return error.UnexpectedToken;
+                    try parser.errors.add(
+                        parser.tokens.location,
+                        "Unkown widget or property '{}'",
+                        .{id_or_closing.text},
+                    );
+                    try parser.tokens.readUntil(.{ .semiColon, .closeBrace });
+                    continue;
                 };
 
                 switch (widgetOrProperty) {
@@ -676,10 +739,7 @@ fn parseWidget(parser: Parser, outStream: anytype, widgetTypeName: []const u8) P
                     },
                     .property => |prop| {
                         if (isReadingChildren) {
-                            try parser.errors.append(CompileError{
-                                .where = parser.tokens.location,
-                                .message = "Properties are not allowed after the first child definition!",
-                            });
+                            try parser.errors.add(parser.tokens.location, "Properties are not allowed after the first child definition!", .{});
                         }
                         _ = try parser.tokens.expect(.colon);
 
@@ -775,6 +835,20 @@ const TokenIterator = struct {
             .text = text[0..1],
             .location = undefined,
         };
+    }
+
+    fn readUntil(self: *Self, types: anytype) !void {
+        while (true) {
+            var token_or_null = try self.nextSkipWhitespace();
+            if (token_or_null) |token| {
+                inline for (types) |t| {
+                    if (token.type == t)
+                        return;
+                }
+            } else {
+                return;
+            }
+        }
     }
 
     fn expect(self: *Self, _type: TokenType) !Token {

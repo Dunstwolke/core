@@ -1,5 +1,4 @@
 #include "inputstream.hpp"
-#include <gsl/gsl>
 #include <stdexcept>
 
 InputStream::InputStream(const uint8_t * _data, size_t _length) : DataReader(_data, _length) {}
@@ -60,7 +59,7 @@ UIValue InputStream::read_value(UIType type)
             return ObjectRef{ObjectID(this->read_uint())};
 
         case UIType::number:
-            return gsl::narrow<float>(this->read_float());
+            return static_cast<float>(this->read_float());
 
         case UIType::boolean:
             return (this->read_byte() != 0);
@@ -76,8 +75,8 @@ UIValue InputStream::read_value(UIType type)
 
         case UIType::size: {
             UISize size;
-            size.w = gsl::narrow<int>(this->read_uint());
-            size.h = gsl::narrow<int>(this->read_uint());
+            size.w = static_cast<int>(this->read_uint());
+            size.h = static_cast<int>(this->read_uint());
             return size;
         }
 

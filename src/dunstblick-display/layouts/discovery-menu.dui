@@ -1,0 +1,21 @@
+DockLayout
+{
+	margins: 0;
+  Button {
+    on-click: callback("quit-application");
+    dock-site: bottom;
+    Label {
+      text: "Exit";
+    }
+  }
+  Label {
+    text: "Available Applications";
+    font-family: serif;
+  }
+  ScrollView {
+    StackLayout {
+      child-source: bind("applications");
+      child-template: resource("discovery-list-item");
+    }
+  }
+}

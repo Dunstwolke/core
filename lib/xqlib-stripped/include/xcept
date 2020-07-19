@@ -1,0 +1,32 @@
+#ifndef XQLIB_XCEPT_HPP
+#define XQLIB_XCEPT_HPP
+
+#include <string>
+#include <exception>
+
+namespace xcept
+{
+#define XCEPTION(_Name) \
+	struct _Name : std::exception \
+	{ \
+		std::string const msg; \
+    explicit _Name(std::string const & _msg) noexcept; \
+    virtual ~_Name() noexcept override; \
+    virtual const char* what() const noexcept override; \
+	}
+
+	XCEPTION(invalid_argument);
+	XCEPTION(invalid_operation);
+
+	XCEPTION(io_error);
+	XCEPTION(db_error);
+	XCEPTION(end_of_stream);
+
+	XCEPTION(critical_log);
+	XCEPTION(compile_error);
+	XCEPTION(opengl_error);
+
+#undef XCEPTION
+}
+
+#endif // XCEPT_HPP

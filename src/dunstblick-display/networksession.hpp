@@ -3,9 +3,6 @@
 
 #include "session.hpp"
 
-#include <xnet/ip>
-#include <xnet/socket>
-
 struct CommandBuffer;
 
 struct NetworkSession : Session

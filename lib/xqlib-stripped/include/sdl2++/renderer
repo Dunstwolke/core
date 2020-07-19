@@ -1,0 +1,124 @@
+#ifndef XQLIB_SDL2PP_RENDERER_HPP
+#define XQLIB_SDL2PP_RENDERER_HPP
+
+#include "exception"
+
+#include <SDL.h>
+#include <xstd/resource>
+
+namespace sdl2
+{
+    struct renderer
+    {
+        xstd::resource<SDL_Renderer*, SDL_DestroyRenderer> ptr;
+
+        // creates accelerated renderer
+        explicit renderer(
+            SDL_Window * window,
+            Uint32 flags = SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE,
+            int index = -1
+        );
+
+        // Creates software renderer
+        explicit renderer(SDL_Surface * surface);
+
+        void clear();
+
+        void copy(SDL_Texture * texture);
+
+        void copy(SDL_Texture * texture, SDL_Rect const & dest);
+
+        void copy(SDL_Texture * texture, SDL_Rect const & dest, SDL_Rect const & src);
+
+        // TODO: Improve signature/overloads
+        void copy(SDL_Texture * texture,
+                  const SDL_Rect * srcrect,
+                  const SDL_Rect * dstrect,
+                  const double angle,
+                  const SDL_Point *center,
+                  const SDL_RendererFlip flip)
+        {
+            SDL_RenderCopyEx(*this, texture, srcrect, dstrect, angle, center, flip);
+        }
+
+        void drawLine(int x1, int y1, int x2, int y2);
+
+        void drawLine(SDL_Point p0, SDL_Point p1);
+
+        void drawLines(SDL_Point const * points, size_t count);
+
+        void drawPoint(int x, int y);
+
+        void drawPoints(SDL_Point const * points, size_t count);
+
+
+        void drawRect(int x, int y, int w, int h);
+
+        void drawRect(SDL_Rect const & rect);
+
+        void drawRects(SDL_Rect const * rects, size_t count);
+
+        void fillRect(SDL_Rect const & rect);
+
+        void fillRects(SDL_Rect const * rects, size_t count);
+
+        SDL_Rect getClipRect() const;
+
+        bool hasIntegerScale() const;
+
+        std::tuple<int,int> getLogicalSize() const;
+
+        std::tuple<float,float> getScale() const;
+
+        SDL_Rect getViewport() const;
+
+        bool isClipEnabled() const;
+
+        void present();
+
+        void readPixels(SDL_Rect region, Uint32 format, void * target, size_t pitch);
+
+        void resetClipRect();
+
+        void setClipRect(SDL_Rect const & rect);
+
+        void enableIntegerScale();
+
+        void disableIntergerScale();
+
+        void setIntegerScale(bool value);
+
+        void setLogicalSize(int w, int h);
+
+        void setScale(float h, float v);
+
+        void setViewport(SDL_Rect const & rect);
+
+        void setViewport(int x, int y, int w, int h);
+
+        bool isTargetSupported() const;
+
+        void setBlendMode(SDL_BlendMode blendMode);
+
+        SDL_BlendMode getBlendMode() const;
+
+        void setColor(Uint8 r, Uint8 g, Uint8 b, Uint8 a = 0xFF);
+
+        void setColor(SDL_Color const & color);
+
+        SDL_Color getColor() const;
+
+        void setRenderTarget(SDL_Texture * target);
+
+        SDL_Texture * getRenderTarget() const;
+
+        std::tuple<int, int> getOutputSize() const;
+
+        // implicit cast operator
+        operator SDL_Renderer* () const {
+            return ptr.get();
+        }
+    };
+}
+
+#endif // XQLIB_SDL2PP_RENDERER_HPP

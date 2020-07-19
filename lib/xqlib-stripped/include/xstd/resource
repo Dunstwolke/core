@@ -1,0 +1,107 @@
+#ifndef XQLIB_RESOURCE_HPP
+#define XQLIB_RESOURCE_HPP
+
+#include <utility>
+
+namespace xstd
+{
+	namespace _detail
+	{
+		template<typename T>
+		T constexpr make_null()
+		{
+			if constexpr(std::is_pointer_v<T>)
+				return nullptr;
+			else if constexpr(std::is_integral_v<T>)
+				return 0;
+			else
+				static_assert(std::is_integral_v<T>, "Custom resource type must be pointer or integer!");
+		}
+	}
+
+	//! A simple wrapper for C resources.
+	//! Requires a static deleter function.
+	//! @tparam T The type of the resource.
+	//! @tparam Deleter The deleter function that will release this resource.
+	template<typename T, auto (*Deleter)(T value), T Null = _detail::make_null<T>()>
+	struct resource
+	{
+		static_assert(std::is_pod_v<T>, "resource must be a POD type.");
+	private:
+		T _value;
+	public:
+		resource() : _value(Null) { }
+		explicit resource(T value) : _value(value) { }
+		resource(resource const &) = delete;
+		resource(resource && other) : _value(other._value)
+		{
+			other._value = Null;
+		}
+		~resource()
+		{
+			if(_value != Null)
+				Deleter(_value);
+		}
+
+	public:
+		void reset(T new_content = Null)
+		{
+			*this = resource(new_content);
+		}
+
+		T release()
+		{
+			auto * result = _value;
+			_value = Null;
+			return result;
+		}
+
+		T get()             { return _value; }
+		T const get() const { return _value; }
+
+	public:
+		T &       operator*()        { return _value; }
+		T const & operator*() const  { return _value; }
+
+		T *       operator->()       { return _value; }
+		T const * operator->() const { return _value; }
+
+		T &       operator[](std::size_t index)       { return _value[index]; }
+		T const & operator[](std::size_t index) const { return _value[index]; }
+
+		operator bool() const { return (_value != Null); }
+
+		resource & operator = (resource && other)
+		{
+			this->~resource();
+			new (this) resource(std::move(other));
+			return *this;
+		}
+
+		bool operator== (resource const & other) const {
+			return _value == other._value;
+		}
+
+		bool operator== (T const * other) const {
+			return _value == other;
+		}
+
+		bool operator== (std::nullptr_t) const {
+			return (_value == Null);
+		}
+
+		bool operator!= (resource const & other) const {
+			return _value != other._value;
+		}
+
+		bool operator!= (T const * other) const {
+			return _value != other;
+		}
+
+		bool operator!= (std::nullptr_t) const {
+			return (_value != Null);
+		}
+	};
+}
+
+#endif // CRESOURCE_HPP

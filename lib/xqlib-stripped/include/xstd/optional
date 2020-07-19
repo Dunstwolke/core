@@ -1,0 +1,18 @@
+#ifndef XQLIB_OPTIONAL_HPP
+#define XQLIB_OPTIONAL_HPP
+
+#include <optional.hpp>
+
+namespace xstd
+{
+	using tl::optional;
+	using tl::nullopt;
+
+	template<typename T, typename R>
+	auto get_member(R T::*member)
+	{
+		return [=](T const & val) { return val.*member; };
+	}
+}
+
+#endif // OPTIONAL_HPP

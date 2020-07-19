@@ -3,5 +3,4 @@
 #include "inputstream.hpp"
 
 #include <cassert>
-#include <xcept>
 #include <xlog>

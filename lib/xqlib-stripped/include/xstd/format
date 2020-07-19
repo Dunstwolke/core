@@ -1,0 +1,42 @@
+#ifndef XQLIB_FORMAT_HPP
+#define XQLIB_FORMAT_HPP
+
+#include <string>
+#include <sstream>
+
+namespace xstd
+{
+	struct format
+	{
+		std::string contents;
+
+		format(std::string const & value) :
+		  contents(value)
+		{
+
+		}
+
+		format & arg(std::string const & value);
+		format arg(std::string const & value) const;
+
+		template<typename T>
+		format & arg(T const & value) {
+			std::stringstream str;
+			str << value;
+			return arg(str.str());
+		}
+
+		template<typename T>
+		format arg(T const & value) const {
+			std::stringstream str;
+			str << value;
+			return arg(str.str());
+		}
+
+		operator std::string() const {
+			return contents;
+		}
+	};
+}
+
+#endif // FORMAT_HPP

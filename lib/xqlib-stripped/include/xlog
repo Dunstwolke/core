@@ -1,0 +1,52 @@
+#pragma once
+
+#include <sstream>
+#include <limits>
+
+namespace xlog
+{
+	enum log_level : int
+	{
+		all = std::numeric_limits<int>::min(),
+		verbose  = -100,
+		message  = 0,
+		warning  = 100,
+		error    = 200,
+		critical = 300,
+	};
+
+	void set_verbosity(log_level min_level);
+
+	void enable_colors(bool enabled);
+
+	void abort_on_critical(bool enabled);
+
+	struct log
+	{
+	private:
+		log_level level;
+		std::stringstream text;
+	public:
+		explicit log(log_level level = message);
+		explicit log(char const * prefix, log_level level = message);
+		log(log const &) = delete;
+		log(log &&) = default;
+		~log();
+	public:
+		template<typename T>
+		log & operator<< (T const & val)
+		{
+			text << val;
+			return *this;
+		}
+	};
+}
+
+#define XLOG_STR(x) #x
+#define XLOG_SSTR(x) XLOG_STR(x)
+
+#define XLOG_MSG() xlog::log(__FILE__ ":" XLOG_SSTR(__LINE__), xlog::message)
+#define XLOG_WARN() xlog::log(__FILE__ ":" XLOG_SSTR(__LINE__), xlog::warning)
+#define XLOG_ERROR() xlog::log(__FILE__ ":" XLOG_SSTR(__LINE__), xlog::error)
+#define XLOG_CRITICAL() xlog::log(__FILE__ ":" XLOG_SSTR(__LINE__), xlog::critical)
+#define XLOG_VERBOSE() xlog::log(__FILE__ ":" XLOG_SSTR(__LINE__), xlog::verbose)

@@ -16,3 +16,6 @@
 [submodule "lib/painterz"]
 	path = lib/painterz
 	url = https://github.com/ziglibs/painterz
+[submodule "lib/optional"]
+	path = lib/optional
+	url = https://github.com/TartanLlama/optional

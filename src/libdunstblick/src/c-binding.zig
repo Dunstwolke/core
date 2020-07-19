@@ -1,6 +1,8 @@
 const c = @import("c.zig");
 const std = @import("std");
 
+const protocol = @import("dunstblick-protocol");
+
 usingnamespace @import("dunstblick.zig");
 
 const DUNSTBLICK_DEFAULT_PORT = 1309;
@@ -102,11 +104,15 @@ export fn dunstblick_SetDisconnectedCallback(provider: *dunstblick_Provider, cal
     return .DUNSTBLICK_ERROR_NONE;
 }
 
-export fn dunstblick_AddResource(provider: *dunstblick_Provider, resourceID: ResourceID, kind: ResourceKind, data: *const c_void, length: usize) callconv(.C) NativeErrorCode {
-    return mapDunstblickErrorVoid(provider.addResource(resourceID, kind, @ptrCast([*]const u8, data)[0..length]));
+export fn dunstblick_AddResource(provider: *dunstblick_Provider, resourceID: protocol.ResourceID, kind: protocol.ResourceKind, data: *const c_void, length: usize) callconv(.C) NativeErrorCode {
+    return mapDunstblickErrorVoid(provider.addResource(
+        resourceID,
+        kind,
+        @ptrCast([*]const u8, data)[0..length],
+    ));
 }
 
-export fn dunstblick_RemoveResource(provider: *dunstblick_Provider, resourceID: ResourceID) callconv(.C) NativeErrorCode {
+export fn dunstblick_RemoveResource(provider: *dunstblick_Provider, resourceID: protocol.ResourceID) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(provider.removeResource(resourceID));
 }
 
@@ -150,39 +156,39 @@ export fn dunstblick_SetUserData(connection: *dunstblick_Connection, userData: ?
     connection.user_data_pointer = userData;
 }
 
-export fn dunstblick_BeginChangeObject(con: *dunstblick_Connection, id: ObjectID) callconv(.C) ?*dunstblick_Object {
+export fn dunstblick_BeginChangeObject(con: *dunstblick_Connection, id: protocol.ObjectID) callconv(.C) ?*dunstblick_Object {
     return con.beginChangeObject(id) catch null;
 }
 
-export fn dunstblick_RemoveObject(con: *dunstblick_Connection, oid: ObjectID) callconv(.C) NativeErrorCode {
+export fn dunstblick_RemoveObject(con: *dunstblick_Connection, oid: protocol.ObjectID) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(con.removeObject(oid));
 }
 
-export fn dunstblick_SetView(con: *dunstblick_Connection, id: ResourceID) callconv(.C) NativeErrorCode {
+export fn dunstblick_SetView(con: *dunstblick_Connection, id: protocol.ResourceID) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(con.setView(id));
 }
 
-export fn dunstblick_SetRoot(con: *dunstblick_Connection, id: ObjectID) callconv(.C) NativeErrorCode {
+export fn dunstblick_SetRoot(con: *dunstblick_Connection, id: protocol.ObjectID) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(con.setRoot(id));
 }
 
-export fn dunstblick_SetProperty(con: *dunstblick_Connection, oid: ObjectID, name: PropertyName, value: *const Value) callconv(.C) NativeErrorCode {
+export fn dunstblick_SetProperty(con: *dunstblick_Connection, oid: protocol.ObjectID, name: protocol.PropertyName, value: *const Value) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(con.setProperty(oid, name, value.*));
 }
 
-export fn dunstblick_Clear(con: *dunstblick_Connection, oid: ObjectID, name: PropertyName) callconv(.C) NativeErrorCode {
+export fn dunstblick_Clear(con: *dunstblick_Connection, oid: protocol.ObjectID, name: protocol.PropertyName) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(con.clear(oid, name));
 }
 
-export fn dunstblick_InsertRange(con: *dunstblick_Connection, oid: ObjectID, name: PropertyName, index: u32, count: u32, values: [*]const ObjectID) callconv(.C) NativeErrorCode {
+export fn dunstblick_InsertRange(con: *dunstblick_Connection, oid: protocol.ObjectID, name: protocol.PropertyName, index: u32, count: u32, values: [*]const protocol.ObjectID) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(con.insertRange(oid, name, index, values[0..count]));
 }
 
-export fn dunstblick_RemoveRange(con: *dunstblick_Connection, oid: ObjectID, name: PropertyName, index: u32, count: u32) callconv(.C) NativeErrorCode {
+export fn dunstblick_RemoveRange(con: *dunstblick_Connection, oid: protocol.ObjectID, name: protocol.PropertyName, index: u32, count: u32) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(con.removeRange(oid, name, index, count));
 }
 
-export fn dunstblick_MoveRange(con: *dunstblick_Connection, oid: ObjectID, name: PropertyName, indexFrom: u32, indexTo: u32, count: u32) callconv(.C) NativeErrorCode {
+export fn dunstblick_MoveRange(con: *dunstblick_Connection, oid: protocol.ObjectID, name: protocol.PropertyName, indexFrom: u32, indexTo: u32, count: u32) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(con.moveRange(oid, name, indexFrom, indexTo, count));
 }
 
@@ -190,7 +196,7 @@ export fn dunstblick_MoveRange(con: *dunstblick_Connection, oid: ObjectID, name:
 //  * Object Implementation *
 //  *******************************************************************************/
 
-export fn dunstblick_SetObjectProperty(obj: *dunstblick_Object, name: PropertyName, value: *const Value) callconv(.C) NativeErrorCode {
+export fn dunstblick_SetObjectProperty(obj: *dunstblick_Object, name: protocol.PropertyName, value: *const Value) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(obj.setProperty(name, value.*));
 }
 

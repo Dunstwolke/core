@@ -1,0 +1,86 @@
+#ifndef XQLIB_FLEXREFERENCE_HPP
+#define XQLIB_FLEXREFERENCE_HPP
+
+#include <variant>
+#include <memory>
+#include <cassert>
+
+namespace xstd
+{
+	///
+	/// your type for bad software design.
+	/// either stores a *value*, *pointer* to value or *shared pointer* to value.
+	///
+	/// may be needed in some special cases.
+	///
+	template<typename T>
+	struct flexref
+	{
+		enum class reftype { pointer = 1, shared_pointer = 2 };
+
+		typedef std::variant<T*, std::shared_ptr<T>> content_t;
+
+		content_t content;
+
+		explicit flexref() : content(static_cast<T*>(nullptr)) { } // "initialize nullptr"
+
+		explicit flexref(T const & value) : content(std::make_shared<T>(value)) { }
+
+		explicit flexref(T && value) : content(std::make_shared<T>(std::move(value))) { }
+		explicit flexref(T * value) : content(value) { }
+		explicit flexref(std::shared_ptr<T> value) : content(std::move(value)) { }
+
+		flexref(flexref const & other) = default;
+		flexref(flexref && other) = default;
+
+		flexref & operator= (flexref const &) = default;
+		flexref & operator= (flexref &&) = default;
+
+		T & value() {
+			switch(content.index()) {
+				case 0: return *std::get<0>(content);
+				case 1: return *std::get<1>(content);
+			}
+			assert(false and "unreachable");
+		}
+
+		T const & value() const {
+			switch(content.index()) {
+				case 0: return *std::get<0>(content);
+				case 1: return *std::get<1>(content);
+			}
+			assert(false and "unreachable");
+		}
+
+		T * operator-> () {
+			return &value();
+		}
+
+		T const * operator-> () const {
+			return &value();
+		}
+
+
+		T & operator* () {
+			return value();
+		}
+
+		T const & operator* () const {
+			return value();
+		}
+
+		reftype type() const {
+			return reftype(content.index());
+		}
+
+		bool has_value() const {
+			switch(content.index()) {
+				case 0: return std::get<T*>(content) != nullptr;
+				case 1: return std::get<std::shared_ptr<T>>(content) != nullptr;
+			}
+			assert(false and "unreachable");
+		}
+	};
+}
+
+#endif // FLEXREFERENCE_HPP

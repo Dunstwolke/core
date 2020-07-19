@@ -57,38 +57,40 @@ pub fn build(b: *Builder) !void {
 
     // mediaserver project
     const mediaserver = b.addExecutable("mediaserver", "./src/examples/mediaserver/src/main.zig");
-    mediaserver.addIncludeDir("./src/libdunstblick/include");
-    mediaserver.addIncludeDir("./src/examples/mediaserver/bass");
-    mediaserver.addLibPath("./src/examples/mediaserver/bass/x86_64");
-    mediaserver.linkSystemLibrary("bass");
-    mediaserver.linkLibrary(lib);
-    mediaserver.install();
+    {
+        mediaserver.addIncludeDir("./src/libdunstblick/include");
+        mediaserver.addIncludeDir("./src/examples/mediaserver/bass");
+        mediaserver.addLibPath("./src/examples/mediaserver/bass/x86_64");
+        mediaserver.linkSystemLibrary("bass");
+        mediaserver.linkLibrary(lib);
+        mediaserver.install();
 
-    const layout_files = [_][]const u8{
-        "./src/examples/mediaserver/layouts/main.dui",
-        "./src/examples/mediaserver/layouts/menu.dui",
-        "./src/examples/mediaserver/layouts/searchlist.dui",
-        "./src/examples/mediaserver/layouts/searchitem.dui",
-    };
-    inline for (layout_files) |infile| {
-        const outfile = try std.mem.dupe(b.allocator, u8, infile);
-        outfile[outfile.len - 3] = 'c';
+        const layout_files = [_][]const u8{
+            "./src/examples/mediaserver/layouts/main.dui",
+            "./src/examples/mediaserver/layouts/menu.dui",
+            "./src/examples/mediaserver/layouts/searchlist.dui",
+            "./src/examples/mediaserver/layouts/searchitem.dui",
+        };
+        inline for (layout_files) |infile| {
+            const outfile = try std.mem.dupe(b.allocator, u8, infile);
+            outfile[outfile.len - 3] = 'c';
 
-        const step = compiler.run();
-        step.addArgs(&[_][]const u8{
-            infile,
-            "-o",
-            outfile,
-            "-c",
-            "./src/examples/mediaserver/layouts/server.json",
-        });
-        mediaserver.step.dependOn(&step.step);
+            const step = compiler.run();
+            step.addArgs(&[_][]const u8{
+                infile,
+                "-o",
+                outfile,
+                "-c",
+                "./src/examples/mediaserver/layouts/server.json",
+            });
+            mediaserver.step.dependOn(&step.step);
+        }
+
+        mediaserver.linkLibrary(lib);
+        mediaserver.setTarget(target);
+        mediaserver.setBuildMode(mode);
+        mediaserver.install();
     }
-
-    mediaserver.linkLibrary(lib);
-    mediaserver.setTarget(target);
-    mediaserver.setBuildMode(mode);
-    mediaserver.install();
 
     // calculator example
     const calculator = b.addExecutable("calculator", null);
@@ -121,45 +123,64 @@ pub fn build(b: *Builder) !void {
     minimal.install();
 
     const display_client = b.addExecutable("dunstblick-display", "./src/dunstblick-display/main.zig");
+    {
+        display_client.addPackage(pkgs.dunstblick_protocol);
+        display_client.addPackage(pkgs.network);
+        display_client.addPackage(pkgs.args);
+        display_client.addPackage(pkgs.sdl2);
+        display_client.addPackage(pkgs.uri);
+        display_client.addPackage(pkgs.painterz);
 
-    display_client.addPackage(pkgs.dunstblick_protocol);
-    display_client.addPackage(pkgs.network);
-    display_client.addPackage(pkgs.args);
-    display_client.addPackage(pkgs.sdl2);
-    display_client.addPackage(pkgs.uri);
-    display_client.addPackage(pkgs.painterz);
+        display_client.linkLibC();
+        display_client.linkSystemLibrary("c++");
+        display_client.linkSystemLibrary("sdl2");
+        display_client.addIncludeDir("./lib/stb");
 
-    display_client.linkLibC();
-    display_client.linkSystemLibrary("c++");
-    display_client.linkSystemLibrary("sdl2");
-    display_client.addIncludeDir("./lib/stb");
+        display_client.addIncludeDir("./src/libdunstblick/include");
+        display_client.addIncludeDir("./lib/xqlib-stripped/include");
+        display_client.addIncludeDir("./lib/optional/include/tl");
+        display_client.defineCMacro("DUNSTBLICK_SERVER");
+        display_client.setBuildMode(mode);
+        display_client.setTarget(target);
+        display_client.install();
 
-    // display_client.addIncludeDir("./src/libdunstblick/include");
-    // display_client.addIncludeDir("./lib/xqlib/include");
-    // display_client.addIncludeDir("./lib/xqlib/extern/optional/tl");
-    // display_client.addIncludeDir("./lib/xqlib/extern/GSL/include");
-    // display_client.defineCMacro("DUNSTBLICK_SERVER");
-    display_client.setBuildMode(mode);
-    display_client.setTarget(target);
-    display_client.install();
+        display_client.addCSourceFile("./src/dunstblick-display/stb-instantiating.c", &[_][]const u8{
+            "-std=c99",
+        });
 
-    display_client.addCSourceFile("./src/dunstblick-display/stb-instantiating.c", &[_][]const u8{
-        "-std=c99",
-    });
+        for (display_client_sources) |src| {
+            display_client.addCSourceFile(src, &[_][]const u8{
+                "-std=c++17",
+                "-fno-sanitize=undefined",
+            });
+        }
 
-    // for (display_client_sources) |src| {
-    //     display_client.addCSourceFile(src, &[_][]const u8{
-    //         "-std=c++17",
-    //         "-fno-sanitize=undefined",
-    //     });
-    // }
+        for (xqlib_sources) |src| {
+            display_client.addCSourceFile(src, &[_][]const u8{
+                "-std=c++17",
+                "-fno-sanitize=undefined",
+            });
+        }
 
-    // for (xqlib_sources) |src| {
-    //     display_client.addCSourceFile(src, &[_][]const u8{
-    //         "-std=c++17",
-    //         "-fno-sanitize=undefined",
-    //     });
-    // }
+        const layout_files = [_][]const u8{
+            "./src/dunstblick-display/layouts/discovery-menu.dui",
+            "./src/dunstblick-display/layouts/discovery-list-item.dui",
+        };
+        inline for (layout_files) |infile| {
+            const outfile = try std.mem.dupe(b.allocator, u8, infile);
+            outfile[outfile.len - 3] = 'c';
+
+            const step = compiler.run();
+            step.addArgs(&[_][]const u8{
+                infile,
+                "-o",
+                outfile,
+                "-c",
+                "./src/dunstblick-display/layouts/resources.json",
+            });
+            display_client.step.dependOn(&step.step);
+        }
+    }
 
     const run_cmd = display_client.run();
     run_cmd.step.dependOn(b.getInstallStep());
@@ -179,16 +200,13 @@ const display_client_sources = [_][]const u8{
     "./src/dunstblick-display/fontcache.cpp",
     "./src/dunstblick-display/inputstream.cpp",
     "./src/dunstblick-display/layouts.cpp",
-    "./src/dunstblick-display/localsession.cpp",
     "./src/dunstblick-display/main.cpp",
-    "./src/dunstblick-display/networksession.cpp",
+    "./src/dunstblick-display/zigsession.cpp",
     "./src/dunstblick-display/object.cpp",
     "./src/dunstblick-display/protocol.cpp",
     "./src/dunstblick-display/rendercontext.cpp",
     "./src/dunstblick-display/resources.cpp",
     "./src/dunstblick-display/session.cpp",
-    "./src/dunstblick-display/tcphost.cpp",
-    "./src/dunstblick-display/testhost.cpp",
     "./src/dunstblick-display/types.cpp",
     "./src/dunstblick-display/widget.cpp",
     "./src/dunstblick-display/widget.create.cpp",
@@ -196,10 +214,7 @@ const display_client_sources = [_][]const u8{
 };
 
 const xqlib_sources = [_][]const u8{
-    "./lib/xqlib/src/sdl2++.cpp",
-    "./lib/xqlib/src/xio.cpp",
-    "./lib/xqlib/src/xlog.cpp",
-    "./lib/xqlib/src/xnet.cpp",
-    "./lib/xqlib/src/xception.cpp",
-    "./lib/xqlib/src/xstd_format.cpp",
+    "./lib/xqlib-stripped/src/xlog.cpp",
+    "./lib/xqlib-stripped/src/sdl2++.cpp",
+    "./lib/xqlib-stripped/src/xstd_format.cpp",
 };

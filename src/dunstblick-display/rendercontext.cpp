@@ -1,68 +1,62 @@
 #include "rendercontext.hpp"
 
-UISize RenderContext::measureString(const std::string & text, UIFont font, xstd::optional<int> line_width) const
-{
-    auto & fc = getFont(font);
-
-    UISize size{0, 0};
-    if (auto const rendered = fc.render(text); rendered) {
-        size = rendered->size;
-    }
-    size.h = std::max(size.h, 24);
-    return size;
-}
+#include <cassert>
 
 Rectangle RenderContext::pushClipRect(const Rectangle & rect)
 {
-    assert(SDL_RenderIsClipEnabled(renderer));
-    auto const currentClipRect = Rectangle(renderer.getClipRect());
+    assert(false and "not implemented yet");
 
-    clip_rects.push(currentClipRect);
+    // auto const currentClipRect = Rectangle(renderer.getClipRect());
 
-    Rectangle actual_clip_rect = Rectangle::intersect(currentClipRect, rect);
+    // clip_rects.push(currentClipRect);
 
-    renderer.setClipRect(actual_clip_rect);
+    // Rectangle actual_clip_rect = Rectangle::intersect(currentClipRect, rect);
 
-    return actual_clip_rect;
+    // renderer.setClipRect(actual_clip_rect);
+
+    // return actual_clip_rect;
 }
 
 void RenderContext::popClipRect()
 {
-    assert(clip_rects.size() > 0);
+    assert(false and "not implemented yet");
+    // assert(clip_rects.size() > 0);
 
-    renderer.setClipRect(clip_rects.top());
-    clip_rects.pop();
+    // renderer.setClipRect(clip_rects.top());
+    // clip_rects.pop();
 }
 
-void RenderContext::drawString(const std::string & text, const Rectangle & target, UIFont font, TextAlign align)
+UISize RenderContext::measureString(std::string const & text, UIFont font, xstd::optional<int> line_width) const
 {
-    auto & fc = getFont(font);
+    assert(false and "not implemented yet");
+}
 
-    if (auto const rendered = fc.render(text); rendered) {
+void RenderContext::drawString(std::string const & text, Rectangle const & target, UIFont font, TextAlign align)
+{
+    assert(false and "not implemented yet");
+}
 
-        SDL_Rect dest = {target.x, target.y, rendered->size.w, rendered->size.h};
+void RenderContext::drawRect(Rectangle const & rect, Bevel bevel)
+{
+    assert(false and "not implemented yet");
+}
 
-        switch (align) {
-            case TextAlign::left:
-                dest.x = target.x;
-                break;
-            case TextAlign::center:
-                dest.x = target.x + (target.w - dest.w) / 2;
-                break;
-            case TextAlign::right:
-                dest.x = target.x + target.w - dest.w;
-                break;
-            case TextAlign::block:
-                dest.x = target.x;
-                dest.w = target.w; // OUCH
-                break;
-        }
+void RenderContext::fillRect(Rectangle const & rect, Color color)
+{
+    assert(false and "not implemented yet");
+}
 
-        pushClipRect(target);
+void RenderContext::drawIcon(Rectangle const & rect, SDL_Texture * texture, xstd::optional<Rectangle> clip_rect)
+{
+    assert(false and "not implemented yet");
+}
 
-        SDL_SetTextureColorMod(rendered->texture.get(), 0x00, 0x00, 0x00);
-        renderer.copy(rendered->texture.get(), dest);
+void RenderContext::drawHLine(int startX, int startY, int width, LineStyle style)
+{
+    assert(false and "not implemented yet");
+}
 
-        popClipRect();
-    }
+void RenderContext::drawVLine(int startX, int startY, int height, LineStyle style)
+{
+    assert(false and "not implemented yet");
 }
