@@ -1,10 +1,6 @@
 #ifndef TYPES_HPP
 #define TYPES_HPP
 
-#ifndef DUNSTBLICK_COMPILER
-#include <SDL.h>
-#endif
-
 #include <cstdint>
 #include <map>
 #include <string>
@@ -20,18 +16,57 @@ using UIResourceID = xstd::unique_id<struct UIResourceID_tag>;
 using EventID = xstd::unique_id<struct CallbackID_tag>;
 using WidgetName = xstd::unique_id<struct WidgetName_tag>;
 
-#ifdef DUNSTBLICK_SERVER
-using UIPoint = SDL_Point;
-#else
 struct UIPoint
 {
-    int x, y;
+    ssize_t x, y;
 };
-#endif
 
 struct UISize
 {
-    int w, h;
+    size_t w, h;
+};
+
+struct Rectangle
+{
+    ssize_t x, y;
+    size_t w, h;
+
+    constexpr Rectangle() : x(0), y(0), w(0), h(0) {}
+    constexpr Rectangle(ssize_t _x, ssize_t _y, size_t _w, size_t _h) : x(_x), y(_y), w(_w), h(_h) {}
+
+    static inline Rectangle intersect(Rectangle const & a, Rectangle const & b)
+    {
+        auto const left = std::max(a.x, b.x);
+        auto const top = std::max(a.y, b.y);
+
+        auto const right = std::min<ssize_t>(a.x + a.w, b.x + b.w);
+        auto const bottom = std::min<ssize_t>(a.y + a.h, b.y + b.h);
+
+        if (right < left or bottom < top)
+            return Rectangle{left, top, 0, 0};
+        else
+            return Rectangle{left, top, size_t(right - left), size_t(bottom - top)};
+    }
+
+    inline bool contains(int px, int py) const
+    {
+        return (px >= this->x) and (py >= this->y) and (px < (this->x + this->w)) and (py < (this->y + this->h));
+    }
+
+    inline bool contains(UIPoint const & p) const
+    {
+        return contains(p.x, p.y);
+    }
+
+    bool empty() const
+    {
+        return (w * h) == 0;
+    }
+
+    Rectangle shrink(int n) const
+    {
+        return Rectangle{x + n, y + n, w - 2 * n, h - 2 * n};
+    }
 };
 
 /// RGB color structure
@@ -41,13 +76,6 @@ struct UIColor
     uint8_t g = 0x00;
     uint8_t b = 0x00;
     uint8_t a = 0xFF;
-
-#ifndef DUNSTBLICK_COMPILER
-    operator SDL_Color() const
-    {
-        return {r, g, b, a};
-    }
-#endif
 
     bool operator==(UIColor c) const
     {

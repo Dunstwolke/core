@@ -1,7 +1,6 @@
 #include <SDL.h>
 #include <SDL_image.h>
 #include <filesystem>
-#include <sdl2++/renderer>
 #include <vector>
 
 #include "layouts.hpp"
@@ -250,23 +249,17 @@ extern "C" SDL_SystemCursor session_getCursor(ZigSession * sess)
     // }
 }
 
-extern "C" void session_render(ZigSession * session)
+extern "C" void session_render(ZigSession * session, Rectangle screen_rect, PainterAPI * painter)
 {
-    RenderContext current_rc;
+    RenderContext current_rc{painter};
 
-    // current_rc->renderer.resetClipRect();
-    // assert(not current_rc->renderer.isClipEnabled());
-
-    // current_rc->renderer.setColor(0x00, 0x00, 0x00, 0xFF);
-    // current_rc->renderer.fillRect(current_rc->renderer.getViewport());
-
+    session->screen_rect = screen_rect;
     session->update_layout(current_rc);
 
     if (session->root_widget) {
-        Rectangle clipRect{0, 0, 0, 0};
-        // SDL_GetRendererOutputSize(current_rc->renderer, &clipRect.w, &clipRect.h);
-        // current_rc->renderer.setClipRect(clipRect);
         session->root_widget->paint(current_rc);
+    } else {
+        fprintf(stderr, "No root widget\n");
     }
 
     // int mx, my;
@@ -284,56 +277,3 @@ extern "C" void session_render(ZigSession * session)
     //     }
     // }
 }
-
-// void local_sess_update()
-// {
-
-//     std::vector<DiscoveredClient> clients;
-//     {
-//         std::lock_guard<std::mutex> lock{discovered_clients_lock};
-//         clients = discovered_clients;
-//     }
-
-//     ObjectList list;
-//     list.reserve(clients.size());
-
-//     for (size_t i = 0; i < clients.size(); i++) {
-//         auto const id = local_session_id(i);
-
-//         Object obj{id};
-
-//         obj.add(local_app_name, UIValue(clients[i].name));
-//         obj.add(local_app_port, UIValue(clients[i].tcp_port));
-//         obj.add(local_app_ip, UIValue(xnet::to_string(clients[i].udp_ep, false)));
-//         obj.add(local_app_id, UIValue(WidgetName(i + 1)));
-
-//         list.emplace_back(obj);
-
-//         sess.addOrUpdateObject(std::move(obj));
-//     }
-
-//     sess.clear(local_root_obj, local_discovery_list);
-//     sess.insertRange(local_root_obj, local_discovery_list, 0, list.size(), list.data());
-// }
-
-// ObjectID constexpr local_root_obj{1};
-
-// UIResourceID constexpr local_discovery_list_item{1};
-
-// PropertyName constexpr local_discovery_list{1};
-// PropertyName constexpr local_app_name{2};
-// PropertyName constexpr local_app_ip{3};
-// PropertyName constexpr local_app_port{4};
-// PropertyName constexpr local_app_id{5};
-
-// EventID constexpr local_exit_client_event{1};
-// EventID constexpr local_open_session_event{2};
-// EventID constexpr local_close_session_event{3};
-
-// void foobar_create_local_sess()
-// {
-//     LocalSession sess;
-
-//     sess.onEvent = [](EventID event, WidgetName widget) {
-
-//     };

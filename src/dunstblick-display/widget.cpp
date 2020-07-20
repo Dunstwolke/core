@@ -122,8 +122,8 @@ void Widget::layout(Rectangle const & _bounds)
     Rectangle const bounds = {
         _bounds.x + margins.get(this).left,
         _bounds.y + margins.get(this).top,
-        std::max(0, _bounds.w - margins.get(this).totalHorizontal()), // safety check against underflow
-        std::max(0, _bounds.h - margins.get(this).totalVertical()),
+        size_t(std::max<ssize_t>(0, _bounds.w - margins.get(this).totalHorizontal())), // safety check against underflow
+        size_t(std::max<ssize_t>(0, _bounds.h - margins.get(this).totalVertical())),
     };
 
     Rectangle target;

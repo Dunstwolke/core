@@ -50,7 +50,7 @@ struct GridLayout : WidgetIs<UIWidget::grid_layout>
     // gets calculated in calculateWantedSize
     // and gets used in layoutChildren
     // both store
-    std::vector<int> row_heights, column_widths;
+    std::vector<size_t> row_heights, column_widths;
 
     void layoutChildren(Rectangle const & childArea) override;
 

@@ -195,9 +195,9 @@ pub fn build(b: *Builder) !void {
 }
 
 const display_client_sources = [_][]const u8{
+    "./src/dunstblick-display/widgets.cpp",
     "./src/dunstblick-display/api.cpp",
     "./src/dunstblick-display/enums.cpp",
-    "./src/dunstblick-display/fontcache.cpp",
     "./src/dunstblick-display/inputstream.cpp",
     "./src/dunstblick-display/layouts.cpp",
     "./src/dunstblick-display/main.cpp",
@@ -210,11 +210,9 @@ const display_client_sources = [_][]const u8{
     "./src/dunstblick-display/types.cpp",
     "./src/dunstblick-display/widget.cpp",
     "./src/dunstblick-display/widget.create.cpp",
-    "./src/dunstblick-display/widgets.cpp",
 };
 
 const xqlib_sources = [_][]const u8{
     "./lib/xqlib-stripped/src/xlog.cpp",
-    "./lib/xqlib-stripped/src/sdl2++.cpp",
     "./lib/xqlib-stripped/src/xstd_format.cpp",
 };

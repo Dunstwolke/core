@@ -140,7 +140,10 @@ pub fn main() !u8 {
                             gpa.destroy(ctx);
                         },
                         .resized => |size| {
-                            try ctx.data.resize(size);
+                            try ctx.data.resize(Size{
+                                .width = @intCast(usize, size.width),
+                                .height = @intCast(usize, size.height),
+                            });
                             try ctx.data.render();
                         },
                         .size_changed => {},
@@ -212,7 +215,7 @@ const UiContext = struct {
     window: sdl.Window,
     renderer: sdl.Renderer,
     back_buffer: sdl.Texture,
-    screen_size: sdl.Size,
+    screen_size: Size,
     session: ?*DiscoverySession = null,
 
     alive: bool = true,
@@ -242,9 +245,9 @@ const UiContext = struct {
             .window = win,
             .renderer = ren,
             .back_buffer = backbuffer,
-            .screen_size = sdl.Size{
-                .width = @intCast(c_int, width),
-                .height = @intCast(c_int, height),
+            .screen_size = Size{
+                .width = width,
+                .height = height,
             },
         };
     }
@@ -259,7 +262,7 @@ const UiContext = struct {
         self.* = undefined;
     }
 
-    fn resize(self: *Self, new_size: sdl.Size) !void {
+    fn resize(self: *Self, new_size: Size) !void {
         var new_back_buffer = try sdl.createTexture(
             self.renderer,
             backbuffer_format,
@@ -294,6 +297,19 @@ const UiContext = struct {
 
             fb.fill(fb.scheme.background);
 
+            if (self.session) |session| {
+                cpp.session_render(
+                    session.cpp_session,
+                    Rectangle{
+                        .x = 0,
+                        .y = 0,
+                        .width = self.screen_size.width,
+                        .height = self.screen_size.height,
+                    },
+                    &fb.api,
+                );
+            }
+
             // runPainterDemo(&fb);
 
             var list = app_discovery.getDiscovereyApplications();
@@ -325,7 +341,7 @@ const cpp = struct {
 
     pub extern fn session_getCursor(session: *ZigSession) sdl.c.SDL_SystemCursor;
 
-    pub extern fn session_render(session: *ZigSession) void;
+    pub extern fn session_render(session: *ZigSession, screen_rect: Rectangle, painter: *painting.PainterAPI) void;
 
     // ZigSession Class
 
@@ -356,13 +372,27 @@ const DiscoverySession = struct {
     cpp_session: *cpp.ZigSession,
     api: cpp.ZigSessionApi,
 
-    const resource_names = .{
-        .discovery_menu = @intToEnum(protocol.ResourceID, 1),
-        .discovery_list_item = @intToEnum(protocol.ResourceID, 2),
+    const resource_names = struct {
+        const discovery_menu = @intToEnum(protocol.ResourceID, 1);
+        const discovery_list_item = @intToEnum(protocol.ResourceID, 2);
     };
 
-    const object_names = .{
-        .root = @intToEnum(protocol.ObjectID, 1),
+    const object_names = struct {
+        const root = @intToEnum(protocol.ObjectID, 1);
+    };
+
+    const properties = struct {
+        const local_discovery_list = @intToEnum(protocol.PropertyName, 1);
+        const local_app_name = @intToEnum(protocol.PropertyName, 2);
+        const local_app_ip = @intToEnum(protocol.PropertyName, 3);
+        const local_app_port = @intToEnum(protocol.PropertyName, 4);
+        const local_app_id = @intToEnum(protocol.PropertyName, 5);
+    };
+
+    const events = struct {
+        const local_exit_client_event = @intToEnum(protocol.EventID, 1);
+        const local_open_session_event = @intToEnum(protocol.EventID, 2);
+        const local_close_session_event = @intToEnum(protocol.EventID, 3);
     };
 
     /// Must be a non-moveable object → heap allocate
@@ -422,7 +452,33 @@ const DiscoverySession = struct {
     }
 
     pub fn update(self: *Self) bool {
-        // TODO: Implement update logic
+
+        //     std::vector<DiscoveredClient> clients;
+        //     {
+        //         std::lock_guard<std::mutex> lock{discovered_clients_lock};
+        //         clients = discovered_clients;
+        //     }
+
+        //     ObjectList list;
+        //     list.reserve(clients.size());
+
+        //     for (size_t i = 0; i < clients.size(); i++) {
+        //         auto const id = local_session_id(i);
+
+        //         Object obj{id};
+
+        //         obj.add(local_app_name, UIValue(clients[i].name));
+        //         obj.add(local_app_port, UIValue(clients[i].tcp_port));
+        //         obj.add(local_app_ip, UIValue(xnet::to_string(clients[i].udp_ep, false)));
+        //         obj.add(local_app_id, UIValue(WidgetName(i + 1)));
+
+        //         list.emplace_back(obj);
+
+        //         sess.addOrUpdateObject(std::move(obj));
+        //     }
+
+        //     sess.clear(local_root_obj, local_discovery_list);
+        //     sess.insertRange(local_root_obj, local_discovery_list, 0, list.size(), list.data());
         return true;
     }
 

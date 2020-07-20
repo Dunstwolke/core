@@ -2,7 +2,6 @@
 #define RESOURCES_HPP
 
 #include <cstdint>
-#include <sdl2++/texture>
 #include <variant>
 #include <vector>
 #include <xstd/optional>
@@ -20,13 +19,14 @@ enum class ResourceKind : uint8_t
     drawing = DUNSTBLICK_RESOURCE_DRAWING,
 };
 
+struct Image;
+
 struct BitmapResource
 {
-    sdl2::texture texture;
-
     UISize size;
+    Image * texture;
 
-    explicit BitmapResource(sdl2::texture && texture);
+    explicit BitmapResource(Image * img, UISize size);
 };
 
 struct DrawingResource

@@ -4,6 +4,8 @@ const sdl = @import("sdl2");
 
 const c = @import("c.zig");
 
+const protocol = @import("dunstblick-protocol");
+
 usingnamespace @import("types.zig");
 
 pub const Color = packed struct {
@@ -24,63 +26,155 @@ pub const ColorScheme = struct {
     black_3d: Color = Color{ .r = 0x00, .g = 0x00, .b = 0x00 },
 };
 
-pub const Bevel = enum {
+pub const Bevel = extern enum {
     /// A small border with a 3D effect, looks like a welding around the object
-    edge,
+    edge = 0,
     /// A small border with a 3D effect, looks like a crease around the object
-    crease,
+    crease = 1,
     /// A small border with a 3D effect, looks like the object is raised up from the surroundings
-    raised,
+    raised = 2,
     /// A small border with a 3D effect, looks like the object is sunken into the surroundings
-    sunken,
+    sunken = 3,
     /// The *deep* 3D border
-    input_field,
+    input_field = 4,
     /// Normal button outline
-    button_default,
+    button_default = 5,
     /// Pressed button outline
-    button_pressed,
+    button_pressed = 6,
     /// Active button outline, not pressed
-    button_active,
+    button_active = 7,
 };
 
-pub const LineStyle = enum {
+pub const LineStyle = extern enum {
     /// A small border with a 3D effect, looks like a groove around the object
     crease,
     /// A small border with a 3D effect, looks like a welding around the object
     edge,
 };
 
-pub const WidgetColor = enum {
-    background,
-    input_field,
-    highlight,
-    checkered,
+pub const WidgetColor = extern enum {
+    background = 0,
+    input_field = 1,
+    highlight = 2,
+    checkered = 3,
 };
 
-pub const Font = enum {
-    sans,
-    serif,
-    monospace,
+pub const Font = extern enum(u8) {
+    sans = 18,
+    serif = 19,
+    monospace = 20,
 };
 
-pub const TextAlign = enum {
-    left,
-    center,
-    right,
-    block,
+pub const TextAlign = extern enum {
+    left = 0,
+    center = 1,
+    right = 2,
+    block = 3,
+};
+
+/// Keep in sync with
+/// rendercontext.hpp
+pub const PainterAPI = extern struct {
+    const Self = @This();
+
+    fillRectangle: fn (self: *Self, rectangle: Rectangle, color: WidgetColor) callconv(.C) void,
+    drawRectangle: fn (self: *Self, rect: Rectangle, bevel: Bevel) callconv(.C) void,
+    drawHLine: fn (self: *Self, x0: isize, y0: isize, width: usize, style: LineStyle) callconv(.C) void,
+    drawVLine: fn (self: *Self, x0: isize, y0: isize, height: usize, style: LineStyle) callconv(.C) void,
+    drawIcon: fn (self: *Self, icon: *Image, rectangle: Rectangle) callconv(.C) void,
+    measureString: fn (self: *Self, text: [*]const u8, text_len: usize, font: Font, line_width: usize) callconv(.C) Size,
+    drawString: fn (self: *Self, text: [*]const u8, text_len: usize, target: Rectangle, font: Font, alignment: TextAlign) callconv(.C) void,
+
+    setClipRect: fn (self: *PainterAPI, rect: Rectangle) callconv(.C) void,
+    resetClipRect: fn (self: *PainterAPI) callconv(.C) void,
+    getClipRect: fn (self: *PainterAPI) callconv(.C) Rectangle,
+
+    fn painterFillRectangle(self: *Self, rectangle: Rectangle, color: WidgetColor) callconv(.C) void {
+        const painter = @fieldParentPtr(Painter, "api", self);
+        painter.fillRectangle(rectangle, color);
+    }
+    fn painterDrawRectangle(self: *Self, rect: Rectangle, bevel: Bevel) callconv(.C) void {
+        const painter = @fieldParentPtr(Painter, "api", self);
+        painter.drawRectangle(rect, bevel);
+    }
+    fn painterDrawHLine(self: *Self, x0: isize, y0: isize, width: usize, style: LineStyle) callconv(.C) void {
+        const painter = @fieldParentPtr(Painter, "api", self);
+        painter.drawHLine(x0, y0, width, style);
+    }
+    fn painterDrawVLine(self: *Self, x0: isize, y0: isize, height: usize, style: LineStyle) callconv(.C) void {
+        const painter = @fieldParentPtr(Painter, "api", self);
+        painter.drawVLine(x0, y0, height, style);
+    }
+    fn painterDrawIcon(self: *Self, icon: *Image, rectangle: Rectangle) callconv(.C) void {
+        const painter = @fieldParentPtr(Painter, "api", self);
+        painter.drawIcon(icon.*, rectangle);
+    }
+    fn painterMeasureString(self: *Self, text: [*]const u8, text_len: usize, font: Font, line_width: usize) callconv(.C) Size {
+        const painter = @fieldParentPtr(Painter, "api", self);
+        return Size{
+            .width = 100,
+            .height = 30,
+        };
+    }
+    fn painterDrawString(self: *Self, text: [*]const u8, text_len: usize, target: Rectangle, font: Font, alignment: TextAlign) callconv(.C) void {
+        const painter = @fieldParentPtr(Painter, "api", self);
+        painter.drawString(
+            text[0..text_len],
+            target,
+            font,
+            alignment,
+        );
+    }
+
+    fn painterSetClipRect(self: *PainterAPI, rect: Rectangle) callconv(.C) void {
+        const painter = @fieldParentPtr(Painter, "api", self);
+        painter.clip_rectangle = rect;
+    }
+    fn painterResetClipRect(self: *PainterAPI) callconv(.C) void {
+        const painter = @fieldParentPtr(Painter, "api", self);
+        painter.clip_rectangle = null;
+    }
+
+    fn painterGetClipRect(self: *PainterAPI) callconv(.C) Rectangle {
+        const painter = @fieldParentPtr(Painter, "api", self);
+        return if (painter.clip_rectangle) |rect|
+            rect
+        else
+            Rectangle{ .x = 0, .y = 0, .width = painter.size.width, .height = painter.size.height };
+    }
+};
+
+const painterApi = PainterAPI{
+    .fillRectangle = PainterAPI.painterFillRectangle,
+    .drawRectangle = PainterAPI.painterDrawRectangle,
+    .drawHLine = PainterAPI.painterDrawHLine,
+    .drawVLine = PainterAPI.painterDrawVLine,
+    .drawIcon = PainterAPI.painterDrawIcon,
+    .measureString = PainterAPI.painterMeasureString,
+    .drawString = PainterAPI.painterDrawString,
+    .setClipRect = PainterAPI.painterSetClipRect,
+    .resetClipRect = PainterAPI.painterResetClipRect,
+    .getClipRect = PainterAPI.painterGetClipRect,
 };
 
 pub const Painter = struct {
     const Self = @This();
     const Canvas = painterz.Canvas(*Self, Color, setPixel);
 
-    size: sdl.Size,
+    size: Size,
     pixels: *sdl.Texture.PixelData,
     scheme: ColorScheme,
+    api: PainterAPI = painterApi,
+    clip_rectangle: ?Rectangle = null,
 
     fn setPixel(self: *Self, x: isize, y: isize, color: Color) void {
         if (x < 0 or y < 0) return;
         if (x >= self.size.width or y >= self.size.height) return;
+
+        if (self.clip_rectangle) |rect| {
+            if (!rect.contains(x, y))
+                return;
+        }
 
         const pxl = &self.pixels.scanline(std.math.absCast(y), Color)[std.math.absCast(x)];
 
@@ -276,13 +370,13 @@ pub const Painter = struct {
         }
     }
 
-    pub fn pushClipRect(self: *Self, rectangle: Rectangle) !Rectangle {
-        unreachable;
-    }
+    // pub fn pushClipRect(self: *Self, rectangle: Rectangle) !Rectangle {
+    //     unreachable;
+    // }
 
-    pub fn popClipRect() void {
-        unreachable;
-    }
+    // pub fn popClipRect() void {
+    //     unreachable;
+    // }
 };
 
 // get the bbox of the bitmap centered around the glyph origin; so the

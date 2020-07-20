@@ -10,11 +10,10 @@
 
 #include <functional>
 #include <memory>
-#include <sdl2++/renderer>
 #include <variant>
 #include <vector>
 
-// #include <SDL.h>
+#include <SDL.h>
 
 // widget layouting algorithm:
 // stage 1:
@@ -154,14 +153,14 @@ struct IWidgetContext
 
 enum class Bevel
 {
-    edge,           ///< A small border with a 3D effect, looks like a welding around the object
-    crease,         ///< A small border with a 3D effect, looks like a crease around the object
-    raised,         ///< A small border with a 3D effect, looks like the object is raised up from the surroundings
-    sunken,         ///< A small border with a 3D effect, looks like the object is sunken into the surroundings
-    input_field,    ///< The *deep* 3D border
-    button_default, ///< Normal button outline
-    button_pressed, ///< Pressed button outline
-    button_active,  ///< Active button outline, not pressed
+    edge = 0,           ///< A small border with a 3D effect, looks like a welding around the object
+    crease = 1,         ///< A small border with a 3D effect, looks like a crease around the object
+    raised = 2,         ///< A small border with a 3D effect, looks like the object is raised up from the surroundings
+    sunken = 3,         ///< A small border with a 3D effect, looks like the object is sunken into the surroundings
+    input_field = 4,    ///< The *deep* 3D border
+    button_default = 5, ///< Normal button outline
+    button_pressed = 6, ///< Pressed button outline
+    button_active = 7,  ///< Active button outline, not pressed
 };
 
 enum class LineStyle
@@ -172,60 +171,18 @@ enum class LineStyle
 
 enum class Color
 {
-    background,
-    input_field,
-    highlight,
-    checkered,
+    background = 0,
+    input_field = 1,
+    highlight = 2,
+    checkered = 3,
 };
 
 enum class TextAlign
 {
-    left,
-    center,
-    right,
-    block
-};
-
-struct Rectangle : SDL_Rect
-{
-    explicit Rectangle() : SDL_Rect{0, 0, 0, 0} {}
-    Rectangle(int _x, int _y, int _w, int _h) : SDL_Rect{_x, _y, _w, _h} {}
-
-    explicit Rectangle(SDL_Rect const & r) : SDL_Rect{r} {}
-
-    static inline Rectangle intersect(Rectangle const & a, Rectangle const & b)
-    {
-        auto const left = std::max(a.x, b.x);
-        auto const top = std::max(a.y, b.y);
-
-        auto const right = std::min(a.x + a.w, b.x + b.w);
-        auto const bottom = std::min(a.y + a.h, b.y + b.h);
-
-        if (right < left or bottom < top)
-            return Rectangle{left, top, 0, 0};
-        else
-            return Rectangle{left, top, right - left, bottom - top};
-    }
-
-    inline bool contains(int px, int py) const
-    {
-        return (px >= this->x) and (py >= this->y) and (px < (this->x + this->w)) and (py < (this->y + this->h));
-    }
-
-    inline bool contains(SDL_Point const & p) const
-    {
-        return contains(p.x, p.y);
-    }
-
-    bool empty() const
-    {
-        return (w * h) == 0;
-    }
-
-    Rectangle shrink(int n) const
-    {
-        return Rectangle{x + n, y + n, w - 2 * n, h - 2 * n};
-    }
+    left = 0,
+    center = 1,
+    right = 2,
+    block = 3
 };
 
 struct IWidgetPainter
@@ -245,7 +202,7 @@ struct IWidgetPainter
     virtual void fillRect(Rectangle const & rect, Color color) = 0;
 
     virtual void drawIcon(Rectangle const & rect,
-                          SDL_Texture * texture,
+                          Image * texture,
                           xstd::optional<Rectangle> clip_rect = xstd::nullopt) = 0;
 
     virtual void drawHLine(int startX, int startY, int width, LineStyle style) = 0;

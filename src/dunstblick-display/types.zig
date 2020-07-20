@@ -1,4 +1,14 @@
-pub const Rectangle = struct {
+pub const Point = extern struct {
+    width: isize,
+    height: isize,
+};
+
+pub const Size = extern struct {
+    width: usize,
+    height: usize,
+};
+
+pub const Rectangle = extern struct {
     const Self = @This();
 
     x: isize,

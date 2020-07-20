@@ -1,12 +1,14 @@
 #include "resources.hpp"
 
-BitmapResource::BitmapResource(sdl2::texture && _tex) : texture(std::move(_tex))
+BitmapResource::BitmapResource(Image * img, UISize size) : texture(img), size(size)
 {
-    auto const [fmt, access, w, h] = texture.query();
-    size = UISize{w, h};
+    assert(img != nullptr);
 }
 
-LayoutResource::LayoutResource(const uint8_t * data, size_t length) : layout_data(data, data + length) {}
+LayoutResource::LayoutResource(const uint8_t * data, size_t length) : layout_data(data, data + length)
+{
+    assert(data != nullptr);
+}
 
 InputStream LayoutResource::get_stream() const
 {

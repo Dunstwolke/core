@@ -104,12 +104,12 @@ void ProgressBar::paintWidget(IWidgetPainter & painter, const Rectangle & rectan
 {
     painter.fillRect(rectangle, Color::input_field);
 
-    Rectangle progressArea = {
-        rectangle.x + 1,
-        rectangle.y + 1,
-        int((value.get(this) - minimum.get(this)) * float(rectangle.w - 2) / (maximum.get(this) - minimum.get(this)) +
-            0.5f),
-        rectangle.h - 2};
+    Rectangle progressArea = {rectangle.x + 1,
+                              rectangle.y + 1,
+                              size_t(int((value.get(this) - minimum.get(this)) * float(rectangle.w - 2) /
+                                             (maximum.get(this) - minimum.get(this)) +
+                                         0.5f)),
+                              rectangle.h - 2};
 
     painter.fillRect(progressArea, Color::highlight);
 
@@ -235,10 +235,10 @@ bool Slider::processEvent(const SDL_Event & ev)
     auto setSlider = [&](int x, int y) {
         float v;
         if (isHorizontal) {
-            int pos = std::clamp(x - knobThick / 2 - actual_bounds.x, 0, actual_bounds.w - knobThick - 1);
+            int pos = std::clamp<ssize_t>(x - knobThick / 2 - actual_bounds.x, 0, actual_bounds.w - knobThick - 1);
             v = float(pos) / float(actual_bounds.w - knobThick - 1);
         } else {
-            int pos = std::clamp(y - knobThick / 2 - actual_bounds.y, 0, actual_bounds.h - knobThick - 1);
+            int pos = std::clamp<ssize_t>(y - knobThick / 2 - actual_bounds.y, 0, actual_bounds.h - knobThick - 1);
             v = float(pos) / float(actual_bounds.h - knobThick - 1);
         }
 
@@ -282,19 +282,31 @@ void Picture::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
 
         switch (scaling.get(this)) {
             case ImageScaling::none: {
-                int const clipped_w = std::min(w, rectangle.w);
-                int const clipped_h = std::min(h, rectangle.h);
-                painter.drawIcon(Rectangle{rectangle.x, rectangle.y, clipped_w, clipped_h},
-                                 bmp->texture,
-                                 Rectangle{0, 0, clipped_w, clipped_h});
+                size_t const clipped_w = std::min<size_t>(w, rectangle.w);
+                size_t const clipped_h = std::min<size_t>(h, rectangle.h);
+                painter.drawIcon(
+                    Rectangle{
+                        rectangle.x,
+                        rectangle.y,
+                        clipped_w,
+                        clipped_h,
+                    },
+                    bmp->texture,
+                    Rectangle{0, 0, clipped_w, clipped_h});
                 break;
             }
             case ImageScaling::stretch:
                 painter.drawIcon(rectangle, bmp->texture);
                 break;
             case ImageScaling::center: {
-                painter.drawIcon({rectangle.x + (rectangle.w - w) / 2, rectangle.y + (rectangle.h - h) / 2, w, h},
-                                 bmp->texture);
+                painter.drawIcon(
+                    {
+                        ssize_t(rectangle.x + (rectangle.w - w) / 2),
+                        ssize_t(rectangle.y + (rectangle.h - h) / 2),
+                        w,
+                        h,
+                    },
+                    bmp->texture);
                 break;
             }
 
@@ -308,15 +320,18 @@ void Picture::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
                         (sourceAspect > targetAspect) ? float(rectangle.w) / float(w) : float(rectangle.h) / float(h);
                 }
 
-                int const scaled_w = int(scale * w + 0.5f);
-                int const scaled_h = int(scale * h + 0.5f);
+                size_t const scaled_w = size_t(scale * w + 0.5f);
+                size_t const scaled_h = size_t(scale * h + 0.5f);
 
                 // just center the image as it is contained
-                painter.drawIcon({rectangle.x + (rectangle.w - scaled_w) / 2,
-                                  rectangle.y + (rectangle.h - scaled_h) / 2,
-                                  scaled_w,
-                                  scaled_h},
-                                 bmp->texture);
+                painter.drawIcon(
+                    {
+                        ssize_t(rectangle.x + (rectangle.w - scaled_w) / 2),
+                        ssize_t(rectangle.y + (rectangle.h - scaled_h) / 2),
+                        scaled_w,
+                        scaled_h,
+                    },
+                    bmp->texture);
                 break;
             }
 
@@ -324,15 +339,18 @@ void Picture::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
                 float scale =
                     (sourceAspect > targetAspect) ? float(rectangle.w) / float(w) : float(rectangle.h) / float(h);
 
-                int scaled_w = int(scale * w + 0.5f);
-                int scaled_h = int(scale * h + 0.5f);
+                size_t scaled_w = size_t(scale * w + 0.5f);
+                size_t scaled_h = size_t(scale * h + 0.5f);
 
                 // just center the image as it is contained
-                painter.drawIcon({rectangle.x + (rectangle.w - scaled_w) / 2,
-                                  rectangle.y + (rectangle.h - scaled_h) / 2,
-                                  scaled_w,
-                                  scaled_h},
-                                 bmp->texture);
+                painter.drawIcon(
+                    {
+                        ssize_t(rectangle.x + (rectangle.w - scaled_w) / 2),
+                        ssize_t(rectangle.y + (rectangle.h - scaled_h) / 2),
+                        scaled_w,
+                        scaled_h,
+                    },
+                    bmp->texture);
                 break;
             }
 
@@ -340,15 +358,18 @@ void Picture::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
                 float scale =
                     (sourceAspect < targetAspect) ? float(rectangle.w) / float(w) : float(rectangle.h) / float(h);
 
-                int scaled_w = int(scale * w + 0.5f);
-                int scaled_h = int(scale * h + 0.5f);
+                size_t scaled_w = size_t(scale * w + 0.5f);
+                size_t scaled_h = size_t(scale * h + 0.5f);
 
                 // just center the image as it is contained
-                painter.drawIcon({rectangle.x + (rectangle.w - scaled_w) / 2,
-                                  rectangle.y + (rectangle.h - scaled_h) / 2,
-                                  scaled_w,
-                                  scaled_h},
-                                 bmp->texture);
+                painter.drawIcon(
+                    {
+                        ssize_t(rectangle.x + (rectangle.w - scaled_w) / 2),
+                        ssize_t(rectangle.y + (rectangle.h - scaled_h) / 2),
+                        scaled_w,
+                        scaled_h,
+                    },
+                    bmp->texture);
                 break;
             }
         }
@@ -358,8 +379,7 @@ void Picture::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
 UISize Picture::calculateWantedSize(IWidgetPainter const & painter)
 {
     if (auto res = widget_context->find_resource(image.get(this)); res and is_bitmap(*res)) {
-        auto [format, access, w, h] = std::get<BitmapResource>(*res).texture.query();
-        return {w, h};
+        return std::get<BitmapResource>(*res).size;
     } else {
         return Widget::calculateWantedSize(painter);
     }
@@ -424,12 +444,13 @@ void ScrollBar::paintWidget(IWidgetPainter & painter, const Rectangle & rectangl
 
     if (orientation.get(this) == Orientation::vertical) {
         Rectangle const topKnob = {rectangle.x, rectangle.y, knobSize, knobSize};
-        Rectangle const botKnob = {rectangle.x, rectangle.y + rectangle.h - knobSize, knobSize, knobSize};
+        Rectangle const botKnob = {rectangle.x, ssize_t(rectangle.y + rectangle.h - knobSize), knobSize, knobSize};
 
-        Rectangle const slidKnob = {rectangle.x,
-                                    rectangle.y + knobSize + int(progress * (rectangle.h - 3 * knobSize) + 0.5f),
-                                    knobSize,
-                                    knobSize};
+        Rectangle const slidKnob = {
+            rectangle.x,
+            ssize_t(rectangle.y + knobSize + int(progress * (rectangle.h - 3 * knobSize) + 0.5f)),
+            knobSize,
+            knobSize};
 
         painter.fillRect(topKnob, Color::background);
         painter.fillRect(botKnob, Color::background);
@@ -441,7 +462,7 @@ void ScrollBar::paintWidget(IWidgetPainter & painter, const Rectangle & rectangl
 
     } else {
         Rectangle const leftKnob = {rectangle.x, rectangle.y, knobSize, knobSize};
-        Rectangle const rightKnob = {rectangle.x + rectangle.w - knobSize, rectangle.y, knobSize, knobSize};
+        Rectangle const rightKnob = {ssize_t(rectangle.x + rectangle.w - knobSize), rectangle.y, knobSize, knobSize};
 
         Rectangle const slidKnob = {rectangle.x + knobSize + int(progress * (rectangle.w - 3 * knobSize) + 0.5f),
                                     rectangle.y,
@@ -475,7 +496,7 @@ bool ScrollBar::processEvent(const SDL_Event & ev)
     auto const rectangle = actual_bounds;
     if (orientation.get(this) == Orientation::vertical) {
         Rectangle const topKnob = {rectangle.x, rectangle.y, knobSize, knobSize};
-        Rectangle const botKnob = {rectangle.x, rectangle.y + rectangle.h - knobSize, knobSize, knobSize};
+        Rectangle const botKnob = {rectangle.x, ssize_t(rectangle.y + rectangle.h - knobSize), knobSize, knobSize};
 
         Rectangle const knobArea = {
             rectangle.x,
@@ -484,10 +505,11 @@ bool ScrollBar::processEvent(const SDL_Event & ev)
             rectangle.h - 2 * knobSize,
         };
 
-        Rectangle const slidKnob = {rectangle.x,
-                                    rectangle.y + knobSize + int(progress * (rectangle.h - 3 * knobSize) + 0.5f),
-                                    knobSize,
-                                    knobSize};
+        Rectangle const slidKnob = {
+            rectangle.x,
+            ssize_t(rectangle.y + knobSize + int(progress * (rectangle.h - 3 * knobSize) + 0.5f)),
+            knobSize,
+            knobSize};
 
         if (ev.type == SDL_MOUSEBUTTONUP)
             releaseMouse();
@@ -495,7 +517,7 @@ bool ScrollBar::processEvent(const SDL_Event & ev)
         if (hasMouseCaptured() and (ev.type == SDL_MOUSEMOTION)) {
             // move knob here!
 
-            int const y = std::clamp(ev.motion.y - knobArea.y - knobOffset, 0, knobArea.h - 1);
+            int const y = std::clamp<int>(ev.motion.y - knobArea.y - knobOffset, 0, knobArea.h - 1);
 
             float const p = float(y) / float(knobArea.h - 1);
 
@@ -526,7 +548,7 @@ bool ScrollBar::processEvent(const SDL_Event & ev)
         }
     } else {
         Rectangle const leftKnob = {rectangle.x, rectangle.y, knobSize, knobSize};
-        Rectangle const rightKnob = {rectangle.x + rectangle.w - knobSize, rectangle.y, knobSize, knobSize};
+        Rectangle const rightKnob = {ssize_t(rectangle.x + rectangle.w - knobSize), rectangle.y, knobSize, knobSize};
 
         Rectangle const knobArea = {
             rectangle.x + knobSize,
@@ -535,10 +557,11 @@ bool ScrollBar::processEvent(const SDL_Event & ev)
             rectangle.h,
         };
 
-        Rectangle const slidKnob = {rectangle.x + knobSize + int(progress * (rectangle.w - 3 * knobSize) + 0.5f),
-                                    rectangle.y,
-                                    knobSize,
-                                    knobSize};
+        Rectangle const slidKnob = {
+            ssize_t(rectangle.x + knobSize + int(progress * (rectangle.w - 3 * knobSize) + 0.5f)),
+            rectangle.y,
+            knobSize,
+            knobSize};
 
         if (ev.type == SDL_MOUSEBUTTONUP)
             releaseMouse();
@@ -546,7 +569,7 @@ bool ScrollBar::processEvent(const SDL_Event & ev)
         if (hasMouseCaptured() and (ev.type == SDL_MOUSEMOTION)) {
             // move knob here!
 
-            int const y = std::clamp(ev.motion.x - knobArea.x - knobOffset, 0, knobArea.w - 1);
+            int const y = std::clamp<int>(ev.motion.x - knobArea.x - knobOffset, 0, knobArea.w - 1);
 
             float const p = float(y) / float(knobArea.w - 1);
 
@@ -556,11 +579,11 @@ bool ScrollBar::processEvent(const SDL_Event & ev)
         }
 
         if (is_clicked(leftKnob, ev)) {
-            value.set(this, std::clamp(val - clickperc * range, minval, maxval));
+            value.set(this, std::clamp<int>(val - clickperc * range, minval, maxval));
             return true;
         }
         if (is_clicked(rightKnob, ev)) {
-            value.set(this, std::clamp(val + clickperc * range, minval, maxval));
+            value.set(this, std::clamp<int>(val + clickperc * range, minval, maxval));
             return true;
         }
         if (is_clicked(slidKnob, ev)) {
@@ -618,8 +641,8 @@ void ScrollView::layoutChildren(const Rectangle & fullArea)
 
     auto const child_size = container->wanted_size_with_margins();
 
-    int const extend_x = std::max(0, child_size.w - childArea.w);
-    int const extend_y = std::max(0, child_size.h - childArea.h);
+    size_t const extend_x = std::max<ssize_t>(0, child_size.w - childArea.w);
+    size_t const extend_y = std::max<ssize_t>(0, child_size.h - childArea.h);
 
     horizontal_bar->maximum.set(this, extend_x);
     vertical_bar->maximum.set(this, extend_y);
@@ -642,11 +665,16 @@ void ScrollView::layoutChildren(const Rectangle & fullArea)
 
     container->layout(child_rect);
 
-    vertical_bar->layout(Rectangle{area.x + area.w, area.y, horizontal_bar->wanted_size.w, area.h});
+    vertical_bar->layout(Rectangle{
+        ssize_t(area.x + area.w),
+        area.y,
+        horizontal_bar->wanted_size.w,
+        area.h,
+    });
 
     horizontal_bar->layout(Rectangle{
         area.x,
-        area.y + area.h,
+        ssize_t(area.y + area.h),
         area.w,
         vertical_bar->wanted_size.h,
     });

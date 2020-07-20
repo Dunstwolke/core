@@ -77,7 +77,8 @@ void DockLayout::layoutChildren(const Rectangle & _rect)
                 break;
 
             case DockSite::bottom:
-                children[i]->layout({childArea.x, childArea.y + childArea.h - childSize.h, childArea.w, childSize.h});
+                children[i]->layout(
+                    {childArea.x, ssize_t(childArea.y + childArea.h - childSize.h), childArea.w, childSize.h});
                 childArea.h -= childSize.h;
                 break;
 
@@ -88,7 +89,8 @@ void DockLayout::layoutChildren(const Rectangle & _rect)
                 break;
 
             case DockSite::right:
-                children[i]->layout({childArea.x + childArea.w - childSize.w, childArea.y, childSize.w, childArea.h});
+                children[i]->layout(
+                    {ssize_t(childArea.x + childArea.w - childSize.w), childArea.y, childSize.w, childArea.h});
                 childArea.w -= childSize.w;
                 break;
         }
@@ -260,7 +262,7 @@ void TabLayout::paintWidget(IWidgetPainter & ren, const Rectangle & rectangle)
 
 void GridLayout::layoutChildren(const Rectangle & childArea)
 {
-    auto calculate_sizes = [](std::vector<int> & sizes, UISizeList const & list, int availableSize) {
+    auto calculate_sizes = [](std::vector<size_t> & sizes, UISizeList const & list, size_t availableSize) {
         int rest = availableSize;
 
         int col_expander_count = 0;
@@ -361,9 +363,9 @@ UISize GridLayout::calculateWantedSize(IWidgetPainter const &)
             row_heights[i] = std::get<int>(rows.get(this)[i]);
     }
 
-    return {
-        std::accumulate(column_widths.begin(), column_widths.end(), 0),
-        std::accumulate(row_heights.begin(), row_heights.end(), 0),
+    return UISize{
+        size_t(std::accumulate(column_widths.begin(), column_widths.end(), 0)),
+        size_t(std::accumulate(row_heights.begin(), row_heights.end(), 0)),
     };
 }
 
@@ -413,7 +415,7 @@ UISize CanvasLayout::calculateWantedSize(IWidgetPainter const &)
 void FlowLayout::layoutChildren(const Rectangle & childArea)
 {
     Rectangle rect{childArea.x, childArea.y, 0, 0};
-    int max_h = 0;
+    size_t max_h = 0;
     size_t i;
     bool first_in_line = true;
     for (i = 0; i < children.size(); i++) {
