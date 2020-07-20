@@ -1,8 +1,8 @@
-pub const ResourceID = extern enum(u32) { invalid, _ };
-pub const ObjectID = extern enum(u32) { invalid, _ };
-pub const PropertyName = extern enum(u32) { invalid, _ };
-pub const EventID = extern enum(u32) { invalid, _ };
-pub const WidgetName = extern enum(u32) { none, _ };
+pub const ResourceID = extern enum(u32) { invalid, first, _ };
+pub const ObjectID = extern enum(u32) { invalid, first, _ };
+pub const PropertyName = extern enum(u32) { invalid, first, _ };
+pub const EventID = extern enum(u32) { invalid, first, _ };
+pub const WidgetName = extern enum(u32) { none, first, _ };
 
 pub const ResourceKind = extern enum(u8) {
     layout = 0,

@@ -13,6 +13,16 @@ usingnamespace @import("types.zig");
 
 var test_icon: painting.Image = undefined;
 
+fn findWindow(window_list: *std.TailQueue(UiContext), window_id: u32) ?*std.TailQueue(UiContext).Node {
+    const win = sdl.Window.fromID(window_id) orelse return null;
+
+    var it = window_list.first;
+    return while (it) |c| : (it = c.next) {
+        if (c.data.window.ptr == win.ptr)
+            break c;
+    } else null;
+}
+
 pub fn main() !u8 {
     var counter = std.testing.LeakCountAllocator.init(std.heap.c_allocator);
     defer {
@@ -121,17 +131,14 @@ pub fn main() !u8 {
     }
 
     core_loop: while (window_list.len > 0) {
-        while (sdl.pollEvent()) |ev| {
-            switch (ev) {
-                .quit => break :core_loop,
-                .window => |win_ev| {
-                    const win = sdl.Window.fromID(win_ev.window_id) orelse continue;
+        while (sdl.pollNativeEvent()) |ev| {
+            const event_type = @intToEnum(sdl.c.SDL_EventType, @intCast(c_int, ev.type));
+            switch (event_type) {
+                .SDL_QUIT => break :core_loop,
+                .SDL_WINDOWEVENT => {
+                    const win_ev = sdl.Event.from(ev).window;
 
-                    var it = window_list.first;
-                    const ctx = while (it) |c| : (it = c.next) {
-                        if (c.data.window.ptr == win.ptr)
-                            break c;
-                    } else continue;
+                    const ctx = findWindow(&window_list, win_ev.window_id) orelse continue;
 
                     switch (win_ev.type) {
                         .close => {
@@ -147,11 +154,27 @@ pub fn main() !u8 {
                             try ctx.data.render();
                         },
                         .size_changed => {},
-                        else => std.log.debug(.app, "{} {}\n", .{ win, win_ev }),
+                        else => std.log.debug(.app, "{} {}\n", .{ ctx.data.window, win_ev }),
                     }
                 },
+                .SDL_KEYDOWN, .SDL_KEYUP => {
+                    const ctx = findWindow(&window_list, ev.key.windowID) orelse continue;
+                    ctx.data.pushEvent(ev);
+                },
+                .SDL_MOUSEBUTTONUP, .SDL_MOUSEBUTTONDOWN => {
+                    const ctx = findWindow(&window_list, ev.button.windowID) orelse continue;
+                    ctx.data.pushEvent(ev);
+                },
+                .SDL_MOUSEMOTION => {
+                    const ctx = findWindow(&window_list, ev.motion.windowID) orelse continue;
+                    ctx.data.pushEvent(ev);
+                },
+                .SDL_MOUSEWHEEL => {
+                    const ctx = findWindow(&window_list, ev.wheel.windowID) orelse continue;
+                    ctx.data.pushEvent(ev);
+                },
                 else => std.log.warn(.app, "Unhandled event: {}\n", .{
-                    @as(sdl.EventType, ev),
+                    event_type,
                 }),
             }
         }
@@ -284,6 +307,12 @@ const UiContext = struct {
         }
     }
 
+    fn pushEvent(self: *Self, event: sdl.c.SDL_Event) void {
+        if (self.session) |session| {
+            session.pushEvent(event);
+        }
+    }
+
     fn render(self: *Self) !void {
         {
             var pixels = try self.back_buffer.lock(null);
@@ -336,6 +365,7 @@ const UiNode = std.TailQueue(UiContext).Node;
 
 const cpp = struct {
     pub const ZigSession = @Type(.Opaque);
+    pub const Object = @Type(.Opaque);
 
     pub extern fn session_pushEvent(current_session: *ZigSession, e: *const sdl.c.SDL_Event) void;
 
@@ -360,9 +390,17 @@ const cpp = struct {
 
     pub extern fn zsession_uploadResource(session: *ZigSession, resource_id: protocol.ResourceID, kind: protocol.ResourceKind, data: [*]const u8, len: usize) void;
 
+    pub extern fn zsession_addOrUpdateObject(session: *ZigSession, obj: *Object) void;
+
     pub extern fn zsession_setView(session: *ZigSession, id: protocol.ResourceID) void;
 
     pub extern fn zsession_setRoot(session: *ZigSession, obj: protocol.ObjectID) void;
+
+    pub extern fn object_create(id: protocol.ObjectID) ?*Object;
+
+    pub extern fn object_addProperty(object: *Object, prop: protocol.PropertyName, value: *const protocol.Value) void;
+
+    pub extern fn object_destroy(object: *Object) void;
 };
 
 const DiscoverySession = struct {
@@ -371,6 +409,8 @@ const DiscoverySession = struct {
     allocator: *std.mem.Allocator,
     cpp_session: *cpp.ZigSession,
     api: cpp.ZigSessionApi,
+
+    alive: bool = true,
 
     const resource_names = struct {
         const discovery_menu = @intToEnum(protocol.ResourceID, 1);
@@ -434,9 +474,17 @@ const DiscoverySession = struct {
             resource_names.discovery_menu,
         );
 
-        //         Object obj{local_root_obj};
-        //         obj.add(local_discovery_list, ObjectList{});
-        //         sess.addOrUpdateObject(std::move(obj));
+        {
+            const obj = cpp.object_create(object_names.root) orelse return error.OutOfMemory;
+            errdefer cpp.object_destroy(obj);
+
+            cpp.object_addProperty(obj, properties.local_discovery_list, &protocol.Value{
+                .type = .objectlist,
+                .value = undefined,
+            });
+
+            cpp.zsession_addOrUpdateObject(session.cpp_session, obj);
+        }
 
         cpp.zsession_setRoot(
             session.cpp_session,
@@ -449,6 +497,10 @@ const DiscoverySession = struct {
     pub fn destroy(self: *Self) void {
         cpp.zsession_destroy(self.cpp_session);
         self.allocator.destroy(self);
+    }
+
+    fn pushEvent(self: *Self, event: sdl.c.SDL_Event) void {
+        cpp.session_pushEvent(self.cpp_session, &event);
     }
 
     pub fn update(self: *Self) bool {
@@ -479,10 +531,17 @@ const DiscoverySession = struct {
 
         //     sess.clear(local_root_obj, local_discovery_list);
         //     sess.insertRange(local_root_obj, local_discovery_list, 0, list.size(), list.data());
-        return true;
+        return self.alive;
     }
 
     fn zsession_triggerEvent(api: *cpp.ZigSessionApi, event: protocol.EventID, widget: protocol.WidgetName) callconv(.C) void {
+        const self = @fieldParentPtr(Self, "api", api);
+        switch (event) {
+            events.local_exit_client_event => self.alive = false,
+
+            else => std.debug.print("zsession_triggerEvent: {} {}\n", .{ event, widget }),
+        }
+
         //         if (event == local_exit_client_event) {
         //             shutdown_app_requested = true;
         //         } else if (event == local_open_session_event) {
@@ -508,7 +567,7 @@ const DiscoverySession = struct {
     }
 
     fn zsession_triggerPropertyChanged(api: *cpp.ZigSessionApi, oid: protocol.ObjectID, name: protocol.PropertyName, value: *const protocol.Value) callconv(.C) void {
-        unreachable;
+        std.debug.print("zsession_triggerPropertyChanged: {} {} {}\n", .{ oid, name, value });
     }
 };
 

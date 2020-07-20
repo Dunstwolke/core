@@ -3,14 +3,29 @@
 #include <stdexcept>
 #include <xstd/format>
 
-UIMargin::UIMargin(int all) : top(all), left(all), bottom(all), right(all) {}
+UIMargin::UIMargin(int all)
+{
+    this->top = all;
+    this->left = all;
+    this->bottom = all;
+    this->right = all;
+}
 
-UIMargin::UIMargin(int horizontal, int vertical) : top(vertical), left(horizontal), bottom(vertical), right(horizontal)
-{}
+UIMargin::UIMargin(int horizontal, int vertical)
+{
+    this->top = vertical;
+    this->left = horizontal;
+    this->bottom = vertical;
+    this->right = horizontal;
+}
 
-UIMargin::UIMargin(int _top, int _left, int _right, int _bottom) :
-    top(_top), left(_left), bottom(_bottom), right(_right)
-{}
+UIMargin::UIMargin(int _top, int _left, int _right, int _bottom)
+{
+    this->top = _top;
+    this->left = _left;
+    this->bottom = _bottom;
+    this->right = _right;
+}
 
 static std::string convertToString(UIValue const & value, ConversionOptions const & opts)
 {

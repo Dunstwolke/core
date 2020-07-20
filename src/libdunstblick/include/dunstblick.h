@@ -158,7 +158,7 @@ extern "C"
             bool boolean;
         } value;
     };
-    typedef struct dunstblick_Value dunstblick_Value;
+     typedef struct dunstblick_Value dunstblick_Value;
 
     // Opaque Types:
 

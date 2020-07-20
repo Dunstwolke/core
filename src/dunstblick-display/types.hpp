@@ -10,6 +10,8 @@
 #include <xstd/optional>
 #include <xstd/unique_id>
 
+#include <dunstblick.h>
+
 #include "enums.hpp"
 
 using UIResourceID = xstd::unique_id<struct UIResourceID_tag>;
@@ -19,11 +21,35 @@ using WidgetName = xstd::unique_id<struct WidgetName_tag>;
 struct UIPoint
 {
     ssize_t x, y;
+
+    UIPoint() = default;
+    UIPoint(ssize_t x, ssize_t y) : x(x), y(y) {}
+    UIPoint(dunstblick_Point pt) : x(pt.x), y(pt.y) {}
+
+    operator dunstblick_Point() const
+    {
+        return dunstblick_Point{
+            int32_t(x),
+            int32_t(y),
+        };
+    }
 };
 
 struct UISize
 {
     size_t w, h;
+
+    UISize() = default;
+    UISize(size_t w, size_t h) : w(w), h(h) {}
+    UISize(dunstblick_Size size) : w(size.w), h(size.h) {}
+
+    operator dunstblick_Size() const
+    {
+        return dunstblick_Size{
+            uint32_t(w),
+            uint32_t(h),
+        };
+    }
 };
 
 struct Rectangle
@@ -70,12 +96,10 @@ struct Rectangle
 };
 
 /// RGB color structure
-struct UIColor
+struct UIColor : dunstblick_Color
 {
-    uint8_t r = 0x00;
-    uint8_t g = 0x00;
-    uint8_t b = 0x00;
-    uint8_t a = 0xFF;
+    UIColor() = default;
+    UIColor(dunstblick_Color c) : dunstblick_Color(c) {}
 
     bool operator==(UIColor c) const
     {
@@ -88,9 +112,9 @@ struct UIColor
     }
 };
 
-struct UIMargin
+struct UIMargin : dunstblick_Margins
 {
-    int top, left, bottom, right;
+    UIMargin(dunstblick_Margins m) : dunstblick_Margins(m) {}
 
     explicit UIMargin(int all);
 
