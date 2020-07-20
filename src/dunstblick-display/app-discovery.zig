@@ -121,7 +121,7 @@ fn thread_proc(allocator: *std.mem.Allocator) !void {
                         if (found)
                             continue;
 
-                        app.name = try std.mem.dupe(&arena.allocator, u8, resp.name[0..(std.mem.indexOf(u8, &resp.name, "\x00") orelse resp.name.len)]);
+                        app.name = try std.mem.dupeZ(&arena.allocator, u8, resp.name[0..(std.mem.indexOf(u8, &resp.name, "\x00") orelse resp.name.len)]);
 
                         try new_clients.append(app);
                     }
@@ -156,7 +156,7 @@ fn thread_proc(allocator: *std.mem.Allocator) !void {
 }
 
 pub const Application = struct {
-    name: []const u8,
+    name: [:0]const u8,
 
     address: network.Address,
     tcp_port: u16,

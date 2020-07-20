@@ -1284,6 +1284,10 @@ const DataReader = struct {
 
             .DUNSTBLICK_TYPE_OBJECTLIST => return error.NotSupported, // not implemented yet
 
+            .DUNSTBLICK_TYPE_EVENT => val.event = try self.readVarUInt(),
+
+            .DUNSTBLICK_TYPE_NAME => val.name = try self.readVarUInt(),
+
             _ => return error.NotSupported,
         }
         return value;

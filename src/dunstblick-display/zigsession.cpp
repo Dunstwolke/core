@@ -107,7 +107,14 @@ UIValue translate_value(dunstblick_Value const & src)
         case DUNSTBLICK_TYPE_OBJECTLIST: {
             return UIValue{ObjectList{}};
         }
+        case DUNSTBLICK_TYPE_EVENT: {
+            return UIValue{EventID{src.value.object}};
+        }
+        case DUNSTBLICK_TYPE_NAME: {
+            return UIValue{WidgetName{src.value.object}};
+        }
         default: {
+            fprintf(stderr, "unsupported data type: %u\n", src.type);
             assert(false and "not supported");
         }
     }

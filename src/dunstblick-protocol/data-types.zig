@@ -11,7 +11,7 @@ pub const ResourceKind = extern enum(u8) {
     _,
 };
 
-pub const Type = extern enum(u8) {
+pub const Type = extern enum(u32) {
     integer = 1,
     number = 2,
     string = 3,
@@ -24,6 +24,8 @@ pub const Type = extern enum(u8) {
     boolean = 10,
     object = 12,
     objectlist = 13,
+    event = 14,
+    name = 15,
     _,
 };
 
@@ -86,6 +88,8 @@ pub const ValueStorage = extern union {
     point: Point,
     margins: Margins,
     boolean: bool,
+    event: EventID,
+    name: WidgetName,
 };
 
 pub const Value = extern struct {

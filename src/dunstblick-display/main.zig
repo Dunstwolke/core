@@ -303,7 +303,7 @@ const UiContext = struct {
 
     fn update(self: *Self) void {
         if (self.session) |session| {
-            self.alive = session.update();
+            self.alive = session.update() catch false;
         }
     }
 
@@ -337,20 +337,6 @@ const UiContext = struct {
                     },
                     &fb.api,
                 );
-            }
-
-            // runPainterDemo(&fb);
-
-            var list = app_discovery.getDiscovereyApplications();
-            defer list.release();
-
-            for (list.applications) |app, i| {
-                fb.drawString(app.name, Rectangle{
-                    .x = 240,
-                    .y = 10 + 40 * @intCast(isize, i),
-                    .width = 200,
-                    .height = 40,
-                }, .monospace, .center);
             }
         }
 
@@ -396,9 +382,19 @@ const cpp = struct {
 
     pub extern fn zsession_setRoot(session: *ZigSession, obj: protocol.ObjectID) void;
 
+    pub extern fn zsession_setProperty(session: *ZigSession, obj: protocol.ObjectID, prop: protocol.PropertyName, value: *const protocol.Value) void;
+
+    pub extern fn zsession_clear(session: *ZigSession, obj: protocol.ObjectID, prop: protocol.PropertyName) void;
+
+    pub extern fn zsession_insertRange(session: *ZigSession, obj: protocol.ObjectID, prop: protocol.PropertyName, index: usize, count: usize, values: [*]const protocol.ObjectID) void;
+
+    pub extern fn zsession_removeRange(session: *ZigSession, obj: protocol.ObjectID, prop: protocol.PropertyName, index: usize, count: usize) void;
+
+    pub extern fn zsession_moveRange(session: *ZigSession, obj: protocol.ObjectID, prop: protocol.PropertyName, indexFrom: usize, indexTo: usize, count: usize) void;
+
     pub extern fn object_create(id: protocol.ObjectID) ?*Object;
 
-    pub extern fn object_addProperty(object: *Object, prop: protocol.PropertyName, value: *const protocol.Value) void;
+    pub extern fn object_addProperty(object: *Object, prop: protocol.PropertyName, value: *const protocol.Value) bool;
 
     pub extern fn object_destroy(object: *Object) void;
 };
@@ -478,10 +474,11 @@ const DiscoverySession = struct {
             const obj = cpp.object_create(object_names.root) orelse return error.OutOfMemory;
             errdefer cpp.object_destroy(obj);
 
-            cpp.object_addProperty(obj, properties.local_discovery_list, &protocol.Value{
+            const success = cpp.object_addProperty(obj, properties.local_discovery_list, &protocol.Value{
                 .type = .objectlist,
                 .value = undefined,
             });
+            std.debug.assert(success == true);
 
             cpp.zsession_addOrUpdateObject(session.cpp_session, obj);
         }
@@ -503,34 +500,64 @@ const DiscoverySession = struct {
         cpp.session_pushEvent(self.cpp_session, &event);
     }
 
-    pub fn update(self: *Self) bool {
+    pub fn update(self: *Self) !bool {
+        var list = app_discovery.getDiscovereyApplications();
+        defer list.release();
 
-        //     std::vector<DiscoveredClient> clients;
-        //     {
-        //         std::lock_guard<std::mutex> lock{discovered_clients_lock};
-        //         clients = discovered_clients;
-        //     }
+        var app_ids = std.ArrayList(protocol.ObjectID).init(self.allocator);
+        defer app_ids.deinit();
 
-        //     ObjectList list;
-        //     list.reserve(clients.size());
+        for (list.applications) |app, i| {
+            const id = @intToEnum(protocol.ObjectID, @intCast(u32, 1000 + i));
 
-        //     for (size_t i = 0; i < clients.size(); i++) {
-        //         auto const id = local_session_id(i);
+            {
+                const obj = cpp.object_create(id) orelse return error.OutOfMemory;
+                errdefer cpp.object_destroy(obj);
 
-        //         Object obj{id};
+                if (cpp.object_addProperty(obj, properties.local_app_name, &protocol.Value{
+                    .type = .string,
+                    .value = .{
+                        .string = app.name.ptr,
+                    },
+                }) == false) {
+                    return error.FailedToAddProperty;
+                }
 
-        //         obj.add(local_app_name, UIValue(clients[i].name));
-        //         obj.add(local_app_port, UIValue(clients[i].tcp_port));
-        //         obj.add(local_app_ip, UIValue(xnet::to_string(clients[i].udp_ep, false)));
-        //         obj.add(local_app_id, UIValue(WidgetName(i + 1)));
+                if (cpp.object_addProperty(obj, properties.local_app_port, &protocol.Value{
+                    .type = .integer,
+                    .value = .{
+                        .integer = app.tcp_port,
+                    },
+                }) == false) {
+                    return error.FailedToAddProperty;
+                }
 
-        //         list.emplace_back(obj);
+                if (cpp.object_addProperty(obj, properties.local_app_ip, &protocol.Value{
+                    .type = .string,
+                    .value = .{
+                        .string = "??.??.??.??", // (xnet::to_string(clients[i].udp_ep, false))
+                    },
+                }) == false) {
+                    return error.FailedToAddProperty;
+                }
 
-        //         sess.addOrUpdateObject(std::move(obj));
-        //     }
+                if (cpp.object_addProperty(obj, properties.local_app_id, &protocol.Value{
+                    .type = .name,
+                    .value = .{
+                        .name = @intToEnum(protocol.WidgetName, @intCast(u32, i + 1)),
+                    },
+                }) == false) {
+                    return error.FailedToAddProperty;
+                }
 
-        //     sess.clear(local_root_obj, local_discovery_list);
-        //     sess.insertRange(local_root_obj, local_discovery_list, 0, list.size(), list.data());
+                cpp.zsession_addOrUpdateObject(self.cpp_session, obj);
+            }
+
+            try app_ids.append(id);
+        }
+
+        cpp.zsession_clear(self.cpp_session, object_names.root, properties.local_discovery_list);
+        cpp.zsession_insertRange(self.cpp_session, object_names.root, properties.local_discovery_list, 0, app_ids.items.len, app_ids.items.ptr);
         return self.alive;
     }
 
@@ -539,12 +566,13 @@ const DiscoverySession = struct {
         switch (event) {
             events.local_exit_client_event => self.alive = false,
 
+            events.local_open_session_event => {
+                std.debug.print("open session for {}\n", .{@enumToInt(widget)});
+            },
+
             else => std.debug.print("zsession_triggerEvent: {} {}\n", .{ event, widget }),
         }
-
-        //         if (event == local_exit_client_event) {
-        //             shutdown_app_requested = true;
-        //         } else if (event == local_open_session_event) {
+        //         else if (event == local_open_session_event) {
         //             DiscoveredClient client;
         //             {
         //                 std::lock_guard<std::mutex> lock{discovered_clients_lock};
@@ -560,9 +588,6 @@ const DiscoverySession = struct {
 
         //         } else if (event == local_close_session_event) {
 
-        //         } else {
-        //             fprintf(stderr, "Unknown event: %lu, Sender: %lu\n", event.value, widget.value);
-        //             // assert(false and "unhandled event detected");
         //         }
     }
 

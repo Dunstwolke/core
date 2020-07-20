@@ -41,6 +41,8 @@ extern "C"
         DUNSTBLICK_TYPE_BOOLEAN = 10,
         DUNSTBLICK_TYPE_OBJECT = 12,
         DUNSTBLICK_TYPE_OBJECTLIST = 13,
+        DUNSTBLICK_TYPE_EVENT = 14,
+        DUNSTBLICK_TYPE_NAME = 15,
     };
     typedef enum dunstblick_Type dunstblick_Type;
 
@@ -156,9 +158,11 @@ extern "C"
             dunstblick_Point point;
             dunstblick_Margins margins;
             bool boolean;
+            dunstblick_EventID event;
+            dunstblick_PropertyName name;
         } value;
     };
-     typedef struct dunstblick_Value dunstblick_Value;
+    typedef struct dunstblick_Value dunstblick_Value;
 
     // Opaque Types:
 
