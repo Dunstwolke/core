@@ -13,16 +13,6 @@ usingnamespace @import("types.zig");
 
 var test_icon: painting.Image = undefined;
 
-fn findWindow(window_list: *std.TailQueue(UiContext), window_id: u32) ?*std.TailQueue(UiContext).Node {
-    const win = sdl.Window.fromID(window_id) orelse return null;
-
-    var it = window_list.first;
-    return while (it) |c| : (it = c.next) {
-        if (c.data.window.ptr == win.ptr)
-            break c;
-    } else null;
-}
-
 pub fn main() !u8 {
     var counter = std.testing.LeakCountAllocator.init(std.heap.c_allocator);
     defer {
@@ -113,24 +103,17 @@ pub fn main() !u8 {
         }
     }
 
-    var window_list = std.TailQueue(UiContext).init();
+    var windows = WindowCollection.init(gpa);
+    defer windows.deinit();
 
     if (cli.options.discovery.?) {
-        var sess = try DiscoverySession.create(gpa);
+        var sess = try DiscoverySession.create(gpa, &windows);
         errdefer sess.destroy();
 
-        var context = try UiContext.init("Dunstblick Services", 480, 400);
-        errdefer context.deinit();
-
-        context.session = &sess.driver;
-
-        const node = try gpa.create(UiNode);
-        node.* = UiNode.init(context);
-
-        window_list.append(node);
+        _ = try windows.addWindow("Dunstblick Applications", 480, 400, &sess.driver);
     }
 
-    core_loop: while (window_list.len > 0) {
+    core_loop: while (windows.window_list.len > 0) {
         while (sdl.pollNativeEvent()) |ev| {
             const event_type = @intToEnum(sdl.c.SDL_EventType, @intCast(c_int, ev.type));
             switch (event_type) {
@@ -138,13 +121,11 @@ pub fn main() !u8 {
                 .SDL_WINDOWEVENT => {
                     const win_ev = sdl.Event.from(ev).window;
 
-                    const ctx = findWindow(&window_list, win_ev.window_id) orelse continue;
+                    const ctx = windows.find(win_ev.window_id) orelse continue;
 
                     switch (win_ev.type) {
                         .close => {
-                            window_list.remove(ctx);
-                            ctx.data.deinit();
-                            gpa.destroy(ctx);
+                            windows.close(ctx);
                         },
                         .resized => |size| {
                             try ctx.data.resize(Size{
@@ -158,19 +139,19 @@ pub fn main() !u8 {
                     }
                 },
                 .SDL_KEYDOWN, .SDL_KEYUP => {
-                    const ctx = findWindow(&window_list, ev.key.windowID) orelse continue;
+                    const ctx = windows.find(ev.key.windowID) orelse continue;
                     ctx.data.pushEvent(ev);
                 },
                 .SDL_MOUSEBUTTONUP, .SDL_MOUSEBUTTONDOWN => {
-                    const ctx = findWindow(&window_list, ev.button.windowID) orelse continue;
+                    const ctx = windows.find(ev.button.windowID) orelse continue;
                     ctx.data.pushEvent(ev);
                 },
                 .SDL_MOUSEMOTION => {
-                    const ctx = findWindow(&window_list, ev.motion.windowID) orelse continue;
+                    const ctx = windows.find(ev.motion.windowID) orelse continue;
                     ctx.data.pushEvent(ev);
                 },
                 .SDL_MOUSEWHEEL => {
-                    const ctx = findWindow(&window_list, ev.wheel.windowID) orelse continue;
+                    const ctx = windows.find(ev.wheel.windowID) orelse continue;
                     ctx.data.pushEvent(ev);
                 },
                 else => std.log.warn(.app, "Unhandled event: {}\n", .{
@@ -180,36 +161,25 @@ pub fn main() !u8 {
         }
 
         {
-            var it = window_list.first;
+            var it = windows.window_list.first;
             while (it) |ctx| : (it = ctx.next) {
                 it = ctx.next;
 
                 ctx.data.update();
                 if (!ctx.data.alive) {
-                    window_list.remove(ctx);
-                    ctx.data.deinit();
-                    gpa.destroy(ctx);
+                    windows.close(ctx);
                 }
             }
         }
 
         {
-            var it = window_list.first;
+            var it = windows.window_list.first;
             while (it) |ctx| : (it = ctx.next) {
                 try ctx.data.render();
             }
         }
     }
 
-    if (window_list.len > 0) {
-        std.log.info(.app, "Cleaning up {} unclosed windows...\n", .{
-            window_list.len,
-        });
-        while (window_list.pop()) |node| {
-            node.data.deinit();
-            gpa.destroy(node);
-        }
-    }
     return 0;
 }
 
@@ -231,6 +201,69 @@ fn printUsage() !void {
         \\
     );
 }
+
+const WindowCollection = struct {
+    const Self = @This();
+    const ListType = std.TailQueue(UiContext);
+
+    window_list: ListType,
+    allocator: *std.mem.Allocator,
+
+    pub fn init(allocator: *std.mem.Allocator) Self {
+        return Self{
+            .window_list = ListType.init(),
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: *Self) void {
+        if (self.window_list.len > 0) {
+            std.log.info(.app, "Cleaning up {} unclosed windows...\n", .{
+                self.window_list.len,
+            });
+            while (self.window_list.pop()) |node| {
+                node.data.deinit();
+                self.allocator.destroy(node);
+            }
+        }
+        self.* = undefined;
+    }
+
+    pub fn addWindow(self: *Self, title: [:0]const u8, width: u32, height: u32, driver: *UiContext.Driver) !*ListType.Node {
+        var context = try UiContext.init(title, width, height);
+        errdefer context.deinit();
+
+        const node = try self.allocator.create(UiNode);
+        node.* = UiNode.init(context);
+
+        // UiContext.session is initialized with `null` to allow windows without
+        // a connected session.
+        // we have to initialize it *after* we created the UiNode, as
+        // UiContext will take ownership of `driver` and would free it in case of
+        // a error which we don't want.
+        node.data.session = driver;
+
+        self.window_list.append(node);
+
+        return node;
+    }
+
+    pub fn find(self: *Self, window_id: u32) ?*ListType.Node {
+        const win = sdl.Window.fromID(window_id) orelse return null;
+
+        var it = self.window_list.first;
+        return while (it) |c| : (it = c.next) {
+            if (c.data.window.ptr == win.ptr)
+                break c;
+        } else null;
+    }
+
+    pub fn close(self: *Self, context: *ListType.Node) void {
+        self.window_list.remove(context);
+        context.data.deinit();
+        self.allocator.destroy(context);
+    }
+};
 
 const UiContext = struct {
     const Self = @This();
@@ -412,6 +445,7 @@ const DiscoverySession = struct {
     api: cpp.ZigSessionApi,
     driver: UiContext.Driver,
 
+    windows: *WindowCollection,
     alive: bool = true,
 
     const resource_names = struct {
@@ -438,7 +472,7 @@ const DiscoverySession = struct {
     };
 
     /// Must be a non-moveable object → heap allocate
-    pub fn create(allocator: *std.mem.Allocator) !*Self {
+    pub fn create(allocator: *std.mem.Allocator, windows: *WindowCollection) !*Self {
         var session = try allocator.create(Self);
         errdefer allocator.destroy(session);
 
@@ -464,6 +498,7 @@ const DiscoverySession = struct {
                 .update = Binding.update,
                 .destroy = Binding.destroy,
             },
+            .windows = windows,
         };
 
         session.driver.cpp_session = cpp.zsession_create(&session.api) orelse return error.OutOfMemory;
@@ -586,33 +621,131 @@ const DiscoverySession = struct {
         const self = @fieldParentPtr(Self, "api", api);
         switch (event) {
             events.local_exit_client_event => self.alive = false,
-
             events.local_open_session_event => {
-                std.debug.print("open session for {}\n", .{@enumToInt(widget)});
+                if (widget == .none) {
+                    std.log.warn(.app, "got open-session-event for unnamed widget.\n", .{});
+                    return;
+                }
+
+                var list = app_discovery.getDiscovereyApplications();
+                defer list.release();
+
+                const index = @enumToInt(widget) - 1;
+                if (index >= list.applications.len) {
+                    std.log.warn(.app, "got open-session-event for invalid app: {}; {}\n", .{
+                        list.applications.len,
+                        index,
+                    });
+                    return;
+                }
+
+                const app = &list.applications[index];
+
+                const session = NetworkSession.create(self.allocator, app.*) catch |err| {
+                    std.log.err(.app, "failed to create new network session for : {}; {}\n", .{
+                        list.applications.len,
+                        index,
+                    });
+                    return;
+                };
+
+                const window = self.windows.addWindow("Network Session", 640, 480, &session.driver) catch |err| {
+                    session.destroy();
+
+                    std.log.err(.app, "failed to create window for network session: {}\n", .{
+                        err,
+                    });
+                    return;
+                };
+
+                // Make this async for the future
+                session.connect() catch |err| {
+                    self.windows.close(window);
+
+                    std.log.err(.app, "failed to connect to application: {}\n", .{
+                        err,
+                    });
+                    return;
+                };
+            },
+
+            events.local_close_session_event => {
+                std.debug.print("close session for {}\n", .{@enumToInt(widget)});
             },
 
             else => std.debug.print("zsession_triggerEvent: {} {}\n", .{ event, widget }),
         }
-        //         else if (event == local_open_session_event) {
-        //             DiscoveredClient client;
-        //             {
-        //                 std::lock_guard<std::mutex> lock{discovered_clients_lock};
-        //                 if (widget.value < 1 or widget.value > discovered_clients.size())
-        //                     return;
-
-        //                 client = discovered_clients.at(widget.value - 1);
-        //             }
-
-        //             auto const net_sess = new NetworkSession(client.create_tcp_endpoint());
-
-        //             all_sessions.emplace_back(net_sess);
-
-        //         } else if (event == local_close_session_event) {
-
-        //         }
     }
 
     fn zsession_triggerPropertyChanged(api: *cpp.ZigSessionApi, oid: protocol.ObjectID, name: protocol.PropertyName, value: *const protocol.Value) callconv(.C) void {
+        std.debug.print("zsession_triggerPropertyChanged: {} {} {}\n", .{ oid, name, value });
+    }
+};
+
+const NetworkSession = struct {
+    const Self = @This();
+
+    allocator: *std.mem.Allocator,
+    api: cpp.ZigSessionApi,
+    driver: UiContext.Driver,
+
+    alive: bool = true,
+
+    /// Must be a non-moveable object → heap allocate
+    pub fn create(allocator: *std.mem.Allocator, application: app_discovery.Application) !*Self {
+        var session = try allocator.create(Self);
+        errdefer allocator.destroy(session);
+
+        const Binding = struct {
+            fn destroy(ctx: *UiContext.Driver) void {
+                const self = @fieldParentPtr(DiscoverySession, "driver", ctx);
+                self.destroy();
+            }
+            fn update(ctx: *UiContext.Driver) error{OutOfMemory}!bool {
+                const self = @fieldParentPtr(DiscoverySession, "driver", ctx);
+                return try self.update();
+            }
+        };
+
+        session.* = Self{
+            .allocator = allocator,
+            .api = cpp.ZigSessionApi{
+                .trigger_event = zsession_triggerEvent,
+                .trigger_propertyChanged = zsession_triggerPropertyChanged,
+            },
+            .driver = UiContext.Driver{
+                .cpp_session = undefined,
+                .update = Binding.update,
+                .destroy = Binding.destroy,
+            },
+        };
+
+        session.driver.cpp_session = cpp.zsession_create(&session.api) orelse return error.OutOfMemory;
+
+        return session;
+    }
+
+    pub fn connect(self: *Self) !void {
+        return error.NotImplementedYet;
+    }
+
+    pub fn destroy(self: *Self) void {
+        cpp.zsession_destroy(self.driver.cpp_session);
+        self.allocator.destroy(self);
+    }
+
+    pub fn update(self: *Self) !bool {
+        // TODO: Implement network update loop
+        return self.alive;
+    }
+
+    fn zsession_triggerEvent(api: *cpp.ZigSessionApi, event: protocol.EventID, widget: protocol.WidgetName) callconv(.C) void {
+        const self = @fieldParentPtr(Self, "api", api);
+        std.debug.print("zsession_triggerEvent: {} {}\n", .{ event, widget });
+    }
+
+    fn zsession_triggerPropertyChanged(api: *cpp.ZigSessionApi, oid: protocol.ObjectID, name: protocol.PropertyName, value: *const protocol.Value) callconv(.C) void {
+        const self = @fieldParentPtr(Self, "api", api);
         std.debug.print("zsession_triggerPropertyChanged: {} {} {}\n", .{ oid, name, value });
     }
 };
