@@ -119,7 +119,7 @@ pub fn main() !u8 {
         var sess = try DiscoverySession.create(gpa);
         errdefer sess.destroy();
 
-        var context = try UiContext.init("Dunstblick Services", 240, 400);
+        var context = try UiContext.init("Dunstblick Services", 480, 400);
         errdefer context.deinit();
 
         context.session = sess;
@@ -250,8 +250,8 @@ const UiContext = struct {
             "Dunstblick Services",
             .{ .centered = {} },
             .{ .centered = {} },
-            240,
-            400,
+            width,
+            height,
             .{ .shown = true, .resizable = true },
         );
         errdefer win.destroy();
@@ -532,10 +532,14 @@ const DiscoverySession = struct {
                     return error.FailedToAddProperty;
                 }
 
+                var addr_buf: [256]u8 = undefined;
+                var ip_str = std.fmt.bufPrint(&addr_buf, "{}\x00", .{app.address}) catch unreachable;
+
                 if (cpp.object_addProperty(obj, properties.local_app_ip, &protocol.Value{
                     .type = .string,
                     .value = .{
-                        .string = "??.??.??.??", // (xnet::to_string(clients[i].udp_ep, false))
+                        // space should be sufficient for both IPv4 and IPv6
+                        .string = @ptrCast([*:0]const u8, &addr_buf),
                     },
                 }) == false) {
                     return error.FailedToAddProperty;

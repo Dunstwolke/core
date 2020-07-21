@@ -111,10 +111,11 @@ pub const PainterAPI = extern struct {
     }
     fn painterMeasureString(self: *Self, text: [*]const u8, text_len: usize, font: Font, line_width: usize) callconv(.C) Size {
         const painter = @fieldParentPtr(Painter, "api", self);
-        return Size{
-            .width = 100,
-            .height = 30,
-        };
+        return painter.measureString(
+            text[0..text_len],
+            font,
+            if (line_width > 0) line_width else null,
+        );
     }
     fn painterDrawString(self: *Self, text: [*]const u8, text_len: usize, target: Rectangle, font: Font, alignment: TextAlign) callconv(.C) void {
         const painter = @fieldParentPtr(Painter, "api", self);
@@ -318,7 +319,62 @@ pub const Painter = struct {
         return @floatToInt(isize, std.math.round(@intToFloat(f32, ival) * scale));
     }
 
-    pub fn measureString(self: *Self, text: []const u8, font: Font, line_width: ?usize) Size {}
+    pub fn measureString(self: *Self, text: []const u8, font: Font, line_width: ?usize) Size {
+        var canvas = Canvas.init(self);
+        const font_cache = switch (font) {
+            .monospace => &fonts.mono,
+            .sans => &fonts.sans,
+            .serif => &fonts.serif,
+        };
+
+        var utf8 = std.unicode.Utf8Iterator{
+            .bytes = text,
+            .i = 0,
+        };
+
+        var dx: isize = 0;
+        var dy: isize = scaleInt(font_cache.ascent, font_cache.scale);
+
+        var max_dx: isize = 0;
+
+        var previous_codepoint: ?u24 = null;
+        while (utf8.nextCodepoint()) |codepoint| {
+            if (codepoint == '\n') {
+                dx = 0;
+                dy += scaleInt(font_cache.ascent - font_cache.descent + font_cache.line_gap, font_cache.scale);
+                previous_codepoint = null;
+                continue;
+            }
+
+            const glyph = font_cache.getGlyph(codepoint) catch continue;
+
+            if (previous_codepoint) |prev| {
+                dx += c.stbtt_GetCodepointKernAdvance(&font_cache.font, prev, codepoint);
+            }
+            previous_codepoint = codepoint;
+
+            // canvas.copyRectangle(
+            //     x + scaleInt(dx + glyph.left_side_bearing, font_cache.scale),
+            //     y + glyph.offset_y + dy,
+            //     0,
+            //     0,
+            //     glyph.width,
+            //     glyph.height,
+            //     glyph,
+            //     Glyph.getPixel,
+            // );
+
+            max_dx = std.math.max(max_dx, scaleInt(dx + glyph.left_side_bearing, font_cache.scale) + @intCast(isize, glyph.width));
+
+            dx += glyph.advance_width;
+        }
+        dy += scaleInt(-font_cache.descent + font_cache.line_gap, font_cache.scale);
+
+        return Size{
+            .width = @intCast(usize, max_dx),
+            .height = @intCast(usize, dy),
+        };
+    }
 
     pub fn drawString(self: *Self, text: []const u8, target: Rectangle, font: Font, alignment: TextAlign) void {
         var canvas = Canvas.init(self);
