@@ -122,7 +122,7 @@ pub fn main() !u8 {
         var context = try UiContext.init("Dunstblick Services", 480, 400);
         errdefer context.deinit();
 
-        context.session = sess;
+        context.session = &sess.driver;
 
         const node = try gpa.create(UiNode);
         node.* = UiNode.init(context);
@@ -235,11 +235,17 @@ fn printUsage() !void {
 const UiContext = struct {
     const Self = @This();
 
+    const Driver = struct {
+        cpp_session: *cpp.ZigSession,
+        destroy: fn (self: *Driver) void,
+        update: fn (self: *Driver) error{OutOfMemory}!bool,
+    };
+
     window: sdl.Window,
     renderer: sdl.Renderer,
     back_buffer: sdl.Texture,
     screen_size: Size,
-    session: ?*DiscoverySession = null,
+    session: ?*Driver = null,
 
     alive: bool = true,
 
@@ -277,7 +283,7 @@ const UiContext = struct {
 
     fn deinit(self: *Self) void {
         if (self.session) |session| {
-            session.destroy();
+            session.destroy(session);
         }
         self.back_buffer.destroy();
         self.renderer.destroy();
@@ -303,13 +309,13 @@ const UiContext = struct {
 
     fn update(self: *Self) void {
         if (self.session) |session| {
-            self.alive = session.update() catch false;
+            self.alive = session.update(session) catch false;
         }
     }
 
     fn pushEvent(self: *Self, event: sdl.c.SDL_Event) void {
         if (self.session) |session| {
-            session.pushEvent(event);
+            cpp.session_pushEvent(session.cpp_session, &event);
         }
     }
 
@@ -403,8 +409,8 @@ const DiscoverySession = struct {
     const Self = @This();
 
     allocator: *std.mem.Allocator,
-    cpp_session: *cpp.ZigSession,
     api: cpp.ZigSessionApi,
+    driver: UiContext.Driver,
 
     alive: bool = true,
 
@@ -436,20 +442,35 @@ const DiscoverySession = struct {
         var session = try allocator.create(Self);
         errdefer allocator.destroy(session);
 
+        const Binding = struct {
+            fn destroy(ctx: *UiContext.Driver) void {
+                const self = @fieldParentPtr(DiscoverySession, "driver", ctx);
+                self.destroy();
+            }
+            fn update(ctx: *UiContext.Driver) error{OutOfMemory}!bool {
+                const self = @fieldParentPtr(DiscoverySession, "driver", ctx);
+                return try self.update();
+            }
+        };
+
         session.* = Self{
             .allocator = allocator,
-            .cpp_session = undefined,
             .api = cpp.ZigSessionApi{
                 .trigger_event = zsession_triggerEvent,
                 .trigger_propertyChanged = zsession_triggerPropertyChanged,
             },
+            .driver = UiContext.Driver{
+                .cpp_session = undefined,
+                .update = Binding.update,
+                .destroy = Binding.destroy,
+            },
         };
 
-        session.cpp_session = cpp.zsession_create(&session.api) orelse return error.OutOfMemory;
+        session.driver.cpp_session = cpp.zsession_create(&session.api) orelse return error.OutOfMemory;
 
         const root_layout: []const u8 = @embedFile("./layouts/discovery-menu.cui");
         cpp.zsession_uploadResource(
-            session.cpp_session,
+            session.driver.cpp_session,
             resource_names.discovery_menu,
             .layout,
             root_layout.ptr,
@@ -458,7 +479,7 @@ const DiscoverySession = struct {
 
         const item_layout: []const u8 = @embedFile("./layouts/discovery-list-item.cui");
         cpp.zsession_uploadResource(
-            session.cpp_session,
+            session.driver.cpp_session,
             resource_names.discovery_list_item,
             .layout,
             item_layout.ptr,
@@ -466,7 +487,7 @@ const DiscoverySession = struct {
         );
 
         cpp.zsession_setView(
-            session.cpp_session,
+            session.driver.cpp_session,
             resource_names.discovery_menu,
         );
 
@@ -480,11 +501,11 @@ const DiscoverySession = struct {
             });
             std.debug.assert(success == true);
 
-            cpp.zsession_addOrUpdateObject(session.cpp_session, obj);
+            cpp.zsession_addOrUpdateObject(session.driver.cpp_session, obj);
         }
 
         cpp.zsession_setRoot(
-            session.cpp_session,
+            session.driver.cpp_session,
             object_names.root,
         );
 
@@ -492,12 +513,8 @@ const DiscoverySession = struct {
     }
 
     pub fn destroy(self: *Self) void {
-        cpp.zsession_destroy(self.cpp_session);
+        cpp.zsession_destroy(self.driver.cpp_session);
         self.allocator.destroy(self);
-    }
-
-    fn pushEvent(self: *Self, event: sdl.c.SDL_Event) void {
-        cpp.session_pushEvent(self.cpp_session, &event);
     }
 
     pub fn update(self: *Self) !bool {
@@ -520,7 +537,7 @@ const DiscoverySession = struct {
                         .string = app.name.ptr,
                     },
                 }) == false) {
-                    return error.FailedToAddProperty;
+                    unreachable;
                 }
 
                 if (cpp.object_addProperty(obj, properties.local_app_port, &protocol.Value{
@@ -529,7 +546,7 @@ const DiscoverySession = struct {
                         .integer = app.tcp_port,
                     },
                 }) == false) {
-                    return error.FailedToAddProperty;
+                    unreachable;
                 }
 
                 var addr_buf: [256]u8 = undefined;
@@ -542,7 +559,7 @@ const DiscoverySession = struct {
                         .string = @ptrCast([*:0]const u8, &addr_buf),
                     },
                 }) == false) {
-                    return error.FailedToAddProperty;
+                    unreachable;
                 }
 
                 if (cpp.object_addProperty(obj, properties.local_app_id, &protocol.Value{
@@ -551,17 +568,17 @@ const DiscoverySession = struct {
                         .name = @intToEnum(protocol.WidgetName, @intCast(u32, i + 1)),
                     },
                 }) == false) {
-                    return error.FailedToAddProperty;
+                    unreachable;
                 }
 
-                cpp.zsession_addOrUpdateObject(self.cpp_session, obj);
+                cpp.zsession_addOrUpdateObject(self.driver.cpp_session, obj);
             }
 
             try app_ids.append(id);
         }
 
-        cpp.zsession_clear(self.cpp_session, object_names.root, properties.local_discovery_list);
-        cpp.zsession_insertRange(self.cpp_session, object_names.root, properties.local_discovery_list, 0, app_ids.items.len, app_ids.items.ptr);
+        cpp.zsession_clear(self.driver.cpp_session, object_names.root, properties.local_discovery_list);
+        cpp.zsession_insertRange(self.driver.cpp_session, object_names.root, properties.local_discovery_list, 0, app_ids.items.len, app_ids.items.ptr);
         return self.alive;
     }
 
