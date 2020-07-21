@@ -12,7 +12,6 @@
 #include "inputstream.hpp"
 
 #include "enums.hpp"
-#include "protocol.hpp"
 #include "resources.hpp"
 #include "types.hpp"
 

@@ -196,14 +196,12 @@ pub fn build(b: *Builder) !void {
 
 const display_client_sources = [_][]const u8{
     "./src/dunstblick-display/widgets.cpp",
-    "./src/dunstblick-display/api.cpp",
     "./src/dunstblick-display/enums.cpp",
     "./src/dunstblick-display/inputstream.cpp",
     "./src/dunstblick-display/layouts.cpp",
     "./src/dunstblick-display/main.cpp",
     "./src/dunstblick-display/zigsession.cpp",
     "./src/dunstblick-display/object.cpp",
-    "./src/dunstblick-display/protocol.cpp",
     "./src/dunstblick-display/rendercontext.cpp",
     "./src/dunstblick-display/resources.cpp",
     "./src/dunstblick-display/session.cpp",
