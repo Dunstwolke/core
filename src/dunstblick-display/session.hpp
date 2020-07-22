@@ -9,8 +9,6 @@
 #include "types.hpp"
 #include "widget.hpp"
 
-using Packet = std::vector<uint8_t>;
-
 struct Widget;
 struct RenderContext;
 

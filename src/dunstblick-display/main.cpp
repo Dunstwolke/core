@@ -20,18 +20,6 @@
 #include "rendercontext.hpp"
 #include "zigsession.hpp"
 
-#include "dunstblick-internal.hpp"
-
-[[noreturn]] static void exit_sdl_error(char const * msg = nullptr)
-{
-    fprintf(stderr, "%s: %s\n", (msg != nullptr) ? msg : "sdl error", SDL_GetError());
-    fflush(stdout);
-    fflush(stderr);
-    exit(1);
-}
-
-std::unique_ptr<RenderContext> current_rc;
-
 // #include <iostream>
 
 // static std::ostream & operator<<(std::ostream & stream, std::monostate)
