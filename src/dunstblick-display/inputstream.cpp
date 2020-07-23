@@ -1,4 +1,6 @@
 #include "inputstream.hpp"
+
+#include <cassert>
 #include <stdexcept>
 
 InputStream::InputStream(const uint8_t * _data, size_t _length) : DataReader(_data, _length) {}

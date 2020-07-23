@@ -1,6 +1,7 @@
 #include "widget.hpp"
 #include "resources.hpp"
 
+#include <cassert>
 #include <stdexcept>
 #include <xlog>
 

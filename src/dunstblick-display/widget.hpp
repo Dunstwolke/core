@@ -8,6 +8,7 @@
 
 #include "inputstream.hpp"
 
+#include <cassert>
 #include <functional>
 #include <memory>
 #include <variant>

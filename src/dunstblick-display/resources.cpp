@@ -1,5 +1,7 @@
 #include "resources.hpp"
 
+#include <cassert>
+
 extern "C" void painting_image_destroy(Image * img);
 
 BitmapResource::BitmapResource(Image * img, UISize size) : texture(img), size(size)

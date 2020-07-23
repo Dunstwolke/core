@@ -213,5 +213,4 @@ const display_client_sources = [_][]const u8{
 
 const xqlib_sources = [_][]const u8{
     "./lib/xqlib-stripped/src/xlog.cpp",
-    "./lib/xqlib-stripped/src/xstd_format.cpp",
 };

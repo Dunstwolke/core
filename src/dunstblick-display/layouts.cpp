@@ -1,5 +1,6 @@
 #include "layouts.hpp"
 
+#include <cassert>
 #include <numeric>
 
 /*******************************************************************************

@@ -3,7 +3,7 @@
 #include "rendercontext.hpp"
 #include <xlog>
 
-#include <stb_image.h>
+#include <cassert>
 
 #include "widget.hpp"
 
@@ -14,7 +14,6 @@ Session::~Session() {}
 extern "C" Image * painting_image_load(void const * data, size_t data_len);
 
 extern "C" UISize painting_image_getSize(Image * img);
-
 
 void Session::uploadResource(UIResourceID id, ResourceKind kind, const void * data, size_t len)
 {
@@ -37,30 +36,6 @@ void Session::uploadResource(UIResourceID id, ResourceKind kind, const void * da
                 xlog::log(xlog::error) << "could not load pixels for resource " << id.value << ".";
                 return;
             }
-
-            // int w, h;
-            // stbi_uc * pixels = stbi_load_from_memory(reinterpret_cast<stbi_uc const *>(data),
-            //                                          static_cast<int>(len),
-            //                                          &w,
-            //                                          &h,
-            //                                          nullptr,
-            //                                          4);
-
-            // if (pixels == nullptr) {
-            // }
-
-            // auto * tex =
-            //     SDL_CreateTexture(current_rc->renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STATIC, w, h);
-
-            // if (tex == nullptr) {
-            //     stbi_image_free(pixels);
-            //     xlog::log(xlog::error) << "could not load bitmap for resource " << id.value << ": " <<
-            //     SDL_GetError(); return;
-            // }
-
-            // SDL_UpdateTexture(tex, nullptr, pixels, w * 4);
-
-            // stbi_image_free(pixels);
 
             break;
         }

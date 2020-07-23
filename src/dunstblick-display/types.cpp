@@ -1,7 +1,8 @@
 #include "types.hpp"
 #include "object.hpp"
 #include <stdexcept>
-#include <xstd/format>
+
+#include <cassert>
 
 UIMargin::UIMargin(int all)
 {
@@ -46,8 +47,7 @@ static std::string convertToString(UIValue const & value, ConversionOptions cons
             return std::to_string(std::get<float>(value));
 
         default:
-            throw std::runtime_error(
-                xstd::format("cannot convert %0 to string!").arg(to_string(UIType(value.index()))));
+            throw std::runtime_error("cannot convert " + to_string(UIType(value.index())) + " to string!");
     }
 }
 
@@ -64,8 +64,7 @@ static int convertToInteger(UIValue const & value, ConversionOptions const & opt
             return static_cast<int>(strtol(std::get<std::string>(value).c_str(), nullptr, 10));
 
         default:
-            throw std::runtime_error(
-                xstd::format("cannot convert %0 to string!").arg(to_string(UIType(value.index()))));
+            throw std::runtime_error("cannot convert " + to_string(UIType(value.index())) + " to string!");
     }
 }
 
@@ -82,8 +81,7 @@ static float convertToNumber(UIValue const & value, ConversionOptions const & op
             return strtof(std::get<std::string>(value).c_str(), nullptr);
 
         default:
-            throw std::runtime_error(
-                xstd::format("cannot convert %0 to string!").arg(to_string(UIType(value.index()))));
+            throw std::runtime_error("cannot convert " + to_string(UIType(value.index())) + " to string!");
     }
 }
 

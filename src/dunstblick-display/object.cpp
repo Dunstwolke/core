@@ -1,6 +1,8 @@
 #include "object.hpp"
 #include "session.hpp"
 
+#include <cassert>
+
 Object::Object(ObjectID id) : _id(id), properties() {}
 
 ObjectProperty & Object::add(PropertyName name, UIType type)

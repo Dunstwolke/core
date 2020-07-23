@@ -1,5 +1,7 @@
 #include "zigsession.hpp"
 
+#include <cassert>
+
 namespace {
 dunstblick_Value translate_value(UIValue const & value)
 {
