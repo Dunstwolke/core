@@ -146,6 +146,7 @@ pub fn build(b: *Builder) !void {
 
         display_client.addCSourceFile("./src/dunstblick-display/stb-instantiating.c", &[_][]const u8{
             "-std=c99",
+            "-fno-sanitize=undefined",
         });
 
         for (display_client_sources) |src| {

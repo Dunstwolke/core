@@ -27,6 +27,11 @@ struct BitmapResource
     Image * texture;
 
     explicit BitmapResource(Image * img, UISize size);
+    BitmapResource(BitmapResource const &) = delete;
+    BitmapResource(BitmapResource &&);
+    ~BitmapResource();
+
+    BitmapResource & operator=(BitmapResource &&);
 };
 
 struct DrawingResource

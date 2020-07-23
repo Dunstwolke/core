@@ -11,6 +11,11 @@ Session::Session() {}
 
 Session::~Session() {}
 
+extern "C" Image * painting_image_load(void const * data, size_t data_len);
+
+extern "C" UISize painting_image_getSize(Image * img);
+
+
 void Session::uploadResource(UIResourceID id, ResourceKind kind, const void * data, size_t len)
 {
     xlog::log("dunstblick", xlog::message) << "Upload resource " << id.value << " with " << len << " bytes data…";
@@ -21,6 +26,18 @@ void Session::uploadResource(UIResourceID id, ResourceKind kind, const void * da
         }
 
         case ResourceKind::bitmap: {
+
+            Image * img = painting_image_load(data, len);
+
+            if (img != nullptr) {
+
+                set_resource(id, BitmapResource(img, painting_image_getSize(img)));
+
+            } else {
+                xlog::log(xlog::error) << "could not load pixels for resource " << id.value << ".";
+                return;
+            }
+
             // int w, h;
             // stbi_uc * pixels = stbi_load_from_memory(reinterpret_cast<stbi_uc const *>(data),
             //                                          static_cast<int>(len),
@@ -30,8 +47,6 @@ void Session::uploadResource(UIResourceID id, ResourceKind kind, const void * da
             //                                          4);
 
             // if (pixels == nullptr) {
-            //     xlog::log(xlog::error) << "could not load pixels for resource " << id.value << ": " <<
-            //     SDL_GetError(); return;
             // }
 
             // auto * tex =
@@ -47,9 +62,6 @@ void Session::uploadResource(UIResourceID id, ResourceKind kind, const void * da
 
             // stbi_image_free(pixels);
 
-            // set_resource(id, BitmapResource(sdl2::texture(std::move(tex))));
-
-            assert(false and "not implemented yet");
             break;
         }
 

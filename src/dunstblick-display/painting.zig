@@ -653,6 +653,30 @@ pub const Image = struct {
     }
 };
 
+export fn painting_image_load(data: [*]const u8, data_len: usize) ?*Image {
+    const img = std.heap.c_allocator.create(Image) catch return null;
+
+    img.* = Image.load(data[0..data_len]) catch |err| {
+        std.heap.c_allocator.destroy(img);
+        std.log.err(.painting, "Could not load provided image data: {}\n", .{err});
+        return null;
+    };
+
+    return img;
+}
+
+export fn painting_image_getSize(img: *Image) Size {
+    return Size{
+        .width = img.width,
+        .height = img.height,
+    };
+}
+
+export fn painting_image_destroy(img: *Image) void {
+    img.deinit();
+    std.heap.c_allocator.destroy(img);
+}
+
 pub fn init(allocator: *std.mem.Allocator) !void {
     fonts.serif = try FontBuffer.init(allocator, @embedFile("./fonts/CrimsonPro-Regular.ttf"), 20);
     fonts.sans = try FontBuffer.init(allocator, @embedFile("./fonts/Roboto-Regular.ttf"), 20);

@@ -280,33 +280,46 @@ void Picture::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
         float targetAspect = float(rectangle.w) / float(rectangle.h);
         float sourceAspect = float(w) / float(h);
 
+        auto paintImage = [&](Rectangle rect) {
+            // fprintf(stderr, "cpp: %ld %ld %lu %lu %u\n", rect.x, rect.y, rect.w, rect.h,
+            // unsigned(scaling.get(this))); fflush(stderr);
+
+            // just center the image as it is contained
+            painter.drawIcon(rect, bmp->texture);
+        };
+
         switch (scaling.get(this)) {
             case ImageScaling::none: {
                 size_t const clipped_w = std::min<size_t>(w, rectangle.w);
                 size_t const clipped_h = std::min<size_t>(h, rectangle.h);
-                painter.drawIcon(
-                    Rectangle{
-                        rectangle.x,
-                        rectangle.y,
-                        clipped_w,
-                        clipped_h,
-                    },
-                    bmp->texture,
-                    Rectangle{0, 0, clipped_w, clipped_h});
+                // painter.drawIcon(
+                //     Rectangle{
+                //         rectangle.x,
+                //         rectangle.y,
+                //         clipped_w,
+                //         clipped_h,
+                //     },
+                //     bmp->texture,
+                //     Rectangle{0, 0, clipped_w, clipped_h});
+
+                paintImage({
+                    rectangle.x,
+                    rectangle.y,
+                    clipped_w,
+                    clipped_h,
+                });
                 break;
             }
             case ImageScaling::stretch:
                 painter.drawIcon(rectangle, bmp->texture);
                 break;
             case ImageScaling::center: {
-                painter.drawIcon(
-                    {
-                        ssize_t(rectangle.x + (rectangle.w - w) / 2),
-                        ssize_t(rectangle.y + (rectangle.h - h) / 2),
-                        w,
-                        h,
-                    },
-                    bmp->texture);
+                paintImage({
+                    ssize_t(rectangle.x + (ssize_t(rectangle.w) - ssize_t(w)) / 2),
+                    ssize_t(rectangle.y + (ssize_t(rectangle.h) - ssize_t(h)) / 2),
+                    w,
+                    h,
+                });
                 break;
             }
 
@@ -323,15 +336,13 @@ void Picture::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
                 size_t const scaled_w = size_t(scale * w + 0.5f);
                 size_t const scaled_h = size_t(scale * h + 0.5f);
 
-                // just center the image as it is contained
-                painter.drawIcon(
-                    {
-                        ssize_t(rectangle.x + (rectangle.w - scaled_w) / 2),
-                        ssize_t(rectangle.y + (rectangle.h - scaled_h) / 2),
-                        scaled_w,
-                        scaled_h,
-                    },
-                    bmp->texture);
+                paintImage({
+                    rectangle.x + (ssize_t(rectangle.w) - ssize_t(scaled_w)) / 2,
+                    rectangle.y + (ssize_t(rectangle.h) - ssize_t(scaled_h)) / 2,
+                    scaled_w,
+                    scaled_h,
+                });
+
                 break;
             }
 
@@ -343,14 +354,13 @@ void Picture::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
                 size_t scaled_h = size_t(scale * h + 0.5f);
 
                 // just center the image as it is contained
-                painter.drawIcon(
-                    {
-                        ssize_t(rectangle.x + (rectangle.w - scaled_w) / 2),
-                        ssize_t(rectangle.y + (rectangle.h - scaled_h) / 2),
-                        scaled_w,
-                        scaled_h,
-                    },
-                    bmp->texture);
+
+                paintImage({
+                    rectangle.x + (ssize_t(rectangle.w) - ssize_t(scaled_w)) / 2,
+                    rectangle.y + (ssize_t(rectangle.h) - ssize_t(scaled_h)) / 2,
+                    scaled_w,
+                    scaled_h,
+                });
                 break;
             }
 
@@ -362,14 +372,12 @@ void Picture::paintWidget(IWidgetPainter & painter, const Rectangle & rectangle)
                 size_t scaled_h = size_t(scale * h + 0.5f);
 
                 // just center the image as it is contained
-                painter.drawIcon(
-                    {
-                        ssize_t(rectangle.x + (rectangle.w - scaled_w) / 2),
-                        ssize_t(rectangle.y + (rectangle.h - scaled_h) / 2),
-                        scaled_w,
-                        scaled_h,
-                    },
-                    bmp->texture);
+                paintImage({
+                    rectangle.x + (ssize_t(rectangle.w) - ssize_t(scaled_w)) / 2,
+                    rectangle.y + (ssize_t(rectangle.h) - ssize_t(scaled_h)) / 2,
+                    scaled_w,
+                    scaled_h,
+                });
                 break;
             }
         }
