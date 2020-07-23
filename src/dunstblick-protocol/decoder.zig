@@ -51,6 +51,14 @@ pub const Decoder = struct {
         return value;
     }
 
+    pub fn readToEnd(self: *Self) ![]const u8 {
+        if (self.offset >= self.source.len)
+            return &[0]u8{};
+        const value = self.source[self.offset..];
+        self.offset = self.source.len;
+        return value;
+    }
+
     pub fn readNumber(self: *Self) !f32 {
         const bits = try self.readRaw(4);
         return @bitCast(f32, bits[0..4].*);

@@ -221,16 +221,21 @@ pub const NetworkSession = struct {
         const message_type = @intToEnum(protocol.DisplayCommand, try decoder.readByte());
 
         switch (message_type) {
-            //     case ClientMessageType::uploadResource: // (rid, kind, data)
-            //     {
-            //         auto resource = stream.read_id<UIResourceID>();
-            //         auto kind = stream.read_enum<ResourceKind>();
+            .uploadResource => { // (rid, kind, data)
+                const resource = @intToEnum(protocol.ResourceID, try decoder.readVarUInt());
+                const kind = @intToEnum(protocol.ResourceKind, try decoder.readByte());
 
-            //         auto const [data, len] = stream.read_to_end();
+                const data = try decoder.readToEnd();
 
-            //         uploadResource(resource, kind, data, len);
-            //         break;
-            //     }
+                cpp.zsession_uploadResource(
+                    self.driver.cpp_session,
+                    resource,
+                    kind,
+                    data.ptr,
+                    data.len,
+                );
+            },
+
             .addOrUpdateObject => { // (obj)
                 const oid = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
 
@@ -295,48 +300,72 @@ pub const NetworkSession = struct {
                 );
             },
 
-            //     case ClientMessageType::clear: // (oid, name)
-            //     {
-            //         auto const oid = stream.read_id<ObjectID>();
-            //         auto const propName = stream.read_id<PropertyName>();
-            //         clear(oid, propName);
-            //         break;
-            //     }
+            .clear => { // (oid, name)
+                const oid = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
+                const propName = @intToEnum(protocol.PropertyName, try decoder.readVarUInt());
 
-            //     case ClientMessageType::insertRange: // (oid, name, index, count, oids …) // manipulate lists
-            //     {
-            //         auto const oid = stream.read_id<ObjectID>();
-            //         auto const propName = stream.read_id<PropertyName>();
-            //         auto const index = stream.read_uint();
-            //         auto const count = stream.read_uint();
-            //         std::vector<ObjectRef> refs;
-            //         refs.reserve(count);
-            //         for (size_t i = 0; i < count; i++)
-            //             refs.emplace_back(stream.read_id<ObjectID>());
-            //         insertRange(oid, propName, index, count, refs.data());
-            //         break;
-            //     }
+                cpp.zsession_clear(
+                    self.driver.cpp_session,
+                    oid,
+                    propName,
+                );
+            },
 
-            //     case ClientMessageType::removeRange: // (oid, name, index, count) // manipulate lists
-            //     {
-            //         auto const oid = stream.read_id<ObjectID>();
-            //         auto const propName = stream.read_id<PropertyName>();
-            //         auto const index = stream.read_uint();
-            //         auto const count = stream.read_uint();
-            //         removeRange(oid, propName, index, count);
-            //         break;
-            //     }
+            .insertRange => { // (oid, name, index, count, oids …) // manipulate lists
+                const oid = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
+                const propName = @intToEnum(protocol.PropertyName, try decoder.readVarUInt());
+                const index = try decoder.readVarUInt();
+                const count = try decoder.readVarUInt();
 
-            //     case ClientMessageType::moveRange: // (oid, name, indexFrom, indexTo, count) // manipulate lists
-            //     {
-            //         auto const oid = stream.read_id<ObjectID>();
-            //         auto const propName = stream.read_id<PropertyName>();
-            //         auto const indexFrom = stream.read_uint();
-            //         auto const indexTo = stream.read_uint();
-            //         auto const count = stream.read_uint();
-            //         moveRange(oid, propName, indexFrom, indexTo, count);
-            //         break;
-            //     }
+                var refs = std.ArrayList(protocol.ObjectID).init(self.allocator);
+                defer refs.deinit();
+
+                try refs.resize(count);
+
+                for (refs.items) |*item| {
+                    item.* = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
+                }
+
+                cpp.zsession_insertRange(
+                    self.driver.cpp_session,
+                    oid,
+                    propName,
+                    index,
+                    count,
+                    refs.items.ptr,
+                );
+            },
+
+            .removeRange => { // (oid, name, index, count) // manipulate lists
+                const oid = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
+                const propName = @intToEnum(protocol.PropertyName, try decoder.readVarUInt());
+                const index = try decoder.readVarUInt();
+                const count = try decoder.readVarUInt();
+                cpp.zsession_removeRange(
+                    self.driver.cpp_session,
+                    oid,
+                    propName,
+                    index,
+                    count,
+                );
+            },
+
+            .moveRange => { // (oid, name, indexFrom, indexTo, count) // manipulate lists
+                const oid = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
+                const propName = @intToEnum(protocol.PropertyName, try decoder.readVarUInt());
+                const indexFrom = try decoder.readVarUInt();
+                const indexTo = try decoder.readVarUInt();
+                const count = try decoder.readVarUInt();
+                cpp.zsession_moveRange(
+                    self.driver.cpp_session,
+                    oid,
+                    propName,
+                    indexFrom,
+                    indexTo,
+                    count,
+                );
+            },
+
             else => {
                 std.log.warn(.app, "received message of unknown type: {}\n", .{
                     message_type,
