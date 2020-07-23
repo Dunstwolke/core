@@ -1,0 +1,28 @@
+<ifreund> ikskuh: I'm not sure I'm grasping the vision of dunstblick, how do you plan to use this?
+<ikskuh> aaah
+<ikskuh> are you okay with spoilers for my next showtime talk? :D
+<ifreund> sure :D
+<ikskuh> i figured that dunstblick may be the right project for a talk
+<ikskuh> i create a lot of self-made IoT devices
+<ikskuh> small scale (lpc1786 or smaller) or large scale (RPI, ...)
+<ikskuh> also i have a lot of services deployed on several machines
+<ikskuh> my vision for dunstblick is to access all those systems with a very resource-gentle UI system
+<ikskuh> web stack is too bloatet imho for that, it also requires you to write a lot of web servers and html/js frontends
+<ifreund> neat, this is making a lot more sense with that use-case in mind
+<ikskuh> so the idea of dunstblick is that you can easily discover applications in your local network and attach a interface to them
+<ikskuh> for example: i have a rack with RGB LEDs built-in
+<ikskuh> and i want to set the color/animation for those
+<ikskuh> open up dunstblick, attach to "LED Control", change some colors, done
+<ikskuh> same workflow for everything else
+<ifreund> sounds quite handy
+<ikskuh> the network-controllable power board? sure thing :D
+<ikskuh> attach, flip some checkboxes, done :D
+<ifreund> what all do your IoT devices do?
+<ikskuh> right now, not that much :D
+<ikskuh> i have these two i told you about, but i also have my stereo as IoT
+<ikskuh> it's just an RPI+Amp
+<ifreund> nice
+<ikskuh> and i would like to control the media playing there not via SSH anymore :D
+<ikskuh> another example: you could make a generic pulseaudio volume control
+<ikskuh> throw that on all your machines and you can now control volume of your computer with your smartphone
+<ikskuh> have a weather service sampling data from your local weather station? covered :D
