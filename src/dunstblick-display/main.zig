@@ -286,12 +286,12 @@ const UiContext = struct {
 
     fn init(title: [:0]const u8, width: u32, height: u32) !Self {
         var win = try sdl.createWindow(
-            "Dunstblick Services",
+            title,
             .{ .centered = {} },
             .{ .centered = {} },
             width,
             height,
-            .{ .shown = true, .resizable = true },
+            .{ .shown = true, .resizable = true, .utility = true },
         );
         errdefer win.destroy();
 
@@ -654,7 +654,7 @@ const DiscoverySession = struct {
                     return;
                 };
 
-                const window = self.windows.addWindow("Network Session", 640, 480, &session.driver) catch |err| {
+                const window = self.windows.addWindow(app.name, 640, 480, &session.driver) catch |err| {
                     session.destroy();
 
                     std.log.err(.app, "failed to create window for network session: {}\n", .{

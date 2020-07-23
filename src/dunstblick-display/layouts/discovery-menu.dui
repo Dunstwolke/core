@@ -5,7 +5,7 @@ DockLayout
     on-click: callback("quit-application");
     dock-site: bottom;
     Label {
-      text: "Exit";
+      text: "Close";
     }
   }
   Label {
