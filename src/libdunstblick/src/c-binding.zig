@@ -49,15 +49,15 @@ fn mapDunstblickErrorVoid(value: DunstblickError!void) NativeErrorCode {
 // /*******************************************************************************
 //  * Provider Implementation *
 //  *******************************************************************************/
-export fn dunstblick_OpenProvider(discoveryName: [*:0]const u8) callconv(.C) ?*dunstblick_Provider {
+export fn dunstblick_OpenProvider(discoveryName: [*:0]const u8) callconv(.C) ?*Application {
     const H = struct {
-        inline fn open(dname: []const u8) !*dunstblick_Provider {
+        inline fn open(dname: []const u8) !*Application {
             const allocator = std.heap.c_allocator;
 
-            const provider = try allocator.create(dunstblick_Provider);
+            const provider = try allocator.create(Application);
             errdefer allocator.destroy(provider);
 
-            provider.* = try dunstblick_Provider.init(allocator, dname);
+            provider.* = try Application.init(allocator, dname);
 
             return provider;
         }
@@ -70,26 +70,26 @@ export fn dunstblick_OpenProvider(discoveryName: [*:0]const u8) callconv(.C) ?*d
     return H.open(name) catch return null;
 }
 
-export fn dunstblick_CloseProvider(provider: *dunstblick_Provider) callconv(.C) void {
+export fn dunstblick_CloseProvider(provider: *Application) callconv(.C) void {
     provider.close();
     provider.allocator.destroy(provider);
 }
 
-export fn dunstblick_PumpEvents(provider: *dunstblick_Provider) callconv(.C) NativeErrorCode {
+export fn dunstblick_PumpEvents(provider: *Application) callconv(.C) NativeErrorCode {
     const lock = provider.mutex.acquire();
     defer lock.release();
 
     return mapDunstblickErrorVoid(provider.pumpEvents(10 * std.time.ms_per_s));
 }
 
-export fn dunstblick_WaitEvents(provider: *dunstblick_Provider) callconv(.C) NativeErrorCode {
+export fn dunstblick_WaitEvents(provider: *Application) callconv(.C) NativeErrorCode {
     const lock = provider.mutex.acquire();
     defer lock.release();
 
     return mapDunstblickErrorVoid(provider.pumpEvents(null));
 }
 
-export fn dunstblick_SetConnectedCallback(provider: *dunstblick_Provider, callback: ?ConnectedCallback, userData: ?*c_void) callconv(.C) NativeErrorCode {
+export fn dunstblick_SetConnectedCallback(provider: *Application, callback: ?ConnectedCallback, userData: ?*c_void) callconv(.C) NativeErrorCode {
     const lock = provider.mutex.acquire();
     defer lock.release();
 
@@ -97,7 +97,7 @@ export fn dunstblick_SetConnectedCallback(provider: *dunstblick_Provider, callba
     return .DUNSTBLICK_ERROR_NONE;
 }
 
-export fn dunstblick_SetDisconnectedCallback(provider: *dunstblick_Provider, callback: ?DisconnectedCallback, userData: ?*c_void) callconv(.C) NativeErrorCode {
+export fn dunstblick_SetDisconnectedCallback(provider: *Application, callback: ?DisconnectedCallback, userData: ?*c_void) callconv(.C) NativeErrorCode {
     const lock = provider.mutex.acquire();
     defer lock.release();
 
@@ -105,7 +105,7 @@ export fn dunstblick_SetDisconnectedCallback(provider: *dunstblick_Provider, cal
     return .DUNSTBLICK_ERROR_NONE;
 }
 
-export fn dunstblick_AddResource(provider: *dunstblick_Provider, resourceID: protocol.ResourceID, kind: protocol.ResourceKind, data: *const c_void, length: usize) callconv(.C) NativeErrorCode {
+export fn dunstblick_AddResource(provider: *Application, resourceID: protocol.ResourceID, kind: protocol.ResourceKind, data: *const c_void, length: usize) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(provider.addResource(
         resourceID,
         kind,
@@ -113,7 +113,7 @@ export fn dunstblick_AddResource(provider: *dunstblick_Provider, resourceID: pro
     ));
 }
 
-export fn dunstblick_RemoveResource(provider: *dunstblick_Provider, resourceID: protocol.ResourceID) callconv(.C) NativeErrorCode {
+export fn dunstblick_RemoveResource(provider: *Application, resourceID: protocol.ResourceID) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(provider.removeResource(resourceID));
 }
 
@@ -121,75 +121,75 @@ export fn dunstblick_RemoveResource(provider: *dunstblick_Provider, resourceID: 
 //  Connection Implementation *
 // *******************************************************************************
 
-export fn dunstblick_CloseConnection(connection: *dunstblick_Connection, reason: ?[*:0]const u8) void {
+export fn dunstblick_CloseConnection(connection: *Connection, reason: ?[*:0]const u8) void {
     const actual_reason = if (reason) |r| std.mem.span(r) else "The provider closed the connection.";
 
     connection.close(actual_reason);
 }
 
-export fn dunstblick_GetClientName(connection: *dunstblick_Connection) callconv(.C) [*:0]const u8 {
+export fn dunstblick_GetClientName(connection: *Connection) callconv(.C) [*:0]const u8 {
     return connection.header.?.clientName;
 }
 
-export fn dunstblick_GetDisplaySize(connection: *dunstblick_Connection) callconv(.C) Size {
+export fn dunstblick_GetDisplaySize(connection: *Connection) callconv(.C) Size {
     const lock = connection.mutex.acquire();
     defer lock.release();
     return connection.screenResolution;
 }
 
-export fn dunstblick_SetEventCallback(connection: *dunstblick_Connection, callback: EventCallback, userData: ?*c_void) callconv(.C) void {
+export fn dunstblick_SetEventCallback(connection: *Connection, callback: EventCallback, userData: ?*c_void) callconv(.C) void {
     const lock = connection.mutex.acquire();
     defer lock.release();
     connection.onEvent = .{ .function = callback, .user_data = userData };
 }
 
-export fn dunstblick_SetPropertyChangedCallback(connection: *dunstblick_Connection, callback: PropertyChangedCallback, userData: ?*c_void) callconv(.C) void {
+export fn dunstblick_SetPropertyChangedCallback(connection: *Connection, callback: PropertyChangedCallback, userData: ?*c_void) callconv(.C) void {
     const lock = connection.mutex.acquire();
     defer lock.release();
     connection.onPropertyChanged = .{ .function = callback, .user_data = userData };
 }
 
-export fn dunstblick_GetUserData(connection: *dunstblick_Connection) callconv(.C) ?*c_void {
+export fn dunstblick_GetUserData(connection: *Connection) callconv(.C) ?*c_void {
     return connection.user_data_pointer;
 }
 
-export fn dunstblick_SetUserData(connection: *dunstblick_Connection, userData: ?*c_void) callconv(.C) void {
+export fn dunstblick_SetUserData(connection: *Connection, userData: ?*c_void) callconv(.C) void {
     connection.user_data_pointer = userData;
 }
 
-export fn dunstblick_BeginChangeObject(con: *dunstblick_Connection, id: protocol.ObjectID) callconv(.C) ?*dunstblick_Object {
+export fn dunstblick_BeginChangeObject(con: *Connection, id: protocol.ObjectID) callconv(.C) ?*Object {
     return con.beginChangeObject(id) catch null;
 }
 
-export fn dunstblick_RemoveObject(con: *dunstblick_Connection, oid: protocol.ObjectID) callconv(.C) NativeErrorCode {
+export fn dunstblick_RemoveObject(con: *Connection, oid: protocol.ObjectID) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(con.removeObject(oid));
 }
 
-export fn dunstblick_SetView(con: *dunstblick_Connection, id: protocol.ResourceID) callconv(.C) NativeErrorCode {
+export fn dunstblick_SetView(con: *Connection, id: protocol.ResourceID) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(con.setView(id));
 }
 
-export fn dunstblick_SetRoot(con: *dunstblick_Connection, id: protocol.ObjectID) callconv(.C) NativeErrorCode {
+export fn dunstblick_SetRoot(con: *Connection, id: protocol.ObjectID) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(con.setRoot(id));
 }
 
-export fn dunstblick_SetProperty(con: *dunstblick_Connection, oid: protocol.ObjectID, name: protocol.PropertyName, value: *const Value) callconv(.C) NativeErrorCode {
+export fn dunstblick_SetProperty(con: *Connection, oid: protocol.ObjectID, name: protocol.PropertyName, value: *const Value) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(con.setProperty(oid, name, value.*));
 }
 
-export fn dunstblick_Clear(con: *dunstblick_Connection, oid: protocol.ObjectID, name: protocol.PropertyName) callconv(.C) NativeErrorCode {
+export fn dunstblick_Clear(con: *Connection, oid: protocol.ObjectID, name: protocol.PropertyName) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(con.clear(oid, name));
 }
 
-export fn dunstblick_InsertRange(con: *dunstblick_Connection, oid: protocol.ObjectID, name: protocol.PropertyName, index: u32, count: u32, values: [*]const protocol.ObjectID) callconv(.C) NativeErrorCode {
+export fn dunstblick_InsertRange(con: *Connection, oid: protocol.ObjectID, name: protocol.PropertyName, index: u32, count: u32, values: [*]const protocol.ObjectID) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(con.insertRange(oid, name, index, values[0..count]));
 }
 
-export fn dunstblick_RemoveRange(con: *dunstblick_Connection, oid: protocol.ObjectID, name: protocol.PropertyName, index: u32, count: u32) callconv(.C) NativeErrorCode {
+export fn dunstblick_RemoveRange(con: *Connection, oid: protocol.ObjectID, name: protocol.PropertyName, index: u32, count: u32) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(con.removeRange(oid, name, index, count));
 }
 
-export fn dunstblick_MoveRange(con: *dunstblick_Connection, oid: protocol.ObjectID, name: protocol.PropertyName, indexFrom: u32, indexTo: u32, count: u32) callconv(.C) NativeErrorCode {
+export fn dunstblick_MoveRange(con: *Connection, oid: protocol.ObjectID, name: protocol.PropertyName, indexFrom: u32, indexTo: u32, count: u32) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(con.moveRange(oid, name, indexFrom, indexTo, count));
 }
 
@@ -197,14 +197,14 @@ export fn dunstblick_MoveRange(con: *dunstblick_Connection, oid: protocol.Object
 //  * Object Implementation *
 //  *******************************************************************************/
 
-export fn dunstblick_SetObjectProperty(obj: *dunstblick_Object, name: protocol.PropertyName, value: *const Value) callconv(.C) NativeErrorCode {
+export fn dunstblick_SetObjectProperty(obj: *Object, name: protocol.PropertyName, value: *const Value) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(obj.setProperty(name, value.*));
 }
 
-export fn dunstblick_CommitObject(obj: *dunstblick_Object) callconv(.C) NativeErrorCode {
+export fn dunstblick_CommitObject(obj: *Object) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(obj.commit());
 }
 
-export fn dunstblick_CancelObject(obj: *dunstblick_Object) callconv(.C) void {
+export fn dunstblick_CancelObject(obj: *Object) callconv(.C) void {
     obj.cancel();
 }

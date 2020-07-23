@@ -131,7 +131,7 @@ const StoredResource = struct {
 
     id: protocol.ResourceID,
     type: protocol.ResourceKind,
-    data: []u8, // allocated with dunstblick_Provider.allocator
+    data: []u8, // allocated with Application.allocator
     hash: SipHash,
 
     fn updateHash(self: *Self) void {
@@ -139,7 +139,7 @@ const StoredResource = struct {
     }
 };
 
-pub const dunstblick_Connection = struct {
+pub const Connection = struct {
     const Self = @This();
 
     const State = enum {
@@ -166,7 +166,7 @@ pub const dunstblick_Connection = struct {
     screenResolution: Size,
 
     receive_buffer: std.ArrayList(u8),
-    provider: *dunstblick_Provider,
+    provider: *Application,
 
     ///< total number of resources required by the display client
     required_resource_count: usize,
@@ -182,9 +182,9 @@ pub const dunstblick_Connection = struct {
     onEvent: Callback(EventCallback), // Lock access to event in multithreaded scenarios!
     onPropertyChanged: Callback(PropertyChangedCallback), // Lock access to event in multithreaded scenarios!
 
-    fn init(provider: *dunstblick_Provider, sock: xnet.Socket, endpoint: xnet.EndPoint) dunstblick_Connection {
+    fn init(provider: *Application, sock: xnet.Socket, endpoint: xnet.EndPoint) Connection {
         std.log.debug(.dunstblick, "connection from {}\n", .{endpoint});
-        return dunstblick_Connection{
+        return Connection{
             .mutex = std.Mutex.init(),
             .sock = sock,
             .remote = endpoint,
@@ -553,11 +553,11 @@ pub const dunstblick_Connection = struct {
         try self.send(stream.getWritten());
     }
 
-    pub fn beginChangeObject(self: *Self, id: ObjectID) !*dunstblick_Object {
-        var object = try self.provider.allocator.create(dunstblick_Object);
+    pub fn beginChangeObject(self: *Self, id: ObjectID) !*Object {
+        var object = try self.provider.allocator.create(Object);
         errdefer self.provider.allocator.destroy(object);
 
-        object.* = try dunstblick_Object.init(self);
+        object.* = try Object.init(self);
         errdefer object.deinit();
 
         var enc = protocol.makeEncoder(object.commandbuffer.writer());
@@ -649,12 +649,12 @@ pub const dunstblick_Connection = struct {
     }
 };
 
-pub const dunstblick_Provider = struct {
+pub const Application = struct {
     const Self = @This();
 
     const ResourceMap = std.AutoHashMap(protocol.ResourceID, StoredResource);
 
-    const ConnectionList = std.TailQueue(dunstblick_Connection);
+    const ConnectionList = std.TailQueue(Connection);
     const ConnectionNode = ConnectionList.Node;
 
     mutex: std.Mutex,
@@ -739,8 +739,8 @@ pub const dunstblick_Provider = struct {
                 defer iter = next;
 
                 self.onDisconnected.invoke(.{
-                    @ptrCast(*c.struct_dunstblick_Provider, self),
-                    @ptrCast(*c.struct_dunstblick_Connection, &item.data),
+                    @ptrCast(*c.dunstblick_Provider, self),
+                    @ptrCast(*c.dunstblick_Connection, &item.data),
                     .DUNSTBLICK_DISCONNECT_SHUTDOWN,
                 });
                 item.data.close("The provider has been shut down.");
@@ -921,7 +921,7 @@ pub const dunstblick_Provider = struct {
             const node = try self.allocator.create(ConnectionNode);
             errdefer self.allocator.destroy(node);
 
-            node.* = ConnectionNode.init(dunstblick_Connection.init(self, socket, ep));
+            node.* = ConnectionNode.init(Connection.init(self, socket, ep));
             self.pending_connections.append(node);
         }
 
@@ -1013,12 +1013,12 @@ pub const dunstblick_Provider = struct {
     }
 };
 
-pub const dunstblick_Object = struct {
+pub const Object = struct {
     const Self = @This();
-    connection: *dunstblick_Connection,
+    connection: *Connection,
     commandbuffer: std.ArrayList(u8),
 
-    fn init(con: *dunstblick_Connection) !Self {
+    fn init(con: *Connection) !Self {
         var object = Self{
             .connection = con,
             .commandbuffer = std.ArrayList(u8).init(con.provider.allocator),

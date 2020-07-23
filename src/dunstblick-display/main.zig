@@ -161,6 +161,17 @@ pub fn main() !u8 {
                     event_type,
                 }),
             }
+
+            {
+                // remove all dead sessions
+                var it = windows.window_list.first;
+                while (it) |ctx| : (it = ctx.next) {
+                    it = ctx.next;
+                    if (!ctx.data.alive) {
+                        windows.close(ctx);
+                    }
+                }
+            }
         }
 
         {
