@@ -245,10 +245,7 @@ extern "C" void session_render(ZigSession * session, Rectangle screen_rect, Pain
 
     if (session->root_widget) {
         session->root_widget->paint(current_rc);
-    } else {
-        fprintf(stderr, "No root widget\n");
     }
-
     // int mx, my;
     // SDL_GetMouseState(&mx, &my);
 

@@ -342,7 +342,10 @@ const UiContext = struct {
 
     fn update(self: *Self) void {
         if (self.session) |session| {
-            self.alive = session.update(session) catch false;
+            self.alive = session.update(session) catch |err| blk: {
+                std.log.err(.app, "failed to update session: {}\n", .{err});
+                break :blk false;
+            };
         }
     }
 
@@ -416,6 +419,8 @@ const cpp = struct {
     pub extern fn zsession_uploadResource(session: *ZigSession, resource_id: protocol.ResourceID, kind: protocol.ResourceKind, data: [*]const u8, len: usize) void;
 
     pub extern fn zsession_addOrUpdateObject(session: *ZigSession, obj: *Object) void;
+
+    pub extern fn zsession_removeObject(session: *ZigSession, obj: protocol.ObjectID) void;
 
     pub extern fn zsession_setView(session: *ZigSession, id: protocol.ResourceID) void;
 
@@ -682,6 +687,17 @@ const DiscoverySession = struct {
     }
 };
 
+fn sliceToArray(comptime T: type, comptime L: usize, data: []const T, fill: T) [L]T {
+    if (data.len >= L) {
+        return data[0..L].*;
+    } else {
+        var result: [L]T = undefined;
+        std.mem.copy(T, result[0..], data);
+        std.mem.set(T, result[data.len..], fill);
+        return result;
+    }
+}
+
 const NetworkSession = struct {
     const Self = @This();
 
@@ -689,6 +705,10 @@ const NetworkSession = struct {
     api: cpp.ZigSessionApi,
     driver: UiContext.Driver,
 
+    target_ip: network.Address,
+    target_port: u16,
+
+    connection: ?network.Socket,
     alive: bool = true,
 
     /// Must be a non-moveable object → heap allocate
@@ -698,11 +718,11 @@ const NetworkSession = struct {
 
         const Binding = struct {
             fn destroy(ctx: *UiContext.Driver) void {
-                const self = @fieldParentPtr(DiscoverySession, "driver", ctx);
+                const self = @fieldParentPtr(NetworkSession, "driver", ctx);
                 self.destroy();
             }
             fn update(ctx: *UiContext.Driver) error{OutOfMemory}!bool {
-                const self = @fieldParentPtr(DiscoverySession, "driver", ctx);
+                const self = @fieldParentPtr(NetworkSession, "driver", ctx);
                 return try self.update();
             }
         };
@@ -718,6 +738,9 @@ const NetworkSession = struct {
                 .update = Binding.update,
                 .destroy = Binding.destroy,
             },
+            .connection = null,
+            .target_ip = application.address,
+            .target_port = application.tcp_port,
         };
 
         session.driver.cpp_session = cpp.zsession_create(&session.api) orelse return error.OutOfMemory;
@@ -726,258 +749,360 @@ const NetworkSession = struct {
     }
 
     pub fn connect(self: *Self) !void {
-        // if (not sock.connect(target))
-        //         throw xcept::io_error("could not connect to " + to_string(target));
+        std.debug.assert(self.connection == null);
 
-        //     xnet::socket_stream stream{sock};
+        self.connection = try network.Socket.create(.ipv4, .tcp);
 
-        //     TcpConnectHeader connect_header;
-        //     connect_header.magic = TcpConnectHeader::real_magic;
-        //     connect_header.protocol_version = TcpConnectHeader::current_protocol_version;
-        //     connect_header.name = std::array<char, 32>{"Test Client"};
-        //     connect_header.password = std::array<char, 32>{""};
-        //     connect_header.screenSizeX = 320;
-        //     connect_header.screenSizeY = 240;
-        //     connect_header.capabilities = DUNSTBLICK_CAPS_KEYBOARD;
-        //     stream.write(connect_header);
+        const sock = &self.connection.?;
+        errdefer sock.close();
 
-        //     auto const connect_response = stream.read<TcpConnectResponse>();
-        //     if (connect_response.success != 1)
-        //         throw xcept::io_error("failed to authenticate client.");
+        try sock.connect(network.EndPoint{
+            .address = self.target_ip,
+            .port = self.target_port,
+        });
 
-        //     std::map<dunstblick_ResourceID, TcpResourceDescriptor> resources;
-        //     for (size_t i = 0; i < connect_response.resourceCount; i++) {
+        var writer = sock.writer();
+        var reader = sock.reader();
 
-        //         auto const res = stream.read<TcpResourceDescriptor>();
+        try writer.writeAll(std.mem.asBytes(&protocol.tcp.ConnectHeader{
+            .name = sliceToArray(u8, 32, "Test Client", 0),
+            .password = sliceToArray(u8, 32, "", 0),
+            .screen_size_x = 640, // TODO: Set to real values here
+            .screen_size_y = 480,
+            .capabilities = .{
+                .mouse = true,
+                .keyboard = true,
+            },
+        }));
 
-        //         resources.emplace(res.id, res);
+        var connect_response: protocol.tcp.ConnectResponse = undefined;
+        try reader.readNoEof(std.mem.asBytes(&connect_response));
 
-        //         fprintf(stdout,
-        //                 "Resource[%lu]:\n"
-        //                 "\tid:   %u\n"
-        //                 "\ttype: %u\n"
-        //                 "\tsize: %u\n"
-        //                 "\thash: %02X%02X%02X%02X%02X%02X%02X%02X\n",
-        //                 i,
-        //                 res.id,
-        //                 res.type,
-        //                 res.size,
-        //                 res.siphash[0],
-        //                 res.siphash[1],
-        //                 res.siphash[2],
-        //                 res.siphash[3],
-        //                 res.siphash[4],
-        //                 res.siphash[5],
-        //                 res.siphash[6],
-        //                 res.siphash[7]);
-        //     }
+        if (connect_response.success != 1)
+            return error.AuthenticationFailure;
 
-        //     TcpResourceRequestHeader request_header;
-        //     request_header.request_count = resources.size();
-        //     stream.write(request_header);
+        var resources = std.AutoHashMap(protocol.ResourceID, protocol.tcp.ResourceDescriptor).init(self.allocator);
+        defer resources.deinit();
 
-        //     // request half of the resources
-        //     for (auto const & pair : resources) {
-        //         TcpResourceRequest request;
-        //         request.id = pair.second.id;
-        //         stream.write(request);
-        //     }
+        var i: usize = 0;
+        while (i < connect_response.resource_count) : (i += 1) {
+            var resource_descriptor: protocol.tcp.ResourceDescriptor = undefined;
 
-        //     for (size_t i = 0; i < request_header.request_count; i++) {
-        //         auto const header = stream.read<TcpResourceHeader>();
+            try reader.readNoEof(std.mem.asBytes(&resource_descriptor));
 
-        //         fprintf(stdout, "Receiving resource %u (%u bytes)…\n", header.id, header.size);
+            try resources.put(resource_descriptor.id, resource_descriptor);
 
-        //         std::vector<uint8_t> bytes;
-        //         bytes.resize(header.size);
+            std.log.debug(.app,
+                \\Resource[{}]:
+                \\  id:   {}
+                \\  type: {}
+                \\  size: {}
+                \\  hash: {X}
+                \\
+            , .{
+                i,
+                resource_descriptor.id,
+                resource_descriptor.type,
+                resource_descriptor.size,
+                resource_descriptor.hash,
+            });
+        }
 
-        //         stream.read(bytes.data(), bytes.size());
+        try writer.writeAll(std.mem.asBytes(&protocol.tcp.ResourceRequestHeader{
+            .request_count = @intCast(u32, resources.items().len),
+        }));
 
-        //         uploadResource(UIResourceID(header.id), ResourceKind(resources.at(header.id).type), bytes.data(), bytes.size());
-        //     }
-        return error.NotImplementedYet;
+        var res_iter = resources.iterator();
+        while (res_iter.next()) |item| {
+            try writer.writeAll(std.mem.asBytes(&protocol.tcp.ResourceRequest{
+                .id = item.key,
+            }));
+        }
+
+        var byte_buffer = std.ArrayList(u8).init(self.allocator);
+        defer byte_buffer.deinit();
+
+        i = 0;
+        while (i < resources.items().len) : (i += 1) {
+            var resource_header: protocol.tcp.ResourceHeader = undefined;
+            try reader.readNoEof(std.mem.asBytes(&resource_header));
+
+            std.log.info(.app, "Receiving resource {} ({} bytes)…\n", .{ resource_header.id, resource_header.size });
+
+            try byte_buffer.resize(resource_header.size);
+
+            try reader.readNoEof(byte_buffer.items);
+
+            const resource_descriptor = resources.get(resource_header.id) orelse return error.InvalidResourceID;
+
+            cpp.zsession_uploadResource(
+                self.driver.cpp_session,
+                resource_descriptor.id,
+                resource_descriptor.type,
+                byte_buffer.items.ptr,
+                byte_buffer.items.len,
+            );
+        }
     }
 
     pub fn destroy(self: *Self) void {
+        if (self.connection) |sock| {
+            sock.close();
+        }
         cpp.zsession_destroy(self.driver.cpp_session);
         self.allocator.destroy(self);
     }
 
-    pub fn update(self: *Self) !bool {
+    pub fn update(self: *Self) error{OutOfMemory}!bool {
+        if (self.connection == null)
+            return self.alive;
+        const sock = &self.connection.?;
 
-        // Packet packet;
+        var packet = std.ArrayList(u8).init(self.allocator);
+        defer packet.deinit();
 
-        // while (true) {
+        var socket_set = network.SocketSet.init(self.allocator) catch return error.OutOfMemory;
+        defer socket_set.deinit();
 
-        //     xnet::socket_set read_set;
-        //     read_set.add(this->sock);
-        //     xnet::select(read_set, xstd::nullopt, xstd::nullopt, std::chrono::microseconds(0));
-        //     if (not read_set.contains(this->sock))
-        //         break;
+        try socket_set.add(sock.*, .{
+            .read = true,
+            .write = false,
+        });
 
-        //     try {
+        while (true) {
+            _ = network.waitForSocketEvent(&socket_set, 0) catch |err| {
+                std.log.crit(.app, "Waiting for socket event failed with {}\n", .{err});
+                return false;
+            };
 
-        //         xnet::socket_istream stream{this->sock};
+            if (!socket_set.isReadyRead(sock.*))
+                break;
 
-        //         auto const length = stream.read<uint32_t>();
+            var reader = sock.reader();
 
-        //         packet.resize(length);
-        //         stream.read(packet.data(), packet.size());
-        //     } catch (xcept::end_of_stream) {
-        //         this->is_active = false;
-        //         return;
-        //     }
+            const length = reader.readIntLittle(u32) catch {
+                self.alive = false;
+                return false;
+            };
 
-        //     parseAndExecMsg(packet);
-        // }
+            try packet.resize(length);
+
+            reader.readNoEof(packet.items) catch {
+                self.alive = false;
+                return false;
+            };
+
+            self.parseAndExecMsg(packet.items) catch {
+                self.alive = false;
+                return false;
+            };
+        }
+
         return self.alive;
     }
 
     fn parseAndExecMsg(self: *Self, packet: []const u8) !void {
-        // InputStream stream(msg.data(), msg.size());
+        std.log.info(.app, "Received packet of {} bytes: {x}\n", .{
+            packet.len,
+            packet,
+        });
 
-        // auto const msgType = ClientMessageType(stream.read_byte());
-        // switch (msgType) {
-        //     case ClientMessageType::uploadResource: // (rid, kind, data)
-        //     {
-        //         auto resource = stream.read_id<UIResourceID>();
-        //         auto kind = stream.read_enum<ResourceKind>();
+        var decoder = protocol.Decoder.init(packet);
 
-        //         auto const [data, len] = stream.read_to_end();
+        const message_type = @intToEnum(protocol.DisplayCommand, try decoder.readByte());
 
-        //         uploadResource(resource, kind, data, len);
-        //         break;
-        //     }
+        switch (message_type) {
+            //     case ClientMessageType::uploadResource: // (rid, kind, data)
+            //     {
+            //         auto resource = stream.read_id<UIResourceID>();
+            //         auto kind = stream.read_enum<ResourceKind>();
 
-        //     case ClientMessageType::addOrUpdateObject: // (obj)
-        //     {
-        //         auto obj = stream.read_object();
-        //         addOrUpdateObject(std::move(obj));
-        //         break;
-        //     }
+            //         auto const [data, len] = stream.read_to_end();
 
-        //     case ClientMessageType::removeObject: // (oid)
-        //     {
-        //         auto const oid = stream.read_id<ObjectID>();
-        //         removeObject(oid);
-        //         break;
-        //     }
+            //         uploadResource(resource, kind, data, len);
+            //         break;
+            //     }
+            .addOrUpdateObject => { // (obj)
+                const oid = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
 
-        //     case ClientMessageType::setView: // (rid)
-        //     {
-        //         auto const rid = stream.read_id<UIResourceID>();
-        //         setView(rid);
-        //         break;
-        //     }
+                var obj = cpp.object_create(oid) orelse return error.OutOfMemory;
+                errdefer cpp.object_destroy(obj);
 
-        //     case ClientMessageType::setRoot: // (oid)
-        //     {
-        //         auto const oid = stream.read_id<ObjectID>();
-        //         setRoot(oid);
-        //         break;
-        //     }
+                while (true) {
+                    const value_type = @intToEnum(protocol.Type, try decoder.readByte());
+                    if (value_type == .none) {
+                        break;
+                    }
 
-        //     case ClientMessageType::setProperty: // (oid, name, value)
-        //     {
-        //         auto const oid = stream.read_id<ObjectID>();
-        //         auto const propName = stream.read_id<PropertyName>();
-        //         auto const type = stream.read_enum<UIType>();
-        //         auto const value = stream.read_value(type);
+                    const prop = @intToEnum(protocol.PropertyName, try decoder.readVarUInt());
 
-        //         setProperty(oid, propName, value);
-        //         break;
-        //     }
+                    std.debug.print("read value of type {}\n", .{value_type});
 
-        //     case ClientMessageType::clear: // (oid, name)
-        //     {
-        //         auto const oid = stream.read_id<ObjectID>();
-        //         auto const propName = stream.read_id<PropertyName>();
-        //         clear(oid, propName);
-        //         break;
-        //     }
+                    const value = try decoder.readValue(value_type, self.allocator);
+                    defer decoder.deinitValue(value, self.allocator);
 
-        //     case ClientMessageType::insertRange: // (oid, name, index, count, oids …) // manipulate lists
-        //     {
-        //         auto const oid = stream.read_id<ObjectID>();
-        //         auto const propName = stream.read_id<PropertyName>();
-        //         auto const index = stream.read_uint();
-        //         auto const count = stream.read_uint();
-        //         std::vector<ObjectRef> refs;
-        //         refs.reserve(count);
-        //         for (size_t i = 0; i < count; i++)
-        //             refs.emplace_back(stream.read_id<ObjectID>());
-        //         insertRange(oid, propName, index, count, refs.data());
-        //         break;
-        //     }
+                    const success = cpp.object_addProperty(
+                        obj,
+                        prop,
+                        &value,
+                    );
+                    if (!success) {
+                        return error.OutOfMemory;
+                    }
+                }
 
-        //     case ClientMessageType::removeRange: // (oid, name, index, count) // manipulate lists
-        //     {
-        //         auto const oid = stream.read_id<ObjectID>();
-        //         auto const propName = stream.read_id<PropertyName>();
-        //         auto const index = stream.read_uint();
-        //         auto const count = stream.read_uint();
-        //         removeRange(oid, propName, index, count);
-        //         break;
-        //     }
+                cpp.zsession_addOrUpdateObject(self.driver.cpp_session, obj);
+            },
 
-        //     case ClientMessageType::moveRange: // (oid, name, indexFrom, indexTo, count) // manipulate lists
-        //     {
-        //         auto const oid = stream.read_id<ObjectID>();
-        //         auto const propName = stream.read_id<PropertyName>();
-        //         auto const indexFrom = stream.read_uint();
-        //         auto const indexTo = stream.read_uint();
-        //         auto const count = stream.read_uint();
-        //         moveRange(oid, propName, indexFrom, indexTo, count);
-        //         break;
-        //     }
+            .removeObject => { // (oid)
+                const oid = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
+                cpp.zsession_removeObject(self.driver.cpp_session, oid);
+            },
 
-        //     default:
-        //         xlog::log(xlog::error) << "received message of unknown type: " << std::to_string(uint8_t(msgType));
-        //         break;
-        // }
+            .setView => { // (rid)
+                const rid = @intToEnum(protocol.ResourceID, try decoder.readVarUInt());
+                cpp.zsession_setView(self.driver.cpp_session, rid);
+            },
+
+            .setRoot => { // (oid)
+                const oid = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
+                cpp.zsession_setRoot(self.driver.cpp_session, oid);
+            },
+
+            .setProperty => { // (oid, name, value)
+                const oid = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
+
+                const propName = @intToEnum(protocol.PropertyName, try decoder.readVarUInt());
+
+                const value_type = @intToEnum(protocol.Type, try decoder.readByte());
+                const value = try decoder.readValue(value_type, self.allocator);
+                defer decoder.deinitValue(value, self.allocator);
+
+                cpp.zsession_setProperty(
+                    self.driver.cpp_session,
+                    oid,
+                    propName,
+                    &value,
+                );
+            },
+
+            //     case ClientMessageType::clear: // (oid, name)
+            //     {
+            //         auto const oid = stream.read_id<ObjectID>();
+            //         auto const propName = stream.read_id<PropertyName>();
+            //         clear(oid, propName);
+            //         break;
+            //     }
+
+            //     case ClientMessageType::insertRange: // (oid, name, index, count, oids …) // manipulate lists
+            //     {
+            //         auto const oid = stream.read_id<ObjectID>();
+            //         auto const propName = stream.read_id<PropertyName>();
+            //         auto const index = stream.read_uint();
+            //         auto const count = stream.read_uint();
+            //         std::vector<ObjectRef> refs;
+            //         refs.reserve(count);
+            //         for (size_t i = 0; i < count; i++)
+            //             refs.emplace_back(stream.read_id<ObjectID>());
+            //         insertRange(oid, propName, index, count, refs.data());
+            //         break;
+            //     }
+
+            //     case ClientMessageType::removeRange: // (oid, name, index, count) // manipulate lists
+            //     {
+            //         auto const oid = stream.read_id<ObjectID>();
+            //         auto const propName = stream.read_id<PropertyName>();
+            //         auto const index = stream.read_uint();
+            //         auto const count = stream.read_uint();
+            //         removeRange(oid, propName, index, count);
+            //         break;
+            //     }
+
+            //     case ClientMessageType::moveRange: // (oid, name, indexFrom, indexTo, count) // manipulate lists
+            //     {
+            //         auto const oid = stream.read_id<ObjectID>();
+            //         auto const propName = stream.read_id<PropertyName>();
+            //         auto const indexFrom = stream.read_uint();
+            //         auto const indexTo = stream.read_uint();
+            //         auto const count = stream.read_uint();
+            //         moveRange(oid, propName, indexFrom, indexTo, count);
+            //         break;
+            //     }
+            else => {
+                std.log.warn(.app, "received message of unknown type: {}\n", .{
+                    message_type,
+                });
+            },
+        }
     }
 
     fn zsession_triggerEvent(api: *cpp.ZigSessionApi, event: protocol.EventID, widget: protocol.WidgetName) callconv(.C) void {
         const self = @fieldParentPtr(Self, "api", api);
         std.debug.print("zsession_triggerEvent: {} {}\n", .{ event, widget });
 
-        // if (cid.is_null()) // ignore empty callbacks
-        //     return;
+        // ignore empty callbacks
+        if (event != .invalid) {
+            var backing_buf: [128]u8 = undefined;
+            var stream = std.io.fixedBufferStream(&backing_buf);
 
-        // CommandBuffer buffer{ServerMessageType::eventCallback};
-        // buffer.write_id(cid.value);
-        // buffer.write_id(widget.value);
+            // we have enough storage :)
+            var buffer = protocol.beginApplicationCommandEncoding(stream.writer(), .eventCallback) catch unreachable;
+            buffer.writeID(@enumToInt(event)) catch unreachable;
+            buffer.writeID(@enumToInt(widget)) catch unreachable;
 
-        // send_message(buffer);
+            self.sendMessage(stream.getWritten()) catch |err| {
+                std.log.err(.app, "Failed to send eventCallback message: {}\n", .{err});
+                return;
+            };
+        }
     }
 
     fn zsession_triggerPropertyChanged(api: *cpp.ZigSessionApi, oid: protocol.ObjectID, name: protocol.PropertyName, value: *const protocol.Value) callconv(.C) void {
         const self = @fieldParentPtr(Self, "api", api);
         std.debug.print("zsession_triggerPropertyChanged: {} {} {}\n", .{ oid, name, value });
 
-        // if (oid.is_null())
-        //     return;
-        // if (name.is_null())
-        //     return;
-        // if (value.index() == 0)
-        //     return;
+        if (oid == .invalid)
+            return;
+        if (name == .invalid)
+            return;
+        if (value.type == .none)
+            return;
 
-        // CommandBuffer buffer{ServerMessageType::propertyChanged};
-        // buffer.write_id(oid.value);
-        // buffer.write_id(name.value);
-        // buffer.write_value(value, true);
+        var backing_buf: [4096]u8 = undefined;
+        var stream = std.io.fixedBufferStream(&backing_buf);
 
-        // send_message(buffer);
+        var buffer = protocol.beginApplicationCommandEncoding(stream.writer(), .propertyChanged) catch unreachable;
+
+        buffer.writeID(@enumToInt(oid)) catch |err| {
+            std.log.err(.app, "Failed to send propertyChanged message: {}\n", .{err});
+            return;
+        };
+        buffer.writeID(@enumToInt(name)) catch |err| {
+            std.log.err(.app, "Failed to send propertyChanged message: {}\n", .{err});
+            return;
+        };
+        buffer.writeValue(value.*, true) catch |err| {
+            std.log.err(.app, "Failed to send propertyChanged message: {}\n", .{err});
+            return;
+        };
+
+        self.sendMessage(stream.getWritten()) catch |err| {
+            std.log.err(.app, "Failed to send propertyChanged message: {}\n", .{err});
+            return;
+        };
     }
 
-    fn sendMessage(self: *Self) !void {
+    fn sendMessage(self: *Self, packet: []const u8) !void {
         // std::lock_guard _{send_lock};
-        // xnet::socket_ostream stream{this->sock};
+        if (self.connection) |sock| {
+            std.debug.assert(packet.len <= std.math.maxInt(u32));
 
-        // auto const len = static_cast<uint32_t>(buffer.buffer.size());
+            const len = @intCast(u32, packet.len);
 
-        // stream.write<uint32_t>(len);
-        // stream.write(buffer.buffer.data(), len);
+            var writer = sock.writer();
+            try writer.writeIntLittle(u32, len);
+            try writer.writeAll(packet);
+        }
     }
 };
 

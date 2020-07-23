@@ -21,7 +21,7 @@ const ObjectID = protocol.ObjectID;
 const EventID = protocol.EventID;
 const NativeErrorCode = c.dunstblick_Error;
 const PropertyName = protocol.PropertyName;
-const Value = c.dunstblick_Value;
+const Value = protocol.Value;
 const ResourceKind = c.ResourceKind;
 
 // C function pointers are actually optional:
@@ -44,6 +44,7 @@ pub const DunstblickError = error{
     OutOfRange,
     EndOfStream,
     ResourceNotFound,
+    NoSpaceLeft,
 };
 
 const NetworkError = error{
@@ -83,163 +84,6 @@ fn extractString(str: []const u8) []const u8 {
             return str[0..i];
     }
     return str;
-}
-
-const NetworkCommand = enum(u8) {
-    disconnect = 0, // (reason)
-    uploadResource = 1, // (rid, kind, data)
-    addOrUpdateObject = 2, // (obj)
-    removeObject = 3, // (oid)
-    setView = 4, // (rid)
-    setRoot = 5, // (oid)
-    setProperty = 6, // (oid, name, value) // "unsafe command", uses the serverside object type or fails of property
-    // does not exist
-    clear = 7, // (oid, name)
-    insertRange = 8, // (oid, name, index, count, value …) // manipulate lists
-    removeRange = 9, // (oid, name, index, count) // manipulate lists
-    moveRange = 10, // (oid, name, indexFrom, indexTo, count) // manipulate lists
-    _,
-};
-
-const ServerMessageType = enum(u8) {
-    eventCallback = 1, // (cid)
-    propertyChanged = 2, // (oid, name, type, value)
-    _,
-};
-
-const CommandBuffer = struct {
-    const Self = @This();
-
-    buffer: std.ArrayList(u8),
-
-    fn init(command: NetworkCommand, allocator: *std.mem.Allocator) !Self {
-        var buffer = Self{
-            .buffer = std.ArrayList(u8).init(allocator),
-        };
-        errdefer buffer.buffer.deinit();
-        try buffer.writeByte(@enumToInt(command));
-        return buffer;
-    }
-
-    fn deinit(self: *Self) void {
-        self.buffer.deinit();
-    }
-
-    fn writeByte(self: *Self, byte: u8) DunstblickError!void {
-        try self.buffer.append(byte);
-    }
-
-    fn writeRaw(self: *Self, data: []const u8) DunstblickError!void {
-        try self.buffer.appendSlice(data);
-    }
-
-    fn writeEnum(self: *Self, e: u8) DunstblickError!void {
-        try self.writeByte(e);
-    }
-
-    fn writeID(self: *Self, id: u32) DunstblickError!void {
-        try self.writeVarUInt(id);
-    }
-
-    fn writeString(self: *Self, string: []const u8) DunstblickError!void {
-        try self.writeVarUInt(@intCast(u32, string.len));
-        try self.writeRaw(string);
-    }
-
-    fn writeNumber(self: *Self, number: f32) DunstblickError!void {
-        std.debug.assert(std.builtin.endian == .Little);
-        try self.writeRaw(std.mem.asBytes(&number));
-    }
-
-    fn writeVarUInt(self: *Self, value: u32) DunstblickError!void {
-        var buf: [5]u8 = undefined;
-
-        var maxidx: usize = 4;
-
-        comptime var n: usize = 0;
-        inline while (n < 5) : (n += 1) {
-            const chr = &buf[4 - n];
-            chr.* = @truncate(u8, (value >> (7 * n)) & 0x7F);
-            if (chr.* != 0)
-                maxidx = 4 - n;
-            if (n > 0)
-                chr.* |= 0x80;
-        }
-
-        std.debug.assert(maxidx < 5);
-        try self.writeRaw(buf[maxidx..]);
-    }
-
-    fn writeVarSInt(self: *Self, value: i32) DunstblickError!void {
-        try self.writeVarUInt(ZigZagInt.encode(value));
-    }
-
-    fn writeValue(self: *Self, value: Value, prefixType: bool) DunstblickError!void {
-        if (prefixType) {
-            try self.writeEnum(@intCast(u8, @enumToInt(value.type)));
-        }
-        const val = &value.value;
-        switch (value.type) {
-            .DUNSTBLICK_TYPE_INTEGER => try self.writeVarSInt(val.integer),
-
-            .DUNSTBLICK_TYPE_NUMBER => try self.writeNumber(val.number),
-
-            .DUNSTBLICK_TYPE_STRING => try self.writeString(std.mem.span(val.string)),
-
-            .DUNSTBLICK_TYPE_ENUMERATION => try self.writeEnum(val.enumeration),
-
-            .DUNSTBLICK_TYPE_MARGINS => {
-                try self.writeVarUInt(val.margins.left);
-                try self.writeVarUInt(val.margins.top);
-                try self.writeVarUInt(val.margins.right);
-                try self.writeVarUInt(val.margins.bottom);
-            },
-
-            .DUNSTBLICK_TYPE_COLOR => {
-                try self.writeByte(val.color.r);
-                try self.writeByte(val.color.g);
-                try self.writeByte(val.color.b);
-                try self.writeByte(val.color.a);
-            },
-
-            .DUNSTBLICK_TYPE_SIZE => {
-                try self.writeVarUInt(val.size.w);
-                try self.writeVarUInt(val.size.h);
-            },
-
-            .DUNSTBLICK_TYPE_POINT => {
-                try self.writeVarSInt(val.point.x);
-                try self.writeVarSInt(val.point.y);
-            },
-
-            .DUNSTBLICK_TYPE_RESOURCE => try self.writeVarUInt(val.resource),
-
-            .DUNSTBLICK_TYPE_BOOLEAN => try self.writeByte(if (val.boolean) 1 else 0),
-
-            .DUNSTBLICK_TYPE_OBJECT => try self.writeVarUInt(val.resource),
-
-            .DUNSTBLICK_TYPE_OBJECTLIST => unreachable, // not implemented yet
-
-            else => unreachable, // api violation
-        }
-    }
-};
-
-const ZigZagInt = struct {
-    fn encode(n: i32) u32 {
-        const v = (n << 1) ^ (n >> 31);
-        return @bitCast(u32, v);
-    }
-    fn decode(u: u32) i32 {
-        const n = @bitCast(i32, u);
-        return (n << 1) ^ (n >> 31);
-    }
-};
-
-test "ZigZag" {
-    const input = 42;
-    std.debug.assert(ZigZagInt.encode(input) == 84);
-    std.debug.assert(ZigZagInt.decode(84) == input);
 }
 
 fn Callback(comptime F: type) type {
@@ -422,7 +266,7 @@ pub const dunstblick_Connection = struct {
                         var header = ConnectionHeader{
                             .password = undefined,
                             .clientName = undefined,
-                            .capabilities = @intToEnum(ClientCapabilities, @intCast(c_int, net_header.capabilities)),
+                            .capabilities = @bitCast(u32, net_header.capabilities),
                         };
 
                         header.password = try std.mem.dupeZ(self.provider.allocator, u8, extractString(&net_header.password));
@@ -457,7 +301,7 @@ pub const dunstblick_Connection = struct {
                                 .id = resource.id,
                                 .size = @intCast(u32, resource.data.len),
                                 .type = resource.type,
-                                .sipsum = resource.hash,
+                                .hash = resource.hash,
                             };
                             try stream.writeAll(std.mem.asBytes(&descriptor));
                         }
@@ -598,28 +442,28 @@ pub const dunstblick_Connection = struct {
     //! transmit a CommandBuffer synchronously
     //! @remarks self will lock the Connection internally,
     //!          so don't wrap self call into a mutex!
-    fn send(self: *Self, packet: CommandBuffer) DunstblickError!void {
+    fn send(self: *Self, packet: []const u8) DunstblickError!void {
         std.debug.assert(self.state == .READY);
 
-        if (packet.buffer.items.len > std.math.maxInt(u32))
+        if (packet.len > std.math.maxInt(u32))
             return error.OutOfRange;
 
         errdefer self.drop(.DUNSTBLICK_DISCONNECT_NETWORK_ERROR);
 
-        const length = @truncate(u32, packet.buffer.items.len);
+        const length = @truncate(u32, packet.len);
 
         const lock = self.mutex.acquire();
         defer lock.release();
 
         var stream = self.sock.writer();
         stream.writeIntLittle(u32, length) catch |err| return mapNetworkError(err);
-        stream.writeAll(packet.buffer.items[0..length]) catch |err| return mapNetworkError(err);
+        stream.writeAll(packet[0..length]) catch |err| return mapNetworkError(err);
     }
 
     fn decodePacket(self: *Self, packet: []const u8) !void {
-        var reader = DataReader.init(packet);
+        var reader = protocol.Decoder.init(packet);
 
-        const msgtype = @intToEnum(ServerMessageType, try reader.readByte());
+        const msgtype = @intToEnum(protocol.ApplicationCommand, try reader.readByte());
 
         switch (msgtype) {
             .eventCallback => {
@@ -635,15 +479,15 @@ pub const dunstblick_Connection = struct {
             .propertyChanged => {
                 const obj_id = try reader.readVarUInt();
                 const property = try reader.readVarUInt();
-                const _type = @intToEnum(c.dunstblick_Type, try reader.readByte());
+                const value_type = @intToEnum(protocol.Type, try reader.readByte());
 
-                const value = try reader.readValue(_type);
+                const value = try reader.readValue(value_type, null);
 
                 self.onPropertyChanged.invoke(.{
                     @ptrCast(*c.dunstblick_Connection, self),
                     obj_id,
                     property,
-                    &value,
+                    @ptrCast(*const c.dunstblick_Value, &value),
                 });
             },
             _ => {
@@ -680,28 +524,33 @@ pub const dunstblick_Connection = struct {
             self.disconnect_reason = .DUNSTBLICK_DISCONNECT_SHUTDOWN;
         }
 
-        var buffer = CommandBuffer.init(.disconnect, self.provider.allocator) catch return;
+        var buffer = std.ArrayList(u8).init(self.provider.allocator);
         defer buffer.deinit();
 
-        buffer.writeString(actual_reason) catch return;
+        var encoder = protocol.beginDisplayCommandEncoding(buffer.writer(), .disconnect) catch return;
+        encoder.writeString(actual_reason) catch return;
 
-        self.send(buffer) catch return;
+        self.send(buffer.items) catch return;
     }
 
     pub fn setView(self: *Self, id: ResourceID) DunstblickError!void {
-        var buffer = try CommandBuffer.init(.setView, self.provider.allocator);
-        defer buffer.deinit();
+        var backing_buf: [4096]u8 = undefined;
+        var stream = std.io.fixedBufferStream(&backing_buf);
+
+        var buffer = try protocol.beginDisplayCommandEncoding(stream.writer(), .setView);
 
         try buffer.writeID(@enumToInt(id));
-        try self.send(buffer);
+        try self.send(stream.getWritten());
     }
 
     pub fn setRoot(self: *Self, id: ObjectID) DunstblickError!void {
-        var buffer = try CommandBuffer.init(.setRoot, self.provider.allocator);
-        defer buffer.deinit();
+        var backing_buf: [4096]u8 = undefined;
+        var stream = std.io.fixedBufferStream(&backing_buf);
+
+        var buffer = try protocol.beginDisplayCommandEncoding(stream.writer(), .setRoot);
 
         try buffer.writeID(@enumToInt(id));
-        try self.send(buffer);
+        try self.send(stream.getWritten());
     }
 
     pub fn beginChangeObject(self: *Self, id: ObjectID) !*dunstblick_Object {
@@ -711,22 +560,28 @@ pub const dunstblick_Connection = struct {
         object.* = try dunstblick_Object.init(self);
         errdefer object.deinit();
 
-        try object.commandbuffer.writeID(@enumToInt(id));
+        var enc = protocol.makeEncoder(object.commandbuffer.writer());
+
+        try enc.writeID(@enumToInt(id));
 
         return object;
     }
 
     pub fn removeObject(self: *Self, id: ObjectID) DunstblickError!void {
-        var buffer = try CommandBuffer.init(.setRoot, self.provider.allocator);
-        defer buffer.deinit();
+        var backing_buf: [128]u8 = undefined;
+        var stream = std.io.fixedBufferStream(&backing_buf);
+
+        var buffer = try protocol.beginDisplayCommandEncoding(stream.writer(), .setRoot);
 
         try buffer.writeID(@enumToInt(id));
-        try self.send(buffer);
+        try self.send(stream.getWritten());
     }
 
     pub fn moveRange(self: *Self, object: ObjectID, name: PropertyName, indexFrom: u32, indexTo: u32, count: u32) DunstblickError!void {
-        var buffer = try CommandBuffer.init(.moveRange, self.provider.allocator);
-        defer buffer.deinit();
+        var backing_buf: [4096]u8 = undefined;
+        var stream = std.io.fixedBufferStream(&backing_buf);
+
+        var buffer = try protocol.beginDisplayCommandEncoding(stream.writer(), .moveRange);
 
         try buffer.writeID(@enumToInt(object));
         try buffer.writeID(@enumToInt(name));
@@ -734,33 +589,39 @@ pub const dunstblick_Connection = struct {
         try buffer.writeVarUInt(indexTo);
         try buffer.writeVarUInt(count);
 
-        try self.send(buffer);
+        try self.send(stream.getWritten());
     }
 
     pub fn setProperty(self: *Self, object: ObjectID, name: PropertyName, value: Value) DunstblickError!void {
-        var buffer = try CommandBuffer.init(.setProperty, self.provider.allocator);
-        defer buffer.deinit();
+        var backing_buf: [4096]u8 = undefined;
+        var stream = std.io.fixedBufferStream(&backing_buf);
+
+        var buffer = try protocol.beginDisplayCommandEncoding(stream.writer(), .setProperty);
 
         try buffer.writeID(@enumToInt(object));
         try buffer.writeID(@enumToInt(name));
         try buffer.writeValue(value, true);
 
-        try self.send(buffer);
+        try self.send(stream.getWritten());
     }
 
     pub fn clear(self: *Self, object: ObjectID, name: PropertyName) DunstblickError!void {
-        var buffer = try CommandBuffer.init(.clear, self.provider.allocator);
-        defer buffer.deinit();
+        var backing_buf: [128]u8 = undefined;
+        var stream = std.io.fixedBufferStream(&backing_buf);
+
+        var buffer = try protocol.beginDisplayCommandEncoding(stream.writer(), .clear);
 
         try buffer.writeID(@enumToInt(object));
         try buffer.writeID(@enumToInt(name));
 
-        try self.send(buffer);
+        try self.send(stream.getWritten());
     }
 
     pub fn insertRange(self: *Self, object: ObjectID, name: PropertyName, index: u32, values: []const ObjectID) DunstblickError!void {
-        var buffer = try CommandBuffer.init(.insertRange, self.provider.allocator);
-        defer buffer.deinit();
+        var backing_buf: [4096]u8 = undefined;
+        var stream = std.io.fixedBufferStream(&backing_buf);
+
+        var buffer = try protocol.beginDisplayCommandEncoding(stream.writer(), .insertRange);
 
         try buffer.writeID(@enumToInt(object));
         try buffer.writeID(@enumToInt(name));
@@ -771,19 +632,20 @@ pub const dunstblick_Connection = struct {
             try buffer.writeID(@enumToInt(id));
         }
 
-        try self.send(buffer);
+        try self.send(stream.getWritten());
     }
 
     pub fn removeRange(self: *Self, object: ObjectID, name: PropertyName, index: u32, count: u32) DunstblickError!void {
-        var buffer = try CommandBuffer.init(.removeRange, self.provider.allocator);
-        defer buffer.deinit();
+        var backing_buf: [128]u8 = undefined;
+        var stream = std.io.fixedBufferStream(&backing_buf);
 
+        var buffer = try protocol.beginDisplayCommandEncoding(stream.writer(), .removeRange);
         try buffer.writeID(@enumToInt(object));
         try buffer.writeID(@enumToInt(name));
         try buffer.writeVarUInt(index);
         try buffer.writeVarUInt(count);
 
-        try self.send(buffer);
+        try self.send(stream.getWritten());
     }
 };
 
@@ -1154,142 +1016,43 @@ pub const dunstblick_Provider = struct {
 pub const dunstblick_Object = struct {
     const Self = @This();
     connection: *dunstblick_Connection,
-    commandbuffer: CommandBuffer,
+    commandbuffer: std.ArrayList(u8),
 
     fn init(con: *dunstblick_Connection) !Self {
-        return Self{
+        var object = Self{
             .connection = con,
-            .commandbuffer = try CommandBuffer.init(.addOrUpdateObject, con.provider.allocator),
+            .commandbuffer = std.ArrayList(u8).init(con.provider.allocator),
         };
+
+        var enc = protocol.makeEncoder(object.commandbuffer.writer());
+        try enc.writeByte(@enumToInt(protocol.DisplayCommand.addOrUpdateObject));
+
+        return object;
     }
 
-    fn deinit(self: Self) void {}
+    fn deinit(self: Self) void {
+        self.commandbuffer.deinit();
+    }
 
     pub fn setProperty(self: *Self, name: protocol.PropertyName, value: Value) DunstblickError!void {
-        try self.commandbuffer.writeEnum(@intCast(u8, @enumToInt(value.type)));
-        try self.commandbuffer.writeID(@enumToInt(name));
-        try self.commandbuffer.writeValue(value, false);
+        var enc = protocol.makeEncoder(self.commandbuffer.writer());
+
+        try enc.writeEnum(@intCast(u8, @enumToInt(value.type)));
+        try enc.writeID(@enumToInt(name));
+        try enc.writeValue(value, false);
     }
 
     pub fn commit(self: *Self) DunstblickError!void {
         defer self.cancel(); // self will free the memory
 
-        try self.commandbuffer.writeEnum(0);
-        try self.connection.send(self.commandbuffer);
+        var enc = protocol.makeEncoder(self.commandbuffer.writer());
+        try enc.writeEnum(0);
+
+        try self.connection.send(self.commandbuffer.items);
     }
 
     pub fn cancel(self: *Self) void {
         self.commandbuffer.deinit();
         self.connection.provider.allocator.destroy(self);
-    }
-};
-
-const DataReader = struct {
-    const Self = @This();
-
-    source: []const u8,
-    offset: usize,
-
-    fn init(data: []const u8) Self {
-        return Self{
-            .source = data,
-            .offset = 0,
-        };
-    }
-
-    fn readByte(self: *Self) !u8 {
-        if (self.offset >= self.source.len)
-            return error.EndOfStream;
-        const value = self.source[self.offset];
-        self.offset += 1;
-        return value;
-    }
-
-    fn readVarUInt(self: *Self) !u32 {
-        var number: u32 = 0;
-
-        while (true) {
-            const value = try self.readByte();
-            number <<= 7;
-            number |= value & 0x7F;
-            if ((value & 0x80) == 0)
-                break;
-        }
-
-        return number;
-    }
-
-    fn readVarSInt(self: *Self) !i32 {
-        return ZigZagInt.decode(try self.readVarUInt());
-    }
-
-    fn readRaw(self: *Self, n: usize) ![]const u8 {
-        if (self.offset + n > self.source.len)
-            return error.EndOfStream;
-        const value = self.source[self.offset .. self.offset + n];
-        self.offset += n;
-        return value;
-    }
-
-    fn readNumber(self: *Self) !f32 {
-        const bits = try self.readRaw(4);
-        return @bitCast(f32, bits[0..4].*);
-    }
-
-    fn readValue(self: *Self, _type: c.dunstblick_Type) !Value {
-        var value = Value{
-            .type = _type,
-            .value = undefined,
-        };
-        const val = &value.value;
-        switch (_type) {
-            .DUNSTBLICK_TYPE_ENUMERATION => val.enumeration = try self.readByte(),
-
-            .DUNSTBLICK_TYPE_INTEGER => val.integer = try self.readVarSInt(),
-
-            .DUNSTBLICK_TYPE_RESOURCE => val.resource = try self.readVarUInt(),
-
-            .DUNSTBLICK_TYPE_OBJECT => val.object = try self.readVarUInt(),
-
-            .DUNSTBLICK_TYPE_NUMBER => val.number = try self.readNumber(),
-
-            .DUNSTBLICK_TYPE_BOOLEAN => val.boolean = ((try self.readByte()) != 0),
-
-            .DUNSTBLICK_TYPE_COLOR => {
-                val.color.r = try self.readByte();
-                val.color.g = try self.readByte();
-                val.color.b = try self.readByte();
-                val.color.a = try self.readByte();
-            },
-
-            .DUNSTBLICK_TYPE_SIZE => {
-                val.size.w = try self.readVarUInt();
-                val.size.h = try self.readVarUInt();
-            },
-
-            .DUNSTBLICK_TYPE_POINT => {
-                val.point.x = try self.readVarSInt();
-                val.point.y = try self.readVarSInt();
-            },
-
-            // HOW?
-            .DUNSTBLICK_TYPE_STRING => return error.NotSupported, // not implemented yet
-
-            .DUNSTBLICK_TYPE_MARGINS => {
-                val.margins.left = try self.readVarUInt();
-                val.margins.top = try self.readVarUInt();
-                val.margins.right = try self.readVarUInt();
-                val.margins.bottom = try self.readVarUInt();
-            },
-
-            .DUNSTBLICK_TYPE_OBJECTLIST => return error.NotSupported, // not implemented yet
-
-            .DUNSTBLICK_TYPE_EVENT => val.event = try self.readVarUInt(),
-
-            .DUNSTBLICK_TYPE_NAME => val.name = try self.readVarUInt(),
-
-            _ => return error.NotSupported,
-        }
-        return value;
     }
 };

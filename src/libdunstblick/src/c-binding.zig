@@ -17,7 +17,7 @@ const ObjectID = c.dunstblick_ObjectID;
 const EventID = c.dunstblick_EventID;
 const NativeErrorCode = c.dunstblick_Error;
 const PropertyName = c.dunstblick_PropertyName;
-const Value = c.dunstblick_Value;
+const Value = protocol.Value;
 const ResourceKind = c.dunstblick_ResourceKind;
 
 // C function pointers are actually optional:
@@ -33,6 +33,7 @@ pub var log_level: std.log.Level = .err;
 fn mapDunstblickError(err: DunstblickError) NativeErrorCode {
     return switch (err) {
         error.OutOfMemory => .DUNSTBLICK_ERROR_OUT_OF_MEMORY,
+        error.NoSpaceLeft => .DUNSTBLICK_ERROR_OUT_OF_MEMORY,
         error.NetworkError => .DUNSTBLICK_ERROR_NETWORK,
         error.OutOfRange => .DUNSTBLICK_ERROR_ARGUMENT_OUT_OF_RANGE,
         error.EndOfStream => .DUNSTBLICK_ERROR_NETWORK,

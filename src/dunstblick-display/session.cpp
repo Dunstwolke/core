@@ -112,6 +112,8 @@ void Session::setRoot(ObjectID id)
     }
 }
 
+#define FUNCTION_NAME() __func__
+
 void Session::setProperty(ObjectID oid, PropertyName propName, const UIValue & value)
 {
     auto const type = UIType(value.index());
@@ -124,10 +126,11 @@ void Session::setProperty(ObjectID oid, PropertyName propName, const UIValue & v
                                        << to_string(prop->type) << " but " << to_string(type) << " was provided!";
             }
         } else {
-            xlog::log(xlog::error) << "object " << oid.value << " does not have the property " << propName.value << "!";
+            xlog::log(xlog::error) << FUNCTION_NAME() << ":object " << oid.value << " does not have the property "
+                                   << propName.value << "!";
         }
     } else {
-        xlog::log(xlog::error) << "object " << oid.value << " does not exist!";
+        xlog::log(xlog::error) << FUNCTION_NAME() << ":object " << oid.value << " does not exist!";
     }
 }
 
@@ -142,10 +145,11 @@ static inline xstd::optional<ObjectList &> get_list(Session & sess, ObjectID oid
                                        << to_string(prop->type) << " instead of type objectlist!";
             }
         } else {
-            xlog::log(xlog::error) << "object " << oid.value << " does not have the property " << name.value << "!";
+            xlog::log(xlog::error) << FUNCTION_NAME() << ":object " << oid.value << " does not have the property "
+                                   << name.value << "!";
         }
     } else {
-        xlog::log(xlog::error) << "object " << oid.value << " does not exist!";
+        xlog::log(xlog::error) << FUNCTION_NAME() << ":object " << oid.value << " does not exist!";
     }
     return xstd::nullopt;
 }

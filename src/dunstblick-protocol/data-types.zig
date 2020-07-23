@@ -12,6 +12,7 @@ pub const ResourceKind = extern enum(u8) {
 };
 
 pub const Type = extern enum(u32) {
+    none = 0,
     integer = 1,
     number = 2,
     string = 3,
@@ -29,7 +30,7 @@ pub const Type = extern enum(u32) {
     _,
 };
 
-pub const ClientCapabilities = extern enum(c_int) {
+pub const ClientCapabilities = extern enum(u32) {
     none = 0,
     mouse = 1,
     keyboard = 2,
@@ -41,7 +42,7 @@ pub const ClientCapabilities = extern enum(c_int) {
     _,
 };
 
-pub const DisconnectReason = extern enum(c_int) {
+pub const DisconnectReason = extern enum(u32) {
     quit = 0,
     shutdown = 1,
     timeout = 2,

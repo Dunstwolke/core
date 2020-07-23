@@ -3,6 +3,21 @@ const types = @import("../data-types.zig");
 pub const magic = [4]u8{ 0x21, 0x06, 0xc1, 0x62 };
 pub const protocol_version: u16 = 1;
 
+pub const ClientCapabilities = packed struct {
+    mouse: bool = false,
+    keyboard: bool = false,
+    touch: bool = false,
+    highdpi: bool = false,
+    tiltable: bool = false,
+    resizable: bool = false,
+    req_accessibility: bool = false,
+    padding: u25 = 0,
+};
+
+comptime {
+    @import("std").debug.assert(@bitSizeOf(ClientCapabilities) == 32);
+}
+
 /// Protocol initiating message sent from the display client to
 /// the UI provider.
 pub const ConnectHeader = packed struct {
@@ -15,7 +30,7 @@ pub const ConnectHeader = packed struct {
     // data header
     name: [32]u8,
     password: [32]u8,
-    capabilities: u32,
+    capabilities: ClientCapabilities,
     screen_size_x: u16,
     screen_size_y: u16,
 };
@@ -40,7 +55,7 @@ pub const ResourceDescriptor = packed struct {
     size: u32,
     /// Siphash of the resource data.
     /// Key used is
-    sipsum: [8]u8,
+    hash: [8]u8,
 };
 
 /// Followed after the set of @ref TcpResourceDescriptor
