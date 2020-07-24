@@ -55,8 +55,10 @@ extern "C"
         DUNSTBLICK_CAPS_KEYBOARD = 2, ///< The client has a keyboard available.
         DUNSTBLICK_CAPS_TOUCH = 4,    ///< The client has a touchscreen available.
         DUNSTBLICK_CAPS_HIGHDPI = 8,  ///< The client has a high-dpi screen
-        DUNSTBLICK_CAPS_TILTABLE = 16, ///< The client can be tilted and switch between portrait and landscape view (like a mobile device)
-        DUNSTBLICK_CAPS_RESIZABLE = 32, ///< The client area can be resized (for example when it's hosted in a window instead of a fullscreen application)
+        DUNSTBLICK_CAPS_TILTABLE =
+            16, ///< The client can be tilted and switch between portrait and landscape view (like a mobile device)
+        DUNSTBLICK_CAPS_RESIZABLE = 32, ///< The client area can be resized (for example when it's hosted in a window
+                                        ///< instead of a fullscreen application)
         DUNSTBLICK_CAPS_REQ_ACCESSIBILITY = 64, ///< The client wants to have a special UI for improved accessiblity
     };
     typedef enum dunstblick_ClientCapabilities dunstblick_ClientCapabilities;
@@ -77,13 +79,12 @@ extern "C"
     /// @brief Enumeration of possible reasons for a client disconnection.
     enum dunstblick_DisconnectReason
     {
-        DUNSTBLICK_DISCONNECT_QUIT = 0,     ///< The user closed the connection.
-        DUNSTBLICK_DISCONNECT_SHUTDOWN = 1, ///< The connection was closed by a call to @ref dunstblick_CloseConnection.
-        DUNSTBLICK_DISCONNECT_TIMEOUT = 2,  ///< The display client did not respond for a longer time.
-        DUNSTBLICK_DISCONNECT_NETWORK_ERROR = 3, ///< The network connection failed.
-        DUNSTBLICK_DISCONNECT_INVALID_DATA = 4,  ///< The client was forcefully disconnected for sending invalid data.
-        DUNSTBLICK_DISCONNECT_PROTOCOL_MISMATCH =
-            5, ///< The protocol used by the display client is not compatible to this library.
+        DUNSTBLICK_DISCONNECT_QUIT = 0,
+        DUNSTBLICK_DISCONNECT_SHUTDOWN = 1,
+        DUNSTBLICK_DISCONNECT_TIMEOUT = 2,
+        DUNSTBLICK_DISCONNECT_NETWORK_ERROR = 3,
+        DUNSTBLICK_DISCONNECT_INVALID_DATA = 4,
+        DUNSTBLICK_DISCONNECT_PROTOCOL_MISMATCH = 5,
     };
     typedef enum dunstblick_DisconnectReason dunstblick_DisconnectReason;
 

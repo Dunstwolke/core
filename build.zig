@@ -31,6 +31,15 @@ const pkgs = struct {
         .name = "dunstblick-protocol",
         .path = "./src/dunstblick-protocol/protocol.zig",
     };
+
+    const dunstblick_app = std.build.Pkg{
+        .name = "dunstblick-app",
+        .path = "./src/dunstblick-app/dunstblick.zig",
+        .dependencies = &[_]std.build.Pkg{
+            dunstblick_protocol,
+            network,
+        },
+    };
 };
 
 pub fn build(b: *Builder) !void {
@@ -39,17 +48,15 @@ pub fn build(b: *Builder) !void {
 
     const compiler = b.addExecutable("dunstblick-compiler", "./src/dunstblick-compiler/main.zig");
     compiler.addPackage(pkgs.args);
-    compiler.addIncludeDir("./src/libdunstblick/include");
     compiler.setTarget(target);
     compiler.setBuildMode(mode);
     compiler.install();
 
     const compiler_test = b.addTest("./src/dunstblick-compiler/main.zig");
 
-    const lib = b.addStaticLibrary("dunstblick", "./src/libdunstblick/src/dunstblick.zig");
-    lib.addPackage(pkgs.network);
+    const lib = b.addStaticLibrary("dunstblick", "./src/libdunstblick/src/c-binding.zig");
+    lib.addPackage(pkgs.dunstblick_app);
     lib.addPackage(pkgs.dunstblick_protocol);
-    lib.addIncludeDir("./src/libdunstblick/include");
     lib.linkLibC();
     lib.setTarget(target);
     lib.setBuildMode(mode);

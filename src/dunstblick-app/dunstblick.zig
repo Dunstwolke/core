@@ -2,41 +2,101 @@ const std = @import("std");
 const xnet = @import("network");
 const protocol = @import("dunstblick-protocol");
 
-// Enforce creation of the library C bindings
-comptime {
-    _ = @import("c-binding.zig");
-}
+const DisconnectReason = enum(u32) {
+    /// The user closed the connection.
+    quit = 0,
 
-const c = @import("c.zig");
+    /// The connection was closed by a call to @ref dunstblick_CloseConnection.
+    shutdown = 1,
 
-const DUNSTBLICK_DEFAULT_PORT = 1309;
-const DUNSTBLICK_MULTICAST_GROUP = xnet.Address.IPv4.init(224, 0, 0, 1);
-const DUNSTBLICK_MAX_APP_NAME_LENGTH = 64;
+    /// The display client did not respond for a longer time.
+    timeout = 2,
 
-const DisconnectReason = c.dunstblick_DisconnectReason;
-const ClientCapabilities = c.dunstblick_ClientCapabilities;
-const Size = c.dunstblick_Size;
+    /// The network connection failed.
+    network_error = 3,
+
+    /// The client was forcefully disconnected for sending invalid data.
+    invalid_data = 4,
+
+    /// The protocol used by the display client is not compatible to this library.
+    protocol_mismatch = 5,
+};
+
+const ClientCapabilities = protocol.ClientCapabilities;
+pub const Size = extern struct {
+    width: u32,
+    height: u32,
+};
 const ResourceID = protocol.ResourceID;
 const ObjectID = protocol.ObjectID;
 const EventID = protocol.EventID;
-const NativeErrorCode = c.dunstblick_Error;
 const PropertyName = protocol.PropertyName;
 const Value = protocol.Value;
-const ResourceKind = c.ResourceKind;
+const ResourceKind = protocol.ResourceKind;
 
-// C function pointers are actually optional:
-// We remove the optional field here to make that explicit in later
-// code
-const EventCallback = std.meta.Child(c.dunstblick_EventCallback);
-const PropertyChangedCallback = std.meta.Child(c.dunstblick_PropertyChangedCallback);
-const DisconnectedCallback = std.meta.Child(c.dunstblick_DisconnectedCallback);
-const ConnectedCallback = std.meta.Child(c.dunstblick_ConnectedCallback);
+/// A callback that is called whenever a new display client has successfully
+/// connected to the display provider.
+/// It's possible to disconnect the client in this callback, the @ref dunstblick_DisconnectedCallback
+/// will be called as soon as this function returns.
+pub const ConnectedCallback = fn (
+    ///< The application to which the connection was established.
+    application: *Application,
+    ///< The newly created connection.
+    connection: *Connection,
+    ///< The name of the display client. If none is given, it's just `IP:port`
+    clientName: [*:0]const u8,
+    ///< The password that was passed by the user.
+    password: [*:0]const u8,
+    ///< Current screen size of the display client.
+    screenSize: Size,
+    ///< Bitmask containing all available capabilities of the display client.
+    capabilities: ClientCapabilities,
+    ///< The user data pointer that was passed to @ref dunstblick_SetConnectedCallback.
+    userData: ?*c_void,
+) callconv(.C) void;
 
-const LogLevel = enum {
-    none = 0,
-    @"error" = 1,
-    diagnostic = 2,
-};
+/// A callback that is called whenever a display client has disconnected
+/// from the provider.
+/// This callback is called for every disconnected client, even when the client is closed
+/// in the @ref dunstblick_ConnectedCallback.
+/// @remarks It is possible to query information about `connection`, but it's not possible
+///          anymore to send any data to it.
+pub const DisconnectedCallback = fn (
+    ///< The application from which the connection was discnnected.
+    application: *Application,
+    /// The connection that is about to be closed.
+    connection: *Connection,
+    ///< The reason why the  display client is disconnected
+    reason: DisconnectReason,
+    ///< The user data pointer that was passed to @ref dunstblick_SetDisconnectedCallback.
+    userData: ?*c_void,
+) callconv(.C) void;
+
+/// @brief A callback that is called whenever a display client triggers a event.
+pub const EventCallback = fn (
+    ///< the display client that triggered the event.
+    connection: *Connection,
+    ///< The id of the event that was triggered. This ID is specified in the UI layout.
+    callback: protocol.EventID,
+    ///< The name of the widget that triggered the event.
+    caller: protocol.WidgetName,
+    ///< The user data pointer that was passed to @ref dunstblick_SetEventCallback.
+    userData: ?*c_void,
+) callconv(.C) void;
+
+/// A callback that is called whenever a display client changed the property of an object.
+pub const PropertyChangedCallback = fn (
+    ///< the display client that changed the event.
+    connection: *Connection,
+    ///< The object handle where the property was changed
+    object: protocol.ObjectID,
+    ///< The name of the property that was changed
+    property: protocol.PropertyName,
+    ///< The value of the property
+    value: *const protocol.Value,
+    ///< The user data pointer that was passed to @ref dunstblick_SetPropertyChangedCallback.
+    userData: ?*c_void,
+) callconv(.C) void;
 
 pub const DunstblickError = error{
     OutOfMemory,
@@ -179,8 +239,34 @@ pub const Connection = struct {
 
     user_data_pointer: ?*c_void,
 
-    onEvent: Callback(EventCallback), // Lock access to event in multithreaded scenarios!
-    onPropertyChanged: Callback(PropertyChangedCallback), // Lock access to event in multithreaded scenarios!
+    // FIX: #5920
+    // Lock access to event in multithreaded scenarios!
+    onEvent: struct {
+        function: ?EventCallback,
+        user_data: ?*c_void,
+
+        fn invoke(self: @This(), args: anytype) void {
+            if (self.function) |function| {
+                @call(.{}, function, args ++ .{self.user_data});
+            } else {
+                std.log.debug(.dunstblick, "callback does not exist!\n", .{});
+            }
+        }
+    },
+
+    // Lock access to event in multithreaded scenarios!
+    onPropertyChanged: struct {
+        function: ?PropertyChangedCallback,
+        user_data: ?*c_void,
+
+        fn invoke(self: @This(), args: anytype) void {
+            if (self.function) |function| {
+                @call(.{}, function, args ++ .{self.user_data});
+            } else {
+                std.log.debug(.dunstblick, "callback does not exist!\n", .{});
+            }
+        }
+    },
 
     fn init(provider: *Application, sock: xnet.Socket, endpoint: xnet.EndPoint) Connection {
         std.log.debug(.dunstblick, "connection from {}\n", .{endpoint});
@@ -228,7 +314,7 @@ pub const Connection = struct {
         const MAX_BUFFER_LIMIT = 5 * 1024 * 1024; // 5 MeBiByte
 
         if (self.receive_buffer.items.len + blob.len >= MAX_BUFFER_LIMIT) {
-            return self.drop(.DUNSTBLICK_DISCONNECT_INVALID_DATA);
+            return self.drop(.invalid_data);
         }
 
         try self.receive_buffer.appendSlice(blob);
@@ -247,7 +333,7 @@ pub const Connection = struct {
                         // Drop if we received too much data.
                         // Server is not allowed to send more than the actual
                         // connect header.
-                        return self.drop(.DUNSTBLICK_DISCONNECT_INVALID_DATA);
+                        return self.drop(.invalid_data);
                     }
                     if (stream_data.len < @sizeOf(protocol.tcp.ConnectHeader)) {
                         // not yet enough data
@@ -258,9 +344,9 @@ pub const Connection = struct {
                     const net_header = @ptrCast(*align(1) const protocol.tcp.ConnectHeader, stream_data.ptr);
 
                     if (!std.mem.eql(u8, &net_header.magic, &protocol.tcp.magic))
-                        return self.drop(.DUNSTBLICK_DISCONNECT_INVALID_DATA);
+                        return self.drop(.invalid_data);
                     if (net_header.protocol_version != protocol.tcp.protocol_version)
-                        return self.drop(.DUNSTBLICK_DISCONNECT_PROTOCOL_MISMATCH);
+                        return self.drop(.protocol_mismatch);
 
                     {
                         var header = ConnectionHeader{
@@ -278,8 +364,8 @@ pub const Connection = struct {
                         self.header = header;
                     }
 
-                    self.screenResolution.w = net_header.screen_size_x;
-                    self.screenResolution.h = net_header.screen_size_y;
+                    self.screenResolution.width = net_header.screen_size_x;
+                    self.screenResolution.height = net_header.screen_size_y;
 
                     {
                         const lock = self.provider.resource_lock.acquire();
@@ -348,7 +434,7 @@ pub const Connection = struct {
                     if (self.required_resources.items.len == self.required_resource_count) {
                         if (stream_data.len > @sizeOf(protocol.tcp.ResourceRequest)) {
                             // If excess data was sent, we drop the connection
-                            return self.drop(.DUNSTBLICK_DISCONNECT_INVALID_DATA);
+                            return self.drop(.invalid_data);
                         }
 
                         self.resource_send_index = 0;
@@ -364,7 +450,7 @@ pub const Connection = struct {
                 .SEND_RESOURCES => {
                     // we are currently uploading all resources,
                     // receiving anything here would be protocol violation
-                    return self.drop(.DUNSTBLICK_DISCONNECT_INVALID_DATA);
+                    return self.drop(.invalid_data);
                 },
 
                 .READY => blk: {
@@ -448,7 +534,7 @@ pub const Connection = struct {
         if (packet.len > std.math.maxInt(u32))
             return error.OutOfRange;
 
-        errdefer self.drop(.DUNSTBLICK_DISCONNECT_NETWORK_ERROR);
+        errdefer self.drop(.network_error);
 
         const length = @truncate(u32, packet.len);
 
@@ -471,9 +557,9 @@ pub const Connection = struct {
                 const widget = try reader.readVarUInt();
 
                 self.onEvent.invoke(.{
-                    @ptrCast(*c.dunstblick_Connection, self),
-                    id,
-                    widget,
+                    self,
+                    @intToEnum(protocol.EventID, id),
+                    @intToEnum(protocol.WidgetName, widget),
                 });
             },
             .propertyChanged => {
@@ -484,10 +570,10 @@ pub const Connection = struct {
                 const value = try reader.readValue(value_type, null);
 
                 self.onPropertyChanged.invoke(.{
-                    @ptrCast(*c.dunstblick_Connection, self),
-                    obj_id,
-                    property,
-                    @ptrCast(*const c.dunstblick_Value, &value),
+                    self,
+                    @intToEnum(protocol.ObjectID, obj_id),
+                    @intToEnum(protocol.PropertyName, property),
+                    &value,
                 });
             },
             _ => {
@@ -501,7 +587,7 @@ pub const Connection = struct {
         var buffer: [4096]u8 = undefined;
         const len = self.sock.receive(&buffer) catch |err| return mapNetworkError(err);
         if (len == 0)
-            return self.drop(.DUNSTBLICK_DISCONNECT_QUIT);
+            return self.drop(.quit);
 
         self.pushData(buffer[0..len]) catch |err| return switch (err) {
             error.OutOfMemory => error.OutOfMemory,
@@ -521,7 +607,7 @@ pub const Connection = struct {
             if (self.disconnect_reason != null)
                 return;
 
-            self.disconnect_reason = .DUNSTBLICK_DISCONNECT_SHUTDOWN;
+            self.disconnect_reason = .shutdown;
         }
 
         var buffer = std.ArrayList(u8).init(self.provider.allocator);
@@ -719,11 +805,16 @@ pub const Application = struct {
         errdefer provider.multicast_sock.close();
 
         try provider.multicast_sock.enablePortReuse(true);
-        try provider.multicast_sock.bindToPort(DUNSTBLICK_DEFAULT_PORT);
+        try provider.multicast_sock.bindToPort(protocol.udp.port);
 
         try provider.multicast_sock.joinMulticastGroup(.{
             .interface = xnet.Address.IPv4.any,
-            .group = DUNSTBLICK_MULTICAST_GROUP,
+            .group = xnet.Address.IPv4.init(
+                protocol.udp.multicast_group_v4[0],
+                protocol.udp.multicast_group_v4[1],
+                protocol.udp.multicast_group_v4[2],
+                protocol.udp.multicast_group_v4[3],
+            ),
         });
 
         std.log.debug(.dunstblick, "provider ready at {}\n", .{try provider.tcp_sock.getLocalEndPoint()});
@@ -739,9 +830,9 @@ pub const Application = struct {
                 defer iter = next;
 
                 self.onDisconnected.invoke(.{
-                    @ptrCast(*c.dunstblick_Provider, self),
-                    @ptrCast(*c.dunstblick_Connection, &item.data),
-                    .DUNSTBLICK_DISCONNECT_SHUTDOWN,
+                    self,
+                    &item.data,
+                    .shutdown,
                 });
                 item.data.close("The provider has been shut down.");
                 item.data.deinit();
@@ -792,14 +883,14 @@ pub const Application = struct {
             var iter = self.pending_connections.first;
             while (iter) |item| : (iter = item.next) {
                 if (self.socket_set.isFaulted(item.data.sock))
-                    item.data.drop(.DUNSTBLICK_DISCONNECT_NETWORK_ERROR);
+                    item.data.drop(.network_error);
             }
         }
         {
             var iter = self.established_connections.first;
             while (iter) |item| : (iter = item.next) {
                 if (self.socket_set.isFaulted(item.data.sock))
-                    item.data.drop(.DUNSTBLICK_DISCONNECT_NETWORK_ERROR);
+                    item.data.drop(.network_error);
             }
         }
 
@@ -817,7 +908,7 @@ pub const Application = struct {
                     continue;
 
                 if (self.socket_set.isReadyWrite(item.data.sock)) {
-                    item.data.sendData() catch item.data.drop(.DUNSTBLICK_DISCONNECT_INVALID_DATA);
+                    item.data.sendData() catch item.data.drop(.invalid_data);
                 }
             }
         }
@@ -951,8 +1042,8 @@ pub const Application = struct {
                     self.pending_connections.remove(item);
 
                     self.onConnected.invoke(.{
-                        @ptrCast(*c.dunstblick_Provider, self),
-                        @ptrCast(*c.dunstblick_Connection, &item.data),
+                        self,
+                        &item.data,
                         item.data.header.?.clientName,
                         item.data.header.?.password,
                         item.data.screenResolution,

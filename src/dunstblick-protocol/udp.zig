@@ -7,6 +7,9 @@ pub const AnnouncementType = extern enum(u16) {
 /// magic byte sequence to recognize dunstblick messages
 pub const magic = [4]u8{ 0x73, 0xe6, 0x37, 0x28 };
 
+pub const port = 1309;
+pub const multicast_group_v4 = [4]u8{ 224, 0, 0, 1 };
+
 /// Shared header for every
 pub const Header = extern struct {
     const Self = @This();

@@ -50,7 +50,7 @@ const multicast_ep = network.EndPoint{
     .address = network.Address{
         .ipv4 = network.Address.IPv4.init(224, 0, 0, 1),
     },
-    .port = 1309,
+    .port = protocol.udp.port,
 };
 
 fn thread_proc(allocator: *std.mem.Allocator) !void {
