@@ -1,3 +1,5 @@
+const std = @import("std");
+
 pub const ResourceID = extern enum(u32) { invalid, first, _ };
 pub const ObjectID = extern enum(u32) { invalid, first, _ };
 pub const PropertyName = extern enum(u32) { invalid, first, _ };
@@ -53,10 +55,10 @@ pub const DisconnectReason = extern enum(u32) {
 };
 
 pub const Color = extern struct {
-    r: u8,
-    g: u8,
-    b: u8,
-    a: u8,
+    red: u8,
+    green: u8,
+    blue: u8,
+    alpha: u8,
 };
 
 pub const Point = extern struct {
@@ -65,8 +67,8 @@ pub const Point = extern struct {
 };
 
 pub const Size = extern struct {
-    w: u32,
-    h: u32,
+    width: u32,
+    height: u32,
 };
 
 pub const Margins = extern struct {
@@ -96,6 +98,44 @@ pub const ValueStorage = extern union {
 pub const Value = extern struct {
     type: Type,
     value: ValueStorage,
+
+    pub fn format(self: @This(), comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        try writer.print("{}(", .{@tagName(self.type)});
+        switch (self.type) {
+            .integer => try writer.print("{}", .{self.value.integer}),
+            .enumeration => try writer.print("{}", .{self.value.enumeration}),
+            .number => try writer.print("{d}", .{self.value.number}),
+            .string => try writer.writeAll(std.mem.span(self.value.string)),
+            .resource => try writer.print("{}", .{@enumToInt(self.value.resource)}),
+            .object => try writer.print("{}", .{@enumToInt(self.value.object)}),
+            .color => try writer.print("{},{},{},{}", .{
+                self.value.color.red,
+                self.value.color.green,
+                self.value.color.blue,
+                self.value.color.alpha,
+            }),
+            .size => try writer.print("{}x{}", .{
+                self.value.size.width,
+                self.value.size.height,
+            }),
+            .point => try writer.print("{},{}", .{
+                self.value.point.x,
+                self.value.point.y,
+            }),
+            .margins => try writer.print("{},{},{},{}", .{
+                self.value.margins.left,
+                self.value.margins.top,
+                self.value.margins.right,
+                self.value.margins.bottom,
+            }),
+            .boolean => try writer.print("{}", .{self.value.boolean}),
+            .event => try writer.print("{}", .{@enumToInt(self.value.event)}),
+            .name => try writer.print("{}", .{@enumToInt(self.value.name)}),
+
+            else => try writer.writeAll("???"),
+        }
+        try writer.writeAll(")");
+    }
 };
 
 // Required for C api

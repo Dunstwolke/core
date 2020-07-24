@@ -60,7 +60,7 @@ export fn dunstblick_OpenProvider(discoveryName: [*:0]const u8) callconv(.C) ?*a
             const provider = try allocator.create(app.Application);
             errdefer allocator.destroy(provider);
 
-            provider.* = try app.Application.init(allocator, dname);
+            provider.* = try app.Application.open(allocator, dname);
 
             return provider;
         }
@@ -96,7 +96,7 @@ export fn dunstblick_SetConnectedCallback(provider: *app.Application, callback: 
     const lock = provider.mutex.acquire();
     defer lock.release();
 
-    provider.onConnected = .{ .function = callback, .user_data = userData };
+    provider.on_connected = .{ .function = callback, .user_data = userData };
     return .none;
 }
 
@@ -104,7 +104,7 @@ export fn dunstblick_SetDisconnectedCallback(provider: *app.Application, callbac
     const lock = provider.mutex.acquire();
     defer lock.release();
 
-    provider.onDisconnected = .{ .function = callback, .user_data = userData };
+    provider.on_disconnected = .{ .function = callback, .user_data = userData };
     return .none;
 }
 
@@ -137,19 +137,19 @@ export fn dunstblick_GetClientName(connection: *app.Connection) callconv(.C) [*:
 export fn dunstblick_GetDisplaySize(connection: *app.Connection) callconv(.C) app.Size {
     const lock = connection.mutex.acquire();
     defer lock.release();
-    return connection.screenResolution;
+    return connection.screen_resolution;
 }
 
 export fn dunstblick_SetEventCallback(connection: *app.Connection, callback: app.EventCallback, userData: ?*c_void) callconv(.C) void {
     const lock = connection.mutex.acquire();
     defer lock.release();
-    connection.onEvent = .{ .function = callback, .user_data = userData };
+    connection.on_event = .{ .function = callback, .user_data = userData };
 }
 
 export fn dunstblick_SetPropertyChangedCallback(connection: *app.Connection, callback: app.PropertyChangedCallback, userData: ?*c_void) callconv(.C) void {
     const lock = connection.mutex.acquire();
     defer lock.release();
-    connection.onPropertyChanged = .{ .function = callback, .user_data = userData };
+    connection.on_property_changed = .{ .function = callback, .user_data = userData };
 }
 
 export fn dunstblick_GetUserData(connection: *app.Connection) callconv(.C) ?*c_void {

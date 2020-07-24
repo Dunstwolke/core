@@ -87,15 +87,15 @@ pub fn Encoder(comptime Stream: type) type {
                 },
 
                 .color => {
-                    try self.writeByte(val.color.r);
-                    try self.writeByte(val.color.g);
-                    try self.writeByte(val.color.b);
-                    try self.writeByte(val.color.a);
+                    try self.writeByte(val.color.red);
+                    try self.writeByte(val.color.green);
+                    try self.writeByte(val.color.blue);
+                    try self.writeByte(val.color.alpha);
                 },
 
                 .size => {
-                    try self.writeVarUInt(val.size.w);
-                    try self.writeVarUInt(val.size.h);
+                    try self.writeVarUInt(val.size.width);
+                    try self.writeVarUInt(val.size.height);
                 },
 
                 .point => {

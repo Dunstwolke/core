@@ -86,15 +86,15 @@ pub const Decoder = struct {
             .boolean => val.boolean = ((try self.readByte()) != 0),
 
             .color => {
-                val.color.r = try self.readByte();
-                val.color.g = try self.readByte();
-                val.color.b = try self.readByte();
-                val.color.a = try self.readByte();
+                val.color.red = try self.readByte();
+                val.color.green = try self.readByte();
+                val.color.blue = try self.readByte();
+                val.color.alpha = try self.readByte();
             },
 
             .size => {
-                val.size.w = try self.readVarUInt();
-                val.size.h = try self.readVarUInt();
+                val.size.width = try self.readVarUInt();
+                val.size.height = try self.readVarUInt();
             },
 
             .point => {

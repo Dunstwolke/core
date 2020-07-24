@@ -672,11 +672,7 @@ fn parseProperty(parser: Parser, outStream: anytype, property: enums.Property, p
         },
 
         .event => try parseID(parser, outStream, "callback", parser.events),
-
-        .name => {
-            // try parseID(tokens, outStream, errors, "na");
-            unreachable;
-        },
+        .name => try parseID(parser, outStream, "widget", parser.events),
     }
 }
 

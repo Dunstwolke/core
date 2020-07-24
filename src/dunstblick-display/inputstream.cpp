@@ -57,6 +57,9 @@ UIValue InputStream::read_value(UIType type)
         case UIType::event:
             return EventID(this->read_uint());
 
+        case UIType::name:
+            return WidgetName(this->read_uint());
+
         case UIType::object: // objects are always references!
             return ObjectRef{ObjectID(this->read_uint())};
 
@@ -141,5 +144,8 @@ UIValue InputStream::read_value(UIType type)
             return std::move(list);
         }
     }
-    assert(false and "property type not in table yet!");
+
+    fprintf(stderr, "Unsupported property type in InputStream: %lu\n", size_t(type));
+
+    return UIValue(std::monostate{});
 }

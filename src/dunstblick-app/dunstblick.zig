@@ -2,7 +2,7 @@ const std = @import("std");
 const xnet = @import("network");
 const protocol = @import("dunstblick-protocol");
 
-const DisconnectReason = enum(u32) {
+pub const DisconnectReason = enum(u32) {
     /// The user closed the connection.
     quit = 0,
 
@@ -22,17 +22,18 @@ const DisconnectReason = enum(u32) {
     protocol_mismatch = 5,
 };
 
-const ClientCapabilities = protocol.ClientCapabilities;
+pub const ClientCapabilities = protocol.ClientCapabilities;
 pub const Size = extern struct {
     width: u32,
     height: u32,
 };
-const ResourceID = protocol.ResourceID;
-const ObjectID = protocol.ObjectID;
-const EventID = protocol.EventID;
-const PropertyName = protocol.PropertyName;
-const Value = protocol.Value;
-const ResourceKind = protocol.ResourceKind;
+pub const ResourceID = protocol.ResourceID;
+pub const ObjectID = protocol.ObjectID;
+pub const EventID = protocol.EventID;
+pub const PropertyName = protocol.PropertyName;
+pub const Value = protocol.Value;
+pub const ResourceKind = protocol.ResourceKind;
+pub const WidgetName = protocol.WidgetName;
 
 /// A callback that is called whenever a new display client has successfully
 /// connected to the display provider.
@@ -77,7 +78,7 @@ pub const EventCallback = fn (
     ///< the display client that triggered the event.
     connection: *Connection,
     ///< The id of the event that was triggered. This ID is specified in the UI layout.
-    callback: protocol.EventID,
+    event: protocol.EventID,
     ///< The name of the widget that triggered the event.
     caller: protocol.WidgetName,
     ///< The user data pointer that was passed to @ref dunstblick_SetEventCallback.
@@ -146,22 +147,6 @@ fn extractString(str: []const u8) []const u8 {
     return str;
 }
 
-fn Callback(comptime F: type) type {
-    return struct {
-        const Self = @This();
-        function: ?F,
-        user_data: ?*c_void,
-
-        fn invoke(self: Self, args: anytype) void {
-            if (self.function) |function| {
-                @call(.{}, function, args ++ .{self.user_data});
-            } else {
-                std.log.debug(.dunstblick, "callback does not exist!\n", .{});
-            }
-        }
-    };
-}
-
 const ConnectionHeader = struct {
     clientName: [:0]const u8,
     password: [:0]const u8,
@@ -223,7 +208,7 @@ pub const Connection = struct {
     disconnect_reason: ?DisconnectReason = null,
 
     header: ?ConnectionHeader,
-    screenResolution: Size,
+    screen_resolution: Size,
 
     receive_buffer: std.ArrayList(u8),
     provider: *Application,
@@ -241,7 +226,7 @@ pub const Connection = struct {
 
     // FIX: #5920
     // Lock access to event in multithreaded scenarios!
-    onEvent: struct {
+    on_event: struct {
         function: ?EventCallback,
         user_data: ?*c_void,
 
@@ -254,8 +239,9 @@ pub const Connection = struct {
         }
     },
 
+    // FIX: #5920
     // Lock access to event in multithreaded scenarios!
-    onPropertyChanged: struct {
+    on_property_changed: struct {
         function: ?PropertyChangedCallback,
         user_data: ?*c_void,
 
@@ -276,15 +262,15 @@ pub const Connection = struct {
             .remote = endpoint,
             .provider = provider,
             .header = null,
-            .screenResolution = undefined,
+            .screen_resolution = undefined,
             .receive_buffer = std.ArrayList(u8).init(provider.allocator),
             .required_resource_count = undefined,
             .required_resources = std.ArrayList(ResourceID).init(provider.allocator),
             .resource_send_index = undefined,
             .resource_send_offset = undefined,
             .user_data_pointer = null,
-            .onEvent = .{ .function = null, .user_data = null },
-            .onPropertyChanged = .{ .function = null, .user_data = null },
+            .on_event = .{ .function = null, .user_data = null },
+            .on_property_changed = .{ .function = null, .user_data = null },
         };
     }
 
@@ -364,8 +350,8 @@ pub const Connection = struct {
                         self.header = header;
                     }
 
-                    self.screenResolution.width = net_header.screen_size_x;
-                    self.screenResolution.height = net_header.screen_size_y;
+                    self.screen_resolution.width = net_header.screen_size_x;
+                    self.screen_resolution.height = net_header.screen_size_y;
 
                     {
                         const lock = self.provider.resource_lock.acquire();
@@ -556,7 +542,7 @@ pub const Connection = struct {
                 const id = try reader.readVarUInt();
                 const widget = try reader.readVarUInt();
 
-                self.onEvent.invoke(.{
+                self.on_event.invoke(.{
                     self,
                     @intToEnum(protocol.EventID, id),
                     @intToEnum(protocol.WidgetName, widget),
@@ -569,7 +555,7 @@ pub const Connection = struct {
 
                 const value = try reader.readValue(value_type, null);
 
-                self.onPropertyChanged.invoke(.{
+                self.on_property_changed.invoke(.{
                     self,
                     @intToEnum(protocol.ObjectID, obj_id),
                     @intToEnum(protocol.PropertyName, property),
@@ -759,12 +745,35 @@ pub const Application = struct {
     pending_connections: ConnectionList,
     established_connections: ConnectionList,
 
-    onConnected: Callback(ConnectedCallback),
-    onDisconnected: Callback(DisconnectedCallback),
+    on_connected: struct {
+        function: ?ConnectedCallback,
+        user_data: ?*c_void,
+
+        fn invoke(self: @This(), args: anytype) void {
+            if (self.function) |function| {
+                @call(.{}, function, args ++ .{self.user_data});
+            } else {
+                std.log.debug(.dunstblick, "callback does not exist!\n", .{});
+            }
+        }
+    },
+
+    on_disconnected: struct {
+        function: ?DisconnectedCallback,
+        user_data: ?*c_void,
+
+        fn invoke(self: @This(), args: anytype) void {
+            if (self.function) |function| {
+                @call(.{}, function, args ++ .{self.user_data});
+            } else {
+                std.log.debug(.dunstblick, "callback does not exist!\n", .{});
+            }
+        }
+    },
 
     socket_set: xnet.SocketSet,
 
-    pub fn init(allocator: *std.mem.Allocator, discoveryName: []const u8) !Self {
+    pub fn open(allocator: *std.mem.Allocator, discoveryName: []const u8) !Self {
         var provider = Self{
             .mutex = std.Mutex.init(),
             .resource_lock = std.Mutex.init(),
@@ -775,8 +784,8 @@ pub const Application = struct {
             .pending_connections = ConnectionList.init(),
             .established_connections = ConnectionList.init(),
 
-            .onConnected = .{ .function = null, .user_data = null },
-            .onDisconnected = .{ .function = null, .user_data = null },
+            .on_connected = .{ .function = null, .user_data = null },
+            .on_disconnected = .{ .function = null, .user_data = null },
 
             .socket_set = try xnet.SocketSet.init(allocator),
 
@@ -829,7 +838,7 @@ pub const Application = struct {
                 var next = item.next;
                 defer iter = next;
 
-                self.onDisconnected.invoke(.{
+                self.on_disconnected.invoke(.{
                     self,
                     &item.data,
                     .shutdown,
@@ -1041,12 +1050,12 @@ pub const Application = struct {
                 if (item.data.is_initialized) {
                     self.pending_connections.remove(item);
 
-                    self.onConnected.invoke(.{
+                    self.on_connected.invoke(.{
                         self,
                         &item.data,
                         item.data.header.?.clientName,
                         item.data.header.?.password,
-                        item.data.screenResolution,
+                        item.data.screen_resolution,
                         item.data.header.?.capabilities,
                     });
 
