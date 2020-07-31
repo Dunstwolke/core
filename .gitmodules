@@ -19,3 +19,6 @@
 [submodule "lib/optional"]
 	path = lib/optional
 	url = https://github.com/TartanLlama/optional
+[submodule "lib/ziggy-on-android"]
+	path = lib/ziggy-on-android
+	url = https://github.com/MasterQ32/ziggy-on-android

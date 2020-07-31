@@ -69,7 +69,11 @@ void RenderContext::fillRect(Rectangle const & rect, Color color)
 
 void RenderContext::drawIcon(Rectangle const & rect, Image * texture, xstd::optional<Rectangle> clip_rect)
 {
-    api->drawIcon(api, texture, rect);
+    if (clip_rect) {
+        api->drawIcon(api, texture, rect, &*clip_rect);
+    } else {
+        api->drawIcon(api, texture, rect, nullptr);
+    }
 }
 
 void RenderContext::drawHLine(int startX, int startY, int width, LineStyle style)

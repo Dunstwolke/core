@@ -55,6 +55,7 @@ pub fn build(b: *Builder) !void {
     const compiler_test = b.addTest("./src/dunstblick-compiler/main.zig");
 
     const lib = b.addStaticLibrary("dunstblick", "./src/libdunstblick/src/c-binding.zig");
+    lib.emit_docs = true;
     lib.addPackage(pkgs.dunstblick_app);
     lib.addPackage(pkgs.dunstblick_protocol);
     lib.linkLibC();

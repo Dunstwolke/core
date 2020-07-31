@@ -4,22 +4,24 @@
 #include "widget.hpp"
 #include <stack>
 
+#define EXTERN __attribute__((cdecl))
+
 /// Keep in sync with
 /// painting.zig
 struct PainterAPI
 {
-    void __attribute__((cdecl)) (*fillRectangle)(PainterAPI * self, Rectangle rectangle, Color color);
-    void __attribute__((cdecl)) (*drawRectangle)(PainterAPI * self, Rectangle rect, Bevel bevel);
-    void __attribute__((cdecl)) (*drawHLine)(PainterAPI * self, ssize_t x0, ssize_t y0, size_t width, LineStyle style);
-    void __attribute__((cdecl)) (*drawVLine)(PainterAPI * self, ssize_t x0, ssize_t y0, size_t height, LineStyle style);
-    void __attribute__((cdecl)) (*drawIcon)(PainterAPI * self, Image * icon, Rectangle rectangle);
-    UISize __attribute__((cdecl)) (*measureString)(
+    void EXTERN (*fillRectangle)(PainterAPI * self, Rectangle rectangle, Color color);
+    void EXTERN (*drawRectangle)(PainterAPI * self, Rectangle rect, Bevel bevel);
+    void EXTERN (*drawHLine)(PainterAPI * self, ssize_t x0, ssize_t y0, size_t width, LineStyle style);
+    void EXTERN (*drawVLine)(PainterAPI * self, ssize_t x0, ssize_t y0, size_t height, LineStyle style);
+    void EXTERN (*drawIcon)(PainterAPI * self, Image * icon, Rectangle target, Rectangle const * source);
+    UISize EXTERN (*measureString)(
         PainterAPI * self, uint8_t const * text, size_t text_len, UIFont font, size_t line_width);
-    void __attribute__((cdecl)) (*drawString)(
+    void EXTERN (*drawString)(
         PainterAPI * self, uint8_t const * text, size_t text_len, Rectangle target, UIFont font, TextAlign alignment);
-    void __attribute__((cdecl)) (*setClipRect)(PainterAPI * self, Rectangle rect);
-    void __attribute__((cdecl)) (*resetClipRect)(PainterAPI * self);
-    Rectangle __attribute__((cdecl)) (*getClipRect)(PainterAPI * self);
+    void EXTERN (*setClipRect)(PainterAPI * self, Rectangle rect);
+    void EXTERN (*resetClipRect)(PainterAPI * self);
+    Rectangle EXTERN (*getClipRect)(PainterAPI * self);
 };
 
 struct RenderContext : IWidgetPainter

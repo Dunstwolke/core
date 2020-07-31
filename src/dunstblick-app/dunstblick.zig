@@ -2,26 +2,8 @@ const std = @import("std");
 const xnet = @import("network");
 const protocol = @import("dunstblick-protocol");
 
-pub const DisconnectReason = enum(u32) {
-    /// The user closed the connection.
-    quit = 0,
-
-    /// The connection was closed by a call to @ref dunstblick_CloseConnection.
-    shutdown = 1,
-
-    /// The display client did not respond for a longer time.
-    timeout = 2,
-
-    /// The network connection failed.
-    network_error = 3,
-
-    /// The client was forcefully disconnected for sending invalid data.
-    invalid_data = 4,
-
-    /// The protocol used by the display client is not compatible to this library.
-    protocol_mismatch = 5,
-};
-
+/// Enumeration of reasons why a connection to an application could have closed.
+pub const DisconnectReason = protocol.DisconnectReason;
 pub const ClientCapabilities = protocol.ClientCapabilities;
 pub const Size = extern struct {
     width: u32,
@@ -184,6 +166,8 @@ const StoredResource = struct {
     }
 };
 
+/// A connection that was established by a display client.
+/// Use these to interact with your clients.
 pub const Connection = struct {
     const Self = @This();
 
@@ -226,6 +210,7 @@ pub const Connection = struct {
 
     // FIX: #5920
     // Lock access to event in multithreaded scenarios!
+    /// This callback is invoked when the display client triggers a widget event.
     on_event: struct {
         function: ?EventCallback,
         user_data: ?*c_void,
@@ -241,6 +226,7 @@ pub const Connection = struct {
 
     // FIX: #5920
     // Lock access to event in multithreaded scenarios!
+    /// This callback is invoked when the display client changes a property value.
     on_property_changed: struct {
         function: ?PropertyChangedCallback,
         user_data: ?*c_void,
@@ -585,6 +571,8 @@ pub const Connection = struct {
     }
 
     // User API
+
+    /// Closes the connection to the client. `actual_reason` will be displayed to the user if possible.
     pub fn close(self: *Self, actual_reason: []const u8) void {
         {
             const lock = self.mutex.acquire();
@@ -605,6 +593,8 @@ pub const Connection = struct {
         self.send(buffer.items) catch return;
     }
 
+    /// Sets the current view.
+    /// This view must have been uploaded with @ref dunstblick_UploadResource earlier.
     pub fn setView(self: *Self, id: ResourceID) DunstblickError!void {
         var backing_buf: [4096]u8 = undefined;
         var stream = std.io.fixedBufferStream(&backing_buf);
@@ -615,6 +605,9 @@ pub const Connection = struct {
         try self.send(stream.getWritten());
     }
 
+    /// Sets the current binding root.
+    /// This object will serve as the root of all binding functions and will provide
+    /// the root logic for the current view.
     pub fn setRoot(self: *Self, id: ObjectID) DunstblickError!void {
         var backing_buf: [4096]u8 = undefined;
         var stream = std.io.fixedBufferStream(&backing_buf);
@@ -625,6 +618,13 @@ pub const Connection = struct {
         try self.send(stream.getWritten());
     }
 
+    /// Starts an object change. This is similar to a SQL transaction:
+    /// - the change process is initiated
+    /// - changes are made to an object handle
+    /// - the process is either commited or cancelled.
+    ///
+    /// @returns Handle to the object that should be updated. Commit or cancel this handle to finalize this transaction.
+    /// @see dunstblick_CommitObject, dunstblick_CancelObject, dunstblick_SetObjectProperty
     pub fn beginChangeObject(self: *Self, id: ObjectID) !*Object {
         var object = try self.provider.allocator.create(Object);
         errdefer self.provider.allocator.destroy(object);
@@ -639,6 +639,7 @@ pub const Connection = struct {
         return object;
     }
 
+    /// Removes a previously uploaded object.
     pub fn removeObject(self: *Self, id: ObjectID) DunstblickError!void {
         var backing_buf: [128]u8 = undefined;
         var stream = std.io.fixedBufferStream(&backing_buf);
@@ -649,6 +650,8 @@ pub const Connection = struct {
         try self.send(stream.getWritten());
     }
 
+    /// Moves a given range in a list property.
+    /// This action is currently not implemented due to underspecification.
     pub fn moveRange(self: *Self, object: ObjectID, name: PropertyName, indexFrom: u32, indexTo: u32, count: u32) DunstblickError!void {
         var backing_buf: [4096]u8 = undefined;
         var stream = std.io.fixedBufferStream(&backing_buf);
@@ -664,6 +667,8 @@ pub const Connection = struct {
         try self.send(stream.getWritten());
     }
 
+    /// Sets a property on the given object.
+    /// The third parameter depends on the given type parameter.
     pub fn setProperty(self: *Self, object: ObjectID, name: PropertyName, value: Value) DunstblickError!void {
         var backing_buf: [4096]u8 = undefined;
         var stream = std.io.fixedBufferStream(&backing_buf);
@@ -677,6 +682,8 @@ pub const Connection = struct {
         try self.send(stream.getWritten());
     }
 
+    /// Clears a list property of an object.
+    /// This action will remove all object references from an objectlist property.
     pub fn clear(self: *Self, object: ObjectID, name: PropertyName) DunstblickError!void {
         var backing_buf: [128]u8 = undefined;
         var stream = std.io.fixedBufferStream(&backing_buf);
@@ -689,6 +696,7 @@ pub const Connection = struct {
         try self.send(stream.getWritten());
     }
 
+    /// Inserts a given range of object references into a list property.
     pub fn insertRange(self: *Self, object: ObjectID, name: PropertyName, index: u32, values: []const ObjectID) DunstblickError!void {
         var backing_buf: [4096]u8 = undefined;
         var stream = std.io.fixedBufferStream(&backing_buf);
@@ -707,6 +715,7 @@ pub const Connection = struct {
         try self.send(stream.getWritten());
     }
 
+    /// Removes a given range from a list property.
     pub fn removeRange(self: *Self, object: ObjectID, name: PropertyName, index: u32, count: u32) DunstblickError!void {
         var backing_buf: [128]u8 = undefined;
         var stream = std.io.fixedBufferStream(&backing_buf);
@@ -773,6 +782,8 @@ pub const Application = struct {
 
     socket_set: xnet.SocketSet,
 
+    /// Creates a new application that is visible to the network.
+    /// `discoveryName` is the name that is shown to the discovering clients.
     pub fn open(allocator: *std.mem.Allocator, discoveryName: []const u8) !Self {
         var provider = Self{
             .mutex = std.Mutex.init(),
@@ -798,6 +809,7 @@ pub const Application = struct {
         errdefer provider.resources.deinit();
 
         provider.discovery_name = try std.mem.dupe(allocator, u8, discoveryName);
+        errdefer allocator.free(provider.discovery_name);
 
         // Initialize TCP socket:
         provider.tcp_sock = try xnet.Socket.create(.ipv4, .tcp);
@@ -831,6 +843,7 @@ pub const Application = struct {
         return provider;
     }
 
+    /// Closes the application and all connections.
     pub fn close(self: *Self) void {
         {
             var iter = self.established_connections.first;
@@ -866,7 +879,10 @@ pub const Application = struct {
         self.socket_set.deinit();
     }
 
-    /// timeout is in nanoseconds.
+    /// Pumps network data, calls connection events and disconnect/connect callbacks.
+    /// Call this function continuously to provide a fluent user interaction
+    /// and prevent network timeouts.
+    /// This function will pump events for up to `timeout` nanoseconds.
     pub fn pumpEvents(self: *Self, timeout: ?u64) DunstblickError!void {
         self.socket_set.clear();
 
@@ -1082,6 +1098,12 @@ pub const Application = struct {
 
     // Public API
 
+    /// Adds a resource to the UI system.
+    /// The resource will be hashed and stored until the provider is shut down
+    /// or the the resource is removed again.
+    /// Resources in the storage will be uploaded to a display client on connection
+    /// and newly added resources will also be sent to all currently connected display
+    /// clients.
     pub fn addResource(self: *Self, id: protocol.ResourceID, kind: protocol.ResourceKind, data: []const u8) DunstblickError!void {
         const lock = self.mutex.acquire();
         defer lock.release();
@@ -1103,6 +1125,10 @@ pub const Application = struct {
         result.entry.value.updateHash();
     }
 
+    /// Deletes a resource from the UI system.
+    /// Already uploaded resources will stay uploaded until the resource ID is
+    /// used again, but newly connected display clients will not receive the
+    /// resource anymore.
     pub fn removeResource(self: *Self, id: protocol.ResourceID) DunstblickError!void {
         const lock = self.mutex.acquire();
         defer lock.release();
@@ -1113,6 +1139,8 @@ pub const Application = struct {
     }
 };
 
+/// Temporary handle to a object structure.
+/// Allows batch-uploads to objects on the display client.
 pub const Object = struct {
     const Self = @This();
     connection: *Connection,
@@ -1134,6 +1162,8 @@ pub const Object = struct {
         self.commandbuffer.deinit();
     }
 
+    /// Sets a property on the given object.
+    /// The third parameter depends on the given type parameter.
     pub fn setProperty(self: *Self, name: protocol.PropertyName, value: Value) DunstblickError!void {
         var enc = protocol.makeEncoder(self.commandbuffer.writer());
 
@@ -1142,6 +1172,11 @@ pub const Object = struct {
         try enc.writeValue(value, false);
     }
 
+    /// The object will either be added to the list of objects
+    /// or, if an object with the same ID already exists, will replace that object.
+    /// The new object will only have the properties set in this transaction,
+    /// All old properties will be *removed*.
+    /// The object will be released in this function. the handle is not valid after this function is called.
     pub fn commit(self: *Self) DunstblickError!void {
         defer self.cancel(); // self will free the memory
 
@@ -1151,6 +1186,8 @@ pub const Object = struct {
         try self.connection.send(self.commandbuffer.items);
     }
 
+    /// Closes the object and cancels the update process.
+    /// The object will be released in this function. the handle is not valid after this function is called.
     pub fn cancel(self: *Self) void {
         self.commandbuffer.deinit();
         self.connection.provider.allocator.destroy(self);

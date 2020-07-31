@@ -32,24 +32,46 @@ pub const Type = extern enum(u32) {
     _,
 };
 
+/// Possible properties a client can expose.
 pub const ClientCapabilities = extern enum(u32) {
+    /// The client does not have any capabilities. Provide the bare minimum GUI.
     none = 0,
+    /// The client has a mouse with at least one button available.
     mouse = 1,
+    /// The client has a keyboard available.
     keyboard = 2,
+    /// The client has a touchscreen available.
     touch = 4,
+    /// The client has a high-density screen. You might want to send larger bitmaps for
+    /// improved display.
     highdpi = 8,
+    /// The client screen allows to tilt the screen from landscape to portrait and back.
+    /// You may provide a layout that can serve both.
     tiltable = 16,
+    /// The client screen allows to be resized. You may provide a layout that can respect this.
     resizable = 32,
+    /// The client requests to be screen-reader compatible. Serve simpler layouts when possible.
     req_accessibility = 64,
     _,
 };
 
 pub const DisconnectReason = extern enum(u32) {
+    /// The user closed the connection.
     quit = 0,
+
+    /// The connection was closed by a call to `Connection.close`.
     shutdown = 1,
+
+    /// The display client did not respond for a longer time.
     timeout = 2,
+
+    /// The network connection failed.
     network_error = 3,
+
+    /// The client was forcefully disconnected for sending invalid data.
     invalid_data = 4,
+
+    /// The protocol used by the display client is not compatible to this library.
     protocol_mismatch = 5,
     _,
 };

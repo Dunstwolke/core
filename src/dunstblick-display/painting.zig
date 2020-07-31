@@ -81,7 +81,7 @@ pub const PainterAPI = extern struct {
     drawRectangle: fn (self: *Self, rect: Rectangle, bevel: Bevel) callconv(.C) void,
     drawHLine: fn (self: *Self, x0: isize, y0: isize, width: usize, style: LineStyle) callconv(.C) void,
     drawVLine: fn (self: *Self, x0: isize, y0: isize, height: usize, style: LineStyle) callconv(.C) void,
-    drawIcon: fn (self: *Self, icon: *Image, rectangle: Rectangle) callconv(.C) void,
+    drawIcon: fn (self: *Self, icon: *Image, rectangle: Rectangle, source: ?*const Rectangle) callconv(.C) void,
     measureString: fn (self: *Self, text: [*]const u8, text_len: usize, font: Font, line_width: usize) callconv(.C) Size,
     drawString: fn (self: *Self, text: [*]const u8, text_len: usize, target: Rectangle, font: Font, alignment: TextAlign) callconv(.C) void,
 
@@ -105,9 +105,9 @@ pub const PainterAPI = extern struct {
         const painter = @fieldParentPtr(Painter, "api", self);
         painter.drawVLine(x0, y0, height, style);
     }
-    fn painterDrawIcon(self: *Self, icon: *Image, rectangle: Rectangle) callconv(.C) void {
+    fn painterDrawIcon(self: *Self, icon: *Image, rectangle: Rectangle, source: ?*const Rectangle) callconv(.C) void {
         const painter = @fieldParentPtr(Painter, "api", self);
-        painter.drawIcon(icon.*, rectangle);
+        painter.drawIcon(icon.*, rectangle, if (source) |src| src.* else null);
     }
     fn painterMeasureString(self: *Self, text: [*]const u8, text_len: usize, font: Font, line_width: usize) callconv(.C) Size {
         const painter = @fieldParentPtr(Painter, "api", self);
@@ -310,9 +310,16 @@ pub const Painter = struct {
         );
     }
 
-    pub fn drawIcon(self: *Self, icon: Image, rectangle: Rectangle) void {
+    pub fn drawIcon(self: *Self, icon: Image, target: Rectangle, source: ?Rectangle) void {
         var canvas = Canvas.init(self);
-        canvas.copyRectangle(rectangle.x, rectangle.y, 0, 0, rectangle.width, rectangle.height, icon, Image.getPixel);
+
+        if (source) |src| {
+            // std.debug.print("{} {}\n", .{ target, source });
+            canvas.copyRectangleStretched(target.x, target.y, target.width, target.height, src.x, src.y, src.width, src.height, icon, Image.getPixel);
+        } else {
+            canvas.copyRectangleStretched(target.x, target.y, target.width, target.height, 0, 0, icon.width, icon.height, icon, Image.getPixel);
+            // canvas.copyRectangle(target.x, target.y, 0, 0, target.width, target.height, icon, Image.getPixel);
+        }
     }
 
     fn scaleInt(ival: isize, scale: f32) isize {
