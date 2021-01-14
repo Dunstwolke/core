@@ -2,6 +2,8 @@ const painterz = @import("painterz");
 const std = @import("std");
 const sdl = @import("sdl2");
 
+const log = std.log.scoped(.painting);
+
 const c = @import("c.zig");
 
 const protocol = @import("dunstblick-protocol");
@@ -207,7 +209,7 @@ pub const Painter = struct {
             .highlight => canvas.fillRectangle(rectangle.x, rectangle.y, rectangle.width, rectangle.height, self.scheme.highlight),
             .background => canvas.fillRectangle(rectangle.x, rectangle.y, rectangle.width, rectangle.height, self.scheme.background),
             .input_field => canvas.fillRectangle(rectangle.x, rectangle.y, rectangle.width, rectangle.height, self.scheme.input_field),
-            .checkered => canvas.copyRectangle(rectangle.x, rectangle.y, 0, 0, rectangle.width, rectangle.height, {}, struct {
+            .checkered => canvas.copyRectangle(rectangle.x, rectangle.y, 0, 0, rectangle.width, rectangle.height, false, {}, struct {
                 fn pattern(src: void, x: isize, y: isize) Color {
                     return if ((x & 1) == (y & 1))
                         Color{ .r = 0x00, .g = 0x00, .b = 0x00, .a = 0xFF }
@@ -315,9 +317,9 @@ pub const Painter = struct {
 
         if (source) |src| {
             // std.debug.print("{} {}\n", .{ target, source });
-            canvas.copyRectangleStretched(target.x, target.y, target.width, target.height, src.x, src.y, src.width, src.height, icon, Image.getPixel);
+            canvas.copyRectangleStretched(target.x, target.y, target.width, target.height, src.x, src.y, src.width, src.height, false, icon, Image.getPixel);
         } else {
-            canvas.copyRectangleStretched(target.x, target.y, target.width, target.height, 0, 0, icon.width, icon.height, icon, Image.getPixel);
+            canvas.copyRectangleStretched(target.x, target.y, target.width, target.height, 0, 0, icon.width, icon.height, false, icon, Image.getPixel);
             // canvas.copyRectangle(target.x, target.y, 0, 0, target.width, target.height, icon, Image.getPixel);
         }
     }
@@ -425,6 +427,7 @@ pub const Painter = struct {
                 0,
                 glyph.width,
                 glyph.height,
+                false,
                 glyph,
                 Glyph.getPixel,
             );
@@ -665,7 +668,7 @@ export fn painting_image_load(data: [*]const u8, data_len: usize) ?*Image {
 
     img.* = Image.load(data[0..data_len]) catch |err| {
         std.heap.c_allocator.destroy(img);
-        std.log.err(.painting, "Could not load provided image data: {}\n", .{err});
+        log.err("Could not load provided image data: {}", .{err});
         return null;
     };
 

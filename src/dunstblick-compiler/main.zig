@@ -28,13 +28,13 @@ pub fn main() !u8 {
 
     switch (args.positionals.len) {
         0 => {
-            try std.io.getStdOut().outStream().print("usage: {} [-c config] [-u] [-o output] layoutfile\n", .{
+            try std.io.getStdOut().writer().print("usage: {} [-c config] [-u] [-o output] layoutfile\n", .{
                 args.executable_name,
             });
             return 1;
         },
         2 => {
-            try std.io.getStdOut().outStream().writeAll("invalid number of args!\n");
+            try std.io.getStdOut().writer().writeAll("invalid number of args!\n");
             return 1;
         },
         else => {},
@@ -48,7 +48,7 @@ pub fn main() !u8 {
         var file = try std.fs.cwd().openFile(cfgfile, .{ .read = true, .write = false });
         defer file.close();
 
-        const buffer = try file.inStream().readAllAlloc(std.heap.page_allocator, 1 << 20); // 1 MB
+        const buffer = try file.reader().readAllAlloc(std.heap.page_allocator, 1 << 20); // 1 MB
         errdefer std.heap.page_allocator.free(buffer);
 
         // Don't clone strings, we just let the buffer dangle, will be freed at the end
@@ -59,7 +59,7 @@ pub fn main() !u8 {
         config = try parser.parse(buffer);
 
         validateConfig(config.?) catch |err| {
-            try std.io.getStdOut().outStream().writeAll("invalid config file!\n");
+            try std.io.getStdOut().writer().writeAll("invalid config file!\n");
             return 1;
         };
     }
@@ -81,14 +81,14 @@ pub fn main() !u8 {
     var src = blk: {
         var file = std.fs.cwd().openFile(inputFile, .{ .read = true, .write = false }) catch |err| switch (err) {
             error.FileNotFound => {
-                try std.io.getStdOut().outStream().writeAll("could not read the input file!\n");
+                try std.io.getStdOut().writer().writeAll("could not read the input file!\n");
                 return 1;
             },
             else => return err,
         };
         defer file.close();
 
-        break :blk try file.inStream().readAllAlloc(std.heap.page_allocator, 4 << 20); // max. 4 MB
+        break :blk try file.reader().readAllAlloc(std.heap.page_allocator, 4 << 20); // max. 4 MB
     };
     defer std.heap.page_allocator.free(src);
 
@@ -100,7 +100,7 @@ pub fn main() !u8 {
     }
 
     const outfile_path = if (args.options.output) |outfile| outfile else {
-        try std.io.getStdOut().outStream().writeAll("implicit outfile not supported yet!\n");
+        try std.io.getStdOut().writer().writeAll("implicit outfile not supported yet!\n");
         return 1;
     };
 
@@ -155,7 +155,7 @@ pub fn main() !u8 {
         var file = try std.fs.cwd().createFile(outfile_path, .{ .exclusive = false, .read = false });
         defer file.close();
 
-        var stream = file.outStream();
+        var stream = file.writer();
 
         switch (args.options.@"file-type") {
             .binary => try stream.writeAll(data.items),
@@ -300,9 +300,9 @@ const Parser = struct {
     objects: *IDMap,
 };
 
-fn parseFile(parser: Parser, outStream: anytype) !void {
+fn parseFile(parser: Parser, writer: anytype) !void {
     var identifier = try parser.tokens.expect(.identifier);
-    try parseWidget(parser, outStream, identifier.text);
+    try parseWidget(parser, writer, identifier.text);
 }
 
 fn tokenToInteger(tok: Token) !i32 {
@@ -375,7 +375,7 @@ fn convertString(parser: Parser, input: []const u8) ![]const u8 {
     return output[0..outptr];
 }
 
-fn parseID(parser: Parser, outStream: anytype, functionName: []const u8, map: *IDMap) !void {
+fn parseID(parser: Parser, writer: anytype, functionName: []const u8, map: *IDMap) !void {
     var resource = parser.tokens.expect(.identifier) catch {
         try parser.errors.add(parser.tokens.location, "Expected identifier.", .{});
         try parser.tokens.readUntil(.{.semiColon});
@@ -439,25 +439,25 @@ fn parseID(parser: Parser, outStream: anytype, functionName: []const u8, map: *I
         return;
     };
 
-    try writeVarUInt(outStream, rid);
+    try writeVarUInt(writer, rid);
 }
 
-fn parseProperty(parser: Parser, outStream: anytype, property: enums.Property, propertyType: enums.Type) !void {
+fn parseProperty(parser: Parser, writer: anytype, property: enums.Property, propertyType: enums.Type) !void {
     if (try parser.tokens.peekNextWhitespace()) |tok| {
         if (tok.type == .identifier) {
             if (std.mem.eql(u8, tok.text, "bind")) {
 
                 // this is a bindingx
-                try outStream.writeByte(@as(u8, @enumToInt(property)) | 0x80);
+                try writer.writeByte(@as(u8, @enumToInt(property)) | 0x80);
 
-                try parseID(parser, outStream, "bind", parser.variables);
+                try parseID(parser, writer, "bind", parser.variables);
 
                 return;
             }
         }
     }
 
-    try outStream.writeByte(@enumToInt(property));
+    try writer.writeByte(@enumToInt(property));
 
     switch (propertyType) {
         .invalid => unreachable,
@@ -465,14 +465,14 @@ fn parseProperty(parser: Parser, outStream: anytype, property: enums.Property, p
         // integer;
         .integer => {
             var i = try tokenToInteger(try parser.tokens.expect(.integer));
-            try writeVarSInt(outStream, i);
+            try writeVarSInt(writer, i);
             _ = try parser.tokens.expect(.semiColon);
         },
 
         // number;
         .number => {
             var f = try tokenToNumber(try parser.tokens.expect(.number));
-            try outStream.writeAll(std.mem.asBytes(&f));
+            try writer.writeAll(std.mem.asBytes(&f));
             _ = try parser.tokens.expect(.semiColon);
         },
 
@@ -483,8 +483,8 @@ fn parseProperty(parser: Parser, outStream: anytype, property: enums.Property, p
 
             _ = try parser.tokens.expect(.semiColon);
 
-            try writeVarUInt(outStream, @intCast(u32, string.len));
-            try outStream.writeAll(string);
+            try writeVarUInt(writer, @intCast(u32, string.len));
+            try writer.writeAll(string);
         },
 
         // identifier;
@@ -497,7 +497,7 @@ fn parseProperty(parser: Parser, outStream: anytype, property: enums.Property, p
                     break @as(enums.Enum, e.value);
             } else return error.UnknownEnum;
 
-            try outStream.writeByte(@enumToInt(b));
+            try writer.writeByte(@enumToInt(b));
         },
 
         // Allowed formats:
@@ -519,21 +519,21 @@ fn parseProperty(parser: Parser, outStream: anytype, property: enums.Property, p
 
                     _ = try parser.tokens.expect(.semiColon);
 
-                    try writeVarUInt(outStream, first);
-                    try writeVarUInt(outStream, second);
-                    try writeVarUInt(outStream, third);
-                    try writeVarUInt(outStream, fourth);
+                    try writeVarUInt(writer, first);
+                    try writeVarUInt(writer, second);
+                    try writeVarUInt(writer, third);
+                    try writeVarUInt(writer, fourth);
                 } else {
-                    try writeVarUInt(outStream, first);
-                    try writeVarUInt(outStream, second);
-                    try writeVarUInt(outStream, first);
-                    try writeVarUInt(outStream, second);
+                    try writeVarUInt(writer, first);
+                    try writeVarUInt(writer, second);
+                    try writeVarUInt(writer, first);
+                    try writeVarUInt(writer, second);
                 }
             } else {
-                try writeVarUInt(outStream, first);
-                try writeVarUInt(outStream, first);
-                try writeVarUInt(outStream, first);
-                try writeVarUInt(outStream, first);
+                try writeVarUInt(writer, first);
+                try writeVarUInt(writer, first);
+                try writeVarUInt(writer, first);
+                try writeVarUInt(writer, first);
             }
         },
 
@@ -548,8 +548,8 @@ fn parseProperty(parser: Parser, outStream: anytype, property: enums.Property, p
             var height = try tokenToUnsignedInteger(try parser.tokens.expect(.identifier));
             _ = try parser.tokens.expect(.semiColon);
 
-            try writeVarUInt(outStream, width);
-            try writeVarUInt(outStream, height);
+            try writeVarUInt(writer, width);
+            try writeVarUInt(writer, height);
         },
 
         // integer, integer;
@@ -559,11 +559,11 @@ fn parseProperty(parser: Parser, outStream: anytype, property: enums.Property, p
             var height = try tokenToInteger(try parser.tokens.expect(.identifier));
             _ = try parser.tokens.expect(.semiColon);
 
-            try writeVarSInt(outStream, width);
-            try writeVarSInt(outStream, height);
+            try writeVarSInt(writer, width);
+            try writeVarSInt(writer, height);
         },
 
-        .resource => try parseID(parser, outStream, "resource", parser.resources),
+        .resource => try parseID(parser, writer, "resource", parser.resources),
 
         // true|false|yes|no;
         .boolean => {
@@ -582,7 +582,7 @@ fn parseProperty(parser: Parser, outStream: anytype, property: enums.Property, p
                     break v.value;
             } else return error.UnknownEnum;
 
-            try outStream.writeByte(@boolToInt(val));
+            try writer.writeByte(@boolToInt(val));
         },
 
         // (identifier|percentage|integer)
@@ -640,7 +640,7 @@ fn parseProperty(parser: Parser, outStream: anytype, property: enums.Property, p
                     break;
             }
 
-            try writeVarUInt(outStream, @intCast(u32, list.items.len));
+            try writeVarUInt(writer, @intCast(u32, list.items.len));
 
             {
                 var i: usize = 0;
@@ -652,27 +652,27 @@ fn parseProperty(parser: Parser, outStream: anytype, property: enums.Property, p
                         value |= @as(u8, @enumToInt(@as(SizeType, list.items[i + j]))) << @intCast(u3, 2 * j);
                     }
 
-                    try outStream.writeByte(value);
+                    try writer.writeByte(value);
                 }
             }
 
             for (list.items) |item| {
                 switch (item) {
-                    .pixels => |v| try writeVarUInt(outStream, v),
-                    .percentage => |v| try outStream.writeByte(@as(u8, v) | 0x80),
+                    .pixels => |v| try writeVarUInt(writer, v),
+                    .percentage => |v| try writer.writeByte(@as(u8, v) | 0x80),
                     else => {},
                 }
             }
         },
 
-        .object => try parseID(parser, outStream, "object", parser.objects),
+        .object => try parseID(parser, writer, "object", parser.objects),
 
         .objectlist => {
             unreachable;
         },
 
-        .event => try parseID(parser, outStream, "callback", parser.events),
-        .name => try parseID(parser, outStream, "widget", parser.events),
+        .event => try parseID(parser, writer, "callback", parser.events),
+        .name => try parseID(parser, writer, "widget", parser.events),
     }
 }
 
@@ -686,9 +686,9 @@ const ParseWidgetError = error{
     InvalidCharacter,
     UnknownEnum,
 };
-fn parseWidget(parser: Parser, outStream: anytype, widgetTypeName: []const u8) ParseWidgetError!void {
+fn parseWidget(parser: Parser, writer: anytype, widgetTypeName: []const u8) ParseWidgetError!void {
     if (widgetFromName(widgetTypeName)) |widget| {
-        try outStream.writeByte(@enumToInt(widget));
+        try writer.writeByte(@enumToInt(widget));
     } else {
         try parser.errors.add(
             parser.tokens.location,
@@ -705,9 +705,9 @@ fn parseWidget(parser: Parser, outStream: anytype, widgetTypeName: []const u8) P
         switch (id_or_closing.type) {
             .closeBrace => {
                 if (!isReadingChildren) {
-                    try outStream.writeByte(0); // end of properties
+                    try writer.writeByte(0); // end of properties
                 }
-                try outStream.writeByte(0); // end of children
+                try writer.writeByte(0); // end of children
                 break;
             },
 
@@ -727,11 +727,11 @@ fn parseWidget(parser: Parser, outStream: anytype, widgetTypeName: []const u8) P
                     .widget => |widget| {
                         if (!isReadingChildren) {
                             // write end of properties
-                            try outStream.writeByte(0);
+                            try writer.writeByte(0);
                         }
                         isReadingChildren = true;
 
-                        try parseWidget(parser, outStream, id_or_closing.text);
+                        try parseWidget(parser, writer, id_or_closing.text);
                     },
                     .property => |prop| {
                         if (isReadingChildren) {
@@ -741,7 +741,7 @@ fn parseWidget(parser: Parser, outStream: anytype, widgetTypeName: []const u8) P
 
                         const propertyType = getTypeOfProperty(prop);
 
-                        try parseProperty(parser, outStream, prop, propertyType);
+                        try parseProperty(parser, writer, prop, propertyType);
                     },
                 }
             },

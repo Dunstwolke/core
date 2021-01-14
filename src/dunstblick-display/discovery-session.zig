@@ -1,6 +1,7 @@
 const std = @import("std");
 const cpp = @import("cpp.zig");
 const protocol = @import("dunstblick-protocol");
+const log = std.log.scoped(.app);
 
 const app_discovery = @import("app-discovery.zig");
 
@@ -193,7 +194,7 @@ pub const DiscoverySession = struct {
             events.local_exit_client_event => self.alive = false,
             events.local_open_session_event => {
                 if (widget == .none) {
-                    std.log.warn(.app, "got open-session-event for unnamed widget.\n", .{});
+                    log.warn("got open-session-event for unnamed widget.", .{});
                     return;
                 }
 
@@ -202,7 +203,7 @@ pub const DiscoverySession = struct {
 
                 const index = @enumToInt(widget) - 1;
                 if (index >= list.applications.len) {
-                    std.log.warn(.app, "got open-session-event for invalid app: {}; {}\n", .{
+                    log.warn("got open-session-event for invalid app: {}; {}", .{
                         list.applications.len,
                         index,
                     });
@@ -212,7 +213,7 @@ pub const DiscoverySession = struct {
                 const app = &list.applications[index];
 
                 const session = NetworkSession.create(self.allocator, app.*) catch |err| {
-                    std.log.err(.app, "failed to create new network session for : {}; {}\n", .{
+                    log.err("failed to create new network session for : {}; {}", .{
                         list.applications.len,
                         index,
                     });
@@ -222,7 +223,7 @@ pub const DiscoverySession = struct {
                 const window = self.windows.addWindow(app.name, 640, 480, &session.driver) catch |err| {
                     session.destroy();
 
-                    std.log.err(.app, "failed to create window for network session: {}\n", .{
+                    log.err("failed to create window for network session: {}", .{
                         err,
                     });
                     return;
@@ -232,7 +233,7 @@ pub const DiscoverySession = struct {
                 session.connect() catch |err| {
                     self.windows.close(window);
 
-                    std.log.err(.app, "failed to connect to application: {}\n", .{
+                    log.err("failed to connect to application: {}", .{
                         err,
                     });
                     return;
@@ -240,10 +241,10 @@ pub const DiscoverySession = struct {
             },
 
             events.local_close_session_event => {
-                std.debug.print("close session for {}\n", .{@enumToInt(widget)});
+                log.info("close session for {}", .{@enumToInt(widget)});
             },
 
-            else => std.debug.print("zsession_triggerEvent: {} {}\n", .{ event, widget }),
+            else => log.info("zsession_triggerEvent: {} {}", .{ event, widget }),
         }
     }
 

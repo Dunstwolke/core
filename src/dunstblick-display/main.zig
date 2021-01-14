@@ -4,6 +4,8 @@ const sdl = @import("sdl2");
 const uri = @import("uri");
 const network = @import("network");
 
+const log = std.log.scoped(.app);
+
 const painting = @import("painting.zig");
 const app_discovery = @import("app-discovery.zig");
 
@@ -20,12 +22,10 @@ const WindowCollection = @import("window-collection.zig").WindowCollection;
 usingnamespace @import("types.zig");
 
 pub fn main() !u8 {
-    var counter = std.testing.LeakCountAllocator.init(std.heap.c_allocator);
-    defer {
-        counter.validate() catch {};
-    }
+    var gpa_state = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa_state.deinit();
 
-    const gpa = &counter.allocator;
+    const gpa = &gpa_state.allocator;
 
     try network.init();
     defer network.deinit();
@@ -138,7 +138,7 @@ pub fn main() !u8 {
                             try ctx.data.render();
                         },
                         .size_changed => {},
-                        else => std.log.debug(.app, "{} {}\n", .{ ctx.data.window, win_ev }),
+                        else => log.debug("{} {}\n", .{ ctx.data.window, win_ev }),
                     }
                 },
                 .SDL_KEYDOWN, .SDL_KEYUP => {
@@ -157,7 +157,7 @@ pub fn main() !u8 {
                     const ctx = windows.find(ev.wheel.windowID) orelse continue;
                     ctx.data.pushEvent(ev);
                 },
-                else => std.log.warn(.app, "Unhandled event: {}\n", .{
+                else => log.warn("Unhandled event: {}\n", .{
                     event_type,
                 }),
             }

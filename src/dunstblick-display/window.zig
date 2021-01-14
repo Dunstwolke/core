@@ -1,5 +1,6 @@
 const std = @import("std");
 const sdl = @import("sdl2");
+const log = std.log.scoped(.app);
 
 const cpp = @import("cpp.zig");
 const painting = @import("painting.zig");
@@ -80,7 +81,7 @@ pub const Window = struct {
     pub fn update(self: *Self) void {
         if (self.session) |session| {
             self.alive = session.update(session) catch |err| blk: {
-                std.log.err(.app, "failed to update session: {}\n", .{err});
+                log.err("failed to update session: {}\n", .{err});
                 break :blk false;
             };
         }

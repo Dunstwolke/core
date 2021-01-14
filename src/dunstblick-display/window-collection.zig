@@ -1,5 +1,6 @@
 const std = @import("std");
 const sdl = @import("sdl2");
+const log = std.log.scoped(.app);
 
 const Window = @import("window.zig").Window;
 const Session = @import("session.zig").Session;
@@ -13,14 +14,14 @@ pub const WindowCollection = struct {
 
     pub fn init(allocator: *std.mem.Allocator) Self {
         return Self{
-            .window_list = ListType.init(),
+            .window_list = .{},
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *Self) void {
         if (self.window_list.len > 0) {
-            std.log.info(.app, "Cleaning up {} unclosed windows...\n", .{
+            log.info("Cleaning up {} unclosed windows...\n", .{
                 self.window_list.len,
             });
             while (self.window_list.pop()) |node| {
@@ -36,7 +37,7 @@ pub const WindowCollection = struct {
         errdefer context.deinit();
 
         const node = try self.allocator.create(ListType.Node);
-        node.* = ListType.Node.init(context);
+        node.* = .{ .data = context };
 
         // Window.session is initialized with `null` to allow windows without
         // a connected session.

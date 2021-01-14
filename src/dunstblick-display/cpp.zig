@@ -5,9 +5,9 @@ const painting = @import("painting.zig");
 
 usingnamespace @import("types.zig");
 
-pub const ZigSession = @Type(.Opaque);
+pub const ZigSession = opaque {};
 
-pub const Object = @Type(.Opaque);
+pub const Object = opaque {};
 
 pub extern fn session_pushEvent(current_session: *ZigSession, e: *const sdl.c.SDL_Event) void;
 

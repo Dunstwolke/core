@@ -60,7 +60,7 @@ fn addResource(provider: *c.dunstblick_Provider, index: u32, kind: c.dunstblick_
 }
 
 pub fn main() anyerror!u8 {
-    var stderr = std.io.getStdErr().outStream();
+    var stderr = std.io.getStdErr().writer();
 
     if (hiword(c.BASS_GetVersion()) != c.BASSVERSION) {
         try stderr.writeAll("An incorrect version of BASS was loaded!\n");
@@ -258,11 +258,11 @@ fn openFile(url: [*:0]const u8) !void {
 }
 
 fn endSync(handle: c.HSYNC, channel: c.DWORD, data: c.DWORD, user: ?*c_void) callconv(.C) void {
-    std.io.getStdErr().outStream().writeAll("end sync\n") catch |err| {};
+    std.io.getStdErr().writer().writeAll("end sync\n") catch |err| {};
 }
 
 fn stallSync(handle: c.HSYNC, channel: c.DWORD, data: c.DWORD, user: ?*c_void) callconv(.C) void {
-    std.io.getStdErr().outStream().writeAll("stall sync\n") catch |err| {};
+    std.io.getStdErr().writer().writeAll("stall sync\n") catch |err| {};
 }
 
 // update stream title from metadata

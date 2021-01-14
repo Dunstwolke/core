@@ -2,6 +2,7 @@ const std = @import("std");
 const cpp = @import("cpp.zig");
 const protocol = @import("dunstblick-protocol");
 const network = @import("network");
+const log = std.log.scoped(.app);
 
 const app_discovery = @import("app-discovery.zig");
 
@@ -101,7 +102,7 @@ pub const NetworkSession = struct {
 
             try resources.put(resource_descriptor.id, resource_descriptor);
 
-            std.log.debug(.app,
+            log.debug(
                 \\Resource[{}]:
                 \\  id:   {}
                 \\  type: {}
@@ -118,7 +119,7 @@ pub const NetworkSession = struct {
         }
 
         try writer.writeAll(std.mem.asBytes(&protocol.tcp.ResourceRequestHeader{
-            .request_count = @intCast(u32, resources.items().len),
+            .request_count = @intCast(u32, resources.count()),
         }));
 
         var res_iter = resources.iterator();
@@ -132,11 +133,11 @@ pub const NetworkSession = struct {
         defer byte_buffer.deinit();
 
         i = 0;
-        while (i < resources.items().len) : (i += 1) {
+        while (i < resources.count()) : (i += 1) {
             var resource_header: protocol.tcp.ResourceHeader = undefined;
             try reader.readNoEof(std.mem.asBytes(&resource_header));
 
-            std.log.info(.app, "Receiving resource {} ({} bytes)…\n", .{ resource_header.id, resource_header.size });
+            log.info("Receiving resource {} ({} bytes)…\n", .{ resource_header.id, resource_header.size });
 
             try byte_buffer.resize(resource_header.size);
 
@@ -180,7 +181,7 @@ pub const NetworkSession = struct {
 
         while (true) {
             _ = network.waitForSocketEvent(&socket_set, 0) catch |err| {
-                std.log.crit(.app, "Waiting for socket event failed with {}\n", .{err});
+                log.crit("Waiting for socket event failed with {}", .{err});
                 return false;
             };
 
@@ -211,7 +212,7 @@ pub const NetworkSession = struct {
     }
 
     fn parseAndExecMsg(self: *Self, packet: []const u8) !void {
-        std.log.info(.app, "Received packet of {} bytes: {x}\n", .{
+        log.info("Received packet of {} bytes: {x}", .{
             packet.len,
             packet,
         });
@@ -250,7 +251,7 @@ pub const NetworkSession = struct {
 
                     const prop = @intToEnum(protocol.PropertyName, try decoder.readVarUInt());
 
-                    std.debug.print("read value of type {}\n", .{value_type});
+                    log.debug("read value of type {}", .{value_type});
 
                     const value = try decoder.readValue(value_type, self.allocator);
                     defer decoder.deinitValue(value, self.allocator);
@@ -367,7 +368,7 @@ pub const NetworkSession = struct {
             },
 
             else => {
-                std.log.warn(.app, "received message of unknown type: {}\n", .{
+                log.warn("received message of unknown type: {}", .{
                     message_type,
                 });
             },
@@ -376,7 +377,7 @@ pub const NetworkSession = struct {
 
     fn zsession_triggerEvent(api: *cpp.ZigSessionApi, event: protocol.EventID, widget: protocol.WidgetName) callconv(.C) void {
         const self = @fieldParentPtr(Self, "api", api);
-        std.debug.print("zsession_triggerEvent: {} {}\n", .{ event, widget });
+        log.debug("zsession_triggerEvent: {} {}", .{ event, widget });
 
         // ignore empty callbacks
         if (event != .invalid) {
@@ -389,7 +390,7 @@ pub const NetworkSession = struct {
             buffer.writeID(@enumToInt(widget)) catch unreachable;
 
             self.sendMessage(stream.getWritten()) catch |err| {
-                std.log.err(.app, "Failed to send eventCallback message: {}\n", .{err});
+                log.err("Failed to send eventCallback message: {}", .{err});
                 return;
             };
         }
@@ -397,7 +398,7 @@ pub const NetworkSession = struct {
 
     fn zsession_triggerPropertyChanged(api: *cpp.ZigSessionApi, oid: protocol.ObjectID, name: protocol.PropertyName, value: *const protocol.Value) callconv(.C) void {
         const self = @fieldParentPtr(Self, "api", api);
-        std.debug.print("zsession_triggerPropertyChanged: {} {} {}\n", .{ oid, name, value });
+        log.debug("zsession_triggerPropertyChanged: {} {} {}", .{ oid, name, value });
 
         if (oid == .invalid)
             return;
@@ -412,20 +413,20 @@ pub const NetworkSession = struct {
         var buffer = protocol.beginApplicationCommandEncoding(stream.writer(), .propertyChanged) catch unreachable;
 
         buffer.writeID(@enumToInt(oid)) catch |err| {
-            std.log.err(.app, "Failed to send propertyChanged message: {}\n", .{err});
+            log.err("Failed to send propertyChanged message: {}", .{err});
             return;
         };
         buffer.writeID(@enumToInt(name)) catch |err| {
-            std.log.err(.app, "Failed to send propertyChanged message: {}\n", .{err});
+            log.err("Failed to send propertyChanged message: {}", .{err});
             return;
         };
         buffer.writeValue(value.*, true) catch |err| {
-            std.log.err(.app, "Failed to send propertyChanged message: {}\n", .{err});
+            log.err("Failed to send propertyChanged message: {}", .{err});
             return;
         };
 
         self.sendMessage(stream.getWritten()) catch |err| {
-            std.log.err(.app, "Failed to send propertyChanged message: {}\n", .{err});
+            log.err("Failed to send propertyChanged message: {}", .{err});
             return;
         };
     }
