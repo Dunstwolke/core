@@ -5,7 +5,7 @@ const protocol = @import("dunstblick-protocol");
 var global_allocator: *std.mem.Allocator = undefined;
 var current_thread: ?*std.Thread = null;
 var shutdown_requested: bool = false;
-var clients_locked: std.Mutex = .{};
+var clients_locked: std.Thread.Mutex = .{};
 
 var current_client_list: ?DiscoveryResult = null;
 
@@ -175,7 +175,7 @@ pub const DiscoveryResult = struct {
 };
 
 pub const ClientAccess = struct {
-    mutex_held: ?std.Mutex.Held,
+    mutex_held: ?@TypeOf(@as(std.Thread.Mutex, undefined).impl).Held,
     applications: []Application,
 
     pub fn release(self: *@This()) void {
@@ -185,3 +185,4 @@ pub const ClientAccess = struct {
         self.* = undefined;
     }
 };
+      

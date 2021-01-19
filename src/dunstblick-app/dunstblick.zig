@@ -197,7 +197,7 @@ pub const Connection = struct {
 
     const PacketQueue = std.atomic.Queue([]const u8);
 
-    mutex: std.Mutex,
+    mutex: std.Thread.Mutex,
 
     sock: xnet.Socket,
     remote: xnet.EndPoint,
@@ -754,7 +754,7 @@ pub const Application = struct {
     const ConnectionList = std.TailQueue(Connection);
     const ConnectionNode = ConnectionList.Node;
 
-    mutex: std.Mutex,
+    mutex: std.Thread.Mutex,
     allocator: *std.mem.Allocator,
 
     multicast_sock: xnet.Socket,
@@ -763,8 +763,7 @@ pub const Application = struct {
 
     tcp_listener_ep: xnet.EndPoint,
 
-    resource_lock: std.Mutex,
-
+    resource_lock: std.Thread.Mutex,
     resources: ResourceMap,
 
     pending_connections: ConnectionList,
