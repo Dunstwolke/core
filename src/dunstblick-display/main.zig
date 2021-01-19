@@ -176,7 +176,7 @@ pub fn main() !u8 {
 
         {
             var it = windows.window_list.first;
-            while (it) |ctx| : (it = ctx.next) {
+            while (it) |ctx| {
                 it = ctx.next;
 
                 ctx.data.update();
