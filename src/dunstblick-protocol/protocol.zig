@@ -38,7 +38,6 @@ pub const DisplayCommand = enum(u8) {
     setView = 4, // (rid)
     setRoot = 5, // (oid)
     setProperty = 6, // (oid, name, value) // "unsafe command", uses the serverside object type or fails of property
-    // does not exist
     clear = 7, // (oid, name)
     insertRange = 8, // (oid, name, index, count, value …) // manipulate lists
     removeRange = 9, // (oid, name, index, count) // manipulate lists

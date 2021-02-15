@@ -22,3 +22,6 @@
 [submodule "lib/ziggy-on-android"]
 	path = lib/ziggy-on-android
 	url = https://github.com/MasterQ32/ziggy-on-android
+[submodule "lib/wazm"]
+	path = lib/wazm
+	url = https://github.com/fengb/wazm

@@ -122,10 +122,10 @@ pub const Value = extern struct {
     value: ValueStorage,
 
     pub fn format(self: @This(), comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-        try writer.print("{}(", .{@tagName(self.type)});
+        try writer.print("{s}(", .{@tagName(self.type)});
         switch (self.type) {
-            .integer => try writer.print("{}", .{self.value.integer}),
-            .enumeration => try writer.print("{}", .{self.value.enumeration}),
+            .integer => try writer.print("{d}", .{self.value.integer}),
+            .enumeration => try writer.print("{d}", .{self.value.enumeration}),
             .number => try writer.print("{d}", .{self.value.number}),
             .string => try writer.writeAll(std.mem.span(self.value.string)),
             .resource => try writer.print("{}", .{@enumToInt(self.value.resource)}),

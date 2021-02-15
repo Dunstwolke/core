@@ -79,27 +79,27 @@ pub fn main() !u8 {
         var all_valid = false;
         for (cli.positionals) |pos| {
             const url = uri.parse(pos) catch {
-                try stderr.print("{} is not a valid URL!\n", .{pos});
+                try stderr.print("{s} is not a valid URL!\n", .{pos});
                 all_valid = false;
                 continue;
             };
             if (url.scheme == null) {
-                try stderr.print("{} is missing the scheme!\n", .{pos});
+                try stderr.print("{s} is missing the scheme!\n", .{pos});
                 all_valid = false;
                 continue;
             }
             if (url.host == null) {
-                try stderr.print("{} is missing the host name!\n", .{pos});
+                try stderr.print("{s} is missing the host name!\n", .{pos});
                 all_valid = false;
                 continue;
             }
             if (url.port == null) {
-                try stderr.print("{} is missing the port number!\n", .{pos});
+                try stderr.print("{s} is missing the port number!\n", .{pos});
                 all_valid = false;
                 continue;
             }
             if ((url.path orelse "").len != 0 and !std.mem.eql(u8, url.path.?, "/")) {
-                try stderr.print("{} has a invalid path component!\n", .{pos});
+                try stderr.print("{s} has a invalid path component!\n", .{pos});
                 all_valid = false;
                 continue;
             }

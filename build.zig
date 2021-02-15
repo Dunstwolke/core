@@ -27,6 +27,11 @@ const pkgs = struct {
         .path = "./lib/painterz/painterz.zig",
     };
 
+    const meta = std.build.Pkg{
+        .name = "zig-meta",
+        .path = "./lib/zig-meta/meta.zig",
+    };
+
     const dunstblick_protocol = std.build.Pkg{
         .name = "dunstblick-protocol",
         .path = "./src/dunstblick-protocol/protocol.zig",
@@ -39,6 +44,19 @@ const pkgs = struct {
             dunstblick_protocol,
             network,
         },
+    };
+
+    const dunstnetz = std.build.Pkg{
+        .name = "dunstnetz",
+        .path = "./src/dunstnetz/main.zig",
+        .dependencies = &[_]std.build.Pkg{
+            network,
+        },
+    };
+
+    const wasm = std.build.Pkg{
+        .name = "wasm",
+        .path = "./lib/wazm/src/main.zig",
     };
 };
 
@@ -152,7 +170,7 @@ pub fn build(b: *Builder) !void {
         display_client.setTarget(target);
         display_client.install();
 
-        display_client.addCSourceFile("./src/dunstblick-display/stb-instantiating.c", &[_][]const u8{
+        display_client.addCSourceFile("./src/dunstblick-display/cpp/stb-instantiating.c", &[_][]const u8{
             "-std=c99",
             "-fno-sanitize=undefined",
         });
@@ -191,32 +209,89 @@ pub fn build(b: *Builder) !void {
         }
     }
 
+    const display_client2 = b.addExecutable("dunstblick-display2", "src/dunstblick-display2/main.zig");
+    {
+        display_client2.addPackage(pkgs.dunstblick_protocol);
+        display_client2.addPackage(pkgs.network);
+        display_client2.addPackage(pkgs.args);
+        display_client2.addPackage(pkgs.sdl2);
+        display_client2.addPackage(pkgs.uri);
+        display_client2.addPackage(pkgs.painterz);
+        display_client2.addPackage(pkgs.meta);
+    }
+    // display_client2.install();
+
+    const dunstnetz_daemon = b.addExecutable("dunstnetz-daemon", "src/dunstnetz-daemon/main.zig");
+    dunstnetz_daemon.addPackage(pkgs.args);
+    dunstnetz_daemon.addPackage(pkgs.dunstnetz);
+    dunstnetz_daemon.addPackage(pkgs.wasm);
+    // dunstnetz_daemon.install();
+
+    const display_client_test = b.addTest("src/dunstblick-display2/main.zig");
+    {
+        display_client_test.addPackage(pkgs.dunstblick_protocol);
+        display_client_test.addPackage(pkgs.network);
+        display_client_test.addPackage(pkgs.args);
+        display_client_test.addPackage(pkgs.sdl2);
+        display_client_test.addPackage(pkgs.uri);
+        display_client_test.addPackage(pkgs.painterz);
+        display_client_test.addPackage(pkgs.meta);
+    }
+
+    const dunstnetz_test = b.addTest("src/dunstnetz/main.zig");
+    {
+        dunstnetz_test.addPackage(pkgs.network);
+    }
+
+    const dunstnetz_daemon_test = b.addTest("src/dunstnetz-daemon/main.zig");
+    {
+        dunstnetz_daemon_test.addPackage(pkgs.args);
+        dunstnetz_daemon_test.addPackage(pkgs.dunstnetz);
+        dunstnetz_daemon_test.addPackage(pkgs.wasm);
+    }
+
     const run_cmd = display_client.run();
     run_cmd.step.dependOn(b.getInstallStep());
 
     run_cmd.setEnvironmentVariable("LD_LIBRARY_PATH", "./src/examples/mediaserver/bass/x86_64");
 
-    const run_step = b.step("run", "Run the app");
+    const run2_cmd = display_client2.run();
+    run_cmd.step.dependOn(b.getInstallStep());
+
+    const install2_step = b.step("install-2", "Installs the new revision of the code. Highly experimental and might break the compiler.");
+    install2_step.dependOn(&dunstnetz_daemon.step);
+    install2_step.dependOn(&display_client2.step);
+
+    const run_step = b.step("run", "Run the display client");
     run_step.dependOn(&run_cmd.step);
+
+    const run2_step = b.step("run-2", "Run the new version of the display client");
+    run2_step.dependOn(&run2_cmd.step);
+
+    const run_daemon_step = b.step("run-daemon", "Run the new version of the display client");
+    run_daemon_step.dependOn(&dunstnetz_daemon.run().step);
 
     const test_step = b.step("test", "Runs all required tests.");
     test_step.dependOn(&compiler_test.step);
+    test_step.dependOn(&display_client_test.step);
+    test_step.dependOn(&dunstnetz_test.step);
+    test_step.dependOn(&dunstnetz_daemon_test.step);
 }
 
 const display_client_sources = [_][]const u8{
-    "./src/dunstblick-display/widgets.cpp",
-    "./src/dunstblick-display/enums.cpp",
-    "./src/dunstblick-display/inputstream.cpp",
-    "./src/dunstblick-display/layouts.cpp",
-    "./src/dunstblick-display/main.cpp",
-    "./src/dunstblick-display/zigsession.cpp",
-    "./src/dunstblick-display/object.cpp",
-    "./src/dunstblick-display/rendercontext.cpp",
-    "./src/dunstblick-display/resources.cpp",
-    "./src/dunstblick-display/session.cpp",
-    "./src/dunstblick-display/types.cpp",
-    "./src/dunstblick-display/widget.cpp",
-    "./src/dunstblick-display/widget.create.cpp",
+    "./src/dunstblick-display/cpp/enums.cpp",
+    "./src/dunstblick-display/cpp/inputstream.cpp",
+    "./src/dunstblick-display/cpp/layouts.cpp",
+    "./src/dunstblick-display/cpp/main.cpp",
+    "./src/dunstblick-display/cpp/object.cpp",
+    "./src/dunstblick-display/cpp/rendercontext.cpp",
+    "./src/dunstblick-display/cpp/resources.cpp",
+    "./src/dunstblick-display/cpp/session.cpp",
+    "./src/dunstblick-display/cpp/types.cpp",
+    "./src/dunstblick-display/cpp/widget.cpp",
+    "./src/dunstblick-display/cpp/widget.create.cpp",
+    "./src/dunstblick-display/cpp/widgets.cpp",
+    "./src/dunstblick-display/cpp/zigsession.cpp",
 };
 
 const xqlib_sources = [_][]const u8{

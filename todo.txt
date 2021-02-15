@@ -1,0 +1,7 @@
+- android port
+- zg core rewrite
+- plseeaudio volume cntrol
+- media server
+  - sqlite3 binding
+  - mp3/ogg playback
+  - dunstblick interface

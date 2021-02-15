@@ -54,7 +54,7 @@ fn mapDunstblickErrorVoid(value: app.DunstblickError!void) NativeErrorCode {
 //  *******************************************************************************/
 export fn dunstblick_OpenProvider(discoveryName: [*:0]const u8) callconv(.C) ?*app.Application {
     const H = struct {
-        inline fn open(dname: []const u8) !*app.Application {
+        fn open(dname: []const u8) callconv(.Inline) !*app.Application {
             const allocator = std.heap.c_allocator;
 
             const provider = try allocator.create(app.Application);

@@ -169,7 +169,7 @@ fn clientConnected(
     capabilities: c.dunstblick_ClientCapabilities,
     user_data: ?*c_void,
 ) callconv(.C) void {
-    std.debug.warn("hi: {} {} {} {}\n", .{
+    std.debug.warn("hi: {s} {s} {} {}\n", .{
         client_name,
         password,
         size,
@@ -269,22 +269,22 @@ fn stallSync(handle: c.HSYNC, channel: c.DWORD, data: c.DWORD, user: ?*c_void) c
 fn doMeta(handle: c.HSYNC, channel: c.DWORD, data: c.DWORD, user: ?*c_void) callconv(.C) void {
     if (c.BASS_ChannelGetTags(channel, c.BASS_TAG_ID3)) |raw| {
         const id3 = @ptrCast(*const c.TAG_ID3, raw);
-        std.debug.warn("got id3: {}\n", .{id3});
+        std.debug.warn("got id3: {s}\n", .{id3});
     }
 
     if (c.BASS_ChannelGetTags(channel, c.BASS_TAG_ID3V2)) |raw| {
-        std.debug.warn("got id3v2: {}\n", .{raw});
+        std.debug.warn("got id3v2: {s}\n", .{raw});
     }
 
     if (c.BASS_ChannelGetTags(channel, c.BASS_TAG_META)) |raw| {
-        std.debug.warn("got shoutcast: {}\n", .{@ptrCast([*:0]const u8, raw)});
+        std.debug.warn("got shoutcast: {s}\n", .{@ptrCast([*:0]const u8, raw)});
     }
 
     if (c.BASS_ChannelGetTags(channel, c.BASS_TAG_OGG)) |raw| {
-        std.debug.warn("got icecast: {}\n", .{raw});
+        std.debug.warn("got icecast: {s}\n", .{raw});
     }
 
     if (c.BASS_ChannelGetTags(channel, BASS_TAG_HLS_EXTINF)) |raw| {
-        std.debug.warn("got hls segment: {}\n", .{raw});
+        std.debug.warn("got hls segment: {s}\n", .{raw});
     }
 }

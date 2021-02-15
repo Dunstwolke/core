@@ -28,7 +28,7 @@ pub fn main() !u8 {
 
     switch (args.positionals.len) {
         0 => {
-            try std.io.getStdOut().writer().print("usage: {} [-c config] [-u] [-o output] layoutfile\n", .{
+            try std.io.getStdOut().writer().print("usage: {s} [-c config] [-u] [-o output] layoutfile\n", .{
                 args.executable_name,
             });
             return 1;
@@ -128,7 +128,7 @@ pub fn main() !u8 {
         };
 
         parseFile(parser, &outstream) catch |err| {
-            std.debug.print("{}:{}: error: {}\n", .{
+            std.debug.print("{s}:{}: error: {s}\n", .{
                 inputFile,
                 tokenIterator.location,
                 err,
@@ -142,7 +142,7 @@ pub fn main() !u8 {
 
     if (errors.list.items.len > 0) {
         for (errors.list.items) |err| {
-            std.debug.print("error: {}\n", .{err});
+            std.debug.print("error: {s}\n", .{err});
         }
         return 1;
     }
@@ -251,7 +251,7 @@ const CompileError = struct {
     message: []const u8,
 
     pub fn format(value: @This(), fmt: []const u8, options: std.fmt.FormatOptions, stream: anytype) !void {
-        try stream.print("{}: {}", .{
+        try stream.print("{}: {s}", .{
             value.where,
             value.message,
         });
@@ -384,7 +384,7 @@ fn parseID(parser: Parser, writer: anytype, functionName: []const u8, map: *IDMa
     if (!std.mem.eql(u8, resource.text, functionName)) {
         try parser.errors.add(
             parser.tokens.location,
-            "Expected {}, found '{}'.",
+            "Expected {s}, found '{s}'.",
             .{ functionName, resource.text },
         );
         try parser.tokens.readUntil(.{.semiColon});
@@ -421,7 +421,7 @@ fn parseID(parser: Parser, writer: anytype, functionName: []const u8, map: *IDMa
                     break :blk val;
                 }
 
-                try parser.errors.add(parser.tokens.location, "Unkown {} alias '{}'", .{ functionName, name });
+                try parser.errors.add(parser.tokens.location, "Unkown {s} alias '{s}'", .{ functionName, name });
             }
             break :blk @as(u32, 0);
         },
@@ -692,7 +692,7 @@ fn parseWidget(parser: Parser, writer: anytype, widgetTypeName: []const u8) Pars
     } else {
         try parser.errors.add(
             parser.tokens.location,
-            "Unkown widget type {}",
+            "Unkown widget type {s}",
             .{widgetTypeName},
         );
     }
@@ -716,7 +716,7 @@ fn parseWidget(parser: Parser, writer: anytype, widgetTypeName: []const u8) Pars
                     // TODO: try to recover here!
                     try parser.errors.add(
                         parser.tokens.location,
-                        "Unkown widget or property '{}'",
+                        "Unkown widget or property '{s}'",
                         .{id_or_closing.text},
                     );
                     try parser.tokens.readUntil(.{ .semiColon, .closeBrace });
@@ -772,7 +772,7 @@ const Location = struct {
     column: u32,
 
     pub fn format(value: @This(), fmt: []const u8, options: std.fmt.FormatOptions, stream: anytype) !void {
-        try stream.print("{}:{}", .{
+        try stream.print("{d}:{d}", .{
             value.line,
             value.column,
         });
@@ -1038,6 +1038,7 @@ test "Tokenizer single chars" {
         std.testing.expectEqual(Token{
             .type = result,
             .text = text[0..1],
+            .location = Location{ .line = 1, .column = 1 },
         }, (try TokenIterator.init(text).next()).?);
     }
 }
@@ -1057,6 +1058,7 @@ test "Tokenizer identifier" {
         std.testing.expectEqual(Token{
             .type = .identifier,
             .text = t,
+            .location = Location{ .line = 1, .column = 1 },
         }, (try TokenIterator.init(t).next()).?);
     }
 }
@@ -1080,6 +1082,7 @@ test "Tokenizer numbers" {
         std.testing.expectEqual(Token{
             .type = result,
             .text = text,
+            .location = Location{ .line = 1, .column = 1 },
         }, (try TokenIterator.init(text).next()).?);
     }
 }
@@ -1099,6 +1102,7 @@ test "Tokenizer strings" {
         std.testing.expectEqual(Token{
             .type = .string,
             .text = t,
+            .location = Location{ .line = 1, .column = 1 },
         }, (try TokenIterator.init(t).next()).?);
     }
 }
