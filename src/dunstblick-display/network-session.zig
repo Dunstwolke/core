@@ -107,14 +107,14 @@ pub const NetworkSession = struct {
                 \\  id:   {}
                 \\  type: {}
                 \\  size: {}
-                \\  hash: {X}
+                \\  hash: {}
                 \\
             , .{
                 i,
                 resource_descriptor.id,
                 resource_descriptor.type,
                 resource_descriptor.size,
-                resource_descriptor.hash,
+                std.fmt.fmtSliceHexUpper(&resource_descriptor.hash),
             });
         }
 
@@ -212,9 +212,9 @@ pub const NetworkSession = struct {
     }
 
     fn parseAndExecMsg(self: *Self, packet: []const u8) !void {
-        log.info("Received packet of {} bytes: {x}", .{
+        log.info("Received packet of {} bytes: {}", .{
             packet.len,
-            packet,
+            std.fmt.fmtSliceHexUpper(packet),
         });
 
         var decoder = protocol.Decoder.init(packet);

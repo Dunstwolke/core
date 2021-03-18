@@ -17,7 +17,7 @@ pub fn start() !void {
     if (current_thread != null)
         return;
     shutdown_requested = false;
-    current_thread = try std.Thread.spawn(global_allocator, thread_proc);
+    current_thread = try std.Thread.spawn(thread_proc, global_allocator);
 }
 
 pub fn stop() void {
@@ -185,4 +185,3 @@ pub const ClientAccess = struct {
         self.* = undefined;
     }
 };
-      
