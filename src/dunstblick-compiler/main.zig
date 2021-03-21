@@ -44,7 +44,13 @@ pub fn main() !u8 {
     }
 
     var database: Database = if (args.options.config) |cfgfile| blk: {
-        var buffer = try std.fs.cwd().readFileAlloc(allocator, cfgfile, 1 << 20); // 1 MB
+        var buffer = std.fs.cwd().readFileAlloc(allocator, cfgfile, 1 << 20) catch |err| switch (err) { // 1 MB
+            error.FileNotFound => |e| if (args.options.@"update-config")
+                break :blk Database.init(allocator, true)
+            else
+                return e,
+            else => |e| return e,
+        };
         defer allocator.free(buffer);
 
         break :blk try Database.fromJson(allocator, args.options.@"update-config", buffer);
@@ -94,20 +100,32 @@ pub fn main() !u8 {
     }
 
     if (layout_data) |data| {
-        var file = try std.fs.cwd().createFile(outfile_path, .{ .exclusive = false, .read = false });
-        defer file.close();
+        {
+            var file = try std.fs.cwd().createFile(outfile_path, .{ .exclusive = false, .read = false });
+            defer file.close();
 
-        var stream = file.writer();
+            var stream = file.writer();
 
-        switch (args.options.@"file-type") {
-            .binary => try stream.writeAll(data),
+            switch (args.options.@"file-type") {
+                .binary => try stream.writeAll(data),
 
-            .header => {
-                for (data) |c, i| {
-                    try stream.print("0x{X}, ", .{c});
-                }
-            },
+                .header => {
+                    for (data) |c, i| {
+                        try stream.print("0x{X}, ", .{c});
+                    }
+                },
+            }
         }
+
+        if (args.options.@"update-config") {
+            if (args.options.config) |config_file| {
+                var file = try std.fs.cwd().createFile(config_file, .{ .exclusive = false, .read = false });
+                defer file.close();
+
+                try database.toJson(file.writer());
+            }
+        }
+
         return 0;
     } else {
         return 1;

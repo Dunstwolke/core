@@ -6,7 +6,7 @@ const IDMap = std.StringHashMap(u32);
 pub const Entry = enum {
     resource,
     event,
-    variable,
+    property,
     object,
     widget,
 };
@@ -16,7 +16,7 @@ allow_new_items: bool,
 
 resources: IDMap,
 events: IDMap,
-variables: IDMap,
+properties: IDMap,
 objects: IDMap,
 widgets: IDMap,
 
@@ -31,7 +31,7 @@ pub fn init(allocator: *std.mem.Allocator, allow_new_items: bool) Self {
 
         .resources = IDMap.init(allocator),
         .events = IDMap.init(allocator),
-        .variables = IDMap.init(allocator),
+        .properties = IDMap.init(allocator),
         .objects = IDMap.init(allocator),
         .widgets = IDMap.init(allocator),
     };
@@ -40,7 +40,7 @@ pub fn init(allocator: *std.mem.Allocator, allow_new_items: bool) Self {
 pub fn deinit(self: *Self) void {
     self.resources.deinit();
     self.events.deinit();
-    self.variables.deinit();
+    self.properties.deinit();
     self.objects.deinit();
     self.widgets.deinit();
     self.arena.deinit();
@@ -50,20 +50,29 @@ pub fn get(self: *Self, kind: Entry, name: []const u8) !?u32 {
     var map: *IDMap = switch (kind) {
         .resource => &self.resources,
         .event => &self.events,
-        .variable => &self.variables,
+        .property => &self.properties,
         .object => &self.objects,
         .widget => &self.widgets,
     };
     if (self.allow_new_items) {
         const gop = try map.getOrPut(name);
         if (!gop.found_existing) {
-            gop.entry.value = 1; // Start incrementing from one
+            errdefer _ = map.remove(name);
+
+            // Insert into memory
+            gop.entry.key = try self.dupe(name);
+
+            // As we will find ourselves in the map as well,
+            // we will increment that zero to 1
+            gop.entry.value = 0;
             var iter = map.iterator();
             while (iter.next()) |item| {
-                if (gop.entry.value <= item.value) {
-                    gop.entry.value = item.value + 1;
+                if (gop.entry.value < item.value) {
+                    gop.entry.value = item.value;
                 }
             }
+            gop.entry.value += 1;
+            std.debug.assert(gop.entry.value >= 1);
         }
         return gop.entry.value;
     } else {
@@ -93,7 +102,7 @@ pub fn fromJson(allocator: *std.mem.Allocator, allow_new_items: bool, json: []co
 
     try db.loadIdMap(config, "resources", &db.resources);
     try db.loadIdMap(config, "callbacks", &db.events);
-    try db.loadIdMap(config, "properties", &db.variables);
+    try db.loadIdMap(config, "properties", &db.properties);
     try db.loadIdMap(config, "objects", &db.objects);
     try db.loadIdMap(config, "widgets", &db.widgets);
 
@@ -143,4 +152,42 @@ fn validateConfig(config: std.json.ValueTree) !void {
     if (root.Object.get("widgets")) |value| {
         try validateObjectMap(value);
     }
+}
+
+fn writeJsonMap(any: bool, key: []const u8, map: IDMap, writer: anytype) !bool {
+    if (map.count() == 0)
+        return false;
+
+    if (any)
+        try writer.writeAll(",\n");
+
+    try writer.print(
+        \\  "{s}": {{
+        \\
+    , .{key});
+
+    var first = true;
+    var iter = map.iterator();
+    while (iter.next()) |item| {
+        if (!first) {
+            try writer.writeAll(",\n");
+        }
+        first = false;
+        try writer.writeAll("    ");
+        try std.json.stringify(item.key, std.json.StringifyOptions{}, writer);
+        try writer.print(": {d}", .{item.value});
+    }
+    try writer.writeAll("\n  }");
+    return true;
+}
+
+pub fn toJson(self: Self, writer: anytype) !void {
+    var any = false;
+    try writer.writeAll("{\n");
+    any = (try writeJsonMap(any, "resources", self.resources, writer)) or any;
+    any = (try writeJsonMap(any, "properties", self.properties, writer)) or any;
+    any = (try writeJsonMap(any, "callbacks", self.events, writer)) or any;
+    any = (try writeJsonMap(any, "objects", self.objects, writer)) or any;
+    any = (try writeJsonMap(any, "widgets", self.widgets, writer)) or any;
+    try writer.writeAll("\n}\n");
 }

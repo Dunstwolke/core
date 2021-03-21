@@ -188,7 +188,7 @@ fn parseProperty(parser: Parser, writer: anytype, property: enums.Property, prop
                 // this is a bindingx
                 try writer.writeByte(@as(u8, @enumToInt(property)) | 0x80);
 
-                try parseID(parser, writer, "bind", .variable);
+                try parseID(parser, writer, "bind", .property);
 
                 return;
             }
