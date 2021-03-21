@@ -1365,6 +1365,8 @@ pub const Application = struct {
         result.entry.value.type = @intToEnum(protocol.ResourceKind, @enumToInt(kind));
         result.entry.value.data = cloned_data;
         result.entry.value.updateHash();
+
+        // TODO: Forward the result to all connected clients.
     }
 
     /// Deletes a resource from the UI system.
