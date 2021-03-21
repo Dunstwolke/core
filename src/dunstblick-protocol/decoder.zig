@@ -129,7 +129,7 @@ pub const Decoder = struct {
                 val.margins.bottom = try self.readVarUInt();
             },
 
-            .objectlist => return error.NotSupported, // not implemented yet
+            .objectlist => std.log.err("Reading objectlist property not possible yet.", .{}),
 
             .event => val.event = @intToEnum(EventID, try self.readVarUInt()),
 

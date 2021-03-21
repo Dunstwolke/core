@@ -21,7 +21,7 @@ pub const WindowCollection = struct {
 
     pub fn deinit(self: *Self) void {
         if (self.window_list.len > 0) {
-            log.info("Cleaning up {} unclosed windows...\n", .{
+            log.info("Cleaning up {} unclosed windows...", .{
                 self.window_list.len,
             });
             while (self.window_list.pop()) |node| {

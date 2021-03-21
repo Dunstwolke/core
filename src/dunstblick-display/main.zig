@@ -138,7 +138,8 @@ pub fn main() !u8 {
                             try ctx.data.render();
                         },
                         .size_changed => {},
-                        else => log.debug("{} {}\n", .{ ctx.data.window, win_ev }),
+                        else => {},
+                        // else => log.debug("{} {}", .{ ctx.data.window, win_ev }),
                     }
                 },
                 .SDL_KEYDOWN, .SDL_KEYUP => {
@@ -157,9 +158,10 @@ pub fn main() !u8 {
                     const ctx = windows.find(ev.wheel.windowID) orelse continue;
                     ctx.data.pushEvent(ev);
                 },
-                else => log.warn("Unhandled event: {}\n", .{
-                    event_type,
-                }),
+                else => {},
+                //  log.warn("Unhandled event: {}", .{
+                //     event_type,
+                // }),
             }
 
             {

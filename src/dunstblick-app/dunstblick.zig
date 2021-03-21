@@ -131,7 +131,7 @@ const NetworkError = error{
 };
 
 fn mapNetworkError(value: NetworkError) DunstblickError {
-    log.debug("network error: {}:\n", .{value});
+    log.debug("network error: {}:", .{value});
     switch (value) {
         else => |e| return error.NetworkError,
     }
@@ -235,7 +235,7 @@ pub const Connection = struct {
             if (self.function) |function| {
                 @call(.{}, function, args ++ .{self.user_data});
             } else {
-                log.debug("callback does not exist!\n", .{});
+                log.debug("callback does not exist!", .{});
             }
         }
     },
@@ -251,13 +251,13 @@ pub const Connection = struct {
             if (self.function) |function| {
                 @call(.{}, function, args ++ .{self.user_data});
             } else {
-                log.debug("callback does not exist!\n", .{});
+                log.debug("callback does not exist!", .{});
             }
         }
     },
 
     fn init(provider: *Application, sock: xnet.Socket, endpoint: xnet.EndPoint) Connection {
-        log.debug("connection from {}\n", .{endpoint});
+        log.debug("connection from {}", .{endpoint});
         return Connection{
             .mutex = .{},
             .sock = sock,
@@ -277,7 +277,7 @@ pub const Connection = struct {
     }
 
     fn deinit(self: *Self) void {
-        log.debug("connection lost to {}\n", .{self.remote});
+        log.debug("connection lost to {}", .{self.remote});
         self.receive_buffer.deinit();
 
         self.sock.close();
@@ -294,10 +294,10 @@ pub const Connection = struct {
         if (self.disconnect_reason != null)
             return; // already dropped
         self.disconnect_reason = reason;
-        log.debug("dropped connection to {}: {}\n", .{ self.remote, reason });
+        log.debug("dropped connection to {}: {}", .{ self.remote, reason });
     }
 
-    //! Shoves data from the display server into the connection.
+    /// Shoves data from the display server into the connection.
     fn pushData(self: *Self, blob: []const u8) !void {
         const MAX_BUFFER_LIMIT = 5 * 1024 * 1024; // 5 MeBiByte
 
@@ -307,7 +307,7 @@ pub const Connection = struct {
 
         try self.receive_buffer.appendSlice(blob);
 
-        log.debug("read {} bytes from {} into buffer of {}\n", .{
+        log.debug("read {} bytes from {} into buffer of {}", .{
             blob.len,
             self.remote,
             self.receive_buffer.items.len,
@@ -464,8 +464,8 @@ pub const Connection = struct {
         }
     }
 
-    //! Is called whenever the socket is ready to send
-    //! data and we're not yet in "READY" state
+    /// Is called whenever the socket is ready to send
+    /// data and we're not yet in "READY" state
     fn sendData(self: *Self) !void {
         std.debug.assert(self.is_initialized == false);
         std.debug.assert(self.state != .READY);
@@ -513,9 +513,9 @@ pub const Connection = struct {
         }
     }
 
-    //! transmit a CommandBuffer synchronously
-    //! @remarks self will lock the Connection internally,
-    //!          so don't wrap self call into a mutex!
+    /// transmit a CommandBuffer synchronously
+    /// @remarks self will lock the Connection internally,
+    ///          so don't wrap self call into a mutex!
     fn send(self: *Self, packet: []const u8) DunstblickError!void {
         std.debug.assert(self.state == .READY);
 
@@ -565,7 +565,7 @@ pub const Connection = struct {
                 });
             },
             _ => {
-                log.err("Received {} bytes of an unknown message type {}\n", .{ packet.len, msgtype });
+                log.err("Received {} bytes of an unknown message type {}", .{ packet.len, msgtype });
                 return error.UnknownPacket;
             },
         }
@@ -777,7 +777,7 @@ pub const Application = struct {
             if (self.function) |function| {
                 @call(.{}, function, args ++ .{self.user_data});
             } else {
-                log.debug("callback does not exist!\n", .{});
+                log.debug("callback does not exist!", .{});
             }
         }
     },
@@ -790,7 +790,7 @@ pub const Application = struct {
             if (self.function) |function| {
                 @call(.{}, function, args ++ .{self.user_data});
             } else {
-                log.debug("callback does not exist!\n", .{});
+                log.debug("callback does not exist!", .{});
             }
         }
     },
@@ -853,7 +853,7 @@ pub const Application = struct {
             ),
         });
 
-        log.debug("provider ready at {}\n", .{try provider.tcp_sock.getLocalEndPoint()});
+        log.debug("provider ready at {}", .{try provider.tcp_sock.getLocalEndPoint()});
 
         return provider;
     }
@@ -980,7 +980,7 @@ pub const Application = struct {
 
             if (self.multicast_sock.receiveFrom(std.mem.asBytes(&message))) |msg| {
                 if (msg.numberOfBytes < @sizeOf(protocol.udp.Header)) {
-                    log.err("udp message too small…\n", .{});
+                    log.err("udp message too small…", .{});
                 } else {
                     if (std.mem.eql(u8, &message.header.magic, &protocol.udp.magic)) {
                         switch (message.header.type) {
@@ -999,27 +999,27 @@ pub const Application = struct {
                                     std.mem.set(u8, &response.name, 0);
                                     std.mem.copy(u8, &response.name, self.discovery_name[0..response.length]);
 
-                                    log.debug("response to {}\n", .{msg.sender});
+                                    log.debug("response to {}", .{msg.sender});
 
                                     if (self.multicast_sock.sendTo(msg.sender, std.mem.asBytes(&response))) |sendlen| {
                                         if (sendlen < @sizeOf(protocol.udp.DiscoverResponse)) {
-                                            log.err("expected to send {} bytes, got {}\n", .{
+                                            log.err("expected to send {} bytes, got {}", .{
                                                 @sizeOf(protocol.udp.DiscoverResponse),
                                                 sendlen,
                                             });
                                         }
                                     } else |err| {
-                                        log.err("failed to send udp response: {}\n", .{err});
+                                        log.err("failed to send udp response: {}", .{err});
                                     }
                                 } else {
-                                    log.err("expected {} bytes, got {}\n", .{ @sizeOf(protocol.udp.Discover), msg.numberOfBytes });
+                                    log.err("expected {} bytes, got {}", .{ @sizeOf(protocol.udp.Discover), msg.numberOfBytes });
                                 }
                             },
                             .respond_discover => {
                                 if (msg.numberOfBytes >= @sizeOf(protocol.udp.DiscoverResponse)) {
-                                    log.debug("got udp response\n", .{});
+                                    log.debug("got udp response", .{});
                                 } else {
-                                    log.err("expected {} bytes, got {}\n", .{
+                                    log.err("expected {} bytes, got {}", .{
                                         @sizeOf(protocol.udp.DiscoverResponse),
                                         msg.numberOfBytes,
                                     });
@@ -1027,11 +1027,11 @@ pub const Application = struct {
                             },
 
                             _ => |val| {
-                                log.err("invalid packet type: {}\n", .{val});
+                                log.err("invalid packet type: {}", .{val});
                             },
                         }
                     } else {
-                        log.err("Invalid packet magic: {X:0>2}{X:0>2}{X:0>2}{X:0>2}\n", .{
+                        log.err("Invalid packet magic: {X:0>2}{X:0>2}{X:0>2}{X:0>2}", .{
                             message.header.magic[0],
                             message.header.magic[1],
                             message.header.magic[2],
@@ -1040,7 +1040,7 @@ pub const Application = struct {
                     }
                 }
             } else |err| {
-                log.err("failed to receive udp message: {}\n", .{err});
+                log.err("failed to receive udp message: {}", .{err});
             }
         }
         if (self.socket_set.isReadyRead(self.tcp_sock)) {

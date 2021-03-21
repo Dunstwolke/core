@@ -110,7 +110,7 @@ pub fn Encoder(comptime Stream: type) type {
                 .event => try self.writeVarUInt(@enumToInt(val.event)),
                 .name => try self.writeVarUInt(@enumToInt(val.name)),
 
-                .objectlist => unreachable, // not implemented yet
+                .objectlist => std.log.err("Writing objectlist property not possible yet.", .{}), // not implemented yet
 
                 else => unreachable, // api violation
             }

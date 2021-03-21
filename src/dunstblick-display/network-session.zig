@@ -137,7 +137,7 @@ pub const NetworkSession = struct {
             var resource_header: protocol.tcp.ResourceHeader = undefined;
             try reader.readNoEof(std.mem.asBytes(&resource_header));
 
-            log.info("Receiving resource {} ({} bytes)…\n", .{ resource_header.id, resource_header.size });
+            log.info("Receiving resource {} ({} bytes)…", .{ resource_header.id, resource_header.size });
 
             try byte_buffer.resize(resource_header.size);
 

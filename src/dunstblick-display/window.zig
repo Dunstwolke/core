@@ -81,7 +81,7 @@ pub const Window = struct {
     pub fn update(self: *Self) void {
         if (self.session) |session| {
             self.alive = session.update(session) catch |err| blk: {
-                log.err("failed to update session: {}\n", .{err});
+                log.err("failed to update session: {}", .{err});
                 break :blk false;
             };
         }
