@@ -182,6 +182,67 @@ const StoredResource = struct {
     }
 };
 
+pub const ConnectedEvent = struct {
+    /// The newly created connection.
+    connection: *Connection,
+
+    /// The name of the display client. If none is given, it's just `IP:port`
+    clientName: [:0]const u8,
+
+    /// The password that was passed by the user.
+    password: [:0]const u8,
+
+    /// Current screen size of the display client.
+    screenSize: Size,
+
+    /// Bitmask containing all available capabilities of the display client.
+    capabilities: ClientCapabilities,
+};
+
+pub const DisconnectedEvent = struct {
+    /// The connection that is about to be closed.
+    connection: *Connection,
+
+    /// The reason why the  display client is disconnected
+    reason: DisconnectReason,
+};
+
+pub const WidgetEvent = struct {
+    /// the display client that triggered the event.
+    connection: *Connection,
+    /// The id of the event that was triggered. This ID is specified in the UI layout.
+    event: protocol.EventID,
+    /// The name of the widget that triggered the event.
+    caller: protocol.WidgetName,
+};
+
+pub const PropertyChangedEvent = struct {
+    /// the display client that changed the event.
+    connection: *Connection,
+    /// The object handle where the property was changed
+    object: protocol.ObjectID,
+    /// The name of the property that was changed
+    property: protocol.PropertyName,
+    /// The value of the property
+    value: protocol.Value,
+};
+
+pub const EventType = std.meta.Tag(Event);
+
+pub const Event = union(enum) {
+    /// A new display client has connected to the server.
+    connected: ConnectedEvent,
+
+    /// A display client has disconnected
+    disconnected: DisconnectedEvent,
+
+    /// A widget in a connection triggered an event.
+    widget_event: WidgetEvent,
+
+    /// A property of a remote object was changed
+    property_changed: PropertyChangedEvent,
+};
+
 /// A connection that was established by a display client.
 /// Use these to interact with your clients.
 pub const Connection = struct {
@@ -541,26 +602,47 @@ pub const Connection = struct {
 
         switch (msgtype) {
             .eventCallback => {
-                const id = try reader.readVarUInt();
-                const widget = try reader.readVarUInt();
+                const id = @intToEnum(protocol.EventID, try reader.readVarUInt());
+                const widget = @intToEnum(protocol.WidgetName, try reader.readVarUInt());
+
+                const event = try self.provider.createEvent();
+                event.event = Event{
+                    .widget_event = WidgetEvent{
+                        .connection = self,
+                        .event = id,
+                        .caller = widget,
+                    },
+                };
+                self.provider.enqueueEvent(event);
 
                 self.on_event.invoke(.{
                     self,
-                    @intToEnum(protocol.EventID, id),
-                    @intToEnum(protocol.WidgetName, widget),
+                    id,
+                    widget,
                 });
             },
             .propertyChanged => {
-                const obj_id = try reader.readVarUInt();
-                const property = try reader.readVarUInt();
+                const obj_id = @intToEnum(protocol.ObjectID, try reader.readVarUInt());
+                const property = @intToEnum(protocol.PropertyName, try reader.readVarUInt());
                 const value_type = @intToEnum(protocol.Type, try reader.readByte());
 
                 const value = try reader.readValue(value_type, null);
 
+                const event = try self.provider.createEvent();
+                event.event = Event{
+                    .property_changed = PropertyChangedEvent{
+                        .connection = self,
+                        .object = obj_id,
+                        .property = property,
+                        .value = value,
+                    },
+                };
+                self.provider.enqueueEvent(event);
+
                 self.on_property_changed.invoke(.{
                     self,
-                    @intToEnum(protocol.ObjectID, obj_id),
-                    @intToEnum(protocol.PropertyName, property),
+                    obj_id,
+                    property,
                     &value,
                 });
             },
@@ -744,6 +826,10 @@ pub const Connection = struct {
 
         try self.send(stream.getWritten());
     }
+
+    pub fn format(self: Self, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        try writer.print("Connection({})", .{self.sock.getLocalEndPoint()});
+    }
 };
 
 pub const Application = struct {
@@ -753,6 +839,16 @@ pub const Application = struct {
 
     const ConnectionList = std.TailQueue(Connection);
     const ConnectionNode = ConnectionList.Node;
+
+    const AppEvent = struct {
+        /// Stores all memory related to that event
+        memory: std.heap.ArenaAllocator,
+
+        event: Event,
+    };
+
+    const EventQueue = std.TailQueue(AppEvent);
+    const EventNode = EventQueue.Node;
 
     mutex: std.Thread.Mutex,
     allocator: *std.mem.Allocator,
@@ -797,6 +893,21 @@ pub const Application = struct {
 
     socket_set: xnet.SocketSet,
 
+    // TODO: Implement event queue stuff here
+
+    event_arena: std.heap.ArenaAllocator,
+
+    /// Stores a ordered list of events that will be returned by `pollEvent()`
+    event_queue: EventQueue,
+
+    /// Stores a list of events that can be recycled. Events in here are `undefined`,
+    /// but provide a already-allocated memory for less allocation pressure.
+    event_stash: EventQueue,
+
+    /// The last event that was returned to the user. Must be freed in the next call 
+    /// of `pollEvent()`.
+    current_user_event: ?*EventNode,
+
     /// Creates a new application that is visible to the network.
     /// `discoveryName` is the name that is shown to the discovering clients.
     pub fn open(allocator: *std.mem.Allocator, discoveryName: []const u8) !Self {
@@ -815,6 +926,11 @@ pub const Application = struct {
 
             .socket_set = try xnet.SocketSet.init(allocator),
 
+            .event_arena = std.heap.ArenaAllocator.init(allocator),
+            .event_queue = .{},
+            .event_stash = .{},
+            .current_user_event = null,
+
             // will be initialized in sequence:
             .discovery_name = undefined,
             .tcp_sock = undefined,
@@ -822,6 +938,7 @@ pub const Application = struct {
             .tcp_listener_ep = undefined,
         };
         errdefer provider.resources.deinit();
+        errdefer provider.event_arena.deinit();
 
         provider.discovery_name = try std.mem.dupe(allocator, u8, discoveryName);
         errdefer allocator.free(provider.discovery_name);
@@ -886,6 +1003,18 @@ pub const Application = struct {
                 self.allocator.destroy(item);
             }
         }
+
+        // Free all active events
+        {
+            var iter = self.event_queue.first;
+            while (iter) |item| {
+                iter = item.next;
+                item.data.memory.deinit();
+            }
+        }
+
+        // Contains all events in both event_queue and event_stash
+        self.event_arena.deinit();
 
         self.resources.deinit();
         self.tcp_sock.close();
@@ -999,7 +1128,7 @@ pub const Application = struct {
                                     std.mem.set(u8, &response.name, 0);
                                     std.mem.copy(u8, &response.name, self.discovery_name[0..response.length]);
 
-                                    log.debug("response to {}", .{msg.sender});
+                                    // log.debug("response to {}", .{msg.sender});
 
                                     if (self.multicast_sock.sendTo(msg.sender, std.mem.asBytes(&response))) |sendlen| {
                                         if (sendlen < @sizeOf(protocol.udp.DiscoverResponse)) {
@@ -1081,6 +1210,21 @@ pub const Application = struct {
                 if (item.data.is_initialized) {
                     self.pending_connections.remove(item);
 
+                    const event = try self.createEvent();
+                    errdefer self.freeEvent(event);
+
+                    event.event = Event{
+                        .connected = ConnectedEvent{
+                            .connection = &item.data,
+                            .clientName = try event.memory.allocator.dupeZ(u8, item.data.header.?.clientName),
+                            .password = try event.memory.allocator.dupeZ(u8, item.data.header.?.clientName),
+                            .screenSize = item.data.screen_resolution,
+                            .capabilities = item.data.header.?.capabilities,
+                        },
+                    };
+
+                    self.enqueueEvent(event);
+
                     self.on_connected.invoke(.{
                         self,
                         &item.data,
@@ -1103,12 +1247,95 @@ pub const Application = struct {
                 defer iter = next;
 
                 if (item.data.disconnect_reason != null) {
+                    const event = try self.createEvent();
+                    errdefer self.freeEvent(event);
+
+                    event.event = Event{
+                        .disconnected = DisconnectedEvent{
+                            .connection = &item.data,
+                            .reason = item.data.disconnect_reason.?,
+                        },
+                    };
+
+                    self.enqueueEvent(event);
+
                     self.established_connections.remove(item);
-                    item.data.deinit();
-                    self.allocator.destroy(item);
+
+                    // item.data.deinit();
+                    // self.allocator.destroy(item);
                 }
             }
         }
+    }
+
+    /// Allocates a new event and returns it. Initializes the arena, but not the event pointer.
+    fn createEvent(self: *Self) !*AppEvent {
+        const node = if (self.event_stash.pop()) |node|
+            node
+        else
+            try self.event_arena.allocator.create(EventNode);
+
+        node.* = EventNode{
+            .data = AppEvent{
+                .memory = std.heap.ArenaAllocator.init(self.allocator),
+                .event = undefined,
+            },
+        };
+
+        return &node.data;
+    }
+
+    /// The event will already be enqueued in the `event_queue`.
+    fn enqueueEvent(self: *Self, event: *AppEvent) void {
+        const node = @fieldParentPtr(EventNode, "data", event);
+        self.event_queue.append(node);
+    }
+
+    /// Returns a event into the stash and frees its resources.
+    fn freeEvent(self: *Self, event: *AppEvent) void {
+        const node = @fieldParentPtr(EventNode, "data", event);
+
+        event.memory.deinit();
+        event.* = undefined;
+
+        self.event_stash.append(node);
+    }
+
+    /// Pumps events until either `timeout` nanoseconds have elapsed or at least a single event has happened.
+    /// Will return a pointer to the event or `null` when no event happened.
+    pub fn pollEvent(self: *Self, timeout: ?u64) !?*Event {
+
+        // Check if we returned an event to the user earlier
+        if (self.current_user_event) |event| {
+            self.current_user_event = null;
+
+            if (event.data.event == .disconnected) {
+                const connection = event.data.event.disconnected.connection;
+                connection.deinit();
+
+                const node = @fieldParentPtr(ConnectionNode, "data", connection);
+                self.allocator.destroy(node);
+            }
+
+            self.freeEvent(&event.data);
+        }
+
+        if (self.event_queue.popFirst()) |event| {
+            std.debug.assert(self.current_user_event == null);
+            self.current_user_event = event;
+            return &event.data.event;
+        }
+
+        // event queue is empty, poll for more events from the network
+        try self.pumpEvents(timeout);
+
+        if (self.event_queue.popFirst()) |event| {
+            std.debug.assert(self.current_user_event == null);
+            self.current_user_event = event;
+            return &event.data.event;
+        }
+
+        return null;
     }
 
     // Public API
