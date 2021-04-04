@@ -1,3 +1,21 @@
+# TODO
+
+## dunstblick-app
+
+- [ ] Also free the current_event thingy if any. This would dangle if the application would be closed.
+- [ ] Implement new SingleInterfaceApplication
+      Single application interface that behaves like a connection to the outer world and replicates that behaviour. All connections will see the same data.
+- [ ] Rework the C api to use the event-driven API style as well
+
+## dunstblick-display
+- [ ] Create a pure-zig implementation
+- [ ] Port the implementation to android
+
+## dunstblick-compiler
+- [ ] Create a generator for resource info ("bindgen")
+
+## Old
+
 - [x] Resource System
 	- [ ] Vector Drawing
 		- [ ] Deserialize Vectors
@@ -47,7 +65,4 @@
 	- [ ] Bindable child lists
 		- [ ] Add "sort by property" + "sort asc, sort desc"
   - [ ] Give widgets a bindable "name" property that will be passed along with sent events to identify auto-generated widgets.
-- [ ] Add support for multiple open connections in display client
-  - [ ] Make display client use a tabbed design
-  - [ ] First tab is a overview over all available applications in the network
 - [ ] Add support for "push notifications" on the discovery network to allow certain applications announce messages without having an open connection to them

@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<diagram program="umlet" version="14.3.0">
+  <zoom_level>15</zoom_level>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>165</x>
+      <y>135</y>
+      <w>60</w>
+      <h>60</h>
+    </coordinates>
+    <panel_attributes>MENU
+valign=center</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>165</x>
+      <y>195</y>
+      <w>60</w>
+      <h>570</h>
+    </coordinates>
+    <panel_attributes/>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>180</x>
+      <y>210</y>
+      <w>30</w>
+      <h>30</h>
+    </coordinates>
+    <panel_attributes>0
+valign=center
+transparency=0
+bg=#80FF80</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>180</x>
+      <y>255</y>
+      <w>30</w>
+      <h>30</h>
+    </coordinates>
+    <panel_attributes>1
+valign=center
+transparency=0
+bg=#FF8080</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>180</x>
+      <y>300</y>
+      <w>30</w>
+      <h>30</h>
+    </coordinates>
+    <panel_attributes>2
+valign=center
+transparency=0
+bg=#8080FF</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>225</x>
+      <y>135</y>
+      <w>465</w>
+      <h>630</h>
+    </coordinates>
+    <panel_attributes>APP 0
+valign=center
+transparency=0
+bg=#80FF80</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>210</x>
+      <y>120</y>
+      <w>45</w>
+      <h>675</h>
+    </coordinates>
+    <panel_attributes>lt=-
+lw=3</panel_attributes>
+    <additional_attributes>10.0;10.0;10.0;430.0</additional_attributes>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>690</x>
+      <y>135</y>
+      <w>465</w>
+      <h>315</h>
+    </coordinates>
+    <panel_attributes>APP 1
+valign=center
+transparency=0
+bg=#FF8080</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates>
+      <x>690</x>
+      <y>450</y>
+      <w>465</w>
+      <h>315</h>
+    </coordinates>
+    <panel_attributes>APP 2
+valign=center
+transparency=0
+bg=#8080FF</panel_attributes>
+    <additional_attributes/>
+  </element>
+</diagram>
