@@ -117,7 +117,10 @@ const Sdl2Backend = struct {
     fn init(allocator: *std.mem.Allocator) !Sdl2Backend {
         try sdl.init(.{ .events = true, .video = true });
 
-        var window = try sdl.createWindow("Dunstblick", .centered, .centered, 1280, 720, .{});
+        var window = try sdl.createWindow("Dunstblick", .centered, .centered, 1280, 720, .{
+            .resizable = true,
+            .shown = true,
+        });
         errdefer window.destroy();
 
         var renderer = try sdl.createRenderer(window, null, .{
@@ -191,6 +194,35 @@ const Sdl2Backend = struct {
             .key_down => |ev| Event{ .key_down = mapKeyEvent(ev) },
             .key_up => |ev| Event{ .key_up = mapKeyEvent(ev) },
             .text_input => |ev| Event{ .text_input = Event.InputEvent{ .text = self.bufferTextInput(ev.text) } },
+            .window => |ev| switch (ev.type) {
+                // ignore size_changed events (those are "runtime scaling")
+                .size_changed => @as(?Event, null),
+
+                // only pass "resized" events (which are *after* the resizing is done)
+                .resized => |size| blk: {
+                    if (sdl.createTexture(
+                        self.renderer,
+                        .rgbx8888,
+                        .streaming,
+                        @intCast(usize, size.width),
+                        @intCast(usize, size.height),
+                    )) |new_texture| {
+                        self.texture.destroy();
+                        self.texture = new_texture;
+                    } else |err| {
+                        log.err("failed to resize internal screen buffer: {s}", .{@errorName(err)});
+                    }
+
+                    break :blk Event{ .screen_resize = Size{
+                        .width = @intCast(u16, size.width),
+                        .height = @intCast(u16, size.height),
+                    } };
+                },
+                else => blk: {
+                    log.debug("unhandled event of type window.{s}", .{std.meta.tagName(ev.type)});
+                    break :blk null;
+                },
+            },
             else => blk: {
                 log.debug("unhandled event of type {s}", .{std.meta.tagName(sdl_event)});
                 break :blk null;
