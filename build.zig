@@ -214,10 +214,25 @@ pub fn build(b: *Builder) !void {
         display_client2.addPackage(pkgs.dunstblick_protocol);
         display_client2.addPackage(pkgs.network);
         display_client2.addPackage(pkgs.args);
-        display_client2.addPackage(pkgs.sdl2);
         display_client2.addPackage(pkgs.uri);
         display_client2.addPackage(pkgs.painterz);
         display_client2.addPackage(pkgs.meta);
+
+        const RenderBackend = enum { sdl2, dri };
+        const backend = b.option(RenderBackend, "render-backend", "The rendering backend for the new display client") orelse RenderBackend.sdl2;
+
+        display_client2.addBuildOption(RenderBackend, "render_backend", backend);
+
+        switch (backend) {
+            .sdl2 => {
+                display_client2.linkLibC();
+                display_client2.linkSystemLibrary("sdl2");
+                display_client2.addPackage(pkgs.sdl2);
+            },
+            .dri => {
+                @panic("Unsupported build option!");
+            },
+        }
     }
     // display_client2.install();
 
