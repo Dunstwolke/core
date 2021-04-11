@@ -5,26 +5,13 @@ const log = std.log.scoped(.display);
 
 const Self = @This();
 
+const Framebuffer = @import("Framebuffer.zig");
+const Point = @import("Point.zig");
+const Size = @import("Size.zig");
+
 pub const requires_softmouse = switch (build_options.render_backend) {
     .sdl2 => false,
     .drm => true,
-};
-
-const Point = struct {
-    x: i16,
-    y: i16,
-};
-
-const Size = struct {
-    width: u16,
-    height: u16,
-};
-
-pub const Color = extern struct {
-    b: u8,
-    g: u8,
-    r: u8,
-    a: u8 = 0xFF,
 };
 
 allocator: *std.mem.Allocator,
@@ -32,14 +19,27 @@ alive: bool,
 backend: Backend,
 
 mouse_position: Point,
+framebuffer: ?Framebuffer,
+screen_size: Size,
 
 pub fn init(allocator: *std.mem.Allocator) !Self {
-    return Self{
+    var self = Self{
         .allocator = allocator,
         .alive = true,
         .backend = try Backend.init(allocator),
+
         .mouse_position = Point{ .x = 0, .y = 0 },
+        .screen_size = undefined,
+        .framebuffer = null,
     };
+
+    self.screen_size = self.backend.getScreenSize();
+    self.mouse_position = Point{
+        .x = @intCast(i16, self.screen_size.width / 2),
+        .y = @intCast(i16, self.screen_size.height / 2),
+    };
+
+    return self;
 }
 
 pub fn deinit(self: *Self) void {
@@ -82,25 +82,27 @@ pub const Event = union(enum) {
 };
 
 pub fn pollEvent(self: *Self) !?Event {
-    return try self.backend.pollEvent();
+    var maybe_event = try self.backend.pollEvent();
+    if (maybe_event) |event| {
+        switch (event) {
+            .screen_resize => |size| self.screen_size = size,
+            .mouse_motion => |motion| self.mouse_position = motion.position,
+            else => {},
+        }
+    }
+    return maybe_event;
 }
 
-pub const ScreenMapping = struct {
-    display: *Self,
+pub fn mapScreen(self: *Self) !Framebuffer {
+    std.debug.assert(self.framebuffer == null);
+    self.framebuffer = try self.backend.mapScreen();
+    return self.framebuffer.?;
+}
 
-    width: usize,
-    height: usize,
-    stride: usize,
-    pixels: [*]align(4) Color,
-
-    pub fn unmap(self: *ScreenMapping) void {
-        self.display.backend.unmapScreen(self.*);
-        self.* = undefined;
-    }
-};
-
-pub fn mapScreen(self: *Self) !ScreenMapping {
-    return self.backend.mapScreen();
+pub fn unmapScreen(self: *Self) void {
+    std.debug.assert(self.framebuffer != null);
+    self.backend.unmapScreen(self.framebuffer.?);
+    self.framebuffer = null;
 }
 
 const Backend = switch (build_options.render_backend) {
@@ -109,6 +111,8 @@ const Backend = switch (build_options.render_backend) {
 };
 
 const Sdl2Backend = struct {
+    const texture_format = .argb8888;
+
     window: sdl.Window,
     renderer: sdl.Renderer,
     texture: sdl.Texture,
@@ -118,7 +122,7 @@ const Sdl2Backend = struct {
         try sdl.init(.{ .events = true, .video = true });
 
         var window = try sdl.createWindow("Dunstblick", .centered, .centered, 1280, 720, .{
-            .resizable = true,
+            .resizable = false, // TODO: Change to `true` when finished
             .shown = true,
         });
         errdefer window.destroy();
@@ -134,7 +138,7 @@ const Sdl2Backend = struct {
 
         var texture = try sdl.createTexture(
             renderer,
-            .rgbx8888,
+            texture_format,
             .streaming,
             @intCast(usize, actual_size.width),
             @intCast(usize, actual_size.height),
@@ -154,19 +158,18 @@ const Sdl2Backend = struct {
         sdl.quit();
     }
 
-    fn mapScreen(self: *Sdl2Backend) !ScreenMapping {
+    fn mapScreen(self: *Sdl2Backend) !Framebuffer {
         var texture_info = try self.texture.query();
         var pixel_data = try self.texture.lock(null);
-        return ScreenMapping{
-            .display = @fieldParentPtr(Self, "backend", self),
+        return Framebuffer{
             .width = texture_info.width,
             .height = texture_info.height,
-            .stride = pixel_data.stride,
-            .pixels = @ptrCast([*]Color, @alignCast(4, pixel_data.pixels)),
+            .stride = @divExact(pixel_data.stride, 4),
+            .pixels = @ptrCast([*]Framebuffer.Color, @alignCast(4, pixel_data.pixels)),
         };
     }
 
-    fn unmapScreen(self: *Sdl2Backend, screen: ScreenMapping) void {
+    fn unmapScreen(self: *Sdl2Backend, screen: Framebuffer) void {
         var pixel_data = sdl.Texture.PixelData{
             .texture = self.texture.ptr,
             .pixels = @ptrCast([*]u8, screen.pixels),
@@ -202,7 +205,7 @@ const Sdl2Backend = struct {
                 .resized => |size| blk: {
                     if (sdl.createTexture(
                         self.renderer,
-                        .rgbx8888,
+                        texture_format,
                         .streaming,
                         @intCast(usize, size.width),
                         @intCast(usize, size.height),
@@ -214,8 +217,8 @@ const Sdl2Backend = struct {
                     }
 
                     break :blk Event{ .screen_resize = Size{
-                        .width = @intCast(u16, size.width),
-                        .height = @intCast(u16, size.height),
+                        .width = @intCast(u15, size.width),
+                        .height = @intCast(u15, size.height),
                     } };
                 },
                 else => blk: {
@@ -248,5 +251,13 @@ const Sdl2Backend = struct {
             sdl.c.SDL_BUTTON_RIGHT => return MouseButton.right,
             else => return null,
         }
+    }
+
+    fn getScreenSize(self: Sdl2Backend) Size {
+        var size = self.window.getSize();
+        return Size{
+            .width = @intCast(u15, size.width),
+            .height = @intCast(u15, size.height),
+        };
     }
 };

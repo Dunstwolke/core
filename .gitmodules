@@ -25,3 +25,9 @@
 [submodule "lib/wazm"]
 	path = lib/wazm
 	url = https://github.com/fengb/wazm
+[submodule "lib/tvg"]
+	path = lib/tvg
+	url = https://github.com/MasterQ32/tvg
+[submodule "lib/ini"]
+	path = lib/ini
+	url = https://github.com/ziglibs/ini

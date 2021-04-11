@@ -27,6 +27,14 @@ const pkgs = struct {
         .path = "./lib/painterz/painterz.zig",
     };
 
+    const tvg = std.build.Pkg{
+        .name = "tvg",
+        .path = "./lib/tvg/src/tvg.zig",
+        .dependencies = &[_]std.build.Pkg{
+            painterz,
+        },
+    };
+
     const meta = std.build.Pkg{
         .name = "zig-meta",
         .path = "./lib/zig-meta/meta.zig",
@@ -211,12 +219,16 @@ pub fn build(b: *Builder) !void {
 
     const display_client2 = b.addExecutable("dunstblick-display2", "src/dunstblick-display2/main.zig");
     {
-        display_client2.addPackage(pkgs.dunstblick_protocol);
-        display_client2.addPackage(pkgs.network);
-        display_client2.addPackage(pkgs.args);
-        display_client2.addPackage(pkgs.uri);
+        display_client2.setBuildMode(mode);
+        display_client2.setTarget(target);
+
+        //display_client2.addPackage(pkgs.dunstblick_protocol);
+        //display_client2.addPackage(pkgs.network);
+        //display_client2.addPackage(pkgs.args);
+        //display_client2.addPackage(pkgs.uri);
         display_client2.addPackage(pkgs.painterz);
-        display_client2.addPackage(pkgs.meta);
+        display_client2.addPackage(pkgs.tvg);
+        //display_client2.addPackage(pkgs.meta);
 
         const RenderBackend = enum { sdl2, dri };
         const backend = b.option(RenderBackend, "render-backend", "The rendering backend for the new display client") orelse RenderBackend.sdl2;
