@@ -17,4 +17,13 @@ pub const Color = extern struct {
     g: u8,
     r: u8,
     a: u8 = 0xFF,
+
+    pub fn rgb(comptime str: *const [6]u8) Color {
+        const std = @import("std");
+        return Color{
+            .r = std.fmt.parseInt(u8, str[0..2], 16) catch unreachable,
+            .g = std.fmt.parseInt(u8, str[2..4], 16) catch unreachable,
+            .b = std.fmt.parseInt(u8, str[4..6], 16) catch unreachable,
+        };
+    }
 };

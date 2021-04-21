@@ -22,22 +22,22 @@ const HomeScreenConfig = struct {
     button_margin: u15 = 8,
 
     button_base: ButtonColors = ButtonColors{
-        .outline = .{ .r = 0xFF, .g = 0x00, .b = 0x00 },
-        .background = .{ .r = 0x80, .g = 0x40, .b = 0x40 },
+        .outline = Color.rgb("363c42"),
+        .background = Color.rgb("292f35"),
     },
     button_hovered: ButtonColors = ButtonColors{
-        .outline = .{ .r = 0x00, .g = 0xFF, .b = 0xFF },
-        .background = .{ .r = 0xFF, .g = 0x80, .b = 0x80 },
+        .outline = Color.rgb("1abc9c"),
+        .background = Color.rgb("255953"),
     },
     button_active: ButtonColors = ButtonColors{
-        .outline = .{ .r = 0x00, .g = 0x00, .b = 0x00 },
-        .background = .{ .r = 0x40, .g = 0x40, .b = 0x40 },
+        .outline = Color.rgb("1abc9c"),
+        .background = Color.rgb("1e524c"),
     },
 
-    bar_background: Color = .{ .r = 0xFF, .g = 0xFF, .b = 0xFF },
-    bar_outline: Color = .{ .r = 0x00, .g = 0xFF, .b = 0x00 },
+    bar_background: Color = Color.rgb("292f35"),
+    bar_outline: Color = Color.rgb("212529"),
 
-    background_color: Color = .{ .r = 0x40, .g = 0x40, .b = 0x40 },
+    background_color: Color = Color.rgb("263238"),
 };
 
 allocator: *std.mem.Allocator,
@@ -224,46 +224,6 @@ pub fn render(self: Self, target: Framebuffer) void {
             }
         }
     }
-
-    const icon_list = [_][]const u8{
-        &icons.app_menu,
-        &icons.shield,
-        &icons.workspace,
-        &icons.workspace_add,
-    };
-
-    const icon_sizes = [_]u15{
-        8,
-        16,
-        32,
-        48,
-        64,
-        96,
-        128,
-    };
-
-    var y: isize = 96;
-    for (icon_sizes) |size| {
-        var x: isize = 96;
-        for (icon_list) |icon| {
-            var icon_canvas = SubCanvas{
-                .canvas = &fb,
-                .x = x,
-                .y = y,
-                .width = size,
-                .height = size,
-            };
-            tvg.render(
-                &temp_allocator.allocator,
-                icon_canvas,
-                icon,
-            ) catch unreachable;
-            temp_allocator.reset();
-
-            x += (8 + size);
-        }
-        y += (8 + size);
-    }
 }
 
 const icons = struct {
@@ -394,9 +354,9 @@ fn renderTreeNode(self: Self, canvas: *Canvas, area: Rectangle, node: WindowTree
                 area.width,
                 area.height,
                 if (area.contains(self.mouse_pos))
-                    Color{ .r = 0xFF, .g = 0x00, .b = 0x00 }
+                    Color.rgb("255853")
                 else
-                    Color{ .r = 0xFF, .g = 0xFF, .b = 0xFF },
+                    Color.rgb("363c42"),
             );
             //canvas.fillRectangle(area.x + 1, area.y + 1, area.width - 2, area.height - 2, Color{ .r = 0x80, .g = 0x00, .b = 0x00 });
         },
