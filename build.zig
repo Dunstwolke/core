@@ -29,10 +29,7 @@ const pkgs = struct {
 
     const tvg = std.build.Pkg{
         .name = "tvg",
-        .path = "./lib/tvg/src/tvg.zig",
-        .dependencies = &[_]std.build.Pkg{
-            painterz,
-        },
+        .path = "./lib/tvg/src/lib/tvg.zig",
     };
 
     const meta = std.build.Pkg{
