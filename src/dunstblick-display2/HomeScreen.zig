@@ -2,6 +2,8 @@ const std = @import("std");
 const painterz = @import("painterz");
 const tvg = @import("tvg");
 
+const icons = @import("icons/data.zig");
+
 const Self = @This();
 
 const Point = @import("Point.zig");
@@ -47,24 +49,25 @@ mouse_pos: Point,
 
 current_workspace: usize,
 
-buttons: std.ArrayList(Button),
+menu_items: std.ArrayList(MenuItem),
 
 pub fn init(allocator: *std.mem.Allocator, initial_size: Size) !Self {
     var self = Self{
         .allocator = allocator,
         .size = initial_size,
-        .buttons = std.ArrayList(Button).init(allocator),
+        .menu_items = std.ArrayList(MenuItem).init(allocator),
         .config = HomeScreenConfig{},
         .mouse_pos = Point{ .x = 0, .y = 0 },
         .current_workspace = 0,
     };
 
-    try self.buttons.append(Button{ .data = .app_menu });
-    try self.buttons.append(Button{ .data = .{ .workspace = Workspace.init(allocator) } });
-    try self.buttons.append(Button{ .data = .new_workspace });
+    try self.menu_items.append(MenuItem{ .button = Button{ .data = .app_menu } });
+    try self.menu_items.append(.separator);
+    try self.menu_items.append(MenuItem{ .button = Button{ .data = .{ .workspace = Workspace.init(allocator) } } });
+    try self.menu_items.append(MenuItem{ .button = Button{ .data = .new_workspace } });
 
     {
-        const ws: *Workspace = &self.buttons.items[1].data.workspace;
+        const ws: *Workspace = &self.menu_items.items[2].button.data.workspace;
 
         var v_children = try allocator.alloc(WindowTree.Node, 3);
         errdefer allocator.free(v_children);
@@ -92,10 +95,13 @@ pub fn init(allocator: *std.mem.Allocator, initial_size: Size) !Self {
 }
 
 pub fn deinit(self: *Self) void {
-    for (self.buttons.items) |*ws| {
-        ws.deinit();
+    for (self.menu_items.items) |*item| {
+        switch (item.*) {
+            .button => |*b| b.deinit(),
+            else => {},
+        }
     }
-    self.buttons.deinit();
+    self.menu_items.deinit();
     self.* = undefined;
 }
 
@@ -108,12 +114,16 @@ pub fn setMousePos(self: *Self, pos: Point) void {
 }
 
 pub fn update(self: *Self, dt: f32) !void {
-    for (self.buttons.items) |*button, idx| {
+    for (self.menu_items.items) |*item, idx| {
         const button_rect = self.getMenuButtonRectangle(idx);
 
-        button.hovered = button_rect.contains(self.mouse_pos);
-
-        button.update(dt);
+        switch (item.*) {
+            .button => |*button| {
+                button.hovered = button_rect.contains(self.mouse_pos);
+                button.update(dt);
+            },
+            else => {},
+        }
     }
 }
 
@@ -164,188 +174,102 @@ pub fn render(self: Self, target: Framebuffer) void {
         self.config.bar_outline,
     );
 
-    for (self.buttons.items) |button, idx| {
+    for (self.menu_items.items) |item, idx| {
         const button_rect = self.getMenuButtonRectangle(idx);
 
-        const interp = smoothstep(button.highlight, 0.0, 1.0);
-
-        const icon_area = Rectangle{
-            .x = button_rect.x + 1,
-            .y = button_rect.y + 1,
-            .width = button_rect.width - 2,
-            .height = button_rect.height - 2,
-        };
-
-        fb.drawRectangle(
-            button_rect.x,
-            button_rect.y,
-            button_rect.width,
-            button_rect.height,
-            lerpColor(self.config.button_base.outline, self.config.button_hovered.outline, interp),
-        );
-        fb.fillRectangle(
-            icon_area.x,
-            icon_area.y,
-            icon_area.width,
-            icon_area.height,
-            lerpColor(self.config.button_base.background, self.config.button_hovered.background, interp),
-        );
-
-        var icon_canvas = SubCanvas{
-            .canvas = &fb,
-            .x = icon_area.x,
-            .y = icon_area.y,
-            .width = icon_area.width,
-            .height = icon_area.height,
-        };
-
-        tvg.render(
-            &temp_allocator.allocator,
-            icon_canvas,
-            switch (button.data) {
-                .app_menu => @as([]const u8, &icons.app_menu),
-                .workspace => &icons.workspace,
-                .new_workspace => &icons.workspace_add,
+        switch (item) {
+            .separator => {
+                fb.drawLine(
+                    0,
+                    button_rect.y,
+                    2 * self.config.button_margin + self.config.button_size,
+                    button_rect.y,
+                    self.config.bar_outline,
+                );
             },
-        ) catch unreachable;
-        temp_allocator.reset();
+            .button => |button| {
+                const interp = smoothstep(button.highlight, 0.0, 1.0);
+
+                const icon_area = Rectangle{
+                    .x = button_rect.x + 1,
+                    .y = button_rect.y + 1,
+                    .width = button_rect.width - 2,
+                    .height = button_rect.height - 2,
+                };
+
+                fb.drawRectangle(
+                    button_rect.x,
+                    button_rect.y,
+                    button_rect.width,
+                    button_rect.height,
+                    lerpColor(self.config.button_base.outline, self.config.button_hovered.outline, interp),
+                );
+                fb.fillRectangle(
+                    icon_area.x,
+                    icon_area.y,
+                    icon_area.width,
+                    icon_area.height,
+                    lerpColor(self.config.button_base.background, self.config.button_hovered.background, interp),
+                );
+
+                var icon_canvas = SubCanvas{
+                    .canvas = &fb,
+                    .x = icon_area.x,
+                    .y = icon_area.y,
+                    .width = icon_area.width,
+                    .height = icon_area.height,
+                };
+
+                tvg.render(
+                    &temp_allocator.allocator,
+                    icon_canvas,
+                    switch (button.data) {
+                        .app_menu => @as([]const u8, &icons.app_menu),
+                        .workspace => &icons.workspace,
+                        .new_workspace => &icons.workspace_add,
+                    },
+                ) catch unreachable;
+                temp_allocator.reset();
+            },
+        }
     }
 
     {
         var i: usize = 0;
-        for (self.buttons.items) |btn| {
-            if (btn.data == .workspace) {
-                if (i == self.current_workspace) {
-                    self.renderWorkspace(&fb, workspace_area, btn.data.workspace);
-                    break;
-                } else {
-                    i += 1;
-                }
+        for (self.menu_items.items) |item| {
+            switch (item) {
+                .button => |btn| {
+                    if (btn.data == .workspace) {
+                        if (i == self.current_workspace) {
+                            var hovered_rectangle: ?Rectangle = null;
+                            self.renderWorkspace(&fb, workspace_area, btn.data.workspace, &hovered_rectangle);
+
+                            if (hovered_rectangle) |area| {
+                                fb.drawRectangle(area.x, area.y, area.width, area.height, Color.rgb("255853"));
+                            }
+                            break;
+                        } else {
+                            i += 1;
+                        }
+                    }
+                },
+                else => {},
             }
         }
     }
 }
 
-const icons = struct {
-    const builder = tvg.builder(.@"1/256");
-
-    const app_menu = blk: {
-        @setEvalBranchQuota(10_000);
-
-        break :blk builder.header(48, 48) ++
-            builder.colorTable(&[_]tvg.Color{
-            tvg.Color.fromString("000000") catch unreachable,
-        }) ++
-            builder.fillPolygon(4, .flat, 0) ++
-            builder.point(6, 12) ++
-            builder.point(42, 12) ++
-            builder.point(42, 16) ++
-            builder.point(6, 16) ++
-            builder.fillPolygon(4, .flat, 0) ++
-            builder.point(6, 22) ++
-            builder.point(42, 22) ++
-            builder.point(42, 26) ++
-            builder.point(6, 26) ++
-            builder.fillPolygon(4, .flat, 0) ++
-            builder.point(6, 32) ++
-            builder.point(42, 32) ++
-            builder.point(42, 36) ++
-            builder.point(6, 36) ++
-            builder.end_of_document;
-    };
-
-    const workspace = blk: {
-        @setEvalBranchQuota(10_000);
-
-        break :blk builder.header(48, 48) ++
-            builder.colorTable(&[_]tvg.Color{
-            tvg.Color.fromString("008751") catch unreachable,
-            tvg.Color.fromString("83769c") catch unreachable,
-            tvg.Color.fromString("1d2b53") catch unreachable,
-        }) ++
-            builder.fillRectangles(1, .flat, 0) ++
-            builder.rectangle(6, 6, 16, 36) ++
-            builder.fillRectangles(1, .flat, 1) ++
-            builder.rectangle(26, 6, 16, 16) ++
-            builder.fillRectangles(1, .flat, 2) ++
-            builder.rectangle(26, 26, 16, 16) ++
-            builder.end_of_document;
-    };
-
-    const workspace_add = blk: {
-        @setEvalBranchQuota(10_000);
-
-        break :blk builder.header(48, 48) ++
-            builder.colorTable(&[_]tvg.Color{
-            tvg.Color.fromString("008751") catch unreachable,
-            tvg.Color.fromString("83769c") catch unreachable,
-            tvg.Color.fromString("ff004d") catch unreachable,
-        }) ++
-            builder.fillRectangles(1, .flat, 0) ++
-            builder.rectangle(6, 6, 16, 36) ++
-            builder.fillRectangles(1, .flat, 1) ++
-            builder.rectangle(26, 6, 16, 16) ++
-            builder.fillPath(11, .flat, 2) ++
-            builder.point(26, 32) ++
-            builder.path.horiz(32) ++
-            builder.path.vert(26) ++
-            builder.path.horiz(36) ++
-            builder.path.vert(32) ++
-            builder.path.horiz(42) ++
-            builder.path.vert(36) ++
-            builder.path.horiz(36) ++
-            builder.path.vert(42) ++
-            builder.path.horiz(32) ++
-            builder.path.vert(36) ++
-            builder.path.horiz(26) ++
-            builder.end_of_document;
-    };
-
-    const shield = blk: {
-        @setEvalBranchQuota(10_000);
-
-        break :blk builder.header(24, 24) ++
-            builder.colorTable(&[_]tvg.Color{
-            tvg.Color.fromString("29adff") catch unreachable,
-            tvg.Color.fromString("fff1e8") catch unreachable,
-        }) ++
-            builder.fillPath(5, .flat, 0) ++
-            builder.point(12, 1) ++ // M 12 1
-            builder.path.line(3, 5) ++ // L 3 5
-            builder.path.vert(11) ++ // V 11
-            builder.path.bezier(3, 16.55, 6.84, 21.74, 12, 23) ++ // C 3     16.55 6.84 21.74 12 23
-            builder.path.bezier(17.16, 21.74, 21, 16.55, 21, 11) ++ // C 17.16 21.74 21   16.55 21 11
-            builder.path.vert(5) ++ // V 5
-            builder.fillPath(6, .flat, 1) ++
-            builder.point(17.13, 17) ++ // M 12 1
-            builder.path.bezier(15.92, 18.85, 14.11, 20.24, 12, 20.92) ++
-            builder.path.bezier(9.89, 20.24, 8.08, 18.85, 6.87, 17) ++
-            builder.path.bezier(6.53, 16.5, 6.24, 16, 6, 15.47) ++
-            builder.path.bezier(6, 13.82, 8.71, 12.47, 12, 12.47) ++
-            builder.path.bezier(15.29, 12.47, 18, 13.79, 18, 15.47) ++
-            builder.path.bezier(17.76, 16, 17.47, 16.5, 17.13, 17) ++
-            builder.fillPath(4, .flat, 1) ++
-            builder.point(12, 5) ++
-            builder.path.bezier(13.5, 5, 15, 6.2, 15, 8) ++
-            builder.path.bezier(15, 9.5, 13.8, 10.998, 12, 11) ++
-            builder.path.bezier(10.5, 11, 9, 9.8, 9, 8) ++
-            builder.path.bezier(9, 6.4, 10.2, 5, 12, 5) ++
-            builder.end_of_document;
-    };
-    // comptime {
-    //     @compileLog(shield.len);
-    // }
-};
-
 fn initColor(r: u8, g: u8, b: u8, a: u8) Color {
     return Color{ .r = r, .g = g, .b = b, .a = a };
 }
 
-fn renderWorkspace(self: Self, canvas: *Canvas, area: Rectangle, workspace: Workspace) void {
-    self.renderTreeNode(canvas, area, workspace.window_tree.root);
+fn renderWorkspace(self: Self, canvas: *Canvas, area: Rectangle, workspace: Workspace, hovered_rectangle: *?Rectangle) void {
+    self.renderTreeNode(canvas, area, workspace.window_tree.root, hovered_rectangle);
 }
 
-fn renderTreeNode(self: Self, canvas: *Canvas, area: Rectangle, node: WindowTree.Node) void {
+fn renderTreeNode(self: Self, canvas: *Canvas, area: Rectangle, node: WindowTree.Node, hovered_rectangle: *?Rectangle) void {
+    if (area.contains(self.mouse_pos) and (node == .empty or node == .window))
+        hovered_rectangle.* = area;
     switch (node) {
         .empty => {
             canvas.drawRectangle(
@@ -353,10 +277,7 @@ fn renderTreeNode(self: Self, canvas: *Canvas, area: Rectangle, node: WindowTree
                 area.y,
                 area.width,
                 area.height,
-                if (area.contains(self.mouse_pos))
-                    Color.rgb("255853")
-                else
-                    Color.rgb("363c42"),
+                Color.rgb("363c42"),
             );
             //canvas.fillRectangle(area.x + 1, area.y + 1, area.width - 2, area.height - 2, Color{ .r = 0x80, .g = 0x00, .b = 0x00 });
         },
@@ -376,7 +297,7 @@ fn renderTreeNode(self: Self, canvas: *Canvas, area: Rectangle, node: WindowTree
                         var child_area = area;
                         child_area.y += @intCast(u15, item_height * i);
                         child_area.height = @intCast(u15, h);
-                        self.renderTreeNode(canvas, child_area, item);
+                        self.renderTreeNode(canvas, child_area, item, hovered_rectangle);
                     }
                 },
                 .horizontal => {
@@ -389,7 +310,7 @@ fn renderTreeNode(self: Self, canvas: *Canvas, area: Rectangle, node: WindowTree
                         var child_area = area;
                         child_area.x += @intCast(u15, item_width * i);
                         child_area.width = @intCast(u15, w);
-                        self.renderTreeNode(canvas, child_area, item);
+                        self.renderTreeNode(canvas, child_area, item, hovered_rectangle);
                     }
                 },
             }
@@ -398,14 +319,28 @@ fn renderTreeNode(self: Self, canvas: *Canvas, area: Rectangle, node: WindowTree
 }
 
 fn getMenuButtonRectangle(self: Self, index: usize) Rectangle {
-    const smol_index = @intCast(u15, index);
+    var offset_y: u15 = self.config.button_margin;
+
+    for (self.menu_items.items[0..index]) |item| {
+        offset_y += self.config.button_margin;
+        switch (item) {
+            .separator => offset_y += 1,
+            .button => offset_y += self.config.button_size,
+        }
+    }
+
     return Rectangle{
         .x = self.config.button_margin,
-        .y = self.config.button_margin + (self.config.button_margin + self.config.button_size) * smol_index,
+        .y = offset_y,
         .width = self.config.button_size,
         .height = self.config.button_size,
     };
 }
+
+const MenuItem = union(enum) {
+    separator,
+    button: Button,
+};
 
 const Button = struct {
     const Data = union(enum) {
