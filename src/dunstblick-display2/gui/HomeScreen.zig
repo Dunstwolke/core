@@ -11,6 +11,7 @@ const Size = @import("Size.zig");
 const Rectangle = @import("Rectangle.zig");
 const Framebuffer = @import("Framebuffer.zig");
 const Color = Framebuffer.Color;
+const Display = @import("Display.zig");
 
 const Canvas = painterz.Canvas(Framebuffer, Framebuffer.Color, setFramebufferPixel);
 
@@ -33,13 +34,24 @@ const HomeScreenConfig = struct {
     },
     button_active: ButtonColors = ButtonColors{
         .outline = Color.rgb("1abc9c"),
-        .background = Color.rgb("1e524c"),
+        .background = Color.rgb("0e443f"),
     },
 
     bar_background: Color = Color.rgb("292f35"),
     bar_outline: Color = Color.rgb("212529"),
 
     background_color: Color = Color.rgb("263238"),
+};
+
+const MouseMode = union(enum) {
+    /// Nothing special is happening, the user is moving the mouse and can click buttons
+    /// by clicking them with pressing and releasing the mouse button in them.
+    /// Widget interaction on the workspaces behave normal.
+    default,
+
+    /// The mouse was pressed on a button and is now held.
+    /// The value is the index of the button that was pressed.
+    button_press: usize,
 };
 
 allocator: *std.mem.Allocator,
@@ -51,6 +63,8 @@ current_workspace: usize,
 
 menu_items: std.ArrayList(MenuItem),
 
+mouse_mode: MouseMode,
+
 pub fn init(allocator: *std.mem.Allocator, initial_size: Size) !Self {
     var self = Self{
         .allocator = allocator,
@@ -59,6 +73,7 @@ pub fn init(allocator: *std.mem.Allocator, initial_size: Size) !Self {
         .config = HomeScreenConfig{},
         .mouse_pos = Point{ .x = 0, .y = 0 },
         .current_workspace = 0,
+        .mouse_mode = .default,
     };
 
     try self.menu_items.append(MenuItem{ .button = Button{ .data = .app_menu } });
@@ -113,13 +128,58 @@ pub fn setMousePos(self: *Self, pos: Point) void {
     self.mouse_pos = pos;
 }
 
-pub fn update(self: *Self, dt: f32) !void {
-    for (self.menu_items.items) |*item, idx| {
-        const button_rect = self.getMenuButtonRectangle(idx);
+pub fn mouseDown(self: *Self, mouse_button: Display.MouseButton) !void {
+    if (mouse_button != .left)
+        return;
 
+    switch (self.mouse_mode) {
+        .default => {
+            // Check if the user pressed the mouse on a button
+            for (self.menu_items.items) |btn, i| {
+                const rect = self.getMenuButtonRectangle(i);
+                if (rect.contains(self.mouse_pos)) {
+                    self.mouse_mode = .{ .button_press = i };
+                    return;
+                }
+            }
+        },
+        .button_press => unreachable,
+    }
+}
+
+pub fn mouseUp(self: *Self, mouse_button: Display.MouseButton) !void {
+    if (mouse_button != .left)
+        return;
+
+    switch (self.mouse_mode) {
+        .default => {
+            // do nothing on a mouse-up, we process clicks via .button_press
+        },
+        .button_press => |button| {
+            defer self.mouse_mode = .default;
+
+            const rect = self.getMenuButtonRectangle(button);
+
+            if (rect.contains(self.mouse_pos)) {
+                // we actually clicked that button!
+                std.log.info("clcked on button {}: {}", .{ button, self.menu_items.items[button] });
+            }
+        },
+    }
+}
+
+pub fn update(self: *Self, dt: f32) !void {
+    var hovered_button: ?usize = for (self.menu_items.items) |_, idx| {
+        const button_rect = self.getMenuButtonRectangle(idx);
+        if (button_rect.contains(self.mouse_pos))
+            break idx;
+    } else null;
+
+    for (self.menu_items.items) |*item, idx| {
         switch (item.*) {
             .button => |*button| {
-                button.hovered = button_rect.contains(self.mouse_pos);
+                button.clicked = (self.mouse_mode == .button_press and self.mouse_mode.button_press == idx);
+                button.hovered = (if (hovered_button) |i| (i == idx) else false);
                 button.update(dt);
             },
             else => {},
@@ -188,8 +248,6 @@ pub fn render(self: Self, target: Framebuffer) void {
                 );
             },
             .button => |button| {
-                const interp = smoothstep(button.highlight, 0.0, 1.0);
-
                 const icon_area = Rectangle{
                     .x = button_rect.x + 1,
                     .y = button_rect.y + 1,
@@ -197,19 +255,29 @@ pub fn render(self: Self, target: Framebuffer) void {
                     .height = button_rect.height - 2,
                 };
 
-                fb.drawRectangle(
-                    button_rect.x,
-                    button_rect.y,
-                    button_rect.width,
-                    button_rect.height,
-                    lerpColor(self.config.button_base.outline, self.config.button_hovered.outline, interp),
-                );
+                const interp_hover = smoothstep(button.visual_highlight, 0.0, 1.0);
+                var back_color = lerpColor(self.config.button_base.background, self.config.button_hovered.background, interp_hover);
+                var outline_color = lerpColor(self.config.button_base.outline, self.config.button_hovered.outline, interp_hover);
+
+                if (button.visual_pressed > 0.0) {
+                    const interp_click = smoothstep(button.visual_pressed, 0.0, 1.0);
+                    back_color = lerpColor(back_color, self.config.button_active.background, interp_click);
+                    outline_color = lerpColor(outline_color, self.config.button_active.outline, interp_click);
+                }
+
                 fb.fillRectangle(
                     icon_area.x,
                     icon_area.y,
                     icon_area.width,
                     icon_area.height,
-                    lerpColor(self.config.button_base.background, self.config.button_hovered.background, interp),
+                    back_color,
+                );
+                fb.drawRectangle(
+                    button_rect.x,
+                    button_rect.y,
+                    button_rect.width,
+                    button_rect.height,
+                    outline_color,
                 );
 
                 var icon_canvas = SubCanvas{
@@ -329,11 +397,16 @@ fn getMenuButtonRectangle(self: Self, index: usize) Rectangle {
         }
     }
 
+    const height = switch (self.menu_items.items[index]) {
+        .separator => 1,
+        .button => self.config.button_size,
+    };
+
     return Rectangle{
         .x = self.config.button_margin,
         .y = offset_y,
         .width = self.config.button_size,
-        .height = self.config.button_size,
+        .height = height,
     };
 }
 
@@ -351,13 +424,24 @@ const Button = struct {
 
     data: Data,
     hovered: bool = false,
-    highlight: f32 = 0.0,
+    clicked: bool = false,
+
+    visual_highlight: f32 = 0.0,
+    visual_pressed: f32 = 0.0,
 
     fn update(self: *Button, dt: f32) void {
-        self.highlight = std.math.clamp(self.highlight + 5.0 * dt * if (self.hovered)
-            @as(f32, 1.0)
+        const hover_delta = if (self.hovered)
+            @as(f32, 5.0) // fade-in time, normal
         else
-            @as(f32, -1.0), 0.0, 1.0);
+            @as(f32, -5.0); // fade-out time
+
+        const click_delta = if (self.clicked and self.hovered)
+            @as(f32, 15.0) // fade-in time
+        else
+            @as(f32, -3.0); // fade-out time
+
+        self.visual_highlight = std.math.clamp(self.visual_highlight + dt * hover_delta, 0.0, 1.0);
+        self.visual_pressed = std.math.clamp(self.visual_pressed + dt * click_delta, 0.0, 1.0);
     }
 
     fn deinit(self: *Button) void {

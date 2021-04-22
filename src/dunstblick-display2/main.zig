@@ -3,8 +3,8 @@ const meta = @import("zig-meta");
 
 const log = std.log.scoped(.application);
 
-const Display = @import("Display.zig");
-const HomeScreen = @import("HomeScreen.zig");
+const Display = @import("gui/Display.zig");
+const HomeScreen = @import("gui/HomeScreen.zig");
 
 // Design considerations:
 // - Screen sizes are limited to 32k×32k (allows using i16 for coordinates)
@@ -33,8 +33,12 @@ pub fn main() !void {
                     try homescreen.resize(size);
                 },
 
-                .mouse_down => |ev| log.warn("unhandled event: mouse_down = {}", .{ev}),
-                .mouse_up => |ev| log.warn("unhandled event: mouse_up = {}", .{ev}),
+                .mouse_down => |ev| {
+                    try homescreen.mouseDown(ev);
+                },
+                .mouse_up => |ev| {
+                    try homescreen.mouseUp(ev);
+                },
                 .mouse_motion => |ev| {
                     homescreen.setMousePos(ev.position);
                 },
