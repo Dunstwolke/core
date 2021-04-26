@@ -70,6 +70,10 @@ const HomeScreenConfig = struct {
         margins: u15,
     };
 
+    const AppConfig = struct {
+        icon_size: u15,
+    };
+
     app_menu: AppMenuConfig = AppMenuConfig{
         .dimmer = rgba("292f35", 0.5),
         .outline = rgb("1abc9c"),
@@ -118,6 +122,10 @@ const HomeScreenConfig = struct {
                 .background = rgb("0e443f"),
             },
         },
+    },
+
+    app: AppConfig = AppConfig{
+        .icon_size = 96,
     },
 
     background_color: Color = rgb("263238"),
@@ -190,10 +198,13 @@ size: Size,
 config: HomeScreenConfig,
 mouse_pos: Point,
 
+/// Index of the currently selected .workspace menu item
 current_workspace: usize,
 
+/// A list of elements in the workspace bar
 menu_items: std.ArrayList(MenuItem),
 
+/// A list of available applications, shown in the app menu
 available_apps: std.ArrayList(App),
 
 mode: MouseMode,
@@ -205,7 +216,7 @@ pub fn init(allocator: *std.mem.Allocator, initial_size: Size) !Self {
         .menu_items = std.ArrayList(MenuItem).init(allocator),
         .config = HomeScreenConfig{},
         .mouse_pos = Point{ .x = 0, .y = 0 },
-        .current_workspace = 0,
+        .current_workspace = 2, // first workspace after app_menu, separator
         .mode = .default,
         .available_apps = std.ArrayList(App).init(allocator),
     };
@@ -378,7 +389,12 @@ pub fn mouseUp(self: *Self, mouse_button: Display.MouseButton) !void {
                                 return;
                             },
 
-                            else => log.info("clicked on button {}: {}", .{ button_index, button.data }),
+                            .workspace => {
+                                self.current_workspace = button_index;
+                                return;
+                            },
+
+                            //else => log.info("clicked on button {}: {}", .{ button_index, button.data }),
                         }
                     },
 
@@ -406,8 +422,59 @@ pub fn mouseUp(self: *Self, mouse_button: Display.MouseButton) !void {
 
             const app = &self.available_apps.items[app_index];
 
-            // TODO: Spawn the app here
-            log.info("spawning on the app[{d}] '{s}'", .{ app_index, app.display_name });
+            const new_workspace_rect = self.getMenuButtonRectangle(self.menu_items.items.len);
+            const workspace_rect = self.getWorkspaceRectangle();
+
+            const InsertLocation = enum { dont_care, cursor };
+
+            var target_workspace: ?*Workspace = null;
+            var insert_location: InsertLocation = .dont_care;
+
+            if (new_workspace_rect.contains(self.mouse_pos)) {
+                // create app in new workspace
+
+                const menu_item = try self.menu_items.addOne();
+                menu_item.* = MenuItem{
+                    .button = Button{
+                        .data = Button.Data{
+                            .workspace = Workspace.init(self.allocator),
+                        },
+                    },
+                };
+                target_workspace = &menu_item.button.data.workspace;
+
+                self.current_workspace = (self.menu_items.items.len - 1);
+                insert_location = .dont_care;
+            } else if (workspace_rect.contains(self.mouse_pos)) {
+                // create new subdiv
+                target_workspace = &self.menu_items.items[self.current_workspace].button.data.workspace;
+                insert_location = .cursor;
+            }
+
+            if (target_workspace) |workspace| {
+
+                // TODO: Spawn the app here
+                log.info("spawning on the app[{d}] '{s}'", .{ app_index, app.display_name });
+
+                const leaf_or_null = workspace.window_tree.findLeaf(
+                    @intToFloat(f32, self.mouse_pos.x) / @intToFloat(f32, self.size.width - 1),
+                    @intToFloat(f32, self.mouse_pos.y) / @intToFloat(f32, self.size.height - 1),
+                );
+                if (leaf_or_null) |leaf| {
+                    if (leaf.* == .empty) {
+                        leaf.* = WindowTree.Node{
+                            // TODO: Proper application creation with resource handling
+                            .starting = Application{
+                                .display_name = app.display_name,
+                                .icon = app.icon,
+                            },
+                        };
+                    }
+                }
+            } else {
+                // TODO: Spawn the app here
+                log.info("cancel spawn of app[{d}] '{s}'", .{ app_index, app.display_name });
+            }
         },
     }
 }
@@ -454,8 +521,11 @@ pub fn update(self: *Self, dt: f32) !void {
         for (self.menu_items.items) |*item, idx| {
             switch (item.*) {
                 .button => |*button| {
-                    button.state.clicked = (self.mode == .button_press and self.mode.button_press == idx);
-                    button.state.hovered = (if (hovered_button) |i| (i == idx) else false) or ((button.data == .app_menu) and (self.mode == .app_menu));
+                    button.state.clicked = (self.mode == .button_press and self.mode.button_press == idx) or
+                        (self.current_workspace == idx);
+                    button.state.hovered = (if (hovered_button) |i| (i == idx) else false) or
+                        ((button.data == .app_menu) and (self.mode == .app_menu)) or
+                        (self.current_workspace == idx);
                     button.state.update(dt);
                 },
                 else => {},
@@ -622,29 +692,24 @@ pub fn render(self: Self, target: Framebuffer) void {
         );
     }
 
-    {
-        var i: usize = 0;
-        for (self.menu_items.items) |item| {
-            switch (item) {
-                .button => |btn| {
-                    if (btn.data == .workspace) {
-                        if (i == self.current_workspace) {
-                            var hovered_rectangle: ?Rectangle = null;
-                            self.renderWorkspace(&fb, workspace_area, btn.data.workspace, &hovered_rectangle);
+    for (self.menu_items.items) |item, button_index| {
+        switch (item) {
+            .button => |btn| {
+                if (btn.data == .workspace) {
+                    if (button_index == self.current_workspace) {
+                        var hovered_rectangle: ?Rectangle = null;
+                        self.renderWorkspace(&fb, workspace_area, btn.data.workspace, &hovered_rectangle);
 
-                            if (self.mode != .app_menu) {
-                                if (hovered_rectangle) |area| {
-                                    fb.drawRectangle(area.x, area.y, area.width, area.height, HomeScreenConfig.rgb("255853"));
-                                }
+                        if (self.mode != .app_menu) {
+                            if (hovered_rectangle) |area| {
+                                fb.drawRectangle(area.x, area.y, area.width, area.height, HomeScreenConfig.rgb("255853"));
                             }
-                            break;
-                        } else {
-                            i += 1;
                         }
+                        break;
                     }
-                },
-                else => {},
-            }
+                }
+            },
+            else => {},
         }
     }
 
@@ -919,7 +984,7 @@ fn renderWorkspace(self: Self, canvas: *Canvas, area: Rectangle, workspace: Work
 }
 
 fn renderTreeNode(self: Self, canvas: *Canvas, area: Rectangle, node: WindowTree.Node, hovered_rectangle: *?Rectangle) void {
-    if (area.contains(self.mouse_pos) and (node == .empty or node == .window))
+    if (area.contains(self.mouse_pos) and (node == .empty or node == .starting or node == .connected))
         hovered_rectangle.* = area;
     switch (node) {
         .empty => {
@@ -932,7 +997,29 @@ fn renderTreeNode(self: Self, canvas: *Canvas, area: Rectangle, node: WindowTree
             );
             //canvas.fillRectangle(area.x + 1, area.y + 1, area.width - 2, area.height - 2, Color{ .r = 0x80, .g = 0x00, .b = 0x00 });
         },
-        .window => |window| @panic("rendering windows not supported yet!"),
+        .connected => |app| @panic("rendering windows not supported yet!"),
+        .starting => |app| {
+            const icon_size = std.math.min(area.width - 2, self.config.app.icon_size);
+            if (icon_size > 0) {
+                var temp_buffer: [4096]u8 = undefined;
+                var temp_allocator = std.heap.FixedBufferAllocator.init(&temp_buffer);
+
+                var icon_canvas = SubCanvas{
+                    .canvas = canvas,
+                    .x = area.x + (area.width - icon_size) / 2,
+                    .y = area.y + (area.height - icon_size) / 2,
+                    .width = icon_size,
+                    .height = icon_size,
+                };
+
+                tvg.render(
+                    &temp_allocator.allocator,
+                    icon_canvas,
+                    app.icon,
+                ) catch {}; // on error, just "fuck it" and let the icon be half-rendered
+                temp_allocator.reset();
+            }
+        },
         .group => |group| {
             // if we have 1 or less children, the tree would be denormalized.
             // we assume we have a normalized tree at this point.
@@ -1030,8 +1117,9 @@ fn getAppButtonRectangle(self: Self, index: usize) Rectangle {
     const row = @intCast(u15, index) / layout.cols;
 
     return Rectangle{
-        .x = app_menu_rect.x + margin + col * (margin + button_size),
-        .y = app_menu_rect.y + margin + row * (margin + button_size),
+        // 1 is the padding to the outline
+        .x = app_menu_rect.x + 1 + margin + col * (margin + button_size),
+        .y = app_menu_rect.y + 1 + margin + row * (margin + button_size),
         .width = button_size,
         .height = button_size,
     };
@@ -1157,6 +1245,17 @@ const Workspace = struct {
     }
 };
 
+const Application = struct {
+    display_name: []const u8,
+    icon: []const u8,
+
+    // TODO: Add other runtime data here
+
+    pub fn deinit(self: *Application) void {
+        self.* = undefined;
+    }
+};
+
 const WindowTree = struct {
     const Layout = enum {
         /// Windows are stacked on top of each other.
@@ -1166,27 +1265,32 @@ const WindowTree = struct {
         horizontal,
     };
 
-    const Window = struct {
-        window: void,
-    };
-
     const Group = struct {
         split: Layout,
         children: []Node,
     };
 
     const Node = union(enum) {
-        window: Window,
+        connected: Application,
+        starting: Application,
+
         group: Group,
         empty,
     };
 
     /// A relative screen rectangle. Base coordinates are [0,0,1,1]
-    const Rectangle = struct {
+    const FloatRectangle = struct {
         x: f32,
         y: f32,
         width: f32,
         height: f32,
+
+        fn contains(self: @This(), x: f32, y: f32) bool {
+            return (x >= self.x) and
+                (y >= self.y) and
+                (x < self.x + self.width) and
+                (y < self.y + self.height);
+        }
     };
 
     allocator: *std.mem.Allocator,
@@ -1201,19 +1305,63 @@ const WindowTree = struct {
                 }
                 self.allocator.free(group.children);
             },
-            .window => @panic("Destroying windows not implemented yet!"),
+            .starting, .connected => |*app| app.deinit(),
         }
 
         node.* = undefined;
     }
 
-    fn findWindowRecursive(self: *WindowTree, area: Rectangle, x: f32, y: f32) ?*Window {
+    fn findWindowRecursive(self: *WindowTree, area: FloatRectangle, x: f32, y: f32) ?*Window {
         std.debug.assert(x >= 0.0 and x <= 1.0);
         std.debug.assert(y >= 0.0 and y <= 1.0);
     }
 
     fn findWindow(self: *WindowTree, x: f32, y: f32) ?*Window {
-        return self.findWindowRecursive(Rectangle{ .x = 0, .y = 0, .width = 1, .height = 1 }, x, y);
+        return self.findWindowRecursive(FloatRectangle{ .x = 0, .y = 0, .width = 1, .height = 1 }, x, y);
+    }
+
+    fn findLeafRecursive(self: *WindowTree, node: *Node, area: FloatRectangle, x: f32, y: f32) ?*Node {
+        std.debug.assert(x >= 0.0 and x <= 1.0);
+        std.debug.assert(y >= 0.0 and y <= 1.0);
+        return switch (node.*) {
+            .group => |*group| switch (group.split) {
+                .horizontal => for (group.children) |*child, index| {
+                    const rect = FloatRectangle{
+                        .x = x + @intToFloat(f32, index) * (area.width / @intToFloat(f32, group.children.len)),
+                        .y = y,
+                        .width = area.width / @intToFloat(f32, group.children.len),
+                        .height = area.height,
+                    };
+                    if (self.findLeafRecursive(child, rect, x, y)) |found| {
+                        break found;
+                    }
+                } else null,
+                .vertical => for (group.children) |*child, index| {
+                    const rect = FloatRectangle{
+                        .x = x,
+                        .y = y + @intToFloat(f32, index) * (area.height / @intToFloat(f32, group.children.len)),
+                        .width = area.width,
+                        .height = area.height / @intToFloat(f32, group.children.len),
+                    };
+                    if (self.findLeafRecursive(child, rect, x, y)) |found| {
+                        break found;
+                    }
+                } else null,
+            },
+            else => if (area.contains(x, y))
+                node
+            else
+                null,
+        };
+    }
+
+    fn findLeaf(self: *WindowTree, x: f32, y: f32) ?*Node {
+        return self.findLeafRecursive(
+            &self.root,
+            FloatRectangle{ .x = 0, .y = 0, .width = 1, .height = 1 },
+            x,
+            y,
+        );
     }
 
     fn deinit(self: *WindowTree) void {
