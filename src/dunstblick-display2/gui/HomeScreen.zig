@@ -40,6 +40,10 @@ const HomeScreenConfig = struct {
     button_size: u15 = 50,
     button_margin: u15 = 8,
 
+    app_button_size: u15 = 100,
+    app_icon_size: u15 = 64,
+    app_scrollbar_width: u15 = 8,
+
     button_base: ButtonColors = ButtonColors{
         .outline = rgb("363c42"),
         .background = rgb("292f35"),
@@ -61,6 +65,8 @@ const HomeScreenConfig = struct {
     app_menu_dimmer: Color = rgba("292f35", 0.5),
     app_menu_outline: Color = rgb("1abc9c"),
     app_menu_background: Color = rgb("255953"),
+
+    bar_location: BarLocation = .left,
 
     fn getBarWidth(config: @This()) u15 {
         return 2 * config.button_margin + config.button_size;
@@ -89,6 +95,15 @@ const BarLocation = enum {
     right,
 };
 
+/// An application available in the app menu
+const App = struct {
+    /// The name that is displayed to the user
+    display_name: []const u8,
+
+    /// The TVG icon of the application
+    icon: []const u8,
+};
+
 allocator: *std.mem.Allocator,
 size: Size,
 config: HomeScreenConfig,
@@ -98,9 +113,9 @@ current_workspace: usize,
 
 menu_items: std.ArrayList(MenuItem),
 
-mode: MouseMode,
+available_apps: std.ArrayList(App),
 
-bar_location: BarLocation,
+mode: MouseMode,
 
 pub fn init(allocator: *std.mem.Allocator, initial_size: Size) !Self {
     var self = Self{
@@ -111,7 +126,7 @@ pub fn init(allocator: *std.mem.Allocator, initial_size: Size) !Self {
         .mouse_pos = Point{ .x = 0, .y = 0 },
         .current_workspace = 0,
         .mode = .default,
-        .bar_location = .top,
+        .available_apps = std.ArrayList(App).init(allocator),
     };
 
     try self.menu_items.append(MenuItem{ .button = Button{ .data = .app_menu } });
@@ -155,6 +170,7 @@ pub fn deinit(self: *Self) void {
         }
     }
     self.menu_items.deinit();
+    self.available_apps.deinit();
     self.* = undefined;
 }
 
@@ -171,14 +187,34 @@ pub fn setMousePos(self: *Self, pos: Point) void {
     self.mouse_pos = pos;
 }
 
+var rng = std.rand.DefaultPrng.init(0);
+
 pub fn mouseDown(self: *Self, mouse_button: Display.MouseButton) !void {
     if (mouse_button != .left) {
-        self.bar_location = switch (self.bar_location) {
-            .top => BarLocation.right,
-            .right => BarLocation.bottom,
-            .bottom => BarLocation.left,
-            .left => BarLocation.top,
-        };
+        if (self.mouse_pos.x >= self.size.width / 2) {
+            self.config.bar_location = switch (self.config.bar_location) {
+                .top => BarLocation.right,
+                .right => BarLocation.bottom,
+                .bottom => BarLocation.left,
+                .left => BarLocation.top,
+            };
+        } else {
+            const names = [_][]const u8{
+                "Archive Manager",
+                "Calculator",
+                "Mahjongg",
+                "Notepad",
+                "Notes",
+                "Text Editor",
+                "Gemini Browser",
+                "Web Browser",
+            };
+
+            try self.available_apps.append(App{
+                .display_name = names[rng.random.uintLessThan(usize, names.len)],
+                .icon = &icons.app_placeholder,
+            });
+        }
         return;
     }
 
@@ -299,7 +335,7 @@ pub fn render(self: Self, target: Framebuffer) void {
     fb.fillRectangle(workspace_area.x, workspace_area.y, workspace_area.width, workspace_area.height, self.config.background_color);
     fb.fillRectangle(bar_area.x, bar_area.y, bar_area.width, bar_area.height, self.config.bar_background);
 
-    switch (self.bar_location) {
+    switch (self.config.bar_location) {
         .left => fb.drawLine(
             bar_area.x + bar_area.width,
             bar_area.y,
@@ -335,7 +371,7 @@ pub fn render(self: Self, target: Framebuffer) void {
 
         switch (item) {
             .separator => {
-                switch (self.bar_location) {
+                switch (self.config.bar_location) {
                     .top, .bottom => fb.drawLine(
                         button_rect.x,
                         button_rect.y,
@@ -417,8 +453,10 @@ pub fn render(self: Self, target: Framebuffer) void {
                             var hovered_rectangle: ?Rectangle = null;
                             self.renderWorkspace(&fb, workspace_area, btn.data.workspace, &hovered_rectangle);
 
-                            if (hovered_rectangle) |area| {
-                                fb.drawRectangle(area.x, area.y, area.width, area.height, HomeScreenConfig.rgb("255853"));
+                            if (self.mode != .app_menu) {
+                                if (hovered_rectangle) |area| {
+                                    fb.drawRectangle(area.x, area.y, area.width, area.height, HomeScreenConfig.rgb("255853"));
+                                }
                             }
                             break;
                         } else {
@@ -439,6 +477,69 @@ pub fn render(self: Self, target: Framebuffer) void {
             self.size.height,
             self.config.app_menu_dimmer,
         );
+    }
+    {
+        const app_menu_rect = self.getAppMenuRectangle();
+        const layout = self.getAppMenuLayout();
+        const margin = self.config.button_margin;
+        const button_size = self.config.app_button_size;
+
+        fb.fillRectangle(
+            app_menu_rect.x + 1,
+            app_menu_rect.y + 1,
+            app_menu_rect.width - 2,
+            app_menu_rect.height - 2,
+            self.config.app_menu_background,
+        );
+        fb.drawRectangle(
+            app_menu_rect.x,
+            app_menu_rect.y,
+            app_menu_rect.width,
+            app_menu_rect.height,
+            self.config.app_menu_outline,
+        );
+
+        fb.drawLine(
+            app_menu_rect.x + margin + layout.cols * (margin + button_size),
+            app_menu_rect.y + 1,
+            app_menu_rect.x + margin + layout.cols * (margin + button_size),
+            app_menu_rect.y + app_menu_rect.height - 1,
+            self.config.app_menu_outline,
+        );
+
+        var row: u15 = 0;
+        var col: u15 = 0;
+        for (self.available_apps.items) |item| {
+            const x = app_menu_rect.x + margin + col * (margin + button_size);
+            const y = app_menu_rect.y + margin + row * (margin + button_size);
+
+            fb.drawRectangle(
+                x,
+                y,
+                button_size,
+                button_size,
+                self.config.app_menu_outline,
+            );
+
+            var icon_canvas = SubCanvas{
+                .canvas = &fb,
+                .x = x + (button_size - self.config.app_icon_size) / 2,
+                .y = y + (button_size - self.config.app_icon_size) / 2,
+                .width = self.config.app_icon_size,
+                .height = self.config.app_icon_size,
+            };
+
+            tvg.render(&temp_allocator.allocator, icon_canvas, item.icon) catch unreachable;
+            temp_allocator.reset();
+
+            col += 1;
+            if (col >= layout.cols) {
+                col = 0;
+                row += 1;
+            }
+            if (row >= layout.rows)
+                break;
+        }
     }
 }
 
@@ -503,7 +604,7 @@ fn renderTreeNode(self: Self, canvas: *Canvas, area: Rectangle, node: WindowTree
 
 fn getBarRectangle(self: Self) Rectangle {
     const bar_width = self.config.getBarWidth();
-    return switch (self.bar_location) {
+    return switch (self.config.bar_location) {
         .top => Rectangle{ .x = 0, .y = 0, .width = self.size.width, .height = bar_width },
         .bottom => Rectangle{ .x = 0, .y = self.size.height - bar_width, .width = self.size.width, .height = bar_width },
         .left => Rectangle{ .x = 0, .y = 0, .width = bar_width, .height = self.size.height },
@@ -513,11 +614,80 @@ fn getBarRectangle(self: Self) Rectangle {
 
 fn getWorkspaceRectangle(self: Self) Rectangle {
     const bar_width = self.config.getBarWidth();
-    return switch (self.bar_location) {
+    return switch (self.config.bar_location) {
         .top => Rectangle{ .x = 0, .y = bar_width + 1, .width = self.size.width, .height = self.size.height - bar_width },
         .bottom => Rectangle{ .x = 0, .y = 0, .width = self.size.width, .height = self.size.height - bar_width },
         .left => Rectangle{ .x = bar_width + 1, .y = 0, .width = self.size.width - bar_width - 1, .height = self.size.height },
         .right => Rectangle{ .x = 0, .y = 0, .width = self.size.width - bar_width - 1, .height = self.size.height },
+    };
+}
+
+const AppMenuLayout = struct {
+    rows: u15,
+    cols: u15,
+};
+
+/// This function computes the layout (number of rows/cols) for the application
+/// menu and tries to get as close as possible to 
+fn getAppMenuLayout(self: Self) AppMenuLayout {
+    const count = self.available_apps.items.len;
+
+    const preferred_aspect: f32 = 4.0 / 3.0;
+
+    const count_f = @intToFloat(f32, count);
+
+    const rows_temp_f = std.math.sqrt(count_f / preferred_aspect);
+    const cols_f = std.math.ceil(rows_temp_f * preferred_aspect);
+    const rows_f = std.math.ceil(cols_f / preferred_aspect);
+
+    // Minimum layout is 3×2 (roughly requires 300×200)
+    const max_cols: u15 = std.math.max(3, (self.size.width - self.config.getBarWidth() - 3 * self.config.button_margin) / (self.config.button_margin + self.config.app_button_size));
+    const max_rows: u15 = std.math.max(2, (self.size.height - self.config.getBarWidth() - 2 * self.config.button_margin) / (self.config.button_margin + self.config.app_button_size));
+
+    const layout = AppMenuLayout{
+        .cols = std.math.clamp(@floatToInt(u15, cols_f), 3, max_cols),
+        .rows = std.math.clamp(@floatToInt(u15, rows_f), 2, max_rows),
+    };
+    // std.debug.assert(layout.rows * layout.cols >= count);
+
+    return layout;
+}
+
+fn getAppMenuRectangle(self: Self) Rectangle {
+    const app_button_rect = self.getMenuButtonRectangle(0);
+    const layout = self.getAppMenuLayout();
+    const margin = self.config.button_margin;
+    const button_size = self.config.app_button_size;
+
+    // The rectangle has some margins for scroll bar and 1 pixel lines
+    const width = @intCast(u15, 3 + 2 * margin + button_size * layout.cols + (layout.cols - 1) * margin + self.config.app_scrollbar_width);
+    const height = @intCast(u15, 2 + 2 * margin + button_size * layout.rows + (layout.rows - 1) * margin);
+
+    return switch (self.config.bar_location) {
+        .left => Rectangle{
+            .x = app_button_rect.x + app_button_rect.width + margin,
+            .y = app_button_rect.y,
+            .width = width,
+            .height = height,
+        },
+        .right => Rectangle{
+            .x = app_button_rect.x - width - margin,
+            .y = app_button_rect.y,
+            .width = width,
+            .height = height,
+        },
+        .top => Rectangle{
+            .x = app_button_rect.x,
+            .y = app_button_rect.y + app_button_rect.height + margin,
+            .width = width,
+            .height = height,
+        },
+        .bottom => Rectangle{
+            .x = app_button_rect.x,
+            .y = app_button_rect.y - height - margin,
+            .width = width,
+            .height = height,
+        },
     };
 }
 
@@ -539,7 +709,7 @@ fn getMenuButtonRectangle(self: Self, index: usize) Rectangle {
 
     const base_rect = self.getBarRectangle();
 
-    return switch (self.bar_location) {
+    return switch (self.config.bar_location) {
         .left, .right => Rectangle{
             .x = base_rect.x + self.config.button_margin,
             .y = base_rect.y + offset,
