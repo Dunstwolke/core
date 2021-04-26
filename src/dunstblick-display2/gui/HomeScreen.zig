@@ -470,6 +470,13 @@ pub fn render(self: Self, target: Framebuffer) void {
     }
 
     if (self.mode == .app_menu) {
+        const app_menu_button_rect = self.getMenuButtonRectangle(0);
+        const app_menu_rect = self.getAppMenuRectangle();
+        const layout = self.getAppMenuLayout();
+        const margin = self.config.button_margin;
+        const button_size = self.config.app_button_size;
+
+        // draw dimmed background
         fb.fillRectangle(
             0,
             0,
@@ -477,13 +484,49 @@ pub fn render(self: Self, target: Framebuffer) void {
             self.size.height,
             self.config.app_menu_dimmer,
         );
-    }
-    {
-        const app_menu_rect = self.getAppMenuRectangle();
-        const layout = self.getAppMenuLayout();
-        const margin = self.config.button_margin;
-        const button_size = self.config.app_button_size;
 
+        // overdraw button
+        {
+            const button_rect = app_menu_button_rect;
+            const icon_area = Rectangle{
+                .x = button_rect.x + 1,
+                .y = button_rect.y + 1,
+                .width = button_rect.width - 2,
+                .height = button_rect.height - 2,
+            };
+
+            fb.fillRectangle(
+                icon_area.x,
+                icon_area.y,
+                icon_area.width,
+                icon_area.height,
+                self.config.app_menu_background,
+            );
+            fb.drawRectangle(
+                button_rect.x,
+                button_rect.y,
+                button_rect.width,
+                button_rect.height,
+                self.config.app_menu_outline,
+            );
+
+            var icon_canvas = SubCanvas{
+                .canvas = &fb,
+                .x = icon_area.x,
+                .y = icon_area.y,
+                .width = icon_area.width,
+                .height = icon_area.height,
+            };
+
+            tvg.render(
+                &temp_allocator.allocator,
+                icon_canvas,
+                &icons.app_menu,
+            ) catch unreachable;
+            temp_allocator.reset();
+        }
+
+        // draw menu
         fb.fillRectangle(
             app_menu_rect.x + 1,
             app_menu_rect.y + 1,
@@ -506,6 +549,62 @@ pub fn render(self: Self, target: Framebuffer) void {
             app_menu_rect.y + app_menu_rect.height - 1,
             self.config.app_menu_outline,
         );
+        // draw menu connector
+        {
+            var i: u15 = 0;
+            while (i < self.config.button_margin + 2) : (i += 1) {
+                switch (self.config.bar_location) {
+                    .left => {
+                        const x = app_menu_button_rect.x + app_menu_button_rect.width - 1 + i;
+                        fb.setPixel(x, app_menu_button_rect.y, self.config.app_menu_outline);
+                        fb.setPixel(x, app_menu_button_rect.y + app_menu_button_rect.height + i, self.config.app_menu_outline);
+                        fb.drawLine(
+                            x,
+                            app_menu_button_rect.y + 1,
+                            x,
+                            app_menu_button_rect.y + app_menu_button_rect.height - 1 + i,
+                            self.config.app_menu_background,
+                        );
+                    },
+                    .right => {
+                        const x = app_menu_button_rect.x - i;
+                        fb.setPixel(x, app_menu_button_rect.y, self.config.app_menu_outline);
+                        fb.setPixel(x, app_menu_button_rect.y + app_menu_button_rect.height + i, self.config.app_menu_outline);
+                        fb.drawLine(
+                            x,
+                            app_menu_button_rect.y + 1,
+                            x,
+                            app_menu_button_rect.y + app_menu_button_rect.height - 1 + i,
+                            self.config.app_menu_background,
+                        );
+                    },
+                    .top => {
+                        const y = app_menu_button_rect.y + app_menu_button_rect.height - 1 + i;
+                        fb.setPixel(app_menu_button_rect.x, y, self.config.app_menu_outline);
+                        fb.setPixel(app_menu_button_rect.x + app_menu_button_rect.width + i, y, self.config.app_menu_outline);
+                        fb.drawLine(
+                            app_menu_button_rect.x + 1,
+                            y,
+                            app_menu_button_rect.x + app_menu_button_rect.width - 1 + i,
+                            y,
+                            self.config.app_menu_background,
+                        );
+                    },
+                    .bottom => {
+                        const y = app_menu_button_rect.y - i;
+                        fb.setPixel(app_menu_button_rect.x, y, self.config.app_menu_outline);
+                        fb.setPixel(app_menu_button_rect.x + app_menu_button_rect.width + i, y, self.config.app_menu_outline);
+                        fb.drawLine(
+                            app_menu_button_rect.x + 1,
+                            y,
+                            app_menu_button_rect.x + app_menu_button_rect.width - 1 + i,
+                            y,
+                            self.config.app_menu_background,
+                        );
+                    },
+                }
+            }
+        }
 
         var row: u15 = 0;
         var col: u15 = 0;
