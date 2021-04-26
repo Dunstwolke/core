@@ -1,3 +1,5 @@
+const std = @import("std");
+
 const Self = @This();
 
 width: usize,
@@ -17,4 +19,14 @@ pub const Color = extern struct {
     g: u8,
     r: u8,
     a: u8 = 0xFF,
+
+    // Support for std.json:
+
+    pub fn jsonStringify(value: @This(), options: std.json.StringifyOptions, writer: anytype) !void {
+        try writer.print("\"#{X:0>2}{X:0>2}{X:0>2}", .{ value.r, value.g, value.b });
+        if (value.a != 0xFF) {
+            try writer.print("{X:0>2}", .{value.a});
+        }
+        try writer.writeAll("\"");
+    }
 };
