@@ -230,15 +230,15 @@ pub fn init(allocator: *std.mem.Allocator, initial_size: Size) !Self {
 
     try self.available_apps.append(App{
         .display_name = "Text Editor",
-        .icon = &icons.app_placeholder,
+        .icon = icons.demo_apps.text_editor,
     });
     try self.available_apps.append(App{
         .display_name = "Calculator",
-        .icon = &icons.app_placeholder,
+        .icon = icons.demo_apps.calculator,
     });
     try self.available_apps.append(App{
         .display_name = "Zig Development Suite",
-        .icon = &icons.app_placeholder,
+        .icon = icons.demo_apps.zig,
     });
 
     try self.menu_items.append(MenuItem{ .button = Button{ .data = .app_menu } });
@@ -315,16 +315,25 @@ pub fn mouseDown(self: *Self, mouse_button: Display.MouseButton) !void {
                 "Archive Manager",
                 "Calculator",
                 "Mahjongg",
-                "Notepad",
                 "Notes",
                 "Text Editor",
                 "Gemini Browser",
                 "Web Browser",
             };
+            const app_icons = [_][]const u8{
+                icons.demo_apps.archiver,
+                icons.demo_apps.calculator,
+                icons.demo_apps.mahjongg,
+                icons.demo_apps.notes,
+                icons.demo_apps.text_editor,
+                icons.demo_apps.web_browser,
+                icons.demo_apps.web_browser,
+            };
 
+            const index = rng.random.uintLessThan(usize, names.len);
             try self.available_apps.append(App{
-                .display_name = names[rng.random.uintLessThan(usize, names.len)],
-                .icon = &icons.app_placeholder,
+                .display_name = names[index],
+                .icon = app_icons[index],
             });
         }
         return;

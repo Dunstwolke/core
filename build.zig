@@ -214,36 +214,36 @@ pub fn build(b: *Builder) !void {
         }
     }
 
-    const display_client2 = b.addExecutable("dunstblick-display2", "src/dunstblick-display2/main.zig");
+    const desktop_app = b.addExecutable("dunstblick-desktop", "src/dunstblick-desktop/main.zig");
     {
-        display_client2.setBuildMode(mode);
-        display_client2.setTarget(target);
+        desktop_app.setBuildMode(mode);
+        desktop_app.setTarget(target);
 
-        //display_client2.addPackage(pkgs.dunstblick_protocol);
-        //display_client2.addPackage(pkgs.network);
-        //display_client2.addPackage(pkgs.args);
-        //display_client2.addPackage(pkgs.uri);
-        display_client2.addPackage(pkgs.painterz);
-        display_client2.addPackage(pkgs.tvg);
-        //display_client2.addPackage(pkgs.meta);
+        //desktop_app.addPackage(pkgs.dunstblick_protocol);
+        //desktop_app.addPackage(pkgs.network);
+        //desktop_app.addPackage(pkgs.args);
+        //desktop_app.addPackage(pkgs.uri);
+        desktop_app.addPackage(pkgs.painterz);
+        desktop_app.addPackage(pkgs.tvg);
+        //desktop_app.addPackage(pkgs.meta);
 
         const RenderBackend = enum { sdl2, dri };
-        const backend = b.option(RenderBackend, "render-backend", "The rendering backend for the new display client") orelse RenderBackend.sdl2;
+        const backend = b.option(RenderBackend, "render-backend", "The rendering backend for Dunstblick Desktop") orelse RenderBackend.sdl2;
 
-        display_client2.addBuildOption(RenderBackend, "render_backend", backend);
+        desktop_app.addBuildOption(RenderBackend, "render_backend", backend);
 
         switch (backend) {
             .sdl2 => {
-                display_client2.linkLibC();
-                display_client2.linkSystemLibrary("sdl2");
-                display_client2.addPackage(pkgs.sdl2);
+                desktop_app.linkLibC();
+                desktop_app.linkSystemLibrary("sdl2");
+                desktop_app.addPackage(pkgs.sdl2);
             },
             .dri => {
                 @panic("Unsupported build option!");
             },
         }
     }
-    // display_client2.install();
+    desktop_app.install();
 
     const dunstnetz_daemon = b.addExecutable("dunstnetz-daemon", "src/dunstnetz-daemon/main.zig");
     dunstnetz_daemon.addPackage(pkgs.args);
@@ -279,18 +279,17 @@ pub fn build(b: *Builder) !void {
 
     run_cmd.setEnvironmentVariable("LD_LIBRARY_PATH", "./src/examples/mediaserver/bass/x86_64");
 
-    const run2_cmd = display_client2.run();
-    run_cmd.step.dependOn(b.getInstallStep());
-
     const install2_step = b.step("install-2", "Installs the new revision of the code. Highly experimental and might break the compiler.");
     install2_step.dependOn(&dunstnetz_daemon.step);
-    install2_step.dependOn(&display_client2.step);
+    install2_step.dependOn(&desktop_app.step);
 
     const run_step = b.step("run", "Run the display client");
     run_step.dependOn(&run_cmd.step);
 
-    const run2_step = b.step("run-2", "Run the new version of the display client");
-    run2_step.dependOn(&run2_cmd.step);
+    const desktop_cmd = desktop_app.run();
+
+    const run_desktop_step = b.step("run-desktop", "Run the Dunstblick Desktop");
+    run_desktop_step.dependOn(&desktop_cmd.step);
 
     const run_daemon_step = b.step("run-daemon", "Run the new version of the display client");
     run_daemon_step.dependOn(&dunstnetz_daemon.run().step);

@@ -31,3 +31,6 @@
 [submodule "lib/ini"]
 	path = lib/ini
 	url = https://github.com/ziglibs/ini
+[submodule "lib/foxwren"]
+	path = lib/foxwren
+	url = https://github.com/malcolmstill/foxwren

@@ -1,6 +1,16 @@
 const tvg = @import("tvg");
 
-const builder = tvg.builder(.@"1/256");
+const builder = tvg.builder(.@"1/256", .default);
+
+pub const demo_apps = struct {
+    pub const archiver = @embedFile("archiver.tvg");
+    pub const calculator = @embedFile("calculator.tvg");
+    pub const mahjongg = @embedFile("mahjongg.tvg");
+    pub const notes = @embedFile("notes.tvg");
+    pub const text_editor = @embedFile("text-editor.tvg");
+    pub const web_browser = @embedFile("web-browser.tvg");
+    pub const zig = @embedFile("zig-mark.tvg");
+};
 
 fn rgb(comptime hex: *const [6]u8) tvg.Color {
     return tvg.Color.fromString(hex) catch unreachable;
@@ -54,7 +64,8 @@ pub const workspace_add = blk: {
         builder.rectangle(6, 10, 38, 12) ++
         builder.rectangle(6, 24, 12, 14) ++
         builder.rectangle(20, 24, 24, 14) ++
-        builder.fillPath(11, .flat, 1) ++
+        builder.fillPath(1, .flat, 1) ++
+        builder.uint(11) ++
         builder.point(26, 32) ++
         builder.path.horiz(32) ++
         builder.path.vert(26) ++
@@ -78,7 +89,8 @@ pub const app_placeholder = blk: {
         rgb("FFFFFF"), // 0: white
         rgb("4f4f4f"), // 1: gray
     }) ++
-        builder.fillPath(7, .flat, 0) ++
+        builder.fillPath(1, .flat, 0) ++
+        builder.uint(7) ++
         builder.point(19, 4) ++ // M 19 4
         builder.path.bezier(20, 4, 21, 5, 21, 6) ++ // C 20 4 21 5 21 6
         builder.path.vert(18) ++ // V 18
