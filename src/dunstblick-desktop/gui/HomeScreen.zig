@@ -426,7 +426,8 @@ pub fn mouseUp(self: *Self, mouse_button: Display.MouseButton) !void {
             self.mode = .app_menu;
         },
         .app_drag_desktop => |app_index| {
-            // We dragged
+            // We dragged the application over the desktop, so we will for sure
+            // return to normal mode
             self.mode = .default;
 
             const app = &self.available_apps.items[app_index];
@@ -465,20 +466,22 @@ pub fn mouseUp(self: *Self, mouse_button: Display.MouseButton) !void {
                 // TODO: Spawn the app here
                 log.info("spawning on the app[{d}] '{s}'", .{ app_index, app.display_name });
 
-                const leaf_or_null = workspace.window_tree.findLeaf(
-                    @intToFloat(f32, self.mouse_pos.x) / @intToFloat(f32, self.size.width - 1),
-                    @intToFloat(f32, self.mouse_pos.y) / @intToFloat(f32, self.size.height - 1),
+                const target_location_opt = workspace.window_tree.findInsertLocation(
+                    workspace_rect,
+                    self.mouse_pos.x,
+                    self.mouse_pos.y,
                 );
-                if (leaf_or_null) |leaf| {
-                    if (leaf.* == .empty) {
-                        leaf.* = WindowTree.Node{
-                            // TODO: Proper application creation with resource handling
-                            .starting = Application{
-                                .display_name = app.display_name,
-                                .icon = app.icon,
-                            },
-                        };
-                    }
+
+                if (target_location_opt) |target_location| {
+                    var node = WindowTree.Node{
+                        // TODO: Proper application creation with resource handling
+                        .starting = Application{
+                            .display_name = app.display_name,
+                            .icon = app.icon,
+                        },
+                    };
+
+                    try workspace.window_tree.insertLeaf(target_location, node);
                 }
             } else {
                 // TODO: Spawn the app here
@@ -715,8 +718,7 @@ pub fn render(self: Self, target: Framebuffer) void {
                             }
                         }
 
-                        var buffer: [16]usize = undefined;
-                        if (btn.data.workspace.window_tree.findInsertLocation(&buffer, workspace_area, self.mouse_pos.x, self.mouse_pos.y)) |path| {
+                        if (btn.data.workspace.window_tree.findInsertLocation(workspace_area, self.mouse_pos.x, self.mouse_pos.y)) |path| {
                             const insert_location = btn.data.workspace.window_tree.getInsertLocationRectangle(workspace_area, path);
 
                             fb.drawRectangle(
@@ -1362,6 +1364,11 @@ const WindowTree = struct {
             /// left/top inserts at the "low" position, 
             /// right/bottom inserts at the "high" position
             split_and_insert: RectangleSide,
+
+            /// Replaces the node selected by path with a new node.
+            /// This is only legal for `.empty` nodes that contain no
+            /// application.
+            replace,
         };
     };
 
@@ -1491,6 +1498,12 @@ const WindowTree = struct {
                     },
                 };
             },
+            .replace => FloatRectangle{
+                .x = rectangle.x + side_padding,
+                .y = rectangle.y + side_padding,
+                .width = rectangle.width - 2 * side_padding,
+                .height = rectangle.height - 2 * side_padding,
+            },
             .split_and_insert => |loc| switch (loc) {
                 .top => FloatRectangle{ .x = rectangle.x, .y = rectangle.y, .width = rectangle.width, .height = side_padding },
                 .bottom => FloatRectangle{ .x = rectangle.x, .y = rectangle.y + rectangle.height - side_padding, .width = rectangle.width, .height = side_padding },
@@ -1516,14 +1529,14 @@ const WindowTree = struct {
 
     /// Searches the window tree for a insert location at the given point.
     /// The insert location memory is backed by the `backing_buffer` data.
-    pub fn findInsertLocation(self: WindowTree, backing_buffer: *[max_depth]usize, target: Rectangle, x: i16, y: i16) ?NodeInsertLocation {
+    pub fn findInsertLocation(self: WindowTree, target: Rectangle, x: i16, y: i16) ?NodeInsertLocation {
         if (x < target.x or y < target.y)
             return null;
         if (x >= target.x + target.width or y >= target.y + target.height)
             return null;
-        backing_buffer[0] = 0; // insert the root node into the backing buffer
+        var backing_buffer = [1]usize{0} ** 16; // insert the root node into the backing buffer
         return self.findInsertLocationRecursive(
-            backing_buffer,
+            &backing_buffer,
             @intToFloat(f32, x - target.x),
             @intToFloat(f32, y - target.y),
             self.root,
@@ -1556,29 +1569,39 @@ const WindowTree = struct {
             }
         }
 
-        // Find edges
-        const insert_side: ?RectangleSide = blk: {
+        // Find insertion on the node itself
+        {
             const padding = side_padding_per_nest_level * @intToFloat(f32, nesting + 1);
 
-            if (x < area.x + padding)
-                break :blk .left;
-            if (x >= area.x + area.width - padding)
-                break :blk .right;
-            if (y < area.y + padding)
-                break :blk .top;
-            if (y >= area.y + area.height - padding)
-                break :blk .bottom;
-            break :blk null;
-        };
+            if (node == .empty) {
+                location = NodeInsertLocation{
+                    .path = backing_buffer.*,
+                    .path_len = nesting,
+                    .position = .replace,
+                };
+            }
 
-        if (insert_side) |side| {
-            location = NodeInsertLocation{
-                .path = backing_buffer.*,
-                .path_len = nesting,
-                .position = .{
-                    .split_and_insert = side,
-                },
+            const insert_side: ?RectangleSide = blk: {
+                if (x < area.x + padding)
+                    break :blk .left;
+                if (x >= area.x + area.width - padding)
+                    break :blk .right;
+                if (y < area.y + padding)
+                    break :blk .top;
+                if (y >= area.y + area.height - padding)
+                    break :blk .bottom;
+                break :blk null;
             };
+
+            if (insert_side) |side| {
+                location = NodeInsertLocation{
+                    .path = backing_buffer.*,
+                    .path_len = nesting,
+                    .position = .{
+                        .split_and_insert = side,
+                    },
+                };
+            }
         }
 
         // find split positions
@@ -1623,9 +1646,62 @@ const WindowTree = struct {
         return location;
     }
 
-    /// Inserts a new leaf in the tree at the given location. The node will be 
-    pub fn insertLeaf(self: *WindowTree, location: NodeInsertLocation, node: *Node) !void {
-        @panic("Not implemented yet!");
+    /// Inserts a new leaf in the tree at the given location. The node will be copied into the tree and the
+    /// original variant might not be used anymore. 
+    pub fn insertLeaf(self: *WindowTree, location: NodeInsertLocation, node: Node) !void {
+        var target_node = &self.root;
+        for (location.path[0..location.path_len]) |child_index| {
+            target_node = &target_node.group.children[child_index];
+        }
+        switch (location.position) {
+            .insert_in_group => |index| {
+                std.debug.assert(target_node.* == .group);
+                const group = &target_node.group;
+
+                const old_items = group.children;
+
+                const new_items = try self.allocator.alloc(Node, old_items.len + 1);
+                errdefer self.allocator.free(new_items);
+
+                if (index < old_items.len) {
+                    std.mem.copy(Node, new_items[0..index], old_items[0..index]);
+                }
+                if (index > 0) {
+                    std.mem.copy(Node, new_items[index + 1 ..], old_items[index..]);
+                }
+                new_items[index] = node;
+
+                group.children = new_items;
+                self.allocator.free(old_items);
+            },
+            .split_and_insert => |side| {
+                var splitter = Node{
+                    .group = .{
+                        .split = switch (side) {
+                            .top, .bottom => Layout.vertical,
+                            .left, .right => Layout.horizontal,
+                        },
+                        .children = try self.allocator.alloc(Node, 2),
+                    },
+                };
+                errdefer self.allocator.free(splitter.group.children);
+
+                const new_node_index: usize = switch (side) {
+                    .top, .left => 0,
+                    .bottom, .right => 1,
+                };
+                const old_node_index = 1 - new_node_index;
+
+                splitter.group.children[new_node_index] = node;
+                splitter.group.children[old_node_index] = target_node.*;
+
+                target_node.* = splitter;
+            },
+            .replace => {
+                std.debug.assert(target_node.* == .empty);
+                target_node.* = node;
+            },
+        }
     }
 };
 
