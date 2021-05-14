@@ -14,6 +14,15 @@ pub fn scanline(self: Self, y: usize) []align(4) Color {
     return self.pixels[self.stride * y .. self.stride * (y + 1)];
 }
 
+pub fn view(self: Self, x: usize, y: usize, width: usize, height: usize) Self {
+    return Self{
+        .width = width,
+        .height = height,
+        .stride = self.stride,
+        .pixels = self.pixels + (self.stride * y) + x,
+    };
+}
+
 pub const Color = extern struct {
     b: u8,
     g: u8,

@@ -15,6 +15,9 @@ const Framebuffer = @import("Framebuffer.zig");
 const Color = Framebuffer.Color;
 const Display = @import("Display.zig");
 
+const ApplicationInstance = @import("ApplicationInstance.zig");
+const ApplicationDescription = @import("ApplicationDescription.zig");
+
 const Canvas = painterz.Canvas(Framebuffer, Framebuffer.Color, setFramebufferPixel);
 
 const ButtonTheme = struct {
@@ -188,13 +191,9 @@ const RectangleSide = enum {
     }
 };
 
-/// An application available in the app menu
-const App = struct {
-    /// The name that is displayed to the user
-    display_name: []const u8,
-
-    /// The TVG icon of the application
-    icon: []const u8,
+/// A startable application available in the app menu.
+const AppReference = struct {
+    application: *ApplicationDescription,
 
     button_state: ButtonState = .{},
 };
@@ -211,7 +210,7 @@ current_workspace: usize,
 menu_items: std.ArrayList(MenuItem),
 
 /// A list of available applications, shown in the app menu
-available_apps: std.ArrayList(App),
+available_apps: std.ArrayList(AppReference),
 
 mode: MouseMode,
 
@@ -224,7 +223,7 @@ pub fn init(allocator: *std.mem.Allocator, initial_size: Size) !Self {
         .mouse_pos = Point{ .x = 0, .y = 0 },
         .current_workspace = 2, // first workspace after app_menu, separator
         .mode = .default,
-        .available_apps = std.ArrayList(App).init(allocator),
+        .available_apps = std.ArrayList(AppReference).init(allocator),
     };
 
     // std.json.stringify(self.config, .{
@@ -233,19 +232,6 @@ pub fn init(allocator: *std.mem.Allocator, initial_size: Size) !Self {
     //         .separator = true,
     //     },
     // }, std.io.getStdOut().writer()) catch {};
-
-    try self.available_apps.append(App{
-        .display_name = "Text Editor",
-        .icon = icons.demo_apps.text_editor,
-    });
-    try self.available_apps.append(App{
-        .display_name = "Calculator",
-        .icon = icons.demo_apps.calculator,
-    });
-    try self.available_apps.append(App{
-        .display_name = "Zig Development Suite",
-        .icon = icons.demo_apps.zig,
-    });
 
     try self.menu_items.append(MenuItem{ .button = Button{ .data = .app_menu } });
     try self.menu_items.append(.separator);
@@ -292,6 +278,16 @@ pub fn deinit(self: *Self) void {
     self.* = undefined;
 }
 
+pub fn setAvailableApps(self: *Self, apps: []const *ApplicationDescription) !void {
+    try self.available_apps.resize(apps.len);
+
+    for (self.available_apps.items) |*app, i| {
+        app.* = AppReference{
+            .application = apps[i],
+        };
+    }
+}
+
 fn openAppMenu(self: *Self) void {
     self.mode = .app_menu;
     log.debug("open app menu", .{});
@@ -309,39 +305,13 @@ var rng = std.rand.DefaultPrng.init(0);
 
 pub fn mouseDown(self: *Self, mouse_button: Display.MouseButton) !void {
     if (mouse_button != .left) {
-        if (self.mouse_pos.x >= self.size.width / 2) {
-            self.config.workspace_bar.location = switch (self.config.workspace_bar.location) {
-                .top => RectangleSide.right,
-                .right => RectangleSide.bottom,
-                .bottom => RectangleSide.left,
-                .left => RectangleSide.top,
-            };
-        } else {
-            const names = [_][]const u8{
-                "Archive Manager",
-                "Calculator",
-                "Mahjongg",
-                "Notes",
-                "Text Editor",
-                "Gemini Browser",
-                "Web Browser",
-            };
-            const app_icons = [_][]const u8{
-                icons.demo_apps.archiver,
-                icons.demo_apps.calculator,
-                icons.demo_apps.mahjongg,
-                icons.demo_apps.notes,
-                icons.demo_apps.text_editor,
-                icons.demo_apps.web_browser,
-                icons.demo_apps.web_browser,
-            };
+        self.config.workspace_bar.location = switch (self.config.workspace_bar.location) {
+            .top => RectangleSide.right,
+            .right => RectangleSide.bottom,
+            .bottom => RectangleSide.left,
+            .left => RectangleSide.top,
+        };
 
-            const index = rng.random.uintLessThan(usize, names.len);
-            try self.available_apps.append(App{
-                .display_name = names[index],
-                .icon = app_icons[index],
-            });
-        }
         return;
     }
 
@@ -424,7 +394,7 @@ pub fn mouseUp(self: *Self, mouse_button: Display.MouseButton) !void {
             const rect = self.getAppButtonRectangle(info.index);
             if (rect.contains(self.mouse_pos)) {
                 const app = &self.available_apps.items[info.index];
-                log.info("clicked on the app[{d}] '{s}'", .{ info.index, app.display_name });
+                log.info("clicked on the app[{d}] '{s}'", .{ info.index, app.application.display_name });
             }
         },
         .app_drag_menu => {
@@ -468,9 +438,7 @@ pub fn mouseUp(self: *Self, mouse_button: Display.MouseButton) !void {
             }
 
             if (target_workspace) |workspace| {
-
-                // TODO: Spawn the app here
-                log.info("spawning on the app[{d}] '{s}'", .{ app_index, app.display_name });
+                log.info("spawning on the app[{d}] '{s}'", .{ app_index, app.application.display_name });
 
                 const target_location_opt = switch (insert_location) {
                     .cursor => workspace.window_tree.findInsertLocation(
@@ -486,11 +454,12 @@ pub fn mouseUp(self: *Self, mouse_button: Display.MouseButton) !void {
                 };
 
                 if (target_location_opt) |target_location| {
+                    const app_instance = try app.application.spawn(self.allocator);
+
                     var node = WindowTree.Node{
                         // TODO: Proper application creation with resource handling
-                        .starting = Application{
-                            .display_name = app.display_name,
-                            .icon = app.icon,
+                        .starting = AppInstance{
+                            .application = app_instance,
                         },
                     };
 
@@ -498,7 +467,7 @@ pub fn mouseUp(self: *Self, mouse_button: Display.MouseButton) !void {
                 }
             } else {
                 // TODO: Spawn the app here
-                log.info("cancel spawn of app[{d}] '{s}'", .{ app_index, app.display_name });
+                log.info("cancel spawn of app[{d}] '{s}'", .{ app_index, app.application.display_name });
             }
         },
     }
@@ -594,6 +563,36 @@ pub fn update(self: *Self, dt: f32) !void {
             app.button_state.clicked = (self.mode == .app_press and self.mode.app_press.index == app_index);
             app.button_state.hovered = (if (hovered_app) |i| (i == app_index) else false);
             app.button_state.update(dt);
+        }
+    }
+
+    // Update all running applications
+    {
+        for (self.menu_items.items) |*menu_item, index| {
+            if (menu_item.* != .button)
+                continue;
+            if (menu_item.button.data != .workspace)
+                continue;
+            // log.info("leafes on workspace {d}", .{index});
+
+            const workspace: *Workspace = &menu_item.button.data.workspace;
+
+            var leaf_iterator = workspace.window_tree.leafIterator();
+
+            while (leaf_iterator.next()) |leaf| {
+                // log.info("  available node: {}", .{leaf});
+                switch (leaf.*) {
+                    .starting, .connected => |*app| {
+                        try app.application.update(dt);
+                        if (app.application.status == .ready) {
+                            // workaround for re-tagging with RLS
+                            var app_copy = app.*;
+                            leaf.* = .{ .connected = app_copy };
+                        }
+                    },
+                    else => {},
+                }
+            }
         }
     }
 }
@@ -921,7 +920,15 @@ pub fn render(self: Self, target: Framebuffer) void {
             if (dragged_app_index != null and (dragged_app_index.? == app_index))
                 continue;
 
-            renderButton(&fb, rect, app.button_state, self.config.app_menu.button_theme, app.display_name, app.icon, 1.0);
+            renderButton(
+                &fb,
+                rect,
+                app.button_state,
+                self.config.app_menu.button_theme,
+                app.application.display_name,
+                app.application.icon orelse icons.app_placeholder,
+                1.0,
+            );
         }
     }
     if (dragged_app_index) |index| {
@@ -939,8 +946,8 @@ pub fn render(self: Self, target: Framebuffer) void {
             rect,
             ButtonState.pressed,
             self.config.app_menu.button_theme,
-            app.display_name,
-            app.icon,
+            app.application.display_name,
+            app.application.icon orelse icons.app_placeholder,
             0.5,
         );
     }
@@ -1061,7 +1068,17 @@ fn renderTreeNode(self: Self, canvas: *Canvas, area: Rectangle, node: WindowTree
             );
             //canvas.fillRectangle(area.x + 1, area.y + 1, area.width - 2, area.height - 2, Color{ .r = 0x80, .g = 0x00, .b = 0x00 });
         },
-        .connected => |app| @panic("rendering windows not supported yet!"),
+        .connected => |app| {
+            app.application.render(canvas.framebuffer.view(
+                @intCast(usize, area.x),
+                @intCast(usize, area.y),
+                area.width,
+                area.height,
+            )) catch |err| log.err("failed to render application '{s}': {s}", .{
+                app.application.description.display_name,
+                @errorName(err),
+            });
+        },
         .starting => |app| {
             const icon_size = std.math.min(area.width - 2, self.config.workspace.app_icon_size);
             if (icon_size > 0) {
@@ -1079,10 +1096,17 @@ fn renderTreeNode(self: Self, canvas: *Canvas, area: Rectangle, node: WindowTree
                 tvg.render(
                     &temp_allocator.allocator,
                     icon_canvas,
-                    app.icon,
+                    app.application.description.icon orelse icons.app_placeholder,
                 ) catch {}; // on error, just "fuck it" and let the icon be half-rendered
                 temp_allocator.reset();
             }
+
+            const startup_message = app.application.status.starting; // this is safe as the status might only be changed in the update fn
+
+            log.info("app '{s}' is starting: '{s}", .{
+                app.application.description.display_name,
+                app.application.status.starting,
+            });
         },
         .group => |group| {
             // if we have 1 or less children, the tree would be denormalized.
@@ -1311,13 +1335,13 @@ const Workspace = struct {
 
 /// A abstract application on the desktop.
 /// This might be backed by any application/window provider.
-const Application = struct {
-    display_name: []const u8,
-    icon: []const u8,
+const AppInstance = struct {
+    application: *ApplicationInstance,
 
     // TODO: Add other runtime data here
 
-    pub fn deinit(self: *Application) void {
+    pub fn deinit(self: *AppInstance) void {
+        self.application.deinit();
         self.* = undefined;
     }
 };
@@ -1336,10 +1360,10 @@ const WindowTree = struct {
         group: Group,
 
         /// A freshly initialized application that is currently starting up (connecting, loading resources, ...)
-        starting: Application,
+        starting: AppInstance,
 
         /// A ready-to-use application that is fully initialized and has connected to the application server.
-        connected: Application,
+        connected: AppInstance,
 
         /// A empty node is required to manage empty workspaces
         /// or applications that have exited on their on
@@ -1735,6 +1759,47 @@ const WindowTree = struct {
             },
         }
     }
+
+    pub fn leafIterator(self: *WindowTree) LeafIterator {
+        var iter = LeafIterator{
+            .stack = undefined,
+            .stack_depth = 1,
+        };
+        iter.stack[0] = .{ .node = &self.root };
+        return iter;
+    }
+
+    pub const LeafIterator = struct {
+        stack: [max_depth]StackItem,
+        stack_depth: usize,
+
+        const StackItem = struct {
+            node: *Node,
+            index: usize = 0,
+        };
+
+        pub fn next(self: *@This()) ?*Node {
+            while (true) {
+                if (self.stack_depth == 0)
+                    return null;
+                const top = &self.stack[self.stack_depth - 1];
+                if (top.node.* != .group) {
+                    defer self.stack_depth -= 1; // pop the item
+                    return top.node;
+                } else {
+                    if (top.index >= top.node.group.children.len) {
+                        self.stack_depth -= 1; // pop the group from the stack, continue with the next stack item
+                    } else {
+                        self.stack[self.stack_depth] = StackItem{
+                            .node = &top.node.group.children[top.index],
+                        };
+                        self.stack_depth += 1;
+                        top.index += 1;
+                    }
+                }
+            }
+        }
+    };
 };
 
 // https://en.wikipedia.org/wiki/Smoothstep

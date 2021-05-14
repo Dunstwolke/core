@@ -3,18 +3,24 @@ const meta = @import("zig-meta");
 
 const log = std.log.scoped(.application);
 
-const Display = @import("gui/Display.zig");
-const HomeScreen = @import("gui/HomeScreen.zig");
-
 // Design considerations:
 // - Screen sizes are limited to 32k×32k (allows using i16 for coordinates)
 // - Display api is platform independent
+
+const Size = @import("gui/Size.zig");
+const Display = @import("gui/Display.zig");
+const HomeScreen = @import("gui/HomeScreen.zig");
+const Framebuffer = @import("gui/Framebuffer.zig");
+const ApplicationDescription = @import("gui/ApplicationDescription.zig");
+const ApplicationInstance = @import("gui/ApplicationInstance.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
 
     const allocator = &gpa.allocator;
+
+    var demo_app = DemoAppDescription{};
 
     var display = try Display.init(allocator);
     defer display.deinit();
@@ -23,6 +29,8 @@ pub fn main() !void {
 
     var homescreen = try HomeScreen.init(allocator, display.screen_size);
     defer homescreen.deinit();
+
+    try homescreen.setAvailableApps(&[_]*ApplicationDescription{&demo_app.desc});
 
     var frame_timer = try std.time.Timer.start();
 
@@ -73,3 +81,93 @@ pub fn main() !void {
         }
     }
 }
+
+const DemoAppDescription = struct {
+    desc: ApplicationDescription = .{
+        .display_name = "Dummy App",
+        .icon = null, // testing the default icon fallback
+        .vtable = ApplicationDescription.Interface.get(@This()),
+    },
+
+    pub fn spawn(desc: *ApplicationDescription, allocator: *std.mem.Allocator) !*ApplicationInstance {
+        const app = try allocator.create(DemoApp);
+        app.* = DemoApp{
+            .allocator = allocator,
+            .instance = ApplicationInstance{
+                .description = desc.*,
+                .vtable = ApplicationInstance.Interface.get(DemoApp),
+            },
+            .timer = std.time.milliTimestamp(),
+            .msg_buf = undefined,
+        };
+        app.updateStatus();
+        return &app.instance;
+    }
+};
+
+const DemoApp = struct {
+    allocator: *std.mem.Allocator,
+    instance: ApplicationInstance,
+    timer: i64,
+    msg_buf: [64]u8,
+    render_time: f32 = 0.0,
+
+    pub fn update(instance: *ApplicationInstance, dt: f32) !void {
+        const self = @fieldParentPtr(DemoApp, "instance", instance);
+        self.updateStatus();
+        self.render_time += dt;
+    }
+
+    pub fn resize(instance: *ApplicationInstance, size: Size) !void {
+        const self = @fieldParentPtr(DemoApp, "instance", instance);
+        @panic("DemoApp.resize not implemented yet!");
+    }
+
+    pub fn render(instance: *ApplicationInstance, target: Framebuffer) !void {
+        const self = @fieldParentPtr(DemoApp, "instance", instance);
+
+        var y: usize = 0;
+        while (y < target.height) : (y += 1) {
+            const scanline = target.scanline(y);
+            var x: usize = 0;
+            while (x < target.width) : (x += 1) {
+                const fx = @intToFloat(f32, x) / 100.0;
+                const fy = @intToFloat(f32, y) / 100.0;
+
+                const t = @sin(0.3 * self.render_time + fx + 1.3 * fy + -0.3) -
+                    0.7 * @sin(0.6 * self.render_time - 0.4 * fx + 0.3 * fy + 0.5) +
+                    0.6 * @sin(1.1 * self.render_time + 0.1 * fx - 0.2 * fy + 0.8) -
+                    0.5 * @sin(1.9 * self.render_time - 0.3 * fx + 0.2 * fy + 1.4) +
+                    0.3 * @sin(2.3 * self.render_time + 0.2 * fx - 0.1 * fy + 2.4);
+
+                scanline[x] = .{
+                    // assume pi=3
+                    .r = @floatToInt(u8, 128.0 + 127.0 * @sin(2.5 * t + 0.0)),
+                    .g = @floatToInt(u8, 128.0 + 127.0 * @sin(2.5 * t + 1.0)),
+                    .b = @floatToInt(u8, 128.0 + 127.0 * @sin(2.5 * t + 2.0)),
+                };
+            }
+        }
+    }
+
+    pub fn deinit(instance: *ApplicationInstance) void {
+        const self = @fieldParentPtr(DemoApp, "instance", instance);
+
+        self.allocator.destroy(self);
+    }
+
+    fn updateStatus(self: *DemoApp) void {
+        const startup_time = 5 * std.time.ms_per_s;
+        const time = std.time.milliTimestamp();
+
+        if (time < self.timer + startup_time) {
+            self.instance.status = .{
+                .starting = std.fmt.bufPrint(&self.msg_buf, "Start in {d:.1} seconds.", .{
+                    @intToFloat(f32, startup_time - (time - self.timer)) / 1000.0,
+                }) catch unreachable,
+            };
+        } else {
+            self.instance.status = .ready;
+        }
+    }
+};

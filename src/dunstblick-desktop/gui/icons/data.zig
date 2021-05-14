@@ -25,6 +25,9 @@ fn rgba(comptime hex: *const [6]u8, comptime alpha: f32) tvg.Color {
 const dim_black = rgb("12181d");
 const signal_red = rgb("910002");
 
+/// If an app doesn't provide a icon, this is shown instead.
+pub const app_placeholder = @embedFile("application.tvg");
+
 pub const app_menu = blk: {
     @setEvalBranchQuota(10_000);
 
@@ -78,28 +81,5 @@ pub const workspace_add = blk: {
         builder.path.horiz(32) ++
         builder.path.vert(36) ++
         builder.path.horiz(26) ++
-        builder.end_of_document;
-};
-
-pub const app_placeholder = blk: {
-    @setEvalBranchQuota(10_000);
-
-    break :blk builder.header(24, 24) ++
-        builder.colorTable(&[_]tvg.Color{
-        rgb("FFFFFF"), // 0: white
-        rgb("4f4f4f"), // 1: gray
-    }) ++
-        builder.fillPath(1, .flat, 0) ++
-        builder.uint(7) ++
-        builder.point(19, 4) ++ // M 19 4
-        builder.path.bezier(20, 4, 21, 5, 21, 6) ++ // C 20 4 21 5 21 6
-        builder.path.vert(18) ++ // V 18
-        builder.path.bezier(21, 19, 20, 20, 19, 20) ++ // C 21 19 20 20 19 20
-        builder.path.horiz(5) ++ // H 5
-        builder.path.bezier(4, 20, 3, 19, 3, 18) ++ // C 4 20 3 19 3 18
-        builder.path.vert(6) ++ // V 6
-        builder.path.bezier(3, 5, 4, 4, 5, 4) ++ // C 3 5 4 4 5 4
-        builder.fillRectangles(1, .flat, 1) ++
-        builder.rectangle(5, 8, 14, 10) ++
         builder.end_of_document;
 };
