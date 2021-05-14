@@ -70,8 +70,12 @@ const HomeScreenConfig = struct {
         margins: u15,
     };
 
-    const AppConfig = struct {
-        icon_size: u15,
+    const WorkspaceConfig = struct {
+        app_icon_size: u15,
+        active_app_border: Color,
+        background_color: Color,
+        insert_highlight_color: Color,
+        insert_highlight_fill_color: Color,
     };
 
     app_menu: AppMenuConfig = AppMenuConfig{
@@ -124,11 +128,13 @@ const HomeScreenConfig = struct {
         },
     },
 
-    app: AppConfig = AppConfig{
-        .icon_size = 96,
+    workspace: WorkspaceConfig = WorkspaceConfig{
+        .app_icon_size = 96,
+        .background_color = rgb("263238"),
+        .active_app_border = rgb("255853"),
+        .insert_highlight_color = rgb("FF00FF"),
+        .insert_highlight_fill_color = rgba("FF00FF", 0.3),
     },
-
-    background_color: Color = rgb("263238"),
 };
 
 const MouseMode = union(enum) {
@@ -246,30 +252,30 @@ pub fn init(allocator: *std.mem.Allocator, initial_size: Size) !Self {
     try self.menu_items.append(MenuItem{ .button = Button{ .data = .{ .workspace = Workspace.init(allocator) } } });
     try self.menu_items.append(MenuItem{ .button = Button{ .data = .{ .workspace = Workspace.init(allocator) } } });
 
-    {
-        const ws: *Workspace = &self.menu_items.items[2].button.data.workspace;
+    // {
+    //     const ws: *Workspace = &self.menu_items.items[2].button.data.workspace;
 
-        var v_children = try allocator.alloc(WindowTree.Node, 3);
-        errdefer allocator.free(v_children);
+    //     var v_children = try allocator.alloc(WindowTree.Node, 3);
+    //     errdefer allocator.free(v_children);
 
-        v_children[0] = .empty;
-        v_children[1] = .empty;
-        v_children[2] = .empty;
+    //     v_children[0] = .empty;
+    //     v_children[1] = .empty;
+    //     v_children[2] = .empty;
 
-        var h_children = try allocator.alloc(WindowTree.Node, 2);
-        errdefer allocator.free(h_children);
+    //     var h_children = try allocator.alloc(WindowTree.Node, 2);
+    //     errdefer allocator.free(h_children);
 
-        h_children[0] = .empty;
-        h_children[1] = WindowTree.Node{ .group = WindowTree.Group{
-            .split = .vertical,
-            .children = v_children,
-        } };
+    //     h_children[0] = .empty;
+    //     h_children[1] = WindowTree.Node{ .group = WindowTree.Group{
+    //         .split = .vertical,
+    //         .children = v_children,
+    //     } };
 
-        ws.window_tree.root = WindowTree.Node{ .group = WindowTree.Group{
-            .split = .horizontal,
-            .children = h_children,
-        } };
-    }
+    //     ws.window_tree.root = WindowTree.Node{ .group = WindowTree.Group{
+    //         .split = .horizontal,
+    //         .children = h_children,
+    //     } };
+    // }
 
     return self;
 }
@@ -602,7 +608,7 @@ pub fn render(self: Self, target: Framebuffer) void {
 
     const bar_area = self.getBarRectangle();
 
-    fb.fillRectangle(workspace_area.x, workspace_area.y, workspace_area.width, workspace_area.height, self.config.background_color);
+    fb.fillRectangle(workspace_area.x, workspace_area.y, workspace_area.width, workspace_area.height, self.config.workspace.background_color);
     fb.fillRectangle(bar_area.x, bar_area.y, bar_area.width, bar_area.height, self.config.workspace_bar.background);
 
     switch (self.config.workspace_bar.location) {
@@ -714,28 +720,29 @@ pub fn render(self: Self, target: Framebuffer) void {
 
                         if (self.mode != .app_menu) {
                             if (hovered_rectangle) |area| {
-                                fb.drawRectangle(area.x, area.y, area.width, area.height, HomeScreenConfig.rgb("255853"));
+                                fb.drawRectangle(area.x, area.y, area.width, area.height, self.config.workspace.active_app_border);
                             }
                         }
+                        if (self.mode == .app_drag_desktop) {
+                            if (btn.data.workspace.window_tree.findInsertLocation(workspace_area, self.mouse_pos.x, self.mouse_pos.y)) |path| {
+                                const insert_location = btn.data.workspace.window_tree.getInsertLocationRectangle(workspace_area, path);
 
-                        if (btn.data.workspace.window_tree.findInsertLocation(workspace_area, self.mouse_pos.x, self.mouse_pos.y)) |path| {
-                            const insert_location = btn.data.workspace.window_tree.getInsertLocationRectangle(workspace_area, path);
+                                fb.drawRectangle(
+                                    insert_location.container.x,
+                                    insert_location.container.y,
+                                    insert_location.container.width,
+                                    insert_location.container.height,
+                                    self.config.workspace.insert_highlight_color,
+                                );
 
-                            fb.drawRectangle(
-                                insert_location.container.x,
-                                insert_location.container.y,
-                                insert_location.container.width,
-                                insert_location.container.height,
-                                HomeScreenConfig.rgb("FF00FF"),
-                            );
-
-                            fb.fillRectangle(
-                                insert_location.splitter.x,
-                                insert_location.splitter.y,
-                                insert_location.splitter.width,
-                                insert_location.splitter.height,
-                                HomeScreenConfig.rgba("FF00FF", 0.3),
-                            );
+                                fb.fillRectangle(
+                                    insert_location.splitter.x,
+                                    insert_location.splitter.y,
+                                    insert_location.splitter.width,
+                                    insert_location.splitter.height,
+                                    self.config.workspace.insert_highlight_fill_color,
+                                );
+                            }
                         }
                         break;
                     }
@@ -1031,7 +1038,7 @@ fn renderTreeNode(self: Self, canvas: *Canvas, area: Rectangle, node: WindowTree
         },
         .connected => |app| @panic("rendering windows not supported yet!"),
         .starting => |app| {
-            const icon_size = std.math.min(area.width - 2, self.config.app.icon_size);
+            const icon_size = std.math.min(area.width - 2, self.config.workspace.app_icon_size);
             if (icon_size > 0) {
                 var temp_buffer: [4096]u8 = undefined;
                 var temp_allocator = std.heap.FixedBufferAllocator.init(&temp_buffer);
