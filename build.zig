@@ -251,7 +251,7 @@ pub fn build(b: *Builder) !void {
     dunstnetz_daemon.addPackage(pkgs.wasm);
     // dunstnetz_daemon.install();
 
-    const display_client_test = b.addTest("src/dunstblick-display2/main.zig");
+    const display_client_test = b.addTest("src/dunstblick-desktop/main.zig");
     {
         display_client_test.addPackage(pkgs.dunstblick_protocol);
         display_client_test.addPackage(pkgs.network);

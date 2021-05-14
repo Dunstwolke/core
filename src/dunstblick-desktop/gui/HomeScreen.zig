@@ -52,7 +52,7 @@ const HomeScreenConfig = struct {
         button_theme: ButtonTheme,
         button_size: u15,
         margins: u15,
-        location: BarLocation,
+        location: RectangleSide,
 
         fn getWidth(self: @This()) u15 {
             return 2 * self.margins + self.button_size;
@@ -169,13 +169,13 @@ const MouseMode = union(enum) {
     };
 };
 
-const BarLocation = enum {
+const RectangleSide = enum {
     top,
     bottom,
     left,
     right,
 
-    pub fn jsonStringify(value: BarLocation, options: std.json.StringifyOptions, writer: anytype) !void {
+    pub fn jsonStringify(value: RectangleSide, options: std.json.StringifyOptions, writer: anytype) !void {
         try writer.writeAll("\"");
         try writer.writeAll(std.meta.tagName(value));
         try writer.writeAll("\"");
@@ -305,10 +305,10 @@ pub fn mouseDown(self: *Self, mouse_button: Display.MouseButton) !void {
     if (mouse_button != .left) {
         if (self.mouse_pos.x >= self.size.width / 2) {
             self.config.workspace_bar.location = switch (self.config.workspace_bar.location) {
-                .top => BarLocation.right,
-                .right => BarLocation.bottom,
-                .bottom => BarLocation.left,
-                .left => BarLocation.top,
+                .top => RectangleSide.right,
+                .right => RectangleSide.bottom,
+                .bottom => RectangleSide.left,
+                .left => RectangleSide.top,
             };
         } else {
             const names = [_][]const u8{
@@ -713,6 +713,27 @@ pub fn render(self: Self, target: Framebuffer) void {
                             if (hovered_rectangle) |area| {
                                 fb.drawRectangle(area.x, area.y, area.width, area.height, HomeScreenConfig.rgb("255853"));
                             }
+                        }
+
+                        var buffer: [16]usize = undefined;
+                        if (btn.data.workspace.window_tree.findInsertLocation(&buffer, workspace_area, self.mouse_pos.x, self.mouse_pos.y)) |path| {
+                            const insert_location = btn.data.workspace.window_tree.getInsertLocationRectangle(workspace_area, path);
+
+                            fb.drawRectangle(
+                                insert_location.container.x,
+                                insert_location.container.y,
+                                insert_location.container.width,
+                                insert_location.container.height,
+                                HomeScreenConfig.rgb("FF00FF"),
+                            );
+
+                            fb.fillRectangle(
+                                insert_location.splitter.x,
+                                insert_location.splitter.y,
+                                insert_location.splitter.width,
+                                insert_location.splitter.height,
+                                HomeScreenConfig.rgba("FF00FF", 0.3),
+                            );
                         }
                         break;
                     }
@@ -1254,6 +1275,8 @@ const Workspace = struct {
     }
 };
 
+/// A abstract application on the desktop.
+/// This might be backed by any application/window provider.
 const Application = struct {
     display_name: []const u8,
     icon: []const u8,
@@ -1266,7 +1289,7 @@ const Application = struct {
 };
 
 const WindowTree = struct {
-    const Layout = enum {
+    pub const Layout = enum {
         /// Windows are stacked on top of each other.
         vertical,
 
@@ -1274,21 +1297,76 @@ const WindowTree = struct {
         horizontal,
     };
 
-    const Group = struct {
-        split: Layout,
-        children: []Node,
-    };
+    pub const Node = union(enum) {
+        /// A grouping of several other nodes in vertical or horizontal direction.
+        group: Group,
 
-    const Node = union(enum) {
-        connected: Application,
+        /// A freshly initialized application that is currently starting up (connecting, loading resources, ...)
         starting: Application,
 
-        group: Group,
+        /// A ready-to-use application that is fully initialized and has connected to the application server.
+        connected: Application,
+
+        /// A empty node is required to manage empty workspaces
+        /// or applications that have exited on their on
+        /// and thus will leave empty space on the desktop
+        /// instead of collapsing and potentially making the user misclick.
         empty,
     };
 
+    pub const Group = struct {
+        split: Layout,
+        children: []Node,
+
+        fn getChildRectangle(self: @This(), area: FloatRectangle, child_index: usize) FloatRectangle {
+            return switch (self.split) {
+                .horizontal => FloatRectangle{
+                    .x = area.x + @intToFloat(f32, child_index) * (area.width / @intToFloat(f32, self.children.len)),
+                    .y = area.y,
+                    .width = area.width / @intToFloat(f32, self.children.len),
+                    .height = area.height,
+                },
+                .vertical => FloatRectangle{
+                    .x = area.x,
+                    .y = area.y + @intToFloat(f32, child_index) * (area.height / @intToFloat(f32, self.children.len)),
+                    .width = area.width,
+                    .height = area.height / @intToFloat(f32, self.children.len),
+                },
+            };
+        }
+    };
+
+    pub const NodeInsertLocation = struct {
+        /// path to find the final node to insert.
+        /// empty path selects the root node.
+        path: [max_depth]usize,
+
+        /// Number of elements in the `path`
+        path_len: usize = 0,
+
+        /// The position where the element is inserted.
+        position: Position,
+
+        const Position = union(enum) {
+
+            /// Inserts the node into a group node.
+            /// This is only valid when the selected node
+            /// is a group node.
+            /// The value will give the new index of the inserted node.
+            insert_in_group: usize,
+
+            /// Splits the node into a new group, and
+            /// inserts the new node on the given side.
+            /// left/right create a horizontal group,
+            /// top/bottom create a vertical group.
+            /// left/top inserts at the "low" position, 
+            /// right/bottom inserts at the "high" position
+            split_and_insert: RectangleSide,
+        };
+    };
+
     /// A relative screen rectangle. Base coordinates are [0,0,1,1]
-    const FloatRectangle = struct {
+    pub const FloatRectangle = struct {
         x: f32,
         y: f32,
         width: f32,
@@ -1297,15 +1375,35 @@ const WindowTree = struct {
         fn contains(self: @This(), x: f32, y: f32) bool {
             return (x >= self.x) and
                 (y >= self.y) and
-                (x < self.x + self.width) and
-                (y < self.y + self.height);
+                (x <= self.x + self.width) and
+                (y <= self.y + self.height);
         }
     };
+
+    /// Maximum tree nesting depth
+    pub const max_depth = 16;
+    /// The padding on the side of a rectangle, increases each nesting level by factor 1
+    pub const side_padding_per_nest_level = 48;
+    /// The padding on the separator between groups, increases each nesting level by factor 1
+    pub const separator_padding_per_nest_level = 24;
 
     allocator: *std.mem.Allocator,
     root: Node,
 
-    fn destroyNode(self: WindowTree, node: *Node) void {
+    pub fn deinit(self: *WindowTree) void {
+        self.destroyNode(&self.root);
+        self.* = undefined;
+    }
+
+    /// Frees memory for the node.
+    pub fn freeNode(self: WindowTree, node: *Node) void {
+        if (node == .group) {
+            self.allocator.free(node.group.children);
+        }
+        self.allocator.destroy(node);
+    }
+
+    pub fn destroyNode(self: WindowTree, node: *Node) void {
         switch (node.*) {
             .empty => {},
             .group => |group| {
@@ -1316,55 +1414,13 @@ const WindowTree = struct {
             },
             .starting, .connected => |*app| app.deinit(),
         }
-
         node.* = undefined;
     }
 
-    fn findWindowRecursive(self: *WindowTree, area: FloatRectangle, x: f32, y: f32) ?*Window {
+    /// Searches the window tree on a certain coordinate to find a leaf node.
+    pub fn findLeaf(self: *WindowTree, x: f32, y: f32) ?*Node {
         std.debug.assert(x >= 0.0 and x <= 1.0);
         std.debug.assert(y >= 0.0 and y <= 1.0);
-    }
-
-    fn findWindow(self: *WindowTree, x: f32, y: f32) ?*Window {
-        return self.findWindowRecursive(FloatRectangle{ .x = 0, .y = 0, .width = 1, .height = 1 }, x, y);
-    }
-
-    fn findLeafRecursive(self: *WindowTree, node: *Node, area: FloatRectangle, x: f32, y: f32) ?*Node {
-        std.debug.assert(x >= 0.0 and x <= 1.0);
-        std.debug.assert(y >= 0.0 and y <= 1.0);
-        return switch (node.*) {
-            .group => |*group| switch (group.split) {
-                .horizontal => for (group.children) |*child, index| {
-                    const rect = FloatRectangle{
-                        .x = x + @intToFloat(f32, index) * (area.width / @intToFloat(f32, group.children.len)),
-                        .y = y,
-                        .width = area.width / @intToFloat(f32, group.children.len),
-                        .height = area.height,
-                    };
-                    if (self.findLeafRecursive(child, rect, x, y)) |found| {
-                        break found;
-                    }
-                } else null,
-                .vertical => for (group.children) |*child, index| {
-                    const rect = FloatRectangle{
-                        .x = x,
-                        .y = y + @intToFloat(f32, index) * (area.height / @intToFloat(f32, group.children.len)),
-                        .width = area.width,
-                        .height = area.height / @intToFloat(f32, group.children.len),
-                    };
-                    if (self.findLeafRecursive(child, rect, x, y)) |found| {
-                        break found;
-                    }
-                } else null,
-            },
-            else => if (area.contains(x, y))
-                node
-            else
-                null,
-        };
-    }
-
-    fn findLeaf(self: *WindowTree, x: f32, y: f32) ?*Node {
         return self.findLeafRecursive(
             &self.root,
             FloatRectangle{ .x = 0, .y = 0, .width = 1, .height = 1 },
@@ -1373,9 +1429,203 @@ const WindowTree = struct {
         );
     }
 
-    fn deinit(self: *WindowTree) void {
-        self.destroyNode(&self.root);
-        self.* = undefined;
+    fn findLeafRecursive(self: *WindowTree, node: *Node, area: FloatRectangle, x: f32, y: f32) ?*Node {
+        return switch (node.*) {
+            .group => |*group| for (group.children) |*child, index| {
+                if (self.findLeafRecursive(child, group.getChildRectangle(area, index), x, y)) |found| {
+                    break found;
+                }
+            } else null,
+            else => if (area.contains(x, y))
+                node
+            else
+                null,
+        };
+    }
+
+    const VisualInsertLocation = struct {
+        container: Rectangle,
+        splitter: Rectangle,
+    };
+
+    /// Returns the rectangle that displays the insert location
+    pub fn getInsertLocationRectangle(self: WindowTree, full_area: Rectangle, location: NodeInsertLocation) VisualInsertLocation {
+        var node = self.root;
+        var rectangle = FloatRectangle{
+            .x = @intToFloat(f32, full_area.x),
+            .y = @intToFloat(f32, full_area.y),
+            .width = @intToFloat(f32, full_area.width),
+            .height = @intToFloat(f32, full_area.height),
+        };
+
+        for (location.path[0..location.path_len]) |child_index| {
+            rectangle = node.group.getChildRectangle(rectangle, child_index);
+            node = node.group.children[child_index];
+        }
+
+        const side_padding = side_padding_per_nest_level * @intToFloat(f32, location.path_len + 1);
+        const separator_padding = separator_padding_per_nest_level * @intToFloat(f32, location.path_len + 1);
+
+        const rel_rect = switch (location.position) {
+            .insert_in_group => |index| blk: {
+                const size: f32 = switch (node.group.split) {
+                    .horizontal => rectangle.width,
+                    .vertical => rectangle.height,
+                };
+                const segment = size / @intToFloat(f32, node.group.children.len);
+
+                const offset = @intToFloat(f32, index) * segment;
+
+                break :blk switch (node.group.split) {
+                    .horizontal => FloatRectangle{
+                        .x = rectangle.x + offset - 0.5 * separator_padding,
+                        .y = rectangle.y,
+                        .width = separator_padding,
+                        .height = rectangle.height,
+                    },
+                    .vertical => FloatRectangle{
+                        .x = rectangle.x,
+                        .y = rectangle.y + offset - 0.5 * separator_padding,
+                        .width = rectangle.width,
+                        .height = separator_padding,
+                    },
+                };
+            },
+            .split_and_insert => |loc| switch (loc) {
+                .top => FloatRectangle{ .x = rectangle.x, .y = rectangle.y, .width = rectangle.width, .height = side_padding },
+                .bottom => FloatRectangle{ .x = rectangle.x, .y = rectangle.y + rectangle.height - side_padding, .width = rectangle.width, .height = side_padding },
+                .left => FloatRectangle{ .x = rectangle.x, .y = rectangle.y, .width = side_padding, .height = rectangle.height },
+                .right => FloatRectangle{ .x = rectangle.x + rectangle.width - side_padding, .y = rectangle.y, .width = side_padding, .height = rectangle.height },
+            },
+        };
+        return VisualInsertLocation{
+            .container = Rectangle{
+                .x = @floatToInt(i16, rectangle.x),
+                .y = @floatToInt(i16, rectangle.y),
+                .width = @floatToInt(u15, rectangle.width),
+                .height = @floatToInt(u15, rectangle.height),
+            },
+            .splitter = Rectangle{
+                .x = @floatToInt(i16, rel_rect.x),
+                .y = @floatToInt(i16, rel_rect.y),
+                .width = @floatToInt(u15, rel_rect.width),
+                .height = @floatToInt(u15, rel_rect.height),
+            },
+        };
+    }
+
+    /// Searches the window tree for a insert location at the given point.
+    /// The insert location memory is backed by the `backing_buffer` data.
+    pub fn findInsertLocation(self: WindowTree, backing_buffer: *[max_depth]usize, target: Rectangle, x: i16, y: i16) ?NodeInsertLocation {
+        if (x < target.x or y < target.y)
+            return null;
+        if (x >= target.x + target.width or y >= target.y + target.height)
+            return null;
+        backing_buffer[0] = 0; // insert the root node into the backing buffer
+        return self.findInsertLocationRecursive(
+            backing_buffer,
+            @intToFloat(f32, x - target.x),
+            @intToFloat(f32, y - target.y),
+            self.root,
+            FloatRectangle{ .x = 0, .y = 0, .width = @intToFloat(f32, target.width), .height = @intToFloat(f32, target.height) },
+            0,
+        );
+    }
+
+    fn findInsertLocationRecursive(
+        self: WindowTree,
+        backing_buffer: *[max_depth]usize,
+        x: f32,
+        y: f32,
+        node: Node,
+        area: FloatRectangle,
+        nesting: usize,
+    ) ?NodeInsertLocation {
+        std.debug.assert(nesting < max_depth);
+        std.debug.assert(area.contains(x, y));
+
+        var location: ?NodeInsertLocation = null;
+
+        if (node == .group) {
+            for (node.group.children) |chld, index| {
+                var child_area = node.group.getChildRectangle(area, index);
+                if (child_area.contains(x, y)) {
+                    backing_buffer[nesting] = index;
+                    location = self.findInsertLocationRecursive(backing_buffer, x, y, chld, child_area, nesting + 1) orelse location;
+                }
+            }
+        }
+
+        // Find edges
+        const insert_side: ?RectangleSide = blk: {
+            const padding = side_padding_per_nest_level * @intToFloat(f32, nesting + 1);
+
+            if (x < area.x + padding)
+                break :blk .left;
+            if (x >= area.x + area.width - padding)
+                break :blk .right;
+            if (y < area.y + padding)
+                break :blk .top;
+            if (y >= area.y + area.height - padding)
+                break :blk .bottom;
+            break :blk null;
+        };
+
+        if (insert_side) |side| {
+            location = NodeInsertLocation{
+                .path = backing_buffer.*,
+                .path_len = nesting,
+                .position = .{
+                    .split_and_insert = side,
+                },
+            };
+        }
+
+        // find split positions
+        if (node == .group) {
+            const padding = separator_padding_per_nest_level * @intToFloat(f32, nesting + 1);
+
+            const group = node.group;
+
+            const insert_index_opt: ?usize = blk: {
+                const size: f32 = switch (group.split) {
+                    .horizontal => area.width,
+                    .vertical => area.height,
+                };
+                const pos: f32 = switch (group.split) {
+                    .horizontal => x - area.x,
+                    .vertical => y - area.y,
+                };
+                const segment = size / @intToFloat(f32, group.children.len);
+
+                var edge: usize = 0;
+                while (edge <= group.children.len) : (edge += 1) {
+                    const edge_pos = @intToFloat(f32, edge) * segment;
+                    if (std.math.fabs(pos - edge_pos) < padding / 2)
+                        break :blk edge;
+                }
+
+                break :blk null;
+            };
+
+            if (insert_index_opt) |insert_index| {
+                // we hovered over a group edge, return the proper path here
+                location = NodeInsertLocation{
+                    .path = backing_buffer.*,
+                    .path_len = nesting,
+                    .position = .{
+                        .insert_in_group = insert_index,
+                    },
+                };
+            }
+        }
+
+        return location;
+    }
+
+    /// Inserts a new leaf in the tree at the given location. The node will be 
+    pub fn insertLeaf(self: *WindowTree, location: NodeInsertLocation, node: *Node) !void {
+        @panic("Not implemented yet!");
     }
 };
 
