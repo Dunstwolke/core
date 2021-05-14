@@ -441,10 +441,10 @@ pub fn mouseUp(self: *Self, mouse_button: Display.MouseButton) !void {
             const new_workspace_rect = self.getMenuButtonRectangle(self.menu_items.items.len);
             const workspace_rect = self.getWorkspaceRectangle();
 
-            const InsertLocation = enum { dont_care, cursor };
+            const InsertLocation = enum { replace_center, cursor };
 
             var target_workspace: ?*Workspace = null;
-            var insert_location: InsertLocation = .dont_care;
+            var insert_location: InsertLocation = .replace_center;
 
             if (new_workspace_rect.contains(self.mouse_pos)) {
                 // create app in new workspace
@@ -460,7 +460,7 @@ pub fn mouseUp(self: *Self, mouse_button: Display.MouseButton) !void {
                 target_workspace = &menu_item.button.data.workspace;
 
                 self.current_workspace = (self.menu_items.items.len - 1);
-                insert_location = .dont_care;
+                insert_location = .replace_center;
             } else if (workspace_rect.contains(self.mouse_pos)) {
                 // create new subdiv
                 target_workspace = &self.menu_items.items[self.current_workspace].button.data.workspace;
@@ -472,11 +472,18 @@ pub fn mouseUp(self: *Self, mouse_button: Display.MouseButton) !void {
                 // TODO: Spawn the app here
                 log.info("spawning on the app[{d}] '{s}'", .{ app_index, app.display_name });
 
-                const target_location_opt = workspace.window_tree.findInsertLocation(
-                    workspace_rect,
-                    self.mouse_pos.x,
-                    self.mouse_pos.y,
-                );
+                const target_location_opt = switch (insert_location) {
+                    .cursor => workspace.window_tree.findInsertLocation(
+                        workspace_rect,
+                        self.mouse_pos.x,
+                        self.mouse_pos.y,
+                    ),
+                    .replace_center => WindowTree.NodeInsertLocation{
+                        .path = undefined,
+                        .path_len = 0,
+                        .position = .replace,
+                    },
+                };
 
                 if (target_location_opt) |target_location| {
                     var node = WindowTree.Node{
@@ -518,6 +525,24 @@ pub fn update(self: *Self, dt: f32) !void {
             // RLS bug workaround
             const index = self.mode.app_drag_menu;
             self.mode = .{ .app_drag_desktop = index };
+        }
+    }
+
+    // Check if we dragged over a workspace button
+    if (self.mode == .app_drag_desktop) {
+        for (self.menu_items.items) |*item, idx| {
+            if (item.* == .button) {
+                if (item.button.data == .workspace) {
+                    const button_rect = self.getMenuButtonRectangle(idx);
+                    if (button_rect.contains(self.mouse_pos)) {
+                        if (self.current_workspace != idx) {
+                            log.info("Select workspace {d}", .{idx});
+                        }
+
+                        self.current_workspace = idx;
+                    }
+                }
+            }
         }
     }
 
