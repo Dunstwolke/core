@@ -577,15 +577,33 @@ pub fn update(self: *Self, dt: f32) !void {
             while (leaf_iterator.next()) |leaf| {
                 // log.info("  available node: {}", .{leaf});
                 switch (leaf.*) {
-                    .starting, .connected => |*app| {
+                    .starting => |*app| {
                         try app.application.update(dt);
-                        if (app.application.status == .ready) {
+                        if (app.application.status == .running) {
                             // workaround for re-tagging with RLS
                             var app_copy = app.*;
                             leaf.* = .{ .connected = app_copy };
+                        } else if (app.application.status == .exited) {
+                            // workaround for re-tagging with RLS
+                            var app_copy = app.*;
+                            leaf.* = .{ .exited = app_copy };
                         }
                     },
-                    else => {},
+                    .connected => |*app| {
+                        try app.application.update(dt);
+                        if (app.application.status == .exited) {
+                            // workaround for re-tagging with RLS
+                            var app_copy = app.*;
+                            leaf.* = .{ .exited = app_copy };
+                        }
+                    },
+                    .exited => {
+                        // the exited application isn't updated anymore
+                        // as there is nothing to do here
+                    },
+                    .empty, .group => {
+                        // those have no update logic, but .group might be animated in the future which would go here
+                    },
                 }
             }
         }
@@ -1056,24 +1074,28 @@ fn renderButton(
     }
 
     if (text) |label| {
-        const top = ((rectangle.height + icon_size) / 2 + rectangle.height) / 2;
+        if (label.len > 0) {
+            const top = ((rectangle.height + icon_size) / 2 + rectangle.height) / 2;
 
-        // Debug painter: draw the middle line of the button label
-        // framebuffer.drawLine(
-        //     rectangle.x,
-        //     rectangle.y + top,
-        //     rectangle.x + rectangle.width,
-        //     rectangle.y + top,
-        //     Color{ .r = 0xFF, .g = 0x00, .b = 0xFF },
-        // );
+            // Debug painter: draw the middle line of the button label
+            // framebuffer.drawLine(
+            //     rectangle.x,
+            //     rectangle.y + top,
+            //     rectangle.x + rectangle.width,
+            //     rectangle.y + top,
+            //     Color{ .r = 0xFF, .g = 0x00, .b = 0xFF },
+            // );
 
-        self.app_button_font.drawString(
-            framebuffer.framebuffer.view(@intCast(usize, rectangle.x), @intCast(usize, rectangle.y), rectangle.width, rectangle.height),
-            label,
-            4,
-            @intCast(u15, top - self.app_button_font.font_size / 2),
-            .{ .r = 0xFF, .g = 0xFF, .b = 0xFF }, // TODO: Introduce proper config here
-        );
+            const size = self.app_button_font.measureString(label);
+
+            self.app_button_font.drawString(
+                framebuffer.framebuffer.view(@intCast(usize, rectangle.x), @intCast(usize, rectangle.y), rectangle.width, rectangle.height),
+                label,
+                (rectangle.width - size.width) / 2,
+                @intCast(u15, top - self.app_button_font.font_size / 2),
+                .{ .r = 0xFF, .g = 0xFF, .b = 0xFF }, // TODO: Introduce proper config here
+            );
+        }
     }
 }
 
@@ -1094,17 +1116,6 @@ fn renderTreeNode(self: *Self, canvas: *Canvas, area: Rectangle, node: WindowTre
                 HomeScreenConfig.rgb("363c42"),
             );
             //canvas.fillRectangle(area.x + 1, area.y + 1, area.width - 2, area.height - 2, Color{ .r = 0x80, .g = 0x00, .b = 0x00 });
-        },
-        .connected => |app| {
-            app.application.render(canvas.framebuffer.view(
-                @intCast(usize, area.x),
-                @intCast(usize, area.y),
-                area.width,
-                area.height,
-            )) catch |err| log.err("failed to render application '{s}': {s}", .{
-                app.application.description.display_name,
-                @errorName(err),
-            });
         },
         .starting => |app| {
             const icon_size = std.math.min(area.width - 2, self.config.workspace.app_icon_size);
@@ -1128,24 +1139,51 @@ fn renderTreeNode(self: *Self, canvas: *Canvas, area: Rectangle, node: WindowTre
                 temp_allocator.reset();
             }
 
-            if (app.application.description.display_name.len > 0) {
+            const display_name = app.application.description.display_name;
+            if (display_name.len > 0) {
+                const size = self.app_title_font.measureString(display_name);
                 self.app_title_font.drawString(
                     canvas.framebuffer.view(@intCast(usize, area.x), @intCast(usize, area.y), area.width, area.height),
-                    app.application.description.display_name,
-                    (area.width - 100) / 2,
+                    display_name,
+                    (area.width - size.width) / 2,
                     (area.height - icon_size) / 2 - self.app_title_font.font_size,
-                    .{ .r = 0xFF, .g = 0xFF, .b = 0xFF },
+                    .{ .r = 0xFF, .g = 0xFF, .b = 0xFF }, // TODO: Replace by theme config
                 );
             }
 
             const startup_message = app.application.status.starting; // this is safe as the status might only be changed in the update fn
             if (startup_message.len > 0) {
+                const size = self.app_status_font.measureString(startup_message);
                 self.app_status_font.drawString(
                     canvas.framebuffer.view(@intCast(usize, area.x), @intCast(usize, area.y), area.width, area.height),
                     startup_message,
-                    (area.width - 100) / 2,
+                    (area.width - size.width) / 2,
                     (area.height + icon_size) / 2,
-                    .{ .r = 0xFF, .g = 0xFF, .b = 0xFF },
+                    .{ .r = 0xFF, .g = 0xFF, .b = 0xFF }, // TODO: Replace by theme config
+                );
+            }
+        },
+        .connected => |app| {
+            app.application.render(canvas.framebuffer.view(
+                @intCast(usize, area.x),
+                @intCast(usize, area.y),
+                area.width,
+                area.height,
+            )) catch |err| log.err("failed to render application '{s}': {s}", .{
+                app.application.description.display_name,
+                @errorName(err),
+            });
+        },
+        .exited => |app| {
+            const exit_message = app.application.status.exited; // this is safe as the status might only be changed in the update fn
+            if (exit_message.len > 0) {
+                const size = self.app_status_font.measureString(exit_message);
+                self.app_status_font.drawString(
+                    canvas.framebuffer.view(@intCast(usize, area.x), @intCast(usize, area.y), area.width, area.height),
+                    exit_message,
+                    (area.width - size.width) / 2,
+                    area.height / 2,
+                    .{ .r = 0xFF, .g = 0x00, .b = 0x00 }, // TODO: Replace by theme config
                 );
             }
         },
@@ -1406,6 +1444,9 @@ const WindowTree = struct {
         /// A ready-to-use application that is fully initialized and has connected to the application server.
         connected: AppInstance,
 
+        /// An application that has been terminated on the remote end and not by the user.
+        exited: AppInstance,
+
         /// A empty node is required to manage empty workspaces
         /// or applications that have exited on their on
         /// and thus will leave empty space on the desktop
@@ -1516,7 +1557,7 @@ const WindowTree = struct {
                 }
                 self.allocator.free(group.children);
             },
-            .starting, .connected => |*app| app.deinit(),
+            .starting, .connected, .exited => |*app| app.deinit(),
         }
         node.* = undefined;
     }
@@ -1670,7 +1711,7 @@ const WindowTree = struct {
         {
             const padding = side_padding_per_nest_level * @intToFloat(f32, nesting + 1);
 
-            if (node == .empty) {
+            if (node == .empty or node == .exited) {
                 location = NodeInsertLocation{
                     .path = backing_buffer.*,
                     .path_len = nesting,
@@ -1795,7 +1836,8 @@ const WindowTree = struct {
                 target_node.* = splitter;
             },
             .replace => {
-                std.debug.assert(target_node.* == .empty);
+                std.debug.assert(target_node.* == .empty or target_node.* == .exited);
+                self.destroyNode(target_node);
                 target_node.* = node;
             },
         }

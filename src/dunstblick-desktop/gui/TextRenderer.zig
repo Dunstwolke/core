@@ -6,6 +6,7 @@ const c = @cImport({
 
 const Framebuffer = @import("Framebuffer.zig");
 const Color = Framebuffer.Color;
+const Size = @import("Size.zig");
 
 const Self = @This();
 
@@ -16,9 +17,9 @@ glyphs: std.AutoHashMap(u24, Glyph),
 
 font_size: u15,
 
-ascent: isize,
-descent: isize,
-line_gap: isize,
+ascent: i16,
+descent: i16,
+line_gap: i16,
 
 /// Scale of `advance_width` and `left_side_bearing`
 scale: f32,
@@ -41,9 +42,9 @@ pub fn init(allocator: *std.mem.Allocator, ttf: []const u8, font_size: u15) !Sel
         .arena = std.heap.ArenaAllocator.init(allocator),
         .glyphs = std.AutoHashMap(u24, Glyph).init(allocator),
         .font_size = font_size,
-        .ascent = ascent,
-        .descent = descent,
-        .line_gap = line_gap,
+        .ascent = @intCast(i16, ascent),
+        .descent = @intCast(i16, descent),
+        .line_gap = @intCast(i16, line_gap),
         .scale = c.stbtt_ScaleForPixelHeight(&info, @intToFloat(f32, font_size)),
     };
 }
@@ -75,8 +76,8 @@ pub fn getGlyph(self: *Self, codepoint: u24) !Glyph {
         std.debug.assert(ix0 <= ix1);
         std.debug.assert(iy0 <= iy1);
 
-        const width: usize = @intCast(usize, ix1 - ix0);
-        const height: usize = @intCast(usize, iy1 - iy0);
+        const width: u15 = @intCast(u15, ix1 - ix0);
+        const height: u15 = @intCast(u15, iy1 - iy0);
 
         const bitmap = try self.arena.allocator.alloc(u8, width * height);
         errdefer self.arena.allocator.free(bitmap);
@@ -126,49 +127,42 @@ fn scaleInt(ival: isize, scale: f32) i16 {
     return @intCast(i16, @floatToInt(isize, std.math.round(@intToFloat(f32, ival) * scale)));
 }
 
-pub fn measureString(self: *Self, text: []const u8, font: Font, line_width: ?usize) Size {
-    var canvas = Canvas.init(self);
-    const font_cache = switch (font) {
-        .monospace => &fonts.mono,
-        .sans => &fonts.sans,
-        .serif => &fonts.serif,
-    };
-
+pub fn measureString(self: *Self, text: []const u8) Size {
     var utf8 = std.unicode.Utf8Iterator{
         .bytes = text,
         .i = 0,
     };
 
-    var dx: isize = 0;
-    var dy: isize = scaleInt(font_cache.ascent, font_cache.scale);
+    var dx: i16 = 0;
+    var dy: i16 = scaleInt(self.ascent, self.scale);
 
-    var max_dx: isize = 0;
+    var max_dx: i16 = 0;
 
     var previous_codepoint: ?u24 = null;
     while (utf8.nextCodepoint()) |codepoint| {
         if (codepoint == '\n') {
             dx = 0;
-            dy += scaleInt(font_cache.ascent - font_cache.descent + font_cache.line_gap, font_cache.scale);
+            dy += scaleInt(self.ascent - self.descent + self.line_gap, self.scale);
             previous_codepoint = null;
             continue;
         }
 
-        const glyph = font_cache.getGlyph(codepoint) catch continue;
+        const glyph = self.getGlyph(codepoint) catch continue;
 
         if (previous_codepoint) |prev| {
-            dx += c.stbtt_GetCodepointKernAdvance(&font_cache.font, prev, codepoint);
+            dx += @intCast(i16, c.stbtt_GetCodepointKernAdvance(&self.font, prev, codepoint));
         }
         previous_codepoint = codepoint;
 
-        max_dx = std.math.max(max_dx, scaleInt(dx + glyph.left_side_bearing, font_cache.scale) + @intCast(isize, glyph.width));
+        max_dx = std.math.max(max_dx, scaleInt(dx + glyph.left_side_bearing, self.scale) + @intCast(i16, glyph.width));
 
         dx += glyph.advance_width;
     }
-    dy += scaleInt(-font_cache.descent + font_cache.line_gap, font_cache.scale);
+    dy += scaleInt(-self.descent + self.line_gap, self.scale);
 
     return Size{
-        .width = @intCast(usize, max_dx),
-        .height = @intCast(usize, dy),
+        .width = @intCast(u15, max_dx),
+        .height = @intCast(u15, dy),
     };
 }
 
@@ -207,12 +201,15 @@ pub fn drawString(self: *Self, target_buffer: Framebuffer, text: []const u8, x: 
                 while (px < glyph.width) : (px += 1) {
                     const alpha = glyph.getAlpha(px, py);
 
-                    target_buffer.scanline(@intCast(usize, off_y) + py)[@intCast(usize, off_x) + px] = .{
-                        .r = alpha,
-                        .g = alpha,
-                        .b = alpha,
-                        .a = 0xFF,
+                    const pixel = &target_buffer.scanline(@intCast(usize, off_y) + py)[@intCast(usize, off_x) + px];
+                    const dest = pixel.*;
+                    const source = Color{
+                        .r = color.r,
+                        .g = color.g,
+                        .b = color.b,
+                        .a = alpha,
                     };
+                    pixel.* = Color.alphaBlend(dest, source, source.a);
                 }
             }
         }
@@ -246,10 +243,10 @@ pub const Glyph = struct {
     pixels: []u8,
 
     /// width of the image in pixels
-    width: usize,
+    width: u15,
 
     /// height of the image in pixels
-    height: usize,
+    height: u15,
 
     /// offset to the base line
     offset_y: i16,
@@ -265,6 +262,6 @@ pub const Glyph = struct {
         if (x >= self.width or y >= self.height)
             return 0;
 
-        return self.pixels[std.math.absCast(y) * self.width + std.math.absCast(x)];
+        return self.pixels[@as(usize, std.math.absCast(y)) * self.width + @as(usize, std.math.absCast(x))];
     }
 };

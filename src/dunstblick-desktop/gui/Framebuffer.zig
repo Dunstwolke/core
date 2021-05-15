@@ -38,4 +38,22 @@ pub const Color = extern struct {
         }
         try writer.writeAll("\"");
     }
+
+    pub fn alphaBlend(c0: Color, c1: Color, alpha: u8) Color {
+        return alphaBlendF(c0, c1, @intToFloat(f32, alpha) / 255.0);
+    }
+
+    pub fn alphaBlendF(c0: Color, c1: Color, alpha: f32) Color {
+        const f = std.math.clamp(alpha, 0.0, 1.0);
+        return Color{
+            .r = lerp(c0.r, c1.r, f),
+            .g = lerp(c0.g, c1.g, f),
+            .b = lerp(c0.b, c1.b, f),
+            .a = lerp(c0.a, c1.a, f),
+        };
+    }
+
+    fn lerp(a: u8, b: u8, f: f32) u8 {
+        return @floatToInt(u8, @intToFloat(f32, a) + f * (@intToFloat(f32, b) - @intToFloat(f32, a)));
+    }
 };

@@ -27,8 +27,13 @@ pub const Interface = struct {
 pub const Status = union(enum) {
     /// contains the current loading status as a string
     starting: []const u8,
+
     /// the application is ready to be interacted with
-    ready,
+    running,
+
+    /// the application was quit and should be freed by the 
+    /// desktop environment. Contains the exit reason.
+    exited: []const u8,
 };
 
 description: ApplicationDescription,
@@ -36,14 +41,17 @@ vtable: *const Interface,
 status: Status = Status{ .starting = "Starting..." },
 
 pub fn update(self: *Self, dt: f32) !void {
+    std.debug.assert(self.status == .starting or self.status == .running);
     try self.vtable.update(self, dt);
 }
 
 pub fn resize(self: *Self, size: Size) !void {
+    std.debug.assert(self.status == .starting or self.status == .running);
     try self.vtable.resize(self, size);
 }
 
 pub fn render(self: *Self, target: Framebuffer) !void {
+    std.debug.assert(self.status == .running);
     try self.vtable.render(self, target);
 }
 

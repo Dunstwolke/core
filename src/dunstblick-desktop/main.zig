@@ -114,8 +114,8 @@ const DemoApp = struct {
 
     pub fn update(instance: *ApplicationInstance, dt: f32) !void {
         const self = @fieldParentPtr(DemoApp, "instance", instance);
-        self.updateStatus();
         self.render_time += dt;
+        self.updateStatus();
     }
 
     pub fn resize(instance: *ApplicationInstance, size: Size) !void {
@@ -157,17 +157,24 @@ const DemoApp = struct {
     }
 
     fn updateStatus(self: *DemoApp) void {
-        const startup_time = 5 * std.time.ms_per_s;
-        const time = std.time.milliTimestamp();
+        const startup_time = 10 * std.time.ms_per_s;
+        const shutdown_time = 10.0;
 
-        if (time < self.timer + startup_time) {
-            self.instance.status = .{
-                .starting = std.fmt.bufPrint(&self.msg_buf, "Start in {d:.1} seconds.", .{
-                    @intToFloat(f32, startup_time - (time - self.timer)) / 1000.0,
-                }) catch unreachable,
-            };
+        if (self.render_time > shutdown_time) {
+            self.instance.status = .{ .exited = "Timed exit" };
         } else {
-            self.instance.status = .ready;
+            const time = std.time.milliTimestamp();
+
+            if (time < self.timer + startup_time) {
+                self.instance.status = .{
+                    .starting = std.fmt.bufPrint(&self.msg_buf, "Start in {d:.1} seconds.", .{
+                        @intToFloat(f32, startup_time - (time - self.timer)) / 1000.0,
+                    }) catch unreachable,
+                };
+                self.render_time = 0.0;
+            } else {
+                self.instance.status = .running;
+            }
         }
     }
 };
