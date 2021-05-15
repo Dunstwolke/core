@@ -14,6 +14,7 @@ const Rectangle = @import("Rectangle.zig");
 const Framebuffer = @import("Framebuffer.zig");
 const Color = Framebuffer.Color;
 const Display = @import("Display.zig");
+const TextRenderer = @import("TextRenderer.zig");
 
 const ApplicationInstance = @import("ApplicationInstance.zig");
 const ApplicationDescription = @import("ApplicationDescription.zig");
@@ -214,6 +215,10 @@ available_apps: std.ArrayList(AppReference),
 
 mode: MouseMode,
 
+app_title_font: TextRenderer,
+app_status_font: TextRenderer,
+app_button_font: TextRenderer,
+
 pub fn init(allocator: *std.mem.Allocator, initial_size: Size) !Self {
     var self = Self{
         .allocator = allocator,
@@ -224,7 +229,21 @@ pub fn init(allocator: *std.mem.Allocator, initial_size: Size) !Self {
         .current_workspace = 2, // first workspace after app_menu, separator
         .mode = .default,
         .available_apps = std.ArrayList(AppReference).init(allocator),
+        .app_title_font = undefined,
+        .app_status_font = undefined,
+        .app_button_font = undefined,
     };
+
+    const ttf_font_data = @embedFile("fonts/firasans-regular.ttf");
+
+    self.app_title_font = try TextRenderer.init(self.allocator, ttf_font_data, 30);
+    errdefer self.app_title_font.deinit();
+
+    self.app_status_font = try TextRenderer.init(self.allocator, ttf_font_data, 20);
+    errdefer self.app_status_font.deinit();
+
+    self.app_button_font = try TextRenderer.init(self.allocator, ttf_font_data, 12);
+    errdefer self.app_button_font.deinit();
 
     // std.json.stringify(self.config, .{
     //     .whitespace = .{
@@ -238,31 +257,6 @@ pub fn init(allocator: *std.mem.Allocator, initial_size: Size) !Self {
     try self.menu_items.append(MenuItem{ .button = Button{ .data = .{ .workspace = Workspace.init(allocator) } } });
     try self.menu_items.append(MenuItem{ .button = Button{ .data = .{ .workspace = Workspace.init(allocator) } } });
 
-    // {
-    //     const ws: *Workspace = &self.menu_items.items[2].button.data.workspace;
-
-    //     var v_children = try allocator.alloc(WindowTree.Node, 3);
-    //     errdefer allocator.free(v_children);
-
-    //     v_children[0] = .empty;
-    //     v_children[1] = .empty;
-    //     v_children[2] = .empty;
-
-    //     var h_children = try allocator.alloc(WindowTree.Node, 2);
-    //     errdefer allocator.free(h_children);
-
-    //     h_children[0] = .empty;
-    //     h_children[1] = WindowTree.Node{ .group = WindowTree.Group{
-    //         .split = .vertical,
-    //         .children = v_children,
-    //     } };
-
-    //     ws.window_tree.root = WindowTree.Node{ .group = WindowTree.Group{
-    //         .split = .horizontal,
-    //         .children = h_children,
-    //     } };
-    // }
-
     return self;
 }
 
@@ -275,6 +269,9 @@ pub fn deinit(self: *Self) void {
     }
     self.menu_items.deinit();
     self.available_apps.deinit();
+    self.app_status_font.deinit();
+    self.app_title_font.deinit();
+    self.app_button_font.deinit();
     self.* = undefined;
 }
 
@@ -457,7 +454,6 @@ pub fn mouseUp(self: *Self, mouse_button: Display.MouseButton) !void {
                     const app_instance = try app.application.spawn(self.allocator);
 
                     var node = WindowTree.Node{
-                        // TODO: Proper application creation with resource handling
                         .starting = AppInstance{
                             .application = app_instance,
                         },
@@ -466,7 +462,6 @@ pub fn mouseUp(self: *Self, mouse_button: Display.MouseButton) !void {
                     try workspace.window_tree.insertLeaf(target_location, node);
                 }
             } else {
-                // TODO: Spawn the app here
                 log.info("cancel spawn of app[{d}] '{s}'", .{ app_index, app.application.display_name });
             }
         },
@@ -620,7 +615,7 @@ const SubCanvas = struct {
     }
 };
 
-pub fn render(self: Self, target: Framebuffer) void {
+pub fn render(self: *Self, target: Framebuffer) void {
     var temp_buffer: [4096]u8 = undefined;
     var temp_allocator = std.heap.FixedBufferAllocator.init(&temp_buffer);
 
@@ -695,7 +690,7 @@ pub fn render(self: Self, target: Framebuffer) void {
                 }
             },
             .button => |button| {
-                renderButton(
+                self.renderButton(
                     &fb,
                     button_rect,
                     if (dragged_app_index) |_|
@@ -720,7 +715,7 @@ pub fn render(self: Self, target: Framebuffer) void {
     if (dragged_app_index) |_| {
         const button_rect = self.getMenuButtonRectangle(self.menu_items.items.len);
 
-        renderButton(
+        self.renderButton(
             &fb,
             button_rect,
             if (button_rect.contains(self.mouse_pos))
@@ -920,7 +915,7 @@ pub fn render(self: Self, target: Framebuffer) void {
             if (dragged_app_index != null and (dragged_app_index.? == app_index))
                 continue;
 
-            renderButton(
+            self.renderButton(
                 &fb,
                 rect,
                 app.button_state,
@@ -941,7 +936,7 @@ pub fn render(self: Self, target: Framebuffer) void {
             .width = button_size,
             .height = button_size,
         };
-        renderButton(
+        self.renderButton(
             &fb,
             rect,
             ButtonState.pressed,
@@ -989,6 +984,7 @@ fn alphaBlend(c: u8, f: f32) u8 {
 }
 
 fn renderButton(
+    self: *Self,
     framebuffer: anytype,
     rectangle: Rectangle,
     state: ButtonState,
@@ -1025,8 +1021,9 @@ fn renderButton(
         outline_color,
     );
 
+    const icon_size = std.math.min(rectangle.width - 2, theme.icon_size);
+
     if (icon) |icon_source| {
-        const icon_size = std.math.min(rectangle.width - 2, theme.icon_size);
         if (icon_size > 0) {
             var temp_buffer: [4096]u8 = undefined;
             var temp_allocator = std.heap.FixedBufferAllocator.init(&temp_buffer);
@@ -1040,6 +1037,15 @@ fn renderButton(
                 .alpha = alpha,
             };
 
+            // Debug painter: Draw the outline of the icon
+            // framebuffer.drawRectangle(
+            //     icon_canvas.x,
+            //     icon_canvas.y,
+            //     icon_canvas.width,
+            //     icon_canvas.height,
+            //     Color{ .r = 0xFF, .g = 0x00, .b = 0xFF },
+            // );
+
             tvg.render(
                 &temp_allocator.allocator,
                 icon_canvas,
@@ -1048,13 +1054,34 @@ fn renderButton(
             temp_allocator.reset();
         }
     }
+
+    if (text) |label| {
+        const top = ((rectangle.height + icon_size) / 2 + rectangle.height) / 2;
+
+        // Debug painter: draw the middle line of the button label
+        // framebuffer.drawLine(
+        //     rectangle.x,
+        //     rectangle.y + top,
+        //     rectangle.x + rectangle.width,
+        //     rectangle.y + top,
+        //     Color{ .r = 0xFF, .g = 0x00, .b = 0xFF },
+        // );
+
+        self.app_button_font.drawString(
+            framebuffer.framebuffer.view(@intCast(usize, rectangle.x), @intCast(usize, rectangle.y), rectangle.width, rectangle.height),
+            label,
+            4,
+            @intCast(u15, top - self.app_button_font.font_size / 2),
+            .{ .r = 0xFF, .g = 0xFF, .b = 0xFF }, // TODO: Introduce proper config here
+        );
+    }
 }
 
-fn renderWorkspace(self: Self, canvas: *Canvas, area: Rectangle, workspace: Workspace, hovered_rectangle: *?Rectangle) void {
+fn renderWorkspace(self: *Self, canvas: *Canvas, area: Rectangle, workspace: Workspace, hovered_rectangle: *?Rectangle) void {
     self.renderTreeNode(canvas, area, workspace.window_tree.root, hovered_rectangle);
 }
 
-fn renderTreeNode(self: Self, canvas: *Canvas, area: Rectangle, node: WindowTree.Node, hovered_rectangle: *?Rectangle) void {
+fn renderTreeNode(self: *Self, canvas: *Canvas, area: Rectangle, node: WindowTree.Node, hovered_rectangle: *?Rectangle) void {
     if (area.contains(self.mouse_pos) and (node == .empty or node == .starting or node == .connected))
         hovered_rectangle.* = area;
     switch (node) {
@@ -1101,12 +1128,26 @@ fn renderTreeNode(self: Self, canvas: *Canvas, area: Rectangle, node: WindowTree
                 temp_allocator.reset();
             }
 
-            const startup_message = app.application.status.starting; // this is safe as the status might only be changed in the update fn
+            if (app.application.description.display_name.len > 0) {
+                self.app_title_font.drawString(
+                    canvas.framebuffer.view(@intCast(usize, area.x), @intCast(usize, area.y), area.width, area.height),
+                    app.application.description.display_name,
+                    (area.width - 100) / 2,
+                    (area.height - icon_size) / 2 - self.app_title_font.font_size,
+                    .{ .r = 0xFF, .g = 0xFF, .b = 0xFF },
+                );
+            }
 
-            log.info("app '{s}' is starting: '{s}", .{
-                app.application.description.display_name,
-                app.application.status.starting,
-            });
+            const startup_message = app.application.status.starting; // this is safe as the status might only be changed in the update fn
+            if (startup_message.len > 0) {
+                self.app_status_font.drawString(
+                    canvas.framebuffer.view(@intCast(usize, area.x), @intCast(usize, area.y), area.width, area.height),
+                    startup_message,
+                    (area.width - 100) / 2,
+                    (area.height + icon_size) / 2,
+                    .{ .r = 0xFF, .g = 0xFF, .b = 0xFF },
+                );
+            }
         },
         .group => |group| {
             // if we have 1 or less children, the tree would be denormalized.

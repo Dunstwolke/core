@@ -227,6 +227,13 @@ pub fn build(b: *Builder) !void {
         desktop_app.addPackage(pkgs.tvg);
         //desktop_app.addPackage(pkgs.meta);
 
+        // TTF rendering library:
+        desktop_app.addIncludeDir("./lib/stb");
+        desktop_app.addCSourceFile("./src/dunstblick-desktop/gui/stb_truetype.c", &[_][]const u8{
+            "-std=c99",
+            "-fno-sanitize=undefined",
+        });
+
         const RenderBackend = enum { sdl2, dri };
         const backend = b.option(RenderBackend, "render-backend", "The rendering backend for Dunstblick Desktop") orelse RenderBackend.sdl2;
 
