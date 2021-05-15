@@ -1089,7 +1089,7 @@ fn renderButton(
             const size = self.app_button_font.measureString(label);
 
             self.app_button_font.drawString(
-                framebuffer.framebuffer.view(@intCast(usize, rectangle.x), @intCast(usize, rectangle.y), rectangle.width, rectangle.height),
+                framebuffer.framebuffer.subView(rectangle.x, rectangle.y, rectangle.width, rectangle.height),
                 label,
                 (rectangle.width - size.width) / 2,
                 @intCast(u15, top - self.app_button_font.font_size / 2),
@@ -1143,7 +1143,7 @@ fn renderTreeNode(self: *Self, canvas: *Canvas, area: Rectangle, node: WindowTre
             if (display_name.len > 0) {
                 const size = self.app_title_font.measureString(display_name);
                 self.app_title_font.drawString(
-                    canvas.framebuffer.view(@intCast(usize, area.x), @intCast(usize, area.y), area.width, area.height),
+                    canvas.framebuffer.subView(area.x, area.y, area.width, area.height),
                     display_name,
                     (area.width - size.width) / 2,
                     (area.height - icon_size) / 2 - self.app_title_font.font_size,
@@ -1155,7 +1155,7 @@ fn renderTreeNode(self: *Self, canvas: *Canvas, area: Rectangle, node: WindowTre
             if (startup_message.len > 0) {
                 const size = self.app_status_font.measureString(startup_message);
                 self.app_status_font.drawString(
-                    canvas.framebuffer.view(@intCast(usize, area.x), @intCast(usize, area.y), area.width, area.height),
+                    canvas.framebuffer.subView(area.x, area.y, area.width, area.height),
                     startup_message,
                     (area.width - size.width) / 2,
                     (area.height + icon_size) / 2,
@@ -1164,12 +1164,7 @@ fn renderTreeNode(self: *Self, canvas: *Canvas, area: Rectangle, node: WindowTre
             }
         },
         .connected => |app| {
-            app.application.render(canvas.framebuffer.view(
-                @intCast(usize, area.x),
-                @intCast(usize, area.y),
-                area.width,
-                area.height,
-            )) catch |err| log.err("failed to render application '{s}': {s}", .{
+            app.application.render(canvas.framebuffer.subView(area.x, area.y, area.width, area.height)) catch |err| log.err("failed to render application '{s}': {s}", .{
                 app.application.description.display_name,
                 @errorName(err),
             });
@@ -1179,7 +1174,7 @@ fn renderTreeNode(self: *Self, canvas: *Canvas, area: Rectangle, node: WindowTre
             if (exit_message.len > 0) {
                 const size = self.app_status_font.measureString(exit_message);
                 self.app_status_font.drawString(
-                    canvas.framebuffer.view(@intCast(usize, area.x), @intCast(usize, area.y), area.width, area.height),
+                    canvas.framebuffer.subView(area.x, area.y, area.width, area.height),
                     exit_message,
                     (area.width - size.width) / 2,
                     area.height / 2,

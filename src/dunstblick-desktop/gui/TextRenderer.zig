@@ -166,7 +166,7 @@ pub fn measureString(self: *Self, text: []const u8) Size {
     };
 }
 
-pub fn drawString(self: *Self, target_buffer: Framebuffer, text: []const u8, x: i16, y: i16, color: Color) void {
+pub fn drawString(self: *Self, target_buffer: Framebuffer.View, text: []const u8, x: i16, y: i16, color: Color) void {
     var utf8 = std.unicode.Utf8Iterator{
         .bytes = text,
         .i = 0,
@@ -201,15 +201,16 @@ pub fn drawString(self: *Self, target_buffer: Framebuffer, text: []const u8, x: 
                 while (px < glyph.width) : (px += 1) {
                     const alpha = glyph.getAlpha(px, py);
 
-                    const pixel = &target_buffer.scanline(@intCast(usize, off_y) + py)[@intCast(usize, off_x) + px];
-                    const dest = pixel.*;
-                    const source = Color{
-                        .r = color.r,
-                        .g = color.g,
-                        .b = color.b,
-                        .a = alpha,
-                    };
-                    pixel.* = Color.alphaBlend(dest, source, source.a);
+                    if (target_buffer.pixel(off_x + px, off_y + py)) |pixel| {
+                        const dest = pixel.*;
+                        const source = Color{
+                            .r = color.r,
+                            .g = color.g,
+                            .b = color.b,
+                            .a = alpha,
+                        };
+                        pixel.* = Color.alphaBlend(dest, source, source.a);
+                    }
                 }
             }
         }

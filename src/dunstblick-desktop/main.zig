@@ -123,13 +123,12 @@ const DemoApp = struct {
         @panic("DemoApp.resize not implemented yet!");
     }
 
-    pub fn render(instance: *ApplicationInstance, target: Framebuffer) !void {
+    pub fn render(instance: *ApplicationInstance, target: Framebuffer.View) !void {
         const self = @fieldParentPtr(DemoApp, "instance", instance);
 
-        var y: usize = 0;
+        var y: u15 = 0;
         while (y < target.height) : (y += 1) {
-            const scanline = target.scanline(y);
-            var x: usize = 0;
+            var x: u15 = 0;
             while (x < target.width) : (x += 1) {
                 const fx = @intToFloat(f32, x) / 100.0;
                 const fy = @intToFloat(f32, y) / 100.0;
@@ -140,12 +139,12 @@ const DemoApp = struct {
                     0.5 * @sin(1.9 * self.render_time - 0.3 * fx + 0.2 * fy + 1.4) +
                     0.3 * @sin(2.3 * self.render_time + 0.2 * fx - 0.1 * fy + 2.4);
 
-                scanline[x] = .{
+                target.set(x, y, .{
                     // assume pi=3
                     .r = @floatToInt(u8, 128.0 + 127.0 * @sin(2.5 * t + 0.0)),
                     .g = @floatToInt(u8, 128.0 + 127.0 * @sin(2.5 * t + 1.0)),
                     .b = @floatToInt(u8, 128.0 + 127.0 * @sin(2.5 * t + 2.0)),
-                };
+                });
             }
         }
     }
