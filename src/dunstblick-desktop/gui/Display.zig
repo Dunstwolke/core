@@ -122,7 +122,7 @@ const Sdl2Backend = struct {
         try sdl.init(.{ .events = true, .video = true });
 
         var window = try sdl.createWindow("Dunstblick", .centered, .centered, 1280, 720, .{
-            .resizable = false, // TODO: Change to `true` when finished
+            .resizable = (std.builtin.cpu.arch == .aarch64), // TODO: Change to `true` when finished
             .shown = true,
         });
         errdefer window.destroy();
