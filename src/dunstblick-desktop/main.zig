@@ -31,6 +31,8 @@ pub const Application = struct {
 
     screen_size: Size,
 
+    debug_font: *const zero_graphics.Renderer2D.Font,
+
     pub fn init(app: *Application, allocator: *std.mem.Allocator, input: *zero_graphics.Input) !void {
         try gl.load({}, loadOpenGlFunction);
 
@@ -41,13 +43,16 @@ pub const Application = struct {
             .input = input,
             .frame_timer = frame_timer,
             .demo_app_desc = DemoAppDescription{},
-            .home_screen = undefined,
-            .renderer = undefined,
             .screen_size = Size{ .width = 0, .height = 0 },
+            .renderer = undefined,
+            .home_screen = undefined,
+            .debug_font = undefined,
         };
 
         app.renderer = try zero_graphics.Renderer2D.init(allocator);
         errdefer app.renderer.deinit();
+
+        app.debug_font = try app.renderer.createFont(@embedFile("gui/fonts/firasans-regular.ttf"), 24);
 
         app.home_screen = try HomeScreen.init(allocator, &app.renderer);
         errdefer app.home_screen.deinit();
@@ -84,6 +89,15 @@ pub const Application = struct {
 
         {
             try app.home_screen.render();
+
+            var buf: [64]u8 = undefined;
+            try app.renderer.drawString(
+                app.debug_font,
+                try std.fmt.bufPrint(&buf, "{d} ms", .{1000.0 * frametime}),
+                10,
+                app.screen_size.height - app.debug_font.font_size - 10,
+                zero_graphics.Color.red,
+            );
         }
 
         // OpenGL rendering
