@@ -103,7 +103,7 @@ pub const Application = struct {
 
         // OpenGL rendering
         {
-            // gl.viewport(0, 0, app.screen_width, app.screen_height);
+            gl.viewport(0, 0, app.screen_size.width, app.screen_size.height);
 
             gl.clearColor(0.3, 0.3, 0.3, 1.0);
             gl.clear(gl.COLOR_BUFFER_BIT);
