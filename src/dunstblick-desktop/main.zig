@@ -1,86 +1,107 @@
 const std = @import("std");
 const meta = @import("zig-meta");
 
-const log = std.log.scoped(.application);
+const logger = std.log.scoped(.application);
+
+const zero_graphics = @import("zero-graphics");
+
+const gl = zero_graphics.gles;
 
 // Design considerations:
 // - Screen sizes are limited to 32k×32k (allows using i16 for coordinates)
 // - Display api is platform independent
 
-const Size = @import("gui/Size.zig");
-const Display = @import("gui/Display.zig");
+const Size = zero_graphics.Size;
 const HomeScreen = @import("gui/HomeScreen.zig");
-const Framebuffer = @import("gui/Framebuffer.zig");
 const ApplicationDescription = @import("gui/ApplicationDescription.zig");
 const ApplicationInstance = @import("gui/ApplicationInstance.zig");
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
+pub usingnamespace zero_graphics.EntryPoint(.desktop_sdl2);
 
-    const allocator = &gpa.allocator;
+pub const Application = struct {
+    allocator: *std.mem.Allocator,
+    input: *zero_graphics.Input,
 
-    var demo_app = DemoAppDescription{};
+    frame_timer: std.time.Timer,
+    home_screen: HomeScreen,
 
-    var display = try Display.init(allocator);
-    defer display.deinit();
+    demo_app_desc: DemoAppDescription,
 
-    log.debug("entering main loop...", .{});
+    renderer: zero_graphics.Renderer2D,
 
-    var homescreen = try HomeScreen.init(allocator, display.screen_size);
-    defer homescreen.deinit();
+    screen_size: Size,
 
-    try homescreen.setAvailableApps(&[_]*ApplicationDescription{&demo_app.desc});
+    pub fn init(app: *Application, allocator: *std.mem.Allocator, input: *zero_graphics.Input) !void {
+        try gl.load({}, loadOpenGlFunction);
 
-    var frame_timer = try std.time.Timer.start();
+        var frame_timer = try std.time.Timer.start();
 
-    blk: while (display.alive) {
-        while (try display.pollEvent()) |event| {
+        app.* = .{
+            .allocator = allocator,
+            .input = input,
+            .frame_timer = frame_timer,
+            .demo_app_desc = DemoAppDescription{},
+            .home_screen = undefined,
+            .renderer = undefined,
+            .screen_size = Size{ .width = 0, .height = 0 },
+        };
+
+        app.renderer = try zero_graphics.Renderer2D.init(allocator);
+        errdefer app.renderer.deinit();
+
+        app.home_screen = try HomeScreen.init(allocator, &app.renderer);
+        errdefer app.home_screen.deinit();
+
+        try app.home_screen.setAvailableApps(&[_]*ApplicationDescription{&app.demo_app_desc.desc});
+    }
+
+    pub fn deinit(app: *Application) void {
+        app.home_screen.deinit();
+        app.* = undefined;
+    }
+
+    pub fn resize(app: *Application, width: u15, height: u15) !void {
+        app.screen_size = Size{ .width = width, .height = height };
+        try app.home_screen.resize(app.screen_size);
+    }
+
+    pub fn update(app: *Application) !bool {
+        defer app.renderer.reset();
+
+        while (app.input.pollEvent()) |event| {
             switch (event) {
-                .screen_resize => |size| {
-                    try homescreen.resize(size);
-                },
-
-                .mouse_down => |ev| {
-                    try homescreen.mouseDown(ev);
-                },
-                .mouse_up => |ev| {
-                    try homescreen.mouseUp(ev);
-                },
-                .mouse_motion => |ev| {
-                    homescreen.setMousePos(ev.position);
-                },
-
-                .key_down => |ev| log.warn("unhandled event: key_down = {}", .{ev}),
-                .key_up => |ev| log.warn("unhandled event: key_up = {}", .{ev}),
-                .text_input => |ev| log.warn("unhandled event: text_input = {}", .{ev}),
-
-                .quit => break :blk,
+                .quit => return false,
+                .pointer_press => |button| try app.home_screen.mouseDown(button),
+                .pointer_release => |button| try app.home_screen.mouseUp(button),
+                .pointer_motion => |position| app.home_screen.setMousePos(position),
+                else => logger.info("unhandled event: {}", .{event}),
             }
         }
 
-        const frametime = @floatCast(f32, @intToFloat(f64, frame_timer.lap()) / std.time.ns_per_s);
+        const frametime = @floatCast(f32, @intToFloat(f64, app.frame_timer.lap()) / std.time.ns_per_s);
 
-        try homescreen.update(frametime);
+        try app.home_screen.update(frametime);
 
         {
-            var screen = try display.mapScreen();
-            defer display.unmapScreen();
-
-            {
-                var y: usize = 0;
-                while (y < screen.height) : (y += 1) {
-                    var x: usize = 0;
-                    while (x < screen.width) : (x += 1) {
-                        screen.scanline(y)[x] = .{ .r = 0x00, .g = 0x40, .b = 0x40 };
-                    }
-                }
-            }
-
-            homescreen.render(screen);
+            try app.home_screen.render();
         }
+
+        // OpenGL rendering
+        {
+            // gl.viewport(0, 0, app.screen_width, app.screen_height);
+
+            gl.clearColor(0.3, 0.3, 0.3, 1.0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+
+            gl.frontFace(gl.CCW);
+            gl.cullFace(gl.BACK);
+
+            app.renderer.render(app.screen_size);
+        }
+
+        return true;
     }
-}
+};
 
 const DemoAppDescription = struct {
     desc: ApplicationDescription = .{
@@ -123,30 +144,30 @@ const DemoApp = struct {
         @panic("DemoApp.resize not implemented yet!");
     }
 
-    pub fn render(instance: *ApplicationInstance, target: Framebuffer.View) !void {
+    pub fn render(instance: *ApplicationInstance, target: *zero_graphics.Renderer2D) !void {
         const self = @fieldParentPtr(DemoApp, "instance", instance);
 
-        var y: u15 = 0;
-        while (y < target.height) : (y += 1) {
-            var x: u15 = 0;
-            while (x < target.width) : (x += 1) {
-                const fx = @intToFloat(f32, x) / 100.0;
-                const fy = @intToFloat(f32, y) / 100.0;
+        // var y: u15 = 0;
+        // while (y < target.height) : (y += 1) {
+        //     var x: u15 = 0;
+        //     while (x < target.width) : (x += 1) {
+        //         const fx = @intToFloat(f32, x) / 100.0;
+        //         const fy = @intToFloat(f32, y) / 100.0;
 
-                const t = @sin(0.3 * self.render_time + fx + 1.3 * fy + -0.3) -
-                    0.7 * @sin(0.6 * self.render_time - 0.4 * fx + 0.3 * fy + 0.5) +
-                    0.6 * @sin(1.1 * self.render_time + 0.1 * fx - 0.2 * fy + 0.8) -
-                    0.5 * @sin(1.9 * self.render_time - 0.3 * fx + 0.2 * fy + 1.4) +
-                    0.3 * @sin(2.3 * self.render_time + 0.2 * fx - 0.1 * fy + 2.4);
+        //         const t = @sin(0.3 * self.render_time + fx + 1.3 * fy + -0.3) -
+        //             0.7 * @sin(0.6 * self.render_time - 0.4 * fx + 0.3 * fy + 0.5) +
+        //             0.6 * @sin(1.1 * self.render_time + 0.1 * fx - 0.2 * fy + 0.8) -
+        //             0.5 * @sin(1.9 * self.render_time - 0.3 * fx + 0.2 * fy + 1.4) +
+        //             0.3 * @sin(2.3 * self.render_time + 0.2 * fx - 0.1 * fy + 2.4);
 
-                target.set(x, y, .{
-                    // assume pi=3
-                    .r = @floatToInt(u8, 128.0 + 127.0 * @sin(2.5 * t + 0.0)),
-                    .g = @floatToInt(u8, 128.0 + 127.0 * @sin(2.5 * t + 1.0)),
-                    .b = @floatToInt(u8, 128.0 + 127.0 * @sin(2.5 * t + 2.0)),
-                });
-            }
-        }
+        //         target.set(x, y, .{
+        //             // assume pi=3
+        //             .r = @floatToInt(u8, 128.0 + 127.0 * @sin(2.5 * t + 0.0)),
+        //             .g = @floatToInt(u8, 128.0 + 127.0 * @sin(2.5 * t + 1.0)),
+        //             .b = @floatToInt(u8, 128.0 + 127.0 * @sin(2.5 * t + 2.0)),
+        //         });
+        //     }
+        // }
     }
 
     pub fn deinit(instance: *ApplicationInstance) void {

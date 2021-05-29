@@ -38,7 +38,7 @@ pub fn Encoder(comptime Stream: type) type {
         }
 
         pub fn writeNumber(self: *Self, number: f32) !void {
-            std.debug.assert(std.builtin.endian == .Little);
+            std.debug.assert(std.Target.current.cpu.arch.endian() == .Little);
             try self.writeRaw(std.mem.asBytes(&number));
         }
 

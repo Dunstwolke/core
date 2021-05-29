@@ -2,24 +2,22 @@ const std = @import("std");
 const painterz = @import("painterz");
 const tvg = @import("tvg");
 
+const zerog = @import("zero-graphics");
+
 const icons = @import("icons/data.zig");
 
 const log = std.log.scoped(.home_screen);
 
 const Self = @This();
 
-const Point = @import("Point.zig");
-const Size = @import("Size.zig");
-const Rectangle = @import("Rectangle.zig");
-const Framebuffer = @import("Framebuffer.zig");
-const Color = Framebuffer.Color;
-const Display = @import("Display.zig");
-const TextRenderer = @import("TextRenderer.zig");
+const Renderer2D = zerog.Renderer2D;
+const Point = zerog.Point;
+const Size = zerog.Size;
+const Rectangle = zerog.Rectangle;
+const Color = zerog.Color;
 
 const ApplicationInstance = @import("ApplicationInstance.zig");
 const ApplicationDescription = @import("ApplicationDescription.zig");
-
-const Canvas = painterz.Canvas(Framebuffer, Framebuffer.Color, setFramebufferPixel);
 
 const ButtonTheme = struct {
     const Style = struct {
@@ -164,6 +162,12 @@ const MouseMode = union(enum) {
     /// The app is now being dragged outside of the app menu and will move over the desktop.
     app_drag_desktop: usize,
 
+    fn isContextMenuVisible(self: @This()) bool {
+        return switch (self) {
+            .default, .button_press, .app_drag_desktop, .app_menu, .app_press, .app_drag_menu => false,
+        };
+    }
+
     fn isAppMenuVisible(self: @This()) bool {
         return switch (self) {
             .default, .button_press, .app_drag_desktop => false,
@@ -199,6 +203,84 @@ const AppReference = struct {
     button_state: ButtonState = .{},
 };
 
+const IconCache = struct {
+    const SizedIcons = std.AutoHashMapUnmanaged(u30, *const Renderer2D.Texture);
+    const Map = std.StringHashMapUnmanaged(SizedIcons);
+
+    allocator: *std.mem.Allocator,
+    renderer: *Renderer2D,
+    icon_map: Map,
+
+    pub fn get(self: *IconCache, icon: []const u8, size: Size) !*const Renderer2D.Texture {
+        const gop1 = try self.icon_map.getOrPut(self.allocator, icon);
+        if (!gop1.found_existing) {
+            gop1.entry.value = SizedIcons{};
+        }
+
+        const size_key = (@as(u30, size.width) << 15) | size.width;
+
+        const gop2 = try gop1.entry.value.getOrPut(self.allocator, size_key);
+        if (!gop2.found_existing) {
+            var arena = std.heap.ArenaAllocator.init(self.allocator);
+            defer arena.deinit();
+
+            const swidth = @as(usize, size.width);
+            const sheight = @as(usize, size.height);
+
+            const pixels = try arena.allocator.alloc(Color, swidth * sheight);
+            std.mem.set(Color, pixels, Color.transparent);
+
+            const TvgCanvas = struct {
+                buffer: [*]Color,
+
+                width: usize,
+                height: usize,
+
+                pub fn setPixel(section: @This(), x: isize, y: isize, color: [4]u8) void {
+                    const px = std.math.cast(usize, x) catch return;
+                    const py = std.math.cast(usize, y) catch return;
+
+                    if (px >= section.width or py >= section.height)
+                        return;
+                    const buf = &section.buffer[section.width * py + px];
+                    const dst = buf.*;
+                    const src = Color{
+                        .r = color[0],
+                        .g = color[1],
+                        .b = color[2],
+                        .a = color[3],
+                    };
+
+                    buf.* = Color.alphaBlend(dst, src, src.a);
+                }
+            };
+
+            tvg.render(
+                &arena.allocator,
+                TvgCanvas{
+                    .buffer = pixels.ptr,
+                    .width = swidth,
+                    .height = sheight,
+                },
+                icon,
+            ) catch {};
+
+            gop2.entry.value = self.renderer.createTexture(size.width, size.height, std.mem.sliceAsBytes(pixels)) catch return error.OutOfMemory;
+        }
+        return gop2.entry.value;
+    }
+
+    pub fn deinit(self: *IconCache) void {
+        var outer_it = self.icon_map.iterator();
+        while (outer_it.next()) |list| {
+            var inner_it = list.value.iterator();
+            while (inner_it.next()) |item| {
+                self.renderer.destroyTexture(item.value);
+            }
+        }
+    }
+};
+
 allocator: *std.mem.Allocator,
 size: Size,
 config: HomeScreenConfig,
@@ -215,14 +297,18 @@ available_apps: std.ArrayList(AppReference),
 
 mode: MouseMode,
 
-app_title_font: TextRenderer,
-app_status_font: TextRenderer,
-app_button_font: TextRenderer,
+renderer: *Renderer2D,
 
-pub fn init(allocator: *std.mem.Allocator, initial_size: Size) !Self {
+app_title_font: *const Renderer2D.Font,
+app_status_font: *const Renderer2D.Font,
+app_button_font: *const Renderer2D.Font,
+
+icon_cache: IconCache,
+
+pub fn init(allocator: *std.mem.Allocator, renderer: *Renderer2D) !Self {
     var self = Self{
         .allocator = allocator,
-        .size = initial_size,
+        .size = Size{ .width = 0, .height = 0 },
         .menu_items = std.ArrayList(MenuItem).init(allocator),
         .config = HomeScreenConfig{},
         .mouse_pos = Point{ .x = 0, .y = 0 },
@@ -232,18 +318,24 @@ pub fn init(allocator: *std.mem.Allocator, initial_size: Size) !Self {
         .app_title_font = undefined,
         .app_status_font = undefined,
         .app_button_font = undefined,
+        .renderer = renderer,
+        .icon_cache = IconCache{
+            .allocator = allocator,
+            .renderer = renderer,
+            .icon_map = .{},
+        },
     };
 
     const ttf_font_data = @embedFile("fonts/firasans-regular.ttf");
 
-    self.app_title_font = try TextRenderer.init(self.allocator, ttf_font_data, 30);
-    errdefer self.app_title_font.deinit();
+    self.app_title_font = try self.renderer.createFont(ttf_font_data, 30);
+    errdefer self.renderer.destroyFont(self.app_title_font);
 
-    self.app_status_font = try TextRenderer.init(self.allocator, ttf_font_data, 20);
-    errdefer self.app_status_font.deinit();
+    self.app_status_font = try self.renderer.createFont(ttf_font_data, 20);
+    errdefer self.renderer.destroyFont(self.app_status_font);
 
-    self.app_button_font = try TextRenderer.init(self.allocator, ttf_font_data, 12);
-    errdefer self.app_button_font.deinit();
+    self.app_button_font = try self.renderer.createFont(ttf_font_data, 12);
+    errdefer self.renderer.destroyFont(self.app_button_font);
 
     // std.json.stringify(self.config, .{
     //     .whitespace = .{
@@ -267,11 +359,12 @@ pub fn deinit(self: *Self) void {
             else => {},
         }
     }
+    self.icon_cache.deinit();
     self.menu_items.deinit();
     self.available_apps.deinit();
-    self.app_status_font.deinit();
-    self.app_title_font.deinit();
-    self.app_button_font.deinit();
+    self.renderer.destroyFont(self.app_status_font);
+    self.renderer.destroyFont(self.app_title_font);
+    self.renderer.destroyFont(self.app_button_font);
     self.* = undefined;
 }
 
@@ -300,8 +393,8 @@ pub fn setMousePos(self: *Self, pos: Point) void {
 
 var rng = std.rand.DefaultPrng.init(0);
 
-pub fn mouseDown(self: *Self, mouse_button: Display.MouseButton) !void {
-    if (mouse_button != .left) {
+pub fn mouseDown(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
+    if (mouse_button != .primary) {
         self.config.workspace_bar.location = switch (self.config.workspace_bar.location) {
             .top => RectangleSide.right,
             .right => RectangleSide.bottom,
@@ -348,8 +441,8 @@ pub fn mouseDown(self: *Self, mouse_button: Display.MouseButton) !void {
     }
 }
 
-pub fn mouseUp(self: *Self, mouse_button: Display.MouseButton) !void {
-    if (mouse_button != .left)
+pub fn mouseUp(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
+    if (mouse_button != .primary)
         return;
 
     switch (self.mode) {
@@ -633,11 +726,10 @@ const SubCanvas = struct {
     }
 };
 
-pub fn render(self: *Self, target: Framebuffer) void {
+const RenderError = error{OutOfMemory} || zerog.Renderer2D.DrawError;
+pub fn render(self: *Self) RenderError!void {
     var temp_buffer: [4096]u8 = undefined;
     var temp_allocator = std.heap.FixedBufferAllocator.init(&temp_buffer);
-
-    var fb = Canvas.init(target);
 
     const bar_width = self.config.workspace_bar.getWidth();
 
@@ -645,32 +737,34 @@ pub fn render(self: *Self, target: Framebuffer) void {
 
     const bar_area = self.getBarRectangle();
 
-    fb.fillRectangle(workspace_area.x, workspace_area.y, workspace_area.width, workspace_area.height, self.config.workspace.background_color);
-    fb.fillRectangle(bar_area.x, bar_area.y, bar_area.width, bar_area.height, self.config.workspace_bar.background);
+    const renderer = self.renderer;
+
+    try renderer.fillRectangle(workspace_area, self.config.workspace.background_color);
+    try renderer.fillRectangle(bar_area, self.config.workspace_bar.background);
 
     switch (self.config.workspace_bar.location) {
-        .left => fb.drawLine(
+        .left => try renderer.drawLine(
             bar_area.x + bar_area.width,
             bar_area.y,
             bar_area.x + bar_area.width,
             bar_area.y + bar_area.height,
             self.config.workspace_bar.border,
         ),
-        .right => fb.drawLine(
+        .right => try renderer.drawLine(
             bar_area.x,
             0,
             bar_area.x,
             bar_area.height,
             self.config.workspace_bar.border,
         ),
-        .top => fb.drawLine(
+        .top => try renderer.drawLine(
             bar_area.x,
             bar_area.y + bar_area.height,
             bar_area.x + bar_area.width,
             bar_area.y + bar_area.height,
             self.config.workspace_bar.border,
         ),
-        .bottom => fb.drawLine(
+        .bottom => try renderer.drawLine(
             bar_area.x,
             bar_area.y,
             bar_area.x + bar_area.width,
@@ -691,14 +785,14 @@ pub fn render(self: *Self, target: Framebuffer) void {
         switch (item) {
             .separator => {
                 switch (self.config.workspace_bar.location) {
-                    .top, .bottom => fb.drawLine(
+                    .top, .bottom => try renderer.drawLine(
                         button_rect.x,
                         button_rect.y,
                         button_rect.x,
                         button_rect.y + button_rect.height,
                         self.config.workspace_bar.border,
                     ),
-                    .left, .right => fb.drawLine(
+                    .left, .right => try renderer.drawLine(
                         button_rect.x,
                         button_rect.y,
                         button_rect.x + button_rect.width,
@@ -708,8 +802,7 @@ pub fn render(self: *Self, target: Framebuffer) void {
                 }
             },
             .button => |button| {
-                self.renderButton(
-                    &fb,
+                try self.renderButton(
                     button_rect,
                     if (dragged_app_index) |_|
                         if (button_rect.contains(self.mouse_pos) and button.data == .workspace)
@@ -733,8 +826,7 @@ pub fn render(self: *Self, target: Framebuffer) void {
     if (dragged_app_index) |_| {
         const button_rect = self.getMenuButtonRectangle(self.menu_items.items.len);
 
-        self.renderButton(
-            &fb,
+        try self.renderButton(
             button_rect,
             if (button_rect.contains(self.mouse_pos))
                 ButtonState.hovered
@@ -753,32 +845,19 @@ pub fn render(self: *Self, target: Framebuffer) void {
                 if (btn.data == .workspace) {
                     if (button_index == self.current_workspace) {
                         var hovered_rectangle: ?Rectangle = null;
-                        self.renderWorkspace(&fb, workspace_area, btn.data.workspace, &hovered_rectangle);
+                        try self.renderWorkspace(workspace_area, btn.data.workspace, &hovered_rectangle);
 
                         if (self.mode != .app_menu) {
                             if (hovered_rectangle) |area| {
-                                fb.drawRectangle(area.x, area.y, area.width, area.height, self.config.workspace.active_app_border);
+                                try renderer.drawRectangle(area, self.config.workspace.active_app_border);
                             }
                         }
                         if (self.mode == .app_drag_desktop) {
                             if (btn.data.workspace.window_tree.findInsertLocation(workspace_area, self.mouse_pos.x, self.mouse_pos.y)) |path| {
                                 const insert_location = btn.data.workspace.window_tree.getInsertLocationRectangle(workspace_area, path);
 
-                                fb.drawRectangle(
-                                    insert_location.container.x,
-                                    insert_location.container.y,
-                                    insert_location.container.width,
-                                    insert_location.container.height,
-                                    self.config.workspace.insert_highlight_color,
-                                );
-
-                                fb.fillRectangle(
-                                    insert_location.splitter.x,
-                                    insert_location.splitter.y,
-                                    insert_location.splitter.width,
-                                    insert_location.splitter.height,
-                                    self.config.workspace.insert_highlight_fill_color,
-                                );
+                                try renderer.drawRectangle(insert_location.container, self.config.workspace.insert_highlight_color);
+                                try renderer.fillRectangle(insert_location.splitter, self.config.workspace.insert_highlight_fill_color);
                             }
                         }
                         break;
@@ -797,11 +876,13 @@ pub fn render(self: *Self, target: Framebuffer) void {
         const button_size = self.config.app_menu.button_size;
 
         // draw dimmed background
-        fb.fillRectangle(
-            0,
-            0,
-            self.size.width,
-            self.size.height,
+        try renderer.fillRectangle(
+            Rectangle{
+                .x = 0,
+                .y = 0,
+                .width = self.size.width,
+                .height = self.size.height,
+            },
             self.config.app_menu.dimmer,
         );
 
@@ -815,54 +896,17 @@ pub fn render(self: *Self, target: Framebuffer) void {
                 .height = button_rect.height - 2,
             };
 
-            fb.fillRectangle(
-                icon_area.x,
-                icon_area.y,
-                icon_area.width,
-                icon_area.height,
-                self.config.app_menu.background,
-            );
-            fb.drawRectangle(
-                button_rect.x,
-                button_rect.y,
-                button_rect.width,
-                button_rect.height,
-                self.config.app_menu.outline,
-            );
+            try renderer.fillRectangle(icon_area, self.config.app_menu.background);
+            try renderer.drawRectangle(button_rect, self.config.app_menu.outline);
 
-            var icon_canvas = SubCanvas{
-                .canvas = &fb,
-                .x = icon_area.x,
-                .y = icon_area.y,
-                .width = icon_area.width,
-                .height = icon_area.height,
-            };
-
-            tvg.render(
-                &temp_allocator.allocator,
-                icon_canvas,
-                &icons.app_menu,
-            ) catch unreachable;
-            temp_allocator.reset();
+            try self.drawIcon(icon_area, &icons.app_menu, Color.white);
         }
 
         // draw menu
-        fb.fillRectangle(
-            app_menu_rect.x + 1,
-            app_menu_rect.y + 1,
-            app_menu_rect.width - 2,
-            app_menu_rect.height - 2,
-            self.config.app_menu.background,
-        );
-        fb.drawRectangle(
-            app_menu_rect.x,
-            app_menu_rect.y,
-            app_menu_rect.width,
-            app_menu_rect.height,
-            self.config.app_menu.outline,
-        );
+        try renderer.fillRectangle(app_menu_rect, self.config.app_menu.background);
+        try renderer.drawRectangle(app_menu_rect, self.config.app_menu.outline);
 
-        fb.drawLine(
+        try renderer.drawLine(
             app_menu_rect.x + margin + layout.cols * (margin + button_size),
             app_menu_rect.y + 1,
             app_menu_rect.x + margin + layout.cols * (margin + button_size),
@@ -876,9 +920,9 @@ pub fn render(self: *Self, target: Framebuffer) void {
                 switch (self.config.workspace_bar.location) {
                     .left => {
                         const x = app_menu_button_rect.x + app_menu_button_rect.width - 1 + i;
-                        fb.setPixel(x, app_menu_button_rect.y, self.config.app_menu.outline);
-                        fb.setPixel(x, app_menu_button_rect.y + app_menu_button_rect.height + i, self.config.app_menu.outline);
-                        fb.drawLine(
+                        try renderer.setPixel(x, app_menu_button_rect.y, self.config.app_menu.outline);
+                        try renderer.setPixel(x, app_menu_button_rect.y + app_menu_button_rect.height + i, self.config.app_menu.outline);
+                        try renderer.drawLine(
                             x,
                             app_menu_button_rect.y + 1,
                             x,
@@ -888,9 +932,9 @@ pub fn render(self: *Self, target: Framebuffer) void {
                     },
                     .right => {
                         const x = app_menu_button_rect.x - i;
-                        fb.setPixel(x, app_menu_button_rect.y, self.config.app_menu.outline);
-                        fb.setPixel(x, app_menu_button_rect.y + app_menu_button_rect.height + i, self.config.app_menu.outline);
-                        fb.drawLine(
+                        try renderer.setPixel(x, app_menu_button_rect.y, self.config.app_menu.outline);
+                        try renderer.setPixel(x, app_menu_button_rect.y + app_menu_button_rect.height + i, self.config.app_menu.outline);
+                        try renderer.drawLine(
                             x,
                             app_menu_button_rect.y + 1,
                             x,
@@ -900,9 +944,9 @@ pub fn render(self: *Self, target: Framebuffer) void {
                     },
                     .top => {
                         const y = app_menu_button_rect.y + app_menu_button_rect.height - 1 + i;
-                        fb.setPixel(app_menu_button_rect.x, y, self.config.app_menu.outline);
-                        fb.setPixel(app_menu_button_rect.x + app_menu_button_rect.width + i, y, self.config.app_menu.outline);
-                        fb.drawLine(
+                        try renderer.setPixel(app_menu_button_rect.x, y, self.config.app_menu.outline);
+                        try renderer.setPixel(app_menu_button_rect.x + app_menu_button_rect.width + i, y, self.config.app_menu.outline);
+                        try renderer.drawLine(
                             app_menu_button_rect.x + 1,
                             y,
                             app_menu_button_rect.x + app_menu_button_rect.width - 1 + i,
@@ -912,9 +956,9 @@ pub fn render(self: *Self, target: Framebuffer) void {
                     },
                     .bottom => {
                         const y = app_menu_button_rect.y - i;
-                        fb.setPixel(app_menu_button_rect.x, y, self.config.app_menu.outline);
-                        fb.setPixel(app_menu_button_rect.x + app_menu_button_rect.width + i, y, self.config.app_menu.outline);
-                        fb.drawLine(
+                        try renderer.setPixel(app_menu_button_rect.x, y, self.config.app_menu.outline);
+                        try renderer.setPixel(app_menu_button_rect.x + app_menu_button_rect.width + i, y, self.config.app_menu.outline);
+                        try renderer.drawLine(
                             app_menu_button_rect.x + 1,
                             y,
                             app_menu_button_rect.x + app_menu_button_rect.width - 1 + i,
@@ -933,8 +977,7 @@ pub fn render(self: *Self, target: Framebuffer) void {
             if (dragged_app_index != null and (dragged_app_index.? == app_index))
                 continue;
 
-            self.renderButton(
-                &fb,
+            try self.renderButton(
                 rect,
                 app.button_state,
                 self.config.app_menu.button_theme,
@@ -954,8 +997,7 @@ pub fn render(self: *Self, target: Framebuffer) void {
             .width = button_size,
             .height = button_size,
         };
-        self.renderButton(
-            &fb,
+        try self.renderButton(
             rect,
             ButtonState.pressed,
             self.config.app_menu.button_theme,
@@ -964,6 +1006,16 @@ pub fn render(self: *Self, target: Framebuffer) void {
             0.5,
         );
     }
+}
+
+fn drawIcon(self: *Self, target: Rectangle, icon: []const u8, tint: Color) !void {
+    const texture = try self.icon_cache.get(icon, target.size());
+
+    try self.renderer.fillTexturedRectangle(
+        target,
+        texture,
+        tint,
+    );
 }
 
 fn initColor(r: u8, g: u8, b: u8, a: u8) Color {
@@ -1003,14 +1055,13 @@ fn alphaBlend(c: u8, f: f32) u8 {
 
 fn renderButton(
     self: *Self,
-    framebuffer: anytype,
     rectangle: Rectangle,
     state: ButtonState,
     theme: ButtonTheme,
     text: ?[]const u8,
     icon: ?[]const u8,
     alpha: f32,
-) void {
+) !void {
     const interp_hover = smoothstep(state.visual_highlight, 0.0, 1.0);
     var back_color = lerpColor(theme.default.background, theme.hovered.background, interp_hover);
     var outline_color = lerpColor(theme.default.outline, theme.hovered.outline, interp_hover);
@@ -1024,20 +1075,8 @@ fn renderButton(
     back_color.a = alphaBlend(back_color.a, alpha);
     outline_color.a = alphaBlend(back_color.a, alpha);
 
-    framebuffer.fillRectangle(
-        rectangle.x + 1,
-        rectangle.y + 1,
-        rectangle.width - 1,
-        rectangle.height - 1,
-        back_color,
-    );
-    framebuffer.drawRectangle(
-        rectangle.x,
-        rectangle.y,
-        rectangle.width,
-        rectangle.height,
-        outline_color,
-    );
+    try self.renderer.fillRectangle(rectangle, back_color);
+    try self.renderer.drawRectangle(rectangle, outline_color);
 
     const icon_size = std.math.min(rectangle.width - 2, theme.icon_size);
 
@@ -1046,30 +1085,16 @@ fn renderButton(
             var temp_buffer: [4096]u8 = undefined;
             var temp_allocator = std.heap.FixedBufferAllocator.init(&temp_buffer);
 
-            var icon_canvas = SubCanvas{
-                .canvas = framebuffer,
-                .x = rectangle.x + (rectangle.width - icon_size) / 2,
-                .y = rectangle.y + (rectangle.height - icon_size) / 2,
-                .width = icon_size,
-                .height = icon_size,
-                .alpha = alpha,
-            };
-
-            // Debug painter: Draw the outline of the icon
-            // framebuffer.drawRectangle(
-            //     icon_canvas.x,
-            //     icon_canvas.y,
-            //     icon_canvas.width,
-            //     icon_canvas.height,
-            //     Color{ .r = 0xFF, .g = 0x00, .b = 0xFF },
-            // );
-
-            tvg.render(
-                &temp_allocator.allocator,
-                icon_canvas,
+            try self.drawIcon(
+                Rectangle{
+                    .x = rectangle.x + (rectangle.width - icon_size) / 2,
+                    .y = rectangle.y + (rectangle.height - icon_size) / 2,
+                    .width = icon_size,
+                    .height = icon_size,
+                },
                 icon_source,
-            ) catch {}; // on error, just "fuck it" and let the icon be half-rendered
-            temp_allocator.reset();
+                Color{ .r = 0xFF, .g = 0xFF, .b = 0xFF, .a = @floatToInt(u8, 255.0 * alpha) },
+            );
         }
     }
 
@@ -1086,35 +1111,29 @@ fn renderButton(
             //     Color{ .r = 0xFF, .g = 0x00, .b = 0xFF },
             // );
 
-            const size = self.app_button_font.measureString(label);
+            const size = self.renderer.measureString(self.app_button_font, label);
 
-            self.app_button_font.drawString(
-                framebuffer.framebuffer.subView(rectangle.x, rectangle.y, rectangle.width, rectangle.height),
+            try self.renderer.drawString(
+                self.app_button_font,
                 label,
-                (rectangle.width - size.width) / 2,
-                @intCast(u15, top - self.app_button_font.font_size / 2),
+                rectangle.x + (rectangle.width - size.width) / 2,
+                rectangle.y + @intCast(u15, top - self.app_button_font.font_size / 2),
                 .{ .r = 0xFF, .g = 0xFF, .b = 0xFF }, // TODO: Introduce proper config here
             );
         }
     }
 }
 
-fn renderWorkspace(self: *Self, canvas: *Canvas, area: Rectangle, workspace: Workspace, hovered_rectangle: *?Rectangle) void {
-    self.renderTreeNode(canvas, area, workspace.window_tree.root, hovered_rectangle);
+fn renderWorkspace(self: *Self, area: Rectangle, workspace: Workspace, hovered_rectangle: *?Rectangle) RenderError!void {
+    try self.renderTreeNode(area, workspace.window_tree.root, hovered_rectangle);
 }
 
-fn renderTreeNode(self: *Self, canvas: *Canvas, area: Rectangle, node: WindowTree.Node, hovered_rectangle: *?Rectangle) void {
+fn renderTreeNode(self: *Self, area: Rectangle, node: WindowTree.Node, hovered_rectangle: *?Rectangle) RenderError!void {
     if (area.contains(self.mouse_pos) and (node == .empty or node == .starting or node == .connected))
         hovered_rectangle.* = area;
     switch (node) {
         .empty => {
-            canvas.drawRectangle(
-                area.x,
-                area.y,
-                area.width,
-                area.height,
-                HomeScreenConfig.rgb("363c42"),
-            );
+            try self.renderer.drawRectangle(area, HomeScreenConfig.rgb("363c42"));
             //canvas.fillRectangle(area.x + 1, area.y + 1, area.width - 2, area.height - 2, Color{ .r = 0x80, .g = 0x00, .b = 0x00 });
         },
         .starting => |app| {
@@ -1123,61 +1142,57 @@ fn renderTreeNode(self: *Self, canvas: *Canvas, area: Rectangle, node: WindowTre
                 var temp_buffer: [4096]u8 = undefined;
                 var temp_allocator = std.heap.FixedBufferAllocator.init(&temp_buffer);
 
-                var icon_canvas = SubCanvas{
-                    .canvas = canvas,
-                    .x = area.x + (area.width - icon_size) / 2,
-                    .y = area.y + (area.height - icon_size) / 2,
-                    .width = icon_size,
-                    .height = icon_size,
-                };
-
-                tvg.render(
-                    &temp_allocator.allocator,
-                    icon_canvas,
+                try self.drawIcon(
+                    Rectangle{
+                        .x = area.x + (area.width - icon_size) / 2,
+                        .y = area.y + (area.height - icon_size) / 2,
+                        .width = icon_size,
+                        .height = icon_size,
+                    },
                     app.application.description.icon orelse icons.app_placeholder,
-                ) catch {}; // on error, just "fuck it" and let the icon be half-rendered
-                temp_allocator.reset();
+                    Color.white,
+                );
             }
 
             const display_name = app.application.description.display_name;
             if (display_name.len > 0) {
-                const size = self.app_title_font.measureString(display_name);
-                self.app_title_font.drawString(
-                    canvas.framebuffer.subView(area.x, area.y, area.width, area.height),
+                const size = self.renderer.measureString(self.app_title_font, display_name);
+                try self.renderer.drawString(
+                    self.app_title_font,
                     display_name,
-                    (area.width - size.width) / 2,
-                    (area.height - icon_size) / 2 - self.app_title_font.font_size,
+                    area.x + (area.width - size.width) / 2,
+                    area.y + (area.height - icon_size) / 2 - self.app_title_font.font_size,
                     .{ .r = 0xFF, .g = 0xFF, .b = 0xFF }, // TODO: Replace by theme config
                 );
             }
 
             const startup_message = app.application.status.starting; // this is safe as the status might only be changed in the update fn
             if (startup_message.len > 0) {
-                const size = self.app_status_font.measureString(startup_message);
-                self.app_status_font.drawString(
-                    canvas.framebuffer.subView(area.x, area.y, area.width, area.height),
+                const size = self.renderer.measureString(self.app_status_font, startup_message);
+                try self.renderer.drawString(
+                    self.app_status_font,
                     startup_message,
-                    (area.width - size.width) / 2,
-                    (area.height + icon_size) / 2,
+                    area.x + (area.width - size.width) / 2,
+                    area.y + (area.height + icon_size) / 2,
                     .{ .r = 0xFF, .g = 0xFF, .b = 0xFF }, // TODO: Replace by theme config
                 );
             }
         },
         .connected => |app| {
-            app.application.render(canvas.framebuffer.subView(area.x, area.y, area.width, area.height)) catch |err| log.err("failed to render application '{s}': {s}", .{
-                app.application.description.display_name,
-                @errorName(err),
-            });
+            // try app.application.render(canvas.framebuffer.subView(area.x, area.y, area.width, area.height)) catch |err| log.err("failed to render application '{s}': {s}", .{
+            //     app.application.description.display_name,
+            //     @errorName(err),
+            // });
         },
         .exited => |app| {
             const exit_message = app.application.status.exited; // this is safe as the status might only be changed in the update fn
             if (exit_message.len > 0) {
-                const size = self.app_status_font.measureString(exit_message);
-                self.app_status_font.drawString(
-                    canvas.framebuffer.subView(area.x, area.y, area.width, area.height),
+                const size = self.renderer.measureString(self.app_status_font, exit_message);
+                try self.renderer.drawString(
+                    self.app_status_font,
                     exit_message,
-                    (area.width - size.width) / 2,
-                    area.height / 2,
+                    area.x + (area.width - size.width) / 2,
+                    area.y + area.height / 2,
                     .{ .r = 0xFF, .g = 0x00, .b = 0x00 }, // TODO: Replace by theme config
                 );
             }
@@ -1197,7 +1212,7 @@ fn renderTreeNode(self: *Self, canvas: *Canvas, area: Rectangle, node: WindowTre
                         var child_area = area;
                         child_area.y += @intCast(u15, item_height * i);
                         child_area.height = @intCast(u15, h);
-                        self.renderTreeNode(canvas, child_area, item, hovered_rectangle);
+                        try self.renderTreeNode(child_area, item, hovered_rectangle);
                     }
                 },
                 .horizontal => {
@@ -1210,7 +1225,7 @@ fn renderTreeNode(self: *Self, canvas: *Canvas, area: Rectangle, node: WindowTre
                         var child_area = area;
                         child_area.x += @intCast(u15, item_width * i);
                         child_area.width = @intCast(u15, w);
-                        self.renderTreeNode(canvas, child_area, item, hovered_rectangle);
+                        try self.renderTreeNode(child_area, item, hovered_rectangle);
                     }
                 },
             }
@@ -1904,24 +1919,4 @@ fn lerpColor(a: Color, b: Color, x: f32) Color {
 
 fn lerp(a: f32, b: f32, x: f32) f32 {
     return a + (b - a) * x;
-}
-
-fn setFramebufferPixel(target: Framebuffer, x: isize, y: isize, col: Framebuffer.Color) void {
-    if (x < 0 or y < 0)
-        return;
-    if (x >= target.width or y >= target.height)
-        return;
-    const px = @intCast(usize, x);
-    const py = @intCast(usize, y);
-    const slot = &target.scanline(py)[px];
-
-    switch (col.a) {
-        0 => return, // no blending, fully transparent
-        else => {
-            var old = slot.*;
-            slot.* = lerpColor(old, col, @intToFloat(f32, col.a) / 255.0);
-            slot.a = 0xFF;
-        },
-        255 => slot.* = col, // 100% opaque
-    }
 }

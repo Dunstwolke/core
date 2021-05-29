@@ -1,15 +1,17 @@
 const std = @import("std");
 
+const zerog = @import("zero-graphics");
+
 const Self = @This();
 const ApplicationDescription = @import("ApplicationDescription.zig");
-const Framebuffer = @import("Framebuffer.zig");
-const Size = @import("Size.zig");
+
+const Size = zerog.Size;
 
 pub const Interface = struct {
     const GenericError = error{OutOfMemory};
     update: fn (*Self, f32) GenericError!void,
     resize: fn (*Self, size: Size) GenericError!void,
-    render: fn (*Self, target: Framebuffer.View) GenericError!void,
+    render: fn (*Self, target: *zerog.Renderer2D) GenericError!void,
     deinit: fn (*Self) void,
 
     pub fn get(comptime T: type) *const @This() {
@@ -50,7 +52,7 @@ pub fn resize(self: *Self, size: Size) !void {
     try self.vtable.resize(self, size);
 }
 
-pub fn render(self: *Self, target: Framebuffer.View) !void {
+pub fn render(self: *Self, target: *zerog.Renderer2D) !void {
     std.debug.assert(self.status == .running);
     try self.vtable.render(self, target);
 }

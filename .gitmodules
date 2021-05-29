@@ -34,3 +34,6 @@
 [submodule "lib/foxwren"]
 	path = lib/foxwren
 	url = https://github.com/malcolmstill/foxwren
+[submodule "lib/zero-graphics"]
+	path = lib/zero-graphics
+	url = https://github.com/MasterQ32/zero-graphics

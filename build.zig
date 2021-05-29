@@ -63,6 +63,11 @@ const pkgs = struct {
         .name = "wasm",
         .path = "./lib/wazm/src/main.zig",
     };
+
+    const zerog = std.build.Pkg{
+        .name = "zero-graphics",
+        .path = "./lib/zero-graphics/src/zero-graphics.zig",
+    };
 };
 
 pub fn build(b: *Builder) !void {
@@ -223,15 +228,16 @@ pub fn build(b: *Builder) !void {
         //desktop_app.addPackage(pkgs.network);
         //desktop_app.addPackage(pkgs.args);
         //desktop_app.addPackage(pkgs.uri);
-        desktop_app.addPackage(pkgs.painterz);
         desktop_app.addPackage(pkgs.tvg);
+        desktop_app.addPackage(pkgs.painterz);
+        desktop_app.addPackage(pkgs.zerog);
         //desktop_app.addPackage(pkgs.meta);
 
         // TTF rendering library:
         desktop_app.addIncludeDir("./lib/stb");
-        desktop_app.addCSourceFile("./src/dunstblick-desktop/gui/stb_truetype.c", &[_][]const u8{
+
+        desktop_app.addCSourceFile("lib/zero-graphics/src/rendering/stb_truetype.c", &[_][]const u8{
             "-std=c99",
-            "-fno-sanitize=undefined",
         });
 
         const RenderBackend = enum { sdl2, dri };
@@ -294,6 +300,8 @@ pub fn build(b: *Builder) !void {
     run_step.dependOn(&run_cmd.step);
 
     const desktop_cmd = desktop_app.run();
+
+    desktop_cmd.step.dependOn(&desktop_app.install_step.?.step);
 
     const run_desktop_step = b.step("run-desktop", "Run the Dunstblick Desktop");
     run_desktop_step.dependOn(&desktop_cmd.step);
