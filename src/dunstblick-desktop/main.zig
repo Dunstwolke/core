@@ -66,6 +66,7 @@ pub const Application = struct {
     }
 
     pub fn resize(app: *Application, width: u15, height: u15) !void {
+        logger.info("resized screen to {}×{}", .{ width, height });
         app.screen_size = Size{ .width = width, .height = height };
         try app.home_screen.resize(app.screen_size);
     }
