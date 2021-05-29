@@ -107,7 +107,7 @@ const HomeScreenConfig = struct {
     },
 
     workspace_bar: WorkspaceBarConfig = WorkspaceBarConfig{
-        .location = .left,
+        .location = .bottom,
         .background = rgb("292f35"),
         .border = rgb("212529"),
         .button_size = 50,
@@ -1179,10 +1179,10 @@ fn renderTreeNode(self: *Self, area: Rectangle, node: WindowTree.Node, hovered_r
             }
         },
         .connected => |app| {
-            // try app.application.render(canvas.framebuffer.subView(area.x, area.y, area.width, area.height)) catch |err| log.err("failed to render application '{s}': {s}", .{
-            //     app.application.description.display_name,
-            //     @errorName(err),
-            // });
+            app.application.render(area, self.renderer) catch |err| log.err("failed to render application '{s}': {s}", .{
+                app.application.description.display_name,
+                @errorName(err),
+            });
         },
         .exited => |app| {
             const exit_message = app.application.status.exited; // this is safe as the status might only be changed in the update fn

@@ -11,7 +11,7 @@ pub const Interface = struct {
     const GenericError = error{OutOfMemory};
     update: fn (*Self, f32) GenericError!void,
     resize: fn (*Self, size: Size) GenericError!void,
-    render: fn (*Self, target: *zerog.Renderer2D) GenericError!void,
+    render: fn (*Self, rectangle: zerog.Rectangle, target: *zerog.Renderer2D) GenericError!void,
     deinit: fn (*Self) void,
 
     pub fn get(comptime T: type) *const @This() {
@@ -52,9 +52,9 @@ pub fn resize(self: *Self, size: Size) !void {
     try self.vtable.resize(self, size);
 }
 
-pub fn render(self: *Self, target: *zerog.Renderer2D) !void {
+pub fn render(self: *Self, rectangle: zerog.Rectangle, target: *zerog.Renderer2D) !void {
     std.debug.assert(self.status == .running);
-    try self.vtable.render(self, target);
+    try self.vtable.render(self, rectangle, target);
 }
 
 pub fn deinit(self: *Self) void {
