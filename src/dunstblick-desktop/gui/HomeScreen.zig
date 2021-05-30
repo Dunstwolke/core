@@ -1811,10 +1811,10 @@ const WindowTree = struct {
                 const new_items = try self.allocator.alloc(Node, old_items.len + 1);
                 errdefer self.allocator.free(new_items);
 
-                if (index < old_items.len) {
+                if (index > 0) {
                     std.mem.copy(Node, new_items[0..index], old_items[0..index]);
                 }
-                if (index > 0) {
+                if (index < old_items.len) {
                     std.mem.copy(Node, new_items[index + 1 ..], old_items[index..]);
                 }
                 new_items[index] = node;
