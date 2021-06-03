@@ -244,7 +244,10 @@ extern "C"
     /// If a user wants to connect to this application, the *Connected* callback
     /// is called.
     dunstblick_Provider * dunstblick_OpenProvider(
-        char const * discoveryName ///< The name of the application which will be broadcasted
+        char const * discoveryName, ///< The name of the application which will be broadcasted
+        char const * app_description, ///< Optional description of the application.
+        char const * app_icon_ptr, ///< Optional ptr to a TVG icon
+        size_t       app_icon_len ///< Length of `app_icon_ptr` or 0.
     );
 
     /// Shuts down the ui provider and closes all open connections.

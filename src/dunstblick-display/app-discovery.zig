@@ -96,15 +96,14 @@ fn thread_proc(allocator: *std.mem.Allocator) !void {
                     if (receive_info.numberOfBytes >= @sizeOf(protocol.udp.DiscoverResponse) and message.header.type == .respond_discover) {
                         const resp = &message.discover_response;
 
-                        if (resp.length < resp.name.len) {
-                            resp.name[resp.length] = 0;
-                        }
-
                         var app = Application{
                             .name = "",
                             .address = receive_info.sender.address,
                             .udp_port = receive_info.sender.port,
                             .tcp_port = resp.tcp_port,
+
+                            .icon = null,
+                            .description = null,
                         };
 
                         var found = false;
@@ -121,7 +120,18 @@ fn thread_proc(allocator: *std.mem.Allocator) !void {
                         if (found)
                             continue;
 
-                        app.name = try std.mem.dupeZ(&arena.allocator, u8, resp.name[0..(std.mem.indexOf(u8, &resp.name, "\x00") orelse resp.name.len)]);
+                        app.name = try arena.allocator.dupeZ(u8, resp.getName());
+                        std.log.info("app name: {s}", .{app.name});
+
+                        if (resp.getDescriptionPtr()) |desc| {
+                            app.description = try arena.allocator.dupeZ(u8, desc.get());
+                            std.log.info("app desc: {s}", .{app.description});
+                        }
+
+                        if (resp.getIconPtr()) |icon| {
+                            app.icon = try arena.allocator.dupeZ(u8, icon.get());
+                            std.log.info("app icon: {}", .{std.fmt.fmtSliceHexUpper(app.icon.?)});
+                        }
 
                         try new_clients.append(app);
                     }
@@ -161,6 +171,9 @@ pub const Application = struct {
     address: network.Address,
     tcp_port: u16,
     udp_port: u16,
+
+    icon: ?[]const u8,
+    description: ?[]const u8,
 };
 
 pub const DiscoveryResult = struct {

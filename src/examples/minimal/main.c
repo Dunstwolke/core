@@ -42,7 +42,10 @@ static void on_connection(dunstblick_Provider * provider,
 
 int main()
 {
-    dunstblick_Provider * provider = dunstblick_OpenProvider("Minimal Example");
+    dunstblick_Provider * provider = dunstblick_OpenProvider(
+        "Minimal Example",
+        "This example is a minimal example of a Dunstblick application",
+        NULL, 0);
     if (!provider)
         return 1;
 

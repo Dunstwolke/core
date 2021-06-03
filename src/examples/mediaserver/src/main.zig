@@ -81,7 +81,13 @@ pub fn main() anyerror!u8 {
     _ = c.BASS_PluginLoad("libbassflac.so", 0); // load BASSFLAC (if present) for FLAC support
     _ = c.BASS_PluginLoad("libbasshls.so", 0); // load BASSHLS (if present) for HLS support
 
-    var dbProvider = if (c.dunstblick_OpenProvider("MediaPlayer")) |player| player else {
+    const icon = @embedFile("../resources/disc-player.tvg");
+    var dbProvider = if (c.dunstblick_OpenProvider(
+        "MediaPlayer",
+        "A small media player with a music library.",
+        icon,
+        icon.len,
+    )) |player| player else {
         try stderr.writeAll("Could not initialize dunstblick provider!\n");
         return 2;
     };

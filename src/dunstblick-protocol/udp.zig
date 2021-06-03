@@ -1,3 +1,5 @@
+const std = @import("std");
+
 pub const AnnouncementType = extern enum(u16) {
     discover = 0,
     respond_discover = 1,
@@ -33,10 +35,124 @@ pub const Discover = extern struct {
 /// Response to a `Discover` message.
 /// This message contains information on how to connect to the application.
 pub const DiscoverResponse = extern struct {
-    header: Header,
+    pub const buffer_size = @sizeOf(@This()) + @sizeOf(ShortDescription) + @sizeOf(IconDescription);
+
+    pub const Features = packed struct {
+        /// A ShortDescription struct is present
+        has_description: bool,
+        /// A IconDescription struct is present
+        has_icon: bool,
+        /// If this is `true`, authentication is *required* to use this
+        /// service.
+        requires_auth: bool,
+        /// If this is `true`, the user is requested to enter a user name.
+        /// If authentication is optional, the user can skip this.
+        wants_username: bool,
+        /// If this is `true`, the user is requested to enter a password.
+        /// If authentication is optional, the user can skip this.
+        wants_password: bool,
+        reserved: u10 = 0,
+    };
+
+    pub const ShortDescription = extern struct {
+        pub const max_length = 256;
+
+        text: [max_length]u8, // NUL-padded
+
+        pub fn get(self: *const @This()) []const u8 {
+            return std.mem.sliceTo(&self.text, 0);
+        }
+
+        pub fn set(self: *@This(), str: []const u8) !void {
+            if (str.len > self.text.len)
+                return error.InputTooLong;
+            std.mem.set(u8, &self.text, 0);
+            std.mem.copy(u8, &self.text, str);
+        }
+    };
+
+    pub const IconDescription = extern struct {
+        pub const max_length = 512;
+
+        size: u16,
+        data: [max_length]u8,
+
+        pub fn get(self: *const @This()) []const u8 {
+            return self.data[0..std.math.min(self.data.len, self.size)];
+        }
+
+        pub fn set(self: *@This(), data: []const u8) !void {
+            if (data.len > self.data.len)
+                return error.InputTooLong;
+            self.size = @intCast(u16, data.len);
+            std.mem.set(u8, &self.data, 0);
+            std.mem.copy(u8, &self.data, data);
+        }
+    };
+
+    comptime {
+        if (@sizeOf(Features) != 2)
+            @compileError("Features must be compatible to a 16 bit integer!");
+    }
+
+    header: Header = Header.create(.respond_discover),
+    features: Features,
     tcp_port: u16,
-    length: u16,
-    name: [64]u8,
+    display_name: [64]u8, // NUL-padded
+
+    pub fn setName(self: *@This(), str: []const u8) !void {
+        if (str.len > self.display_name.len)
+            return error.InputTooLong;
+        std.mem.set(u8, &self.display_name, 0);
+        std.mem.copy(u8, &self.display_name, str);
+    }
+
+    pub fn getName(self: @This()) []const u8 {
+        return std.mem.sliceTo(&self.display_name, 0);
+    }
+
+    pub fn getTotalPacketLength(self: @This()) usize {
+        var size: usize = @sizeOf(@This());
+        if (self.features.has_description)
+            size += @sizeOf(ShortDescription);
+        if (self.features.has_icon)
+            size += @sizeOf(IconDescription);
+        return size;
+    }
+
+    // optional "fields" are in this order:
+    // - ShortDescription
+    // - IconDescription
+
+    pub fn getDescriptionOffset(self: @This()) ?usize {
+        return if (self.features.has_description)
+            @sizeOf(@This())
+        else
+            null;
+    }
+
+    pub fn getIconOffset(self: @This()) ?usize {
+        if (!self.features.has_icon)
+            return null;
+        var offset: usize = @sizeOf(@This());
+        if (self.features.has_description)
+            offset += @sizeOf(ShortDescription);
+        return offset;
+    }
+
+    pub fn getDescriptionPtr(self: *@This()) ?*ShortDescription {
+        return if (self.getDescriptionOffset()) |offset|
+            @ptrCast(*ShortDescription, @alignCast(@alignOf(ShortDescription), @ptrCast([*]u8, self) + offset))
+        else
+            null;
+    }
+
+    pub fn getIconPtr(self: *@This()) ?*IconDescription {
+        return if (self.getIconOffset()) |offset|
+            @ptrCast(*IconDescription, @alignCast(@alignOf(IconDescription), @ptrCast([*]u8, self) + offset))
+        else
+            null;
+    }
 };
 
 /// Message union that contains all possible messages.
@@ -45,10 +161,10 @@ pub const Message = extern union {
     header: Header,
     discover: Discover,
     discover_response: DiscoverResponse,
+    max_buffer: [DiscoverResponse.buffer_size]u8,
 };
 
 comptime {
-    const std = @import("std");
     std.debug.assert(@sizeOf(Header) == 6);
     std.debug.assert(@sizeOf(Discover) == 6);
     std.debug.assert(@sizeOf(DiscoverResponse) == 74);

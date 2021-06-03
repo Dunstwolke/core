@@ -52,25 +52,43 @@ fn mapDunstblickErrorVoid(value: app.DunstblickError!void) NativeErrorCode {
 // /*******************************************************************************
 //  * Provider Implementation *
 //  *******************************************************************************/
-export fn dunstblick_OpenProvider(discoveryName: [*:0]const u8) callconv(.C) ?*app.Application {
+export fn dunstblick_OpenProvider(
+    discovery_name: [*:0]const u8,
+    app_desc: ?[*:0]const u8,
+    icon_ptr: ?[*]const u8,
+    icon_len: usize,
+) callconv(.C) ?*app.Application {
     const H = struct {
-        fn open(dname: []const u8) callconv(.Inline) !*app.Application {
+        inline fn open(
+            dname: []const u8,
+            app_description: ?[]const u8,
+            app_icon: ?[]const u8,
+        ) !*app.Application {
             const allocator = std.heap.c_allocator;
 
             const provider = try allocator.create(app.Application);
             errdefer allocator.destroy(provider);
 
-            provider.* = try app.Application.open(allocator, dname);
+            provider.* = try app.Application.open(
+                allocator,
+                dname,
+                app_description,
+                app_icon,
+            );
 
             return provider;
         }
     };
 
-    const name = std.mem.span(discoveryName);
+    const name = std.mem.sliceTo(discovery_name, 0);
     if (name.len > DUNSTBLICK_MAX_APP_NAME_LENGTH)
         return null;
 
-    return H.open(name) catch return null;
+    return H.open(
+        name,
+        if (app_desc) |desc| std.mem.sliceTo(desc, 0) else null,
+        if (icon_ptr != null and icon_len > 0) icon_ptr.?[0..icon_len] else null,
+    ) catch return null;
 }
 
 export fn dunstblick_CloseProvider(provider: *app.Application) callconv(.C) void {

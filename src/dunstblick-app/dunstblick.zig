@@ -857,6 +857,9 @@ pub const Application = struct {
     tcp_sock: xnet.Socket,
     discovery_name: []const u8, // owned
 
+    app_description: ?[]const u8, // owned
+    app_icon: ?[]const u8, // owned
+
     tcp_listener_ep: xnet.EndPoint,
 
     resource_lock: std.Thread.Mutex,
@@ -909,8 +912,19 @@ pub const Application = struct {
     current_user_event: ?*EventNode,
 
     /// Creates a new application that is visible to the network.
-    /// `discoveryName` is the name that is shown to the discovering clients.
-    pub fn open(allocator: *std.mem.Allocator, discoveryName: []const u8) !Self {
+    pub fn open(
+        allocator: *std.mem.Allocator,
+        /// The name that is shown to the discovering clients.
+        discovery_name: []const u8,
+        /// Optional description of the application, utf-8 encoded, limited to 256 byte.
+        app_description: ?[]const u8,
+        /// Optional TVG icon, limited to 512 byte.
+        app_icon: ?[]const u8,
+    ) !Self {
+        if (app_description != null and app_description.?.len > protocol.udp.DiscoverResponse.ShortDescription.max_length)
+            return error.DescriptionTooLong;
+        if (app_icon != null and app_icon.?.len > protocol.udp.DiscoverResponse.IconDescription.max_length)
+            return error.IconTooLong;
         var provider = Self{
             .mutex = .{},
             .resource_lock = .{},
@@ -933,6 +947,9 @@ pub const Application = struct {
 
             // will be initialized in sequence:
             .discovery_name = undefined,
+            .app_description = null,
+            .app_icon = null,
+
             .tcp_sock = undefined,
             .multicast_sock = undefined,
             .tcp_listener_ep = undefined,
@@ -940,8 +957,14 @@ pub const Application = struct {
         errdefer provider.resources.deinit();
         errdefer provider.event_arena.deinit();
 
-        provider.discovery_name = try std.mem.dupe(allocator, u8, discoveryName);
+        provider.discovery_name = try allocator.dupe(u8, discovery_name);
         errdefer allocator.free(provider.discovery_name);
+
+        provider.app_description = if (app_description) |text| try allocator.dupe(u8, text) else null;
+        errdefer if (provider.app_description) |ptr| allocator.free(ptr);
+
+        provider.app_icon = if (app_icon) |data| if (data.len > 0) try allocator.dupe(u8, data) else null else null;
+        errdefer if (provider.app_icon) |ptr| allocator.free(ptr);
 
         // Initialize TCP socket:
         provider.tcp_sock = try xnet.Socket.create(.ipv4, .tcp);
@@ -1020,6 +1043,8 @@ pub const Application = struct {
         self.tcp_sock.close();
         self.multicast_sock.close();
         self.allocator.free(self.discovery_name);
+        if (self.app_description) |text| self.allocator.free(text);
+        if (self.app_icon) |data| self.allocator.free(data);
         self.socket_set.deinit();
     }
 
@@ -1115,25 +1140,35 @@ pub const Application = struct {
                         switch (message.header.type) {
                             .discover => {
                                 if (msg.numberOfBytes >= @sizeOf(protocol.udp.Discover)) {
-                                    var response = protocol.udp.DiscoverResponse{
-                                        .header = undefined,
+                                    var buffer: [protocol.udp.DiscoverResponse.buffer_size]u8 align(@alignOf(protocol.udp.DiscoverResponse)) = undefined;
+                                    const response = @ptrCast(*protocol.udp.DiscoverResponse, &buffer);
+                                    response.* = .{
+                                        .features = .{
+                                            .has_description = (self.app_description != null),
+                                            .has_icon = (self.app_icon != null),
+                                            .requires_auth = false,
+                                            .wants_username = false,
+                                            .wants_password = false,
+                                        },
                                         .tcp_port = self.tcp_listener_ep.port,
-                                        .length = undefined,
-                                        .name = undefined,
+                                        .display_name = undefined,
                                     };
-                                    response.header = protocol.udp.Header.create(.respond_discover);
+                                    response.setName(self.discovery_name) catch @panic("Application name too long!");
 
-                                    response.length = @intCast(u16, std.math.min(response.name.len, self.discovery_name.len));
-
-                                    std.mem.set(u8, &response.name, 0);
-                                    std.mem.copy(u8, &response.name, self.discovery_name[0..response.length]);
+                                    if (response.getDescriptionPtr()) |ptr| {
+                                        ptr.set(self.app_description.?) catch @panic("Application description too long!");
+                                    }
+                                    if (response.getIconPtr()) |ptr| {
+                                        ptr.set(self.app_icon.?) catch @panic("Application icon too long!");
+                                    }
 
                                     // log.debug("response to {}", .{msg.sender});
 
-                                    if (self.multicast_sock.sendTo(msg.sender, std.mem.asBytes(&response))) |sendlen| {
-                                        if (sendlen < @sizeOf(protocol.udp.DiscoverResponse)) {
+                                    const length = response.getTotalPacketLength();
+                                    if (self.multicast_sock.sendTo(msg.sender, buffer[0..length])) |sendlen| {
+                                        if (sendlen < length) {
                                             log.err("expected to send {} bytes, got {}", .{
-                                                @sizeOf(protocol.udp.DiscoverResponse),
+                                                length,
                                                 sendlen,
                                             });
                                         }
