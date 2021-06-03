@@ -224,8 +224,8 @@ pub fn build(b: *Builder) !void {
         desktop_app.setBuildMode(mode);
         desktop_app.setTarget(target);
 
-        //desktop_app.addPackage(pkgs.dunstblick_protocol);
-        //desktop_app.addPackage(pkgs.network);
+        desktop_app.addPackage(pkgs.dunstblick_protocol);
+        desktop_app.addPackage(pkgs.network);
         //desktop_app.addPackage(pkgs.args);
         //desktop_app.addPackage(pkgs.uri);
         desktop_app.addPackage(pkgs.tvg);

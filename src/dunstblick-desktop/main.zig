@@ -5,6 +5,8 @@ const logger = std.log.scoped(.application);
 
 const zero_graphics = @import("zero-graphics");
 
+const app_discovery = @import("network/app-discovery.zig");
+
 const gl = zero_graphics.gles;
 
 // Design considerations:
@@ -33,6 +35,11 @@ pub const Application = struct {
 
     debug_font: *const zero_graphics.Renderer2D.Font,
 
+    available_apps: std.ArrayList(*ApplicationDescription),
+
+    network_app_arena: std.heap.ArenaAllocator,
+    available_network_apps: std.ArrayList(NetworkApplication),
+
     pub fn init(app: *Application, allocator: *std.mem.Allocator, input: *zero_graphics.Input) !void {
         try gl.load({}, loadOpenGlFunction);
 
@@ -47,7 +54,11 @@ pub const Application = struct {
             .renderer = undefined,
             .home_screen = undefined,
             .debug_font = undefined,
+            .available_apps = std.ArrayList(*ApplicationDescription).init(allocator),
+            .available_network_apps = std.ArrayList(NetworkApplication).init(allocator),
+            .network_app_arena = std.heap.ArenaAllocator.init(allocator),
         };
+        errdefer app.available_apps.deinit();
 
         app.renderer = try zero_graphics.Renderer2D.init(allocator);
         errdefer app.renderer.deinit();
@@ -57,11 +68,18 @@ pub const Application = struct {
         app.home_screen = try HomeScreen.init(allocator, &app.renderer);
         errdefer app.home_screen.deinit();
 
-        try app.home_screen.setAvailableApps(&[_]*ApplicationDescription{&app.demo_app_desc.desc});
+        app_discovery.init(allocator);
+        try app_discovery.start();
+        errdefer app_discovery.stop();
     }
 
     pub fn deinit(app: *Application) void {
+        app_discovery.stop();
+
+        app.available_network_apps.deinit();
+        app.network_app_arena.deinit();
         app.home_screen.deinit();
+        app.available_apps.deinit();
         app.* = undefined;
     }
 
@@ -82,6 +100,38 @@ pub const Application = struct {
                 .pointer_motion => |position| app.home_screen.setMousePos(position),
                 else => logger.info("unhandled event: {}", .{event}),
             }
+        }
+
+        {
+            // reset the arena
+            app.network_app_arena.deinit();
+            app.network_app_arena = std.heap.ArenaAllocator.init(app.allocator);
+
+            app.available_network_apps.shrinkRetainingCapacity(0);
+
+            var network_apps = app_discovery.getDiscovereyApplications();
+            defer network_apps.release();
+
+            for (network_apps.applications) |*discovered| {
+                const netapp = try app.available_network_apps.addOne();
+                netapp.* = NetworkApplication{
+                    .description = ApplicationDescription{
+                        .display_name = try app.network_app_arena.allocator.dupeZ(u8, discovered.name),
+                        .icon = if (discovered.icon) |icon| try app.network_app_arena.allocator.dupeZ(u8, icon) else null,
+                        .vtable = ApplicationDescription.Interface.get(NetworkApplication),
+                    },
+                };
+            }
+        }
+        {
+            app.available_apps.shrinkRetainingCapacity(0);
+            try app.available_apps.append(&app.demo_app_desc.desc);
+
+            for (app.available_network_apps.items) |*netapp| {
+                try app.available_apps.append(&netapp.description);
+            }
+
+            try app.home_screen.setAvailableApps(app.available_apps.items);
         }
 
         const frametime = @floatCast(f32, @intToFloat(f64, app.frame_timer.lap()) / std.time.ns_per_s);
@@ -115,6 +165,51 @@ pub const Application = struct {
         }
 
         return true;
+    }
+};
+
+const NetworkApplication = struct {
+    description: ApplicationDescription,
+
+    pub fn spawn(desc: *ApplicationDescription, allocator: *std.mem.Allocator) !*ApplicationInstance {
+        const app = try allocator.create(NetworkApplicationInstance);
+        app.* = NetworkApplicationInstance{
+            .instance = ApplicationInstance{
+                .description = desc.*,
+                .vtable = ApplicationInstance.Interface.get(NetworkApplicationInstance),
+            },
+            .allocator = allocator,
+            .arena = std.heap.ArenaAllocator.init(allocator),
+        };
+        app.instance.description.display_name = try app.arena.allocator.dupeZ(u8, app.instance.description.display_name);
+        if (app.instance.description.icon) |*icon| {
+            icon.* = try app.arena.allocator.dupe(u8, icon.*);
+        }
+        return &app.instance;
+    }
+};
+
+const NetworkApplicationInstance = struct {
+    instance: ApplicationInstance,
+    allocator: *std.mem.Allocator,
+    arena: std.heap.ArenaAllocator,
+
+    pub fn update(instance: *ApplicationInstance, dt: f32) !void {
+        const self = @fieldParentPtr(NetworkApplicationInstance, "instance", instance);
+    }
+
+    pub fn resize(instance: *ApplicationInstance, size: Size) !void {
+        const self = @fieldParentPtr(NetworkApplicationInstance, "instance", instance);
+    }
+
+    pub fn render(instance: *ApplicationInstance, rectangle: zero_graphics.Rectangle, painter: *zero_graphics.Renderer2D) !void {
+        const self = @fieldParentPtr(NetworkApplicationInstance, "instance", instance);
+    }
+
+    pub fn deinit(instance: *ApplicationInstance) void {
+        const self = @fieldParentPtr(NetworkApplicationInstance, "instance", instance);
+        self.arena.deinit();
+        self.allocator.destroy(self);
     }
 };
 
