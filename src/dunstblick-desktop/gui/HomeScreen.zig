@@ -82,6 +82,11 @@ const HomeScreenConfig = struct {
         insert_highlight_fill_color: Color,
     };
 
+    const LongClickIndicator = struct {
+        outline: Color,
+        fill_color: Color,
+    };
+
     app_menu: AppMenuConfig = AppMenuConfig{
         .dimmer = rgba("292f35", 0.5),
         .outline = rgb("1abc9c"),
@@ -147,6 +152,11 @@ const HomeScreenConfig = struct {
         .insert_highlight_color = rgb("FF00FF"),
         .insert_highlight_fill_color = rgba("FF00FF", 0.3),
     },
+
+    longclick_indicator: LongClickIndicator = LongClickIndicator{
+        .fill_color = rgb("255953"),
+        .outline = rgb("1abc9c"),
+    },
 };
 
 const ui_workspace_bar_button_theme = UserInterface.ButtonTheme{
@@ -186,6 +196,11 @@ const ui_window_panel_theme = UserInterface.BoxStyle{
 const ui_active_window_panel_theme = UserInterface.BoxStyle{
     .border = rgb("1abc9c"),
     .background = rgb("263238"),
+};
+
+const ui_app_menu_panel_theme = UserInterface.BoxStyle{
+    .border = rgb("1abc9c"),
+    .background = rgb("0e443f"),
 };
 
 const ui_workspace_bar_current_button_theme = UserInterface.ButtonTheme{
@@ -365,13 +380,6 @@ const RectangleSide = enum {
         try writer.writeAll(std.meta.tagName(value));
         try writer.writeAll("\"");
     }
-};
-
-/// A startable application available in the app menu.
-const AppReference = struct {
-    application: *ApplicationDescription,
-
-    button_state: ButtonState = .{},
 };
 
 const IconCache = struct {
@@ -573,9 +581,7 @@ pub fn setAvailableApps(self: *Self, apps: []const *ApplicationDescription) !voi
 
         if (need_init) {
             // always initialize fresh
-            app.* = AppReference{
-                .application = apps[i],
-            };
+            app.* = AppReference.init(apps[i]);
         }
     }
 }
@@ -623,49 +629,49 @@ pub fn mouseDown(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
         return;
     }
 
-    self.input_processor.?.pointerDown();
-
     self.mouse_down_timestamp = std.time.nanoTimestamp();
     self.mouse_down_pos = self.mouse_pos;
 
-    switch (self.mode) {
-        .default => {
-            // Check if the user pressed the mouse on a button
-            for (self.menu_items.items) |btn, i| {
-                const rect = self.getMenuButtonRectangle(i);
-                if (rect.contains(self.mouse_pos)) {
-                    if (btn == .button and btn.button.state.enabled) {
-                        self.mode = .{ .button_press = i };
-                    }
-                    return;
-                }
-            }
-        },
-        .button_press => unreachable,
-        .app_menu => {
-            const app_menu = self.getAppMenuRectangle();
+    self.input_processor.?.pointerDown();
 
-            if (app_menu.contains(self.mouse_pos)) {
+    // switch (self.mode) {
+    //     .default => {
+    //         // Check if the user pressed the mouse on a button
+    //         for (self.menu_items.items) |btn, i| {
+    //             const rect = self.getMenuButtonRectangle(i);
+    //             if (rect.contains(self.mouse_pos)) {
+    //                 if (btn == .button and btn.button.state.enabled) {
+    //                     self.mode = .{ .button_press = i };
+    //                 }
+    //                 return;
+    //             }
+    //         }
+    //     },
+    //     .button_press => unreachable,
+    //     .app_menu => {
+    //         const app_menu = self.getAppMenuRectangle();
 
-                // Check if the user pressed the mouse on a button
-                for (self.available_apps.items) |app, i| {
-                    const rect = self.getAppButtonRectangle(i);
-                    if (rect.contains(self.mouse_pos)) {
-                        if (app.application.state == .ready) {
-                            self.mode = .{ .app_press = .{
-                                .index = i,
-                                .position = self.mouse_pos,
-                            } };
-                        }
-                        return;
-                    }
-                }
-            } else {
-                self.mode = .default;
-            }
-        },
-        .app_press, .app_drag_menu, .app_drag_desktop => unreachable,
-    }
+    //         if (app_menu.contains(self.mouse_pos)) {
+
+    //             // Check if the user pressed the mouse on a button
+    //             for (self.available_apps.items) |app, i| {
+    //                 const rect = self.getAppButtonRectangle(i);
+    //                 if (rect.contains(self.mouse_pos)) {
+    //                     if (app.application.state == .ready) {
+    //                         self.mode = .{ .app_press = .{
+    //                             .index = i,
+    //                             .position = self.mouse_pos,
+    //                         } };
+    //                     }
+    //                     return;
+    //                 }
+    //             }
+    //         } else {
+    //             self.mode = .default;
+    //         }
+    //     },
+    //     .app_press, .app_drag_menu, .app_drag_desktop => unreachable,
+    // }
 }
 
 pub fn mouseUp(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
@@ -674,8 +680,6 @@ pub fn mouseUp(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
     if (mouse_button != .primary)
         return;
 
-    self.input_processor.?.pointerUp();
-
     const long_click = if (self.mouse_down_timestamp) |ts|
         (std.time.nanoTimestamp() - ts) > long_click_period
     else
@@ -683,52 +687,14 @@ pub fn mouseUp(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
     self.mouse_down_timestamp = null;
     self.mouse_down_pos = null;
 
+    self.input_processor.?.pointerUp(if (long_click or mouse_button == .secondary)
+        UserInterface.InputProcessor.MouseButton.secondary
+    else
+        UserInterface.InputProcessor.MouseButton.primary);
+
     switch (self.mode) {
-        .default => {
+        .default, .button_press, .app_menu, .app_press => {
             // do nothing on a mouse-up, we process clicks via .button_press
-        },
-        .button_press => |button_index| {
-            self.mode = .default;
-
-            const rect = self.getMenuButtonRectangle(button_index);
-
-            if (rect.contains(self.mouse_pos)) {
-                const menu_item = &self.menu_items.items[button_index];
-                switch (menu_item.*) {
-                    .button => |*button| {
-                        switch (button.data) {
-                            .app_menu => {
-                                self.openAppMenu();
-                                return;
-                            },
-
-                            .workspace => {
-                                self.current_workspace = button_index;
-                                return;
-                            },
-
-                            //else => logger.info("clicked on button {}: {}", .{ button_index, button.data }),
-                        }
-                    },
-
-                    else => logger.info("clicked on something else {}: {}", .{ button_index, std.meta.activeTag(menu_item.*) }),
-                }
-            }
-        },
-        .app_menu => {},
-        .app_press => |info| {
-            self.mode = .app_menu;
-
-            const rect = self.getAppButtonRectangle(info.index);
-            if (rect.contains(self.mouse_pos)) {
-                const app = &self.available_apps.items[info.index];
-
-                if (long_click) {
-                    logger.info("long-clicked on the app[{d}] '{s}'", .{ info.index, app.application.display_name });
-                } else {
-                    logger.info("clicked on the app[{d}] '{s}'", .{ info.index, app.application.display_name });
-                }
-            }
         },
         .app_drag_menu => {
             // we are dragging an app over the app menu, just cancel and go back to app_menu
@@ -962,8 +928,8 @@ pub fn update(self: *Self, dt: f32) !void {
     {
         try builder.panel(self.getBarRectangle(), .{});
 
-        for (self.menu_items.items) |item, idx| {
-            const button_rect = self.getMenuButtonRectangle(idx);
+        for (self.menu_items.items) |item, button_index| {
+            const button_rect = self.getMenuButtonRectangle(button_index);
 
             if (item == .button) {
                 const button = &item.button;
@@ -975,13 +941,20 @@ pub fn update(self: *Self, dt: f32) !void {
 
                 const texture = try self.icon_cache.get(icon, Size{ .width = 48, .height = 48 });
 
-                const style = if (button.data == .workspace and idx == self.current_workspace)
+                const style = if (button.data == .workspace and button_index == self.current_workspace)
                     ui_workspace_bar_current_button_theme
                 else
                     ui_workspace_bar_button_theme;
 
                 if (try builder.button(button_rect, null, texture, .{ .style = style })) {
-                    logger.info("ui button was clicked!", .{});
+                    switch (button.data) {
+                        .app_menu => {
+                            self.openAppMenu();
+                        },
+                        .workspace => {
+                            self.current_workspace = button_index;
+                        },
+                    }
                 }
             }
         }
@@ -994,22 +967,31 @@ pub fn update(self: *Self, dt: f32) !void {
     }
 
     // Update app menu
-    if (self.mode.isAppMenuVisible()) {
-        _ = try builder.modalLayer(.{});
+    if (self.mode.isAppMenuVisible()) app_menu: {
+        if (try builder.modalLayer(.{})) {
+            self.mode = .default;
+            break :app_menu;
+        }
 
-        try builder.panel(self.getAppMenuRectangle(), .{});
+        // TODO: Render custom widget here for the menu corner
 
-        for (self.available_apps.items) |app, idx| {
+        try builder.panel(self.getAppMenuRectangle(), .{
+            .style = ui_app_menu_panel_theme,
+        });
+
+        for (self.available_apps.items) |*app, idx| {
             const button_rect = self.getAppButtonRectangle(idx);
 
-            if (try self.appButton(builder, button_rect, app.application)) {
-                logger.info("app button was clicked!", .{});
+            switch (try self.appButton(builder, button_rect, app, false)) {
+                .none => {},
+                .clicked => logger.info("app button was clicked!", .{}),
+                .dragged => self.mode = .{ .app_drag_menu = idx },
             }
         }
     }
 
     if (dragged_app_index) |index| {
-        const app = self.available_apps.items[index];
+        const app = &self.available_apps.items[index];
         const button_size = self.config.app_menu.button_size;
 
         const button_rect = Rectangle{
@@ -1019,33 +1001,33 @@ pub fn update(self: *Self, dt: f32) !void {
             .height = button_size,
         };
 
-        _ = try self.appButton(builder, button_rect, app.application);
+        _ = try self.appButton(builder, button_rect, app, true);
     }
 
-    // Update context menu
-    const ContextMenu = struct {
-        var open: bool = false;
-    };
+    // // Update context menu
+    // const ContextMenu = struct {
+    //     var open: bool = false;
+    // };
 
-    if (try builder.button(Rectangle{ .x = 100, .y = 100, .width = 80, .height = 32 }, "Context Menu", null, .{}))
-        ContextMenu.open = true;
+    // if (try builder.button(Rectangle{ .x = 100, .y = 100, .width = 80, .height = 32 }, "Context Menu", null, .{}))
+    //     ContextMenu.open = true;
 
-    if (ContextMenu.open) {
-        const items = [_]MouseMode.ContextMenuItem{
-            .{ .title = "Move to workspace", .enabled = false },
-            .{ .title = "Move to own workspace" },
-            .{ .title = "Close application" },
-        };
+    // if (ContextMenu.open) {
+    //     const items = [_]MouseMode.ContextMenuItem{
+    //         .{ .title = "Move to workspace", .enabled = false },
+    //         .{ .title = "Move to own workspace" },
+    //         .{ .title = "Close application" },
+    //     };
 
-        const result = try self.doContextMenu(builder, "Dummy Application", &items);
-        switch (result) {
-            .none => {},
-            .clicked => |index| {
-                logger.info("clicked on menu item {}: {s}", .{ index, items[index].title });
-            },
-            .closed => ContextMenu.open = false,
-        }
-    }
+    //     const result = try self.doContextMenu(builder, "Dummy Application", &items);
+    //     switch (result) {
+    //         .none => {},
+    //         .clicked => |index| {
+    //             logger.info("clicked on menu item {}: {s}", .{ index, items[index].title });
+    //         },
+    //         .closed => ContextMenu.open = false,
+    //     }
+    // }
 
     // Check if we started dragging a app.
     // This must be done before checking the (app_drag_menu -> app_drag_desktop) transition as this might happen in the same frame!
@@ -1100,19 +1082,19 @@ pub fn update(self: *Self, dt: f32) !void {
             .app_menu, .app_press, .app_drag_desktop, .app_drag_menu => {},
         }
 
-        for (self.menu_items.items) |*item, idx| {
-            switch (item.*) {
-                .button => |*button| {
-                    button.state.clicked = (self.mode == .button_press and self.mode.button_press == idx) or
-                        (self.current_workspace == idx);
-                    button.state.hovered = (if (hovered_button) |i| (i == idx) else false) or
-                        ((button.data == .app_menu) and (self.mode == .app_menu)) or
-                        (self.current_workspace == idx);
-                    button.state.update(dt);
-                },
-                else => {},
-            }
-        }
+        // for (self.menu_items.items) |*item, idx| {
+        //     switch (item.*) {
+        //         .button => |*button| {
+        //             button.state.clicked = (self.mode == .button_press and self.mode.button_press == idx) or
+        //                 (self.current_workspace == idx);
+        //             button.state.hovered = (if (hovered_button) |i| (i == idx) else false) or
+        //                 ((button.data == .app_menu) and (self.mode == .app_menu)) or
+        //                 (self.current_workspace == idx);
+        //             button.state.update(dt);
+        //         },
+        //         else => {},
+        //     }
+        // }
     }
 
     {
@@ -1129,12 +1111,12 @@ pub fn update(self: *Self, dt: f32) !void {
             .app_drag_desktop, .app_drag_menu => {},
         }
 
-        for (self.available_apps.items) |*app, app_index| {
-            app.button_state.clicked = (self.mode == .app_press and self.mode.app_press.index == app_index);
-            app.button_state.hovered = (if (hovered_app) |i| (i == app_index) else false);
-            app.button_state.enabled = (app.application.state == .ready);
-            app.button_state.update(dt);
-        }
+        // for (self.available_apps.items) |*app, app_index| {
+        //     app.button_state.clicked = (self.mode == .app_press and self.mode.app_press.index == app_index);
+        //     app.button_state.hovered = (if (hovered_app) |i| (i == app_index) else false);
+        //     app.button_state.enabled = (app.application.state == .ready);
+        //     app.button_state.update(dt);
+        // }
     }
 }
 
@@ -1331,10 +1313,9 @@ pub fn render(self: *Self) RenderError!void {
                 const delta = std.math.clamp(std.time.nanoTimestamp() - ts, 0, long_click_period);
                 if (delta >= long_click_indicator_period) {
                     const Helper = struct {
-                        const radius = 24;
                         center: Point,
 
-                        fn getFromAngle(help: @This(), a: f32) Point {
+                        fn getFromAngle(help: @This(), radius: f32, a: f32) Point {
                             var dx = std.math.round(radius * std.math.sin(a));
                             var dy = std.math.round(radius * std.math.cos(a));
                             return Point{
@@ -1352,21 +1333,64 @@ pub fn render(self: *Self) RenderError!void {
                         .center = mdp,
                     };
 
-                    var last = helper.getFromAngle(0);
+                    const inner_radius = 16;
+                    const outer_radius = 24;
 
-                    var i: usize = 1;
-                    while (i <= segment_count) : (i += 1) {
-                        const current = helper.getFromAngle(delta_f * 2.0 * std.math.pi * @intToFloat(f32, i) / @intToFloat(f32, segment_count));
+                    {
+                        var last_inner = helper.getFromAngle(inner_radius, 0);
+                        var last_outer = helper.getFromAngle(outer_radius, 0);
 
-                        try renderer.drawLine(
-                            last.x,
-                            last.y,
-                            current.x,
-                            current.y,
-                            Color.red,
-                        );
+                        var i: usize = 1;
+                        while (i <= segment_count) : (i += 1) {
+                            const a = 2.0 * std.math.pi * @intToFloat(f32, i) / @intToFloat(f32, segment_count);
 
-                        last = current;
+                            const current_inner = helper.getFromAngle(inner_radius, delta_f * a);
+                            const current_outer = helper.getFromAngle(outer_radius, delta_f * a);
+
+                            try renderer.fillQuad(
+                                [4]Point{
+                                    last_inner,
+                                    last_outer,
+                                    current_inner,
+                                    current_outer,
+                                },
+                                self.config.longclick_indicator.fill_color,
+                            );
+
+                            last_inner = current_inner;
+                            last_outer = current_outer;
+                        }
+                    }
+
+                    {
+                        var last_inner = helper.getFromAngle(inner_radius, 0);
+                        var last_outer = helper.getFromAngle(outer_radius, 0);
+
+                        var i: usize = 1;
+                        while (i <= segment_count) : (i += 1) {
+                            const a = 2.0 * std.math.pi * @intToFloat(f32, i) / @intToFloat(f32, segment_count);
+
+                            const current_inner = helper.getFromAngle(inner_radius, a);
+                            const current_outer = helper.getFromAngle(outer_radius, a);
+
+                            try renderer.drawLine(
+                                last_outer.x,
+                                last_outer.y,
+                                current_outer.x,
+                                current_outer.y,
+                                self.config.longclick_indicator.outline,
+                            );
+                            try renderer.drawLine(
+                                last_inner.x,
+                                last_inner.y,
+                                current_inner.x,
+                                current_inner.y,
+                                self.config.longclick_indicator.outline,
+                            );
+
+                            last_inner = current_inner;
+                            last_outer = current_outer;
+                        }
                     }
                 }
             }
@@ -1388,50 +1412,126 @@ fn initColor(r: u8, g: u8, b: u8, a: u8) Color {
     return Color{ .r = r, .g = g, .b = b, .a = a };
 }
 
-const ButtonState = struct {
-    pub const normal = ButtonState{};
-    pub const pressed = ButtonState{ .visual_pressed = 1.0, .clicked = true };
-    pub const hovered = ButtonState{ .visual_highlight = 1.0, .hovered = true };
+// const ButtonState = struct {
+//     pub const normal = ButtonState{};
+//     pub const pressed = ButtonState{ .visual_pressed = 1.0, .clicked = true };
+//     pub const hovered = ButtonState{ .visual_highlight = 1.0, .hovered = true };
 
-    hovered: bool = false,
-    clicked: bool = false,
-    enabled: bool = true,
+//     hovered: bool = false,
+//     clicked: bool = false,
+//     enabled: bool = true,
 
-    visual_highlight: f32 = 0.0,
-    visual_pressed: f32 = 0.0,
+//     visual_highlight: f32 = 0.0,
+//     visual_pressed: f32 = 0.0,
 
-    fn update(self: *ButtonState, dt: f32) void {
-        const hover_delta = if (self.hovered)
-            @as(f32, 5.0) // fade-in time, normal
-        else
-            @as(f32, -5.0); // fade-out time
+//     fn update(self: *ButtonState, dt: f32) void {
+//         const hover_delta = if (self.hovered)
+//             @as(f32, 5.0) // fade-in time, normal
+//         else
+//             @as(f32, -5.0); // fade-out time
 
-        const click_delta = if (self.clicked and self.hovered)
-            @as(f32, 15.0) // fade-in time
-        else
-            @as(f32, -3.0); // fade-out time
+//         const click_delta = if (self.clicked and self.hovered)
+//             @as(f32, 15.0) // fade-in time
+//         else
+//             @as(f32, -3.0); // fade-out time
 
-        self.visual_highlight = std.math.clamp(self.visual_highlight + dt * hover_delta, 0.0, 1.0);
-        self.visual_pressed = std.math.clamp(self.visual_pressed + dt * click_delta, 0.0, 1.0);
-    }
-};
+//         self.visual_highlight = std.math.clamp(self.visual_highlight + dt * hover_delta, 0.0, 1.0);
+//         self.visual_pressed = std.math.clamp(self.visual_pressed + dt * click_delta, 0.0, 1.0);
+//     }
+// };
 
 fn alphaBlend(c: u8, f: f32) u8 {
     return @floatToInt(u8, f * @intToFloat(f32, c));
 }
 
+const AppButtonResult = enum(usize) {
+    none = 0,
+    clicked = 1,
+    dragged = 2,
+};
+
+/// A startable application available in the app menu.
+const AppReference = struct {
+    application: *ApplicationDescription,
+
+    mouse_press_location: ?Point = null,
+
+    fn init(app: *ApplicationDescription) AppReference {
+        return .{
+            .application = app,
+        };
+    }
+};
+
 fn appButton(
     self: *Self,
     builder: UserInterface.Builder,
     rectangle: Rectangle,
-    app: *ApplicationDescription,
-) !bool {
+    app: *AppReference,
+    translucent: bool,
+) !AppButtonResult {
+    var render_fn = if (translucent)
+        renderApplicationButtonWidgetTranslucent
+    else
+        renderApplicationButtonWidgetOpaque;
+
     const result = try builder.custom(rectangle, app, .{
         .id = app,
-        .draw = renderApplicationButtonWidget,
+        .draw = render_fn,
         .context = self,
+        .process_event = processApplicationButtonWidgetEvent,
     });
-    return (result != null);
+    return @intToEnum(AppButtonResult, result orelse @enumToInt(AppButtonResult.none));
+}
+
+fn processApplicationButtonWidgetEvent(custom: UserInterface.CustomWidget, event: UserInterface.CustomWidget.Event) ?usize {
+    const self = @ptrCast(*Self, @alignCast(@alignOf(Self), custom.config.context orelse unreachable));
+    const app = @ptrCast(*AppReference, @alignCast(@alignOf(AppReference), custom.user_data orelse unreachable));
+
+    switch (event) {
+        .pointer_enter => {},
+        .pointer_leave => {
+            app.mouse_press_location = null;
+        },
+        .pointer_press => |data| {
+            app.mouse_press_location = data;
+        },
+        .pointer_release => |data| {
+            if (app.mouse_press_location) |loc| {
+                app.mouse_press_location = null;
+                if (!self.isDragDistanceReached(loc)) {
+                    return @enumToInt(AppButtonResult.clicked);
+                }
+            }
+        },
+        .pointer_motion => |data| {
+            if (app.mouse_press_location) |loc| {
+                if (self.isDragDistanceReached(loc)) {
+                    return @enumToInt(AppButtonResult.dragged);
+                }
+            }
+        },
+    }
+
+    return null;
+}
+
+fn renderApplicationButtonWidgetTranslucent(
+    custom: UserInterface.CustomWidget,
+    rectangle: Rectangle,
+    renderer: *Renderer2D,
+    info: UserInterface.CustomWidget.DrawInfo,
+) Renderer2D.DrawError!void {
+    try renderApplicationButtonWidget(custom, rectangle, renderer, info, 0.5);
+}
+
+fn renderApplicationButtonWidgetOpaque(
+    custom: UserInterface.CustomWidget,
+    rectangle: Rectangle,
+    renderer: *Renderer2D,
+    info: UserInterface.CustomWidget.DrawInfo,
+) Renderer2D.DrawError!void {
+    try renderApplicationButtonWidget(custom, rectangle, renderer, info, 1.0);
 }
 
 fn renderApplicationButtonWidget(
@@ -1439,9 +1539,10 @@ fn renderApplicationButtonWidget(
     rectangle: Rectangle,
     renderer: *Renderer2D,
     info: UserInterface.CustomWidget.DrawInfo,
+    alpha: f32,
 ) Renderer2D.DrawError!void {
     const self = @ptrCast(*Self, @alignCast(@alignOf(Self), custom.config.context orelse unreachable));
-    const application = @ptrCast(*ApplicationInstance, @alignCast(@alignOf(ApplicationInstance), custom.user_data orelse unreachable));
+    const app = @ptrCast(*AppReference, @alignCast(@alignOf(AppReference), custom.user_data orelse unreachable));
 
     const style = if (info.is_pressed)
         self.config.app_menu.button_theme.clicked
@@ -1450,13 +1551,16 @@ fn renderApplicationButtonWidget(
     else
         self.config.app_menu.button_theme.default;
 
-    const back_color = style.background;
-    const outline_color = style.outline;
+    const byte_alpha = @floatToInt(u8, 255.0 * alpha);
 
-    const alpha = 1.0;
+    var back_color = style.background;
+    var outline_color = style.outline;
 
-    const icon = application.description.icon orelse icons.app_placeholder;
-    const label = application.description.display_name;
+    back_color.a = @floatToInt(u8, @intToFloat(f32, back_color.a) * alpha);
+    outline_color.a = @floatToInt(u8, @intToFloat(f32, outline_color.a) * alpha);
+
+    const icon = app.application.icon orelse icons.app_placeholder;
+    const label = app.application.display_name;
 
     try self.renderer.fillRectangle(rectangle, back_color);
     try self.renderer.drawRectangle(rectangle, outline_color);
@@ -1467,7 +1571,7 @@ fn renderApplicationButtonWidget(
         try self.drawIcon(
             rectangle.centered(icon_size, icon_size),
             icon,
-            Color{ .r = 0xFF, .g = 0xFF, .b = 0xFF, .a = @floatToInt(u8, 255.0 * alpha) },
+            Color{ .r = 0xFF, .g = 0xFF, .b = 0xFF, .a = byte_alpha },
         );
     }
     {
@@ -1480,7 +1584,7 @@ fn renderApplicationButtonWidget(
             label,
             rectangle.x + (rectangle.width - size.width) / 2,
             rectangle.y + @intCast(u15, top - self.app_button_font.font_size / 2),
-            .{ .r = 0xFF, .g = 0xFF, .b = 0xFF }, // TODO: Introduce proper config here
+            .{ .r = 0xFF, .g = 0xFF, .b = 0xFF, .a = byte_alpha }, // TODO: Introduce proper config here
         );
     }
 }
@@ -1643,7 +1747,7 @@ const Button = struct {
     };
 
     data: Data,
-    state: ButtonState = .{},
+    // state: ButtonState = .{},
 
     fn deinit(self: *Button) void {
         switch (self.data) {
