@@ -150,6 +150,7 @@ const DemoAppDescription = struct {
         .display_name = "Dummy App",
         .icon = null, // testing the default icon fallback
         .vtable = ApplicationDescription.Interface.get(@This()),
+        .state = .ready,
     },
 
     pub fn spawn(desc: *ApplicationDescription, allocator: *std.mem.Allocator) !*ApplicationInstance {

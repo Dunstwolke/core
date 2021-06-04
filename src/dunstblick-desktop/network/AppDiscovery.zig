@@ -147,6 +147,7 @@ pub fn update(self: *Self) !void {
                             .display_name = undefined,
                             .icon = null,
                             .vtable = ApplicationDescription.Interface.get(Application),
+                            .state = .ready,
                         },
                         .address = address,
                         .tcp_port = tcp_port,
@@ -183,13 +184,10 @@ pub fn update(self: *Self) !void {
             if (node.data.was_removal_requested) {
                 self.freeApp(node);
             } else {
-                // refresh the is_alive marker
-                node.data.is_alive = ((time_stamp - node.data.last_seen) <= keep_alive_period);
-
-                // TODO: This must be somehow moved into the user interface
-                if (!node.data.is_alive) {
-                    node.data.requestRemoval();
-                }
+                node.data.description.state = if ((time_stamp - node.data.last_seen) <= keep_alive_period)
+                    ApplicationDescription.State.ready
+                else
+                    ApplicationDescription.State.gone;
             }
         }
     }
@@ -230,23 +228,22 @@ pub const Application = struct {
     strings_buffer: std.ArrayList(u8),
     was_removal_requested: bool = false,
 
-    /// when this is false, the app wasn't seen for `keep_alive_period`.
-    is_alive: bool = true,
-
-    /// Requests the removal of this application.
-    /// Apps aren't automatically removed from the application list
-    /// as they are still displayed in the menu and it could cause evil
-    /// misclicks when a app is removed in the moment a user clicks.
-    pub fn requestRemoval(self: *@This()) void {
-        self.was_removal_requested = true;
-    }
-
     pub fn spawn(desc: *ApplicationDescription, allocator: *std.mem.Allocator) !*ApplicationInstance {
         const NetworkApplication = @import("NetworkApplication.zig");
 
         const app = try NetworkApplication.init(allocator, desc);
 
         return &app.instance;
+    }
+
+    /// Requests the removal of this application.
+    /// Apps aren't automatically removed from the application list
+    /// as they are still displayed in the menu and it could cause evil
+    /// misclicks when a app is removed in the moment a user clicks. This
+    /// function will destroy the application state.
+    pub fn destroy(desc: *ApplicationDescription) !void {
+        const self = @fieldParentPtr(Application, "description", desc);
+        self.was_removal_requested = true;
     }
 
     /// Allocates or resizes enough memory to store application name and potentially the icon and description text.
