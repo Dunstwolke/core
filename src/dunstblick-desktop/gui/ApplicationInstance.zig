@@ -10,8 +10,9 @@ const Size = zerog.Size;
 pub const Interface = struct {
     const GenericError = error{OutOfMemory};
     update: fn (*Self, f32) GenericError!void,
+    processUserInterface: ?fn (*Self, zerog.Rectangle, zerog.UserInterface.Builder) zerog.UserInterface.Builder.Error!void,
     resize: fn (*Self, size: Size) GenericError!void,
-    render: fn (*Self, rectangle: zerog.Rectangle, target: *zerog.Renderer2D) GenericError!void,
+    render: fn (*Self, zerog.Rectangle, *zerog.Renderer2D) GenericError!void,
     deinit: fn (*Self) void,
 
     pub fn get(comptime T: type) *const @This() {
@@ -21,6 +22,7 @@ pub const Interface = struct {
                 .resize = T.resize,
                 .render = T.render,
                 .deinit = T.deinit,
+                .processUserInterface = if (@hasDecl(T, "processUserInterface")) T.processUserInterface else null,
             };
         }.vtable;
     }
@@ -55,6 +57,13 @@ pub fn resize(self: *Self, size: Size) !void {
 pub fn render(self: *Self, rectangle: zerog.Rectangle, target: *zerog.Renderer2D) !void {
     std.debug.assert(self.status == .running);
     try self.vtable.render(self, rectangle, target);
+}
+
+pub fn processUserInterface(self: *Self, rectangle: zerog.Rectangle, builder: zerog.UserInterface.Builder) !void {
+    std.debug.assert(self.status == .running);
+    if (self.vtable.processUserInterface) |fun| {
+        try fun(self, rectangle, builder);
+    }
 }
 
 pub fn deinit(self: *Self) void {

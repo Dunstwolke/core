@@ -6,10 +6,11 @@ const zerog = @import("zero-graphics");
 
 const icons = @import("icons/data.zig");
 
-const log = std.log.scoped(.home_screen);
+const logger = std.log.scoped(.home_screen);
 
 const Self = @This();
 
+const UserInterface = zerog.UserInterface;
 const Renderer2D = zerog.Renderer2D;
 const Point = zerog.Point;
 const Size = zerog.Size;
@@ -28,26 +29,27 @@ const ButtonTheme = struct {
     default: Style,
     hovered: Style,
     clicked: Style,
+    disabled: Style,
 
     text_color: Color,
     icon_size: u15,
 };
 
+fn rgb(comptime str: *const [6]u8) Color {
+    return Color{
+        .r = std.fmt.parseInt(u8, str[0..2], 16) catch unreachable,
+        .g = std.fmt.parseInt(u8, str[2..4], 16) catch unreachable,
+        .b = std.fmt.parseInt(u8, str[4..6], 16) catch unreachable,
+    };
+}
+
+fn rgba(comptime str: *const [6]u8, alpha: f32) Color {
+    var color = rgb(str);
+    color.a = @floatToInt(u8, 255.0 * alpha);
+    return color;
+}
+
 const HomeScreenConfig = struct {
-    fn rgb(comptime str: *const [6]u8) Color {
-        return Color{
-            .r = std.fmt.parseInt(u8, str[0..2], 16) catch unreachable,
-            .g = std.fmt.parseInt(u8, str[2..4], 16) catch unreachable,
-            .b = std.fmt.parseInt(u8, str[4..6], 16) catch unreachable,
-        };
-    }
-
-    fn rgba(comptime str: *const [6]u8, alpha: f32) Color {
-        var color = rgb(str);
-        color.a = @floatToInt(u8, 255.0 * alpha);
-        return color;
-    }
-
     const WorkspaceBarConfig = struct {
         background: Color,
         border: Color,
@@ -101,7 +103,11 @@ const HomeScreenConfig = struct {
             },
             .clicked = .{
                 .outline = rgb("1abc9c"),
-                .background = rgb("255953"),
+                .background = rgb("0e443f"),
+            },
+            .disabled = .{
+                .outline = rgb("a6a6a6"),
+                .background = rgb("505050"),
             },
         },
     },
@@ -127,6 +133,10 @@ const HomeScreenConfig = struct {
                 .outline = rgb("1abc9c"),
                 .background = rgb("0e443f"),
             },
+            .disabled = .{
+                .outline = rgb("a6a6a6"),
+                .background = rgb("505050"),
+            },
         },
     },
 
@@ -136,6 +146,137 @@ const HomeScreenConfig = struct {
         .active_app_border = rgb("255853"),
         .insert_highlight_color = rgb("FF00FF"),
         .insert_highlight_fill_color = rgba("FF00FF", 0.3),
+    },
+};
+
+const ui_workspace_bar_button_theme = UserInterface.ButtonTheme{
+    .icon_size = 48,
+    .default = .{
+        .border = rgb("363c42"),
+        .background = rgb("292f35"),
+        .text_color = Color.white,
+    },
+    .hovered = .{
+        .border = rgb("1abc9c"),
+        .background = rgb("0e443f"),
+        .text_color = Color.white,
+    },
+    .clicked = .{
+        .border = rgb("1abc9c"),
+        .background = rgb("003934"),
+        .text_color = Color.white,
+    },
+    .disabled = .{
+        .border = rgb("363c42"),
+        .background = rgb("292f35"),
+        .text_color = rgb("cccccc"),
+    },
+};
+
+const ui_contextmenu_panel_theme = UserInterface.BoxStyle{
+    .border = rgb("212529"),
+    .background = rgb("255953"),
+};
+
+const ui_window_panel_theme = UserInterface.BoxStyle{
+    .border = rgb("212529"),
+    .background = rgb("263238"),
+};
+
+const ui_active_window_panel_theme = UserInterface.BoxStyle{
+    .border = rgb("1abc9c"),
+    .background = rgb("263238"),
+};
+
+const ui_workspace_bar_current_button_theme = UserInterface.ButtonTheme{
+    .icon_size = 48,
+    .default = .{
+        .border = rgb("1abc9c"),
+        .background = rgb("0e443f"),
+        .text_color = Color.white,
+    },
+    .hovered = .{
+        .border = rgb("1abc9c"),
+        .background = rgb("0e443f"),
+        .text_color = Color.white,
+    },
+    .clicked = .{
+        .border = rgb("1abc9c"),
+        .background = rgb("003934"),
+        .text_color = Color.white,
+    },
+    .disabled = .{
+        .border = rgb("363c42"),
+        .background = rgb("292f35"),
+        .text_color = rgb("cccccc"),
+    },
+};
+
+const ui_appmenu_button_theme = UserInterface.ButtonTheme{
+    .icon_size = 64,
+    .default = .{
+        .border = rgb("1abc9c"),
+        .background = rgb("255953"),
+        .text_color = Color.white,
+    },
+    .hovered = .{
+        .border = rgb("1abc9c"),
+        .background = rgb("0e443f"),
+        .text_color = Color.white,
+    },
+    .clicked = .{
+        .border = rgb("1abc9c"),
+        .background = rgb("003934"),
+        .text_color = Color.white,
+    },
+    .disabled = .{
+        .border = rgb("a6a6a6"),
+        .background = rgb("505050"),
+        .text_color = rgb("cccccc"),
+    },
+};
+
+const ui_theme = UserInterface.Theme{
+    .button = .{
+        .icon_size = 24,
+        .default = .{
+            .border = rgb("1abc9c"),
+            .background = rgb("255953"),
+            .text_color = Color.white,
+        },
+        .hovered = .{
+            .border = rgb("1abc9c"),
+            .background = rgb("0e443f"),
+            .text_color = Color.white,
+        },
+        .clicked = .{
+            .border = rgb("1abc9c"),
+            .background = rgb("003934"),
+            .text_color = Color.white,
+        },
+        .disabled = .{
+            .border = rgb("a6a6a6"),
+            .background = rgb("505050"),
+            .text_color = rgb("cccccc"),
+        },
+    },
+
+    .panel = .{
+        .border = rgb("212529"),
+        .background = rgb("292f35"),
+    },
+
+    .text_box = .{
+        .border = rgb("cccccc"),
+        .background = rgb("303030"),
+    },
+
+    .label = .{
+        .text_color = rgb("ffffff"),
+    },
+
+    .modal_layer = .{
+        .fill_color = rgba("292f35", 0.5),
     },
 };
 
@@ -162,6 +303,12 @@ const MouseMode = union(enum) {
     /// The app is now being dragged outside of the app menu and will move over the desktop.
     app_drag_desktop: usize,
 
+    // /// An app was long-clicked and the user can now see some info about it
+    // app_context_menu: AppContextMenu,
+
+    // /// A window was long-clicked and the use can now chose some interactions
+    // window_context_menu: WindowContextMenu,
+
     fn isContextMenuVisible(self: @This()) bool {
         return switch (self) {
             .default, .button_press, .app_drag_desktop, .app_menu, .app_press, .app_drag_menu => false,
@@ -180,6 +327,30 @@ const MouseMode = union(enum) {
         index: usize,
         /// The position where the app was clicked
         position: Point,
+    };
+
+    const AppContextMenu = struct {
+        /// The app that was clicked
+        index: usize,
+
+        menu_items: [1]ContextMenuItem = .{
+            .{ .title = "Remove" },
+        },
+    };
+
+    const WindowContextMenu = struct {
+        /// The app that was clicked
+        window: *AppInstance,
+
+        menu_items: [2]ContextMenuItem = .{
+            .{ .title = "Move to workspace..." },
+            .{ .title = "Close application" },
+        },
+    };
+
+    const ContextMenuItem = struct {
+        title: []const u8,
+        enabled: bool = true,
     };
 };
 
@@ -281,6 +452,16 @@ const IconCache = struct {
     }
 };
 
+/// Time period after which a normal click is recognized as a long-click.
+const long_click_period = 1000 * std.time.ns_per_ms;
+
+/// Time period after which a long-click progress marker is shown
+const long_click_indicator_period = long_click_period / 10;
+
+/// Number of horizontal or vertical pixels one must drag the mouse
+/// before a drag operation will be recognized
+const minimal_drag_distance = 16;
+
 allocator: *std.mem.Allocator,
 size: Size,
 config: HomeScreenConfig,
@@ -296,8 +477,13 @@ menu_items: std.ArrayList(MenuItem),
 available_apps: std.ArrayList(AppReference),
 
 mode: MouseMode,
+mouse_down_timestamp: ?i128 = null,
+mouse_down_pos: ?Point = null,
 
 renderer: *Renderer2D,
+
+ui: UserInterface,
+input_processor: ?UserInterface.InputProcessor = null,
 
 app_title_font: *const Renderer2D.Font,
 app_status_font: *const Renderer2D.Font,
@@ -319,6 +505,7 @@ pub fn init(allocator: *std.mem.Allocator, renderer: *Renderer2D) !Self {
         .app_status_font = undefined,
         .app_button_font = undefined,
         .renderer = renderer,
+        .ui = undefined,
         .icon_cache = IconCache{
             .allocator = allocator,
             .renderer = renderer,
@@ -336,6 +523,11 @@ pub fn init(allocator: *std.mem.Allocator, renderer: *Renderer2D) !Self {
 
     self.app_button_font = try self.renderer.createFont(ttf_font_data, 12);
     errdefer self.renderer.destroyFont(self.app_button_font);
+
+    self.ui = try UserInterface.init(self.allocator, self.renderer);
+    errdefer self.ui.deinit();
+
+    self.ui.theme = &ui_theme;
 
     // std.json.stringify(self.config, .{
     //     .whitespace = .{
@@ -362,6 +554,7 @@ pub fn deinit(self: *Self) void {
     self.icon_cache.deinit();
     self.menu_items.deinit();
     self.available_apps.deinit();
+    self.ui.deinit();
     self.renderer.destroyFont(self.app_status_font);
     self.renderer.destroyFont(self.app_title_font);
     self.renderer.destroyFont(self.app_button_font);
@@ -369,31 +562,56 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn setAvailableApps(self: *Self, apps: []const *ApplicationDescription) !void {
+    // TODO: Do a proper button matching here:
+    const old_len = self.available_apps.items.len;
     try self.available_apps.resize(apps.len);
-
     for (self.available_apps.items) |*app, i| {
-        app.* = AppReference{
-            .application = apps[i],
-        };
+        const need_init = if (i < old_len)
+            app.application != apps[i] // only change when the app description is different
+        else
+            true;
+
+        if (need_init) {
+            // always initialize fresh
+            app.* = AppReference{
+                .application = apps[i],
+            };
+        }
     }
 }
 
 fn openAppMenu(self: *Self) void {
     self.mode = .app_menu;
-    log.debug("open app menu", .{});
+    logger.debug("open app menu", .{});
 }
 
 pub fn resize(self: *Self, size: Size) !void {
     self.size = size;
 }
 
+pub fn beginInput(self: *Self) !void {
+    std.debug.assert(self.input_processor == null);
+    self.input_processor = self.ui.processInput();
+}
+pub fn endInput(self: *Self) !void {
+    std.debug.assert(self.input_processor != null);
+    self.input_processor.?.finish();
+    self.input_processor = null;
+}
+
 pub fn setMousePos(self: *Self, pos: Point) void {
+    std.debug.assert(self.input_processor != null);
+
+    self.input_processor.?.setPointer(pos);
+
     self.mouse_pos = pos;
 }
 
 var rng = std.rand.DefaultPrng.init(0);
 
 pub fn mouseDown(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
+    std.debug.assert(self.input_processor != null);
+
     if (mouse_button != .primary) {
         self.config.workspace_bar.location = switch (self.config.workspace_bar.location) {
             .top => RectangleSide.right,
@@ -405,13 +623,20 @@ pub fn mouseDown(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
         return;
     }
 
+    self.input_processor.?.pointerDown();
+
+    self.mouse_down_timestamp = std.time.nanoTimestamp();
+    self.mouse_down_pos = self.mouse_pos;
+
     switch (self.mode) {
         .default => {
             // Check if the user pressed the mouse on a button
             for (self.menu_items.items) |btn, i| {
                 const rect = self.getMenuButtonRectangle(i);
                 if (rect.contains(self.mouse_pos)) {
-                    self.mode = .{ .button_press = i };
+                    if (btn == .button and btn.button.state.enabled) {
+                        self.mode = .{ .button_press = i };
+                    }
                     return;
                 }
             }
@@ -426,10 +651,12 @@ pub fn mouseDown(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
                 for (self.available_apps.items) |app, i| {
                     const rect = self.getAppButtonRectangle(i);
                     if (rect.contains(self.mouse_pos)) {
-                        self.mode = .{ .app_press = .{
-                            .index = i,
-                            .position = self.mouse_pos,
-                        } };
+                        if (app.application.state == .ready) {
+                            self.mode = .{ .app_press = .{
+                                .index = i,
+                                .position = self.mouse_pos,
+                            } };
+                        }
                         return;
                     }
                 }
@@ -442,8 +669,19 @@ pub fn mouseDown(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
 }
 
 pub fn mouseUp(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
+    std.debug.assert(self.input_processor != null);
+
     if (mouse_button != .primary)
         return;
+
+    self.input_processor.?.pointerUp();
+
+    const long_click = if (self.mouse_down_timestamp) |ts|
+        (std.time.nanoTimestamp() - ts) > long_click_period
+    else
+        false;
+    self.mouse_down_timestamp = null;
+    self.mouse_down_pos = null;
 
     switch (self.mode) {
         .default => {
@@ -469,11 +707,11 @@ pub fn mouseUp(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
                                 return;
                             },
 
-                            //else => log.info("clicked on button {}: {}", .{ button_index, button.data }),
+                            //else => logger.info("clicked on button {}: {}", .{ button_index, button.data }),
                         }
                     },
 
-                    else => log.info("clicked on something else {}: {}", .{ button_index, std.meta.activeTag(menu_item.*) }),
+                    else => logger.info("clicked on something else {}: {}", .{ button_index, std.meta.activeTag(menu_item.*) }),
                 }
             }
         },
@@ -484,7 +722,12 @@ pub fn mouseUp(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
             const rect = self.getAppButtonRectangle(info.index);
             if (rect.contains(self.mouse_pos)) {
                 const app = &self.available_apps.items[info.index];
-                log.info("clicked on the app[{d}] '{s}'", .{ info.index, app.application.display_name });
+
+                if (long_click) {
+                    logger.info("long-clicked on the app[{d}] '{s}'", .{ info.index, app.application.display_name });
+                } else {
+                    logger.info("clicked on the app[{d}] '{s}'", .{ info.index, app.application.display_name });
+                }
             }
         },
         .app_drag_menu => {
@@ -528,7 +771,7 @@ pub fn mouseUp(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
             }
 
             if (target_workspace) |workspace| {
-                log.info("spawning on the app[{d}] '{s}'", .{ app_index, app.application.display_name });
+                logger.info("spawning on the app[{d}] '{s}'", .{ app_index, app.application.display_name });
 
                 const target_location_opt = switch (insert_location) {
                     .cursor => workspace.window_tree.findInsertLocation(
@@ -555,21 +798,239 @@ pub fn mouseUp(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
                     try workspace.window_tree.insertLeaf(target_location, node);
                 }
             } else {
-                log.info("cancel spawn of app[{d}] '{s}'", .{ app_index, app.application.display_name });
+                logger.info("cancel spawn of app[{d}] '{s}'", .{ app_index, app.application.display_name });
             }
         },
     }
 }
 
+fn isDragDistanceReached(self: Self, start: Point) bool {
+    const dx = std.math.absCast(self.mouse_pos.x - start.x);
+    const dy = std.math.absCast(self.mouse_pos.y - start.y);
+    return (dx >= minimal_drag_distance or dy >= minimal_drag_distance);
+}
+
+const ContextMenuResult = union(enum) {
+    none,
+    clicked: usize,
+    closed,
+};
+
+fn doContextMenu(self: Self, builder: UserInterface.Builder, title: []const u8, menu_items: []const MouseMode.ContextMenuItem) !ContextMenuResult {
+    const menu_rectangle = Rectangle{
+        .x = (self.size.width - 210) / 2,
+        .y = (self.size.height - 240) / 2,
+        .width = 210,
+        .height = @intCast(u15, 40 * (menu_items.len + 1)) + 1,
+    };
+
+    if (try builder.modalLayer(.{})) {
+        return .closed;
+    }
+
+    try builder.panel(menu_rectangle, .{});
+
+    const header_rectangle = Rectangle{
+        .x = menu_rectangle.x,
+        .y = menu_rectangle.y,
+        .width = menu_rectangle.width,
+        .height = 32,
+    };
+
+    try builder.panel(header_rectangle, .{
+        .style = ui_contextmenu_panel_theme,
+    });
+    try builder.label(header_rectangle, title, .{
+        .horizontal_alignment = .center,
+    });
+
+    var button_rectangle = header_rectangle;
+    button_rectangle.x += 9;
+    button_rectangle.width -= 18;
+
+    var clicked_item: ?usize = null;
+
+    for (menu_items) |item, i| {
+        button_rectangle.y += 40;
+        const clicked = try builder.button(button_rectangle, item.title, null, .{
+            .id = i,
+            .enabled = item.enabled,
+        });
+        if (clicked) {
+            clicked_item = i;
+        }
+    }
+    if (clicked_item) |item|
+        return ContextMenuResult{ .clicked = item };
+    return .none;
+}
+
 pub fn update(self: *Self, dt: f32) !void {
+
+    // Update all running applications
+    {
+        for (self.menu_items.items) |*menu_item, index| {
+            if (menu_item.* != .button)
+                continue;
+            if (menu_item.button.data != .workspace)
+                continue;
+            // logger.info("leafes on workspace {d}", .{index});
+
+            const workspace: *Workspace = &menu_item.button.data.workspace;
+
+            var leaf_iterator = workspace.window_tree.leafIterator();
+
+            while (leaf_iterator.next()) |leaf| {
+                // logger.info("  available node: {}", .{leaf});
+                switch (leaf.*) {
+                    .starting => |*app| {
+                        try app.application.update(dt);
+                        if (app.application.status == .running) {
+                            // workaround for re-tagging with RLS
+                            var app_copy = app.*;
+                            leaf.* = .{ .connected = app_copy };
+                        } else if (app.application.status == .exited) {
+                            // workaround for re-tagging with RLS
+                            var app_copy = app.*;
+                            leaf.* = .{ .exited = app_copy };
+                        }
+                    },
+                    .connected => |*app| {
+                        try app.application.update(dt);
+                        if (app.application.status == .exited) {
+                            // workaround for re-tagging with RLS
+                            var app_copy = app.*;
+                            leaf.* = .{ .exited = app_copy };
+                        }
+                    },
+                    .exited => {
+                        // the exited application isn't updated anymore
+                        // as there is nothing to do here
+                    },
+                    .empty, .group => {
+                        // those have no update logic, but .group might be animated in the future which would go here
+                    },
+                }
+            }
+        }
+    }
+
+    var builder = self.ui.construct(self.size);
+    defer builder.finish();
+
+    // Update workspaces
+    {
+        const workspace_area = self.getWorkspaceRectangle();
+        for (self.menu_items.items) |*item, button_index| {
+            switch (item.*) {
+                .button => |*btn| {
+                    if (btn.data == .workspace) {
+                        if (button_index == self.current_workspace) {
+                            var hovered_rectangle: ?Rectangle = null;
+                            try self.updateWorkspace(builder, workspace_area, &btn.data.workspace, &hovered_rectangle);
+
+                            // if (self.mode != .app_menu) {
+                            //     if (hovered_rectangle) |area| {
+                            //         try renderer.drawRectangle(area, self.config.workspace.active_app_border);
+                            //     }
+                            // }
+
+                            if (self.mode == .app_drag_desktop) {
+                                // if (btn.data.workspace.window_tree.findInsertLocation(workspace_area, self.mouse_pos.x, self.mouse_pos.y)) |path| {
+                                //     const insert_location = btn.data.workspace.window_tree.getInsertLocationRectangle(workspace_area, path);
+
+                                //     try renderer.drawRectangle(insert_location.container, self.config.workspace.insert_highlight_color);
+                                //     try renderer.fillRectangle(insert_location.splitter, self.config.workspace.insert_highlight_fill_color);
+                                // }
+                            }
+                            break;
+                        }
+                    }
+                },
+                else => {},
+            }
+        }
+    }
+
+    // Update workspace bar
+    {
+        try builder.panel(self.getBarRectangle(), .{});
+
+        for (self.menu_items.items) |item, idx| {
+            const button_rect = self.getMenuButtonRectangle(idx);
+
+            if (item == .button) {
+                const button = &item.button;
+
+                const icon = switch (button.data) {
+                    .app_menu => @as([]const u8, &icons.app_menu),
+                    .workspace => &icons.workspace,
+                };
+
+                const texture = try self.icon_cache.get(icon, Size{ .width = 48, .height = 48 });
+
+                const style = if (button.data == .workspace and idx == self.current_workspace)
+                    ui_workspace_bar_current_button_theme
+                else
+                    ui_workspace_bar_button_theme;
+
+                if (try builder.button(button_rect, null, texture, .{ .style = style })) {
+                    logger.info("ui button was clicked!", .{});
+                }
+            }
+        }
+    }
+
+    // Update app menu
+    if (self.mode.isAppMenuVisible()) {
+        _ = try builder.modalLayer(.{});
+
+        try builder.panel(self.getAppMenuRectangle(), .{});
+
+        for (self.available_apps.items) |app, idx| {
+            const button_rect = self.getAppButtonRectangle(idx);
+
+            const name = app.application.display_name;
+            const icon = app.application.icon orelse icons.app_placeholder;
+
+            const texture = try self.icon_cache.get(icon, Size{ .width = 64, .height = 64 });
+
+            if (try builder.button(button_rect, name, texture, .{ .style = ui_appmenu_button_theme })) {
+                logger.info("app button was clicked!", .{});
+            }
+        }
+    }
+
+    // Update context menu
+    const ContextMenu = struct {
+        var open: bool = false;
+    };
+
+    if (try builder.button(Rectangle{ .x = 100, .y = 100, .width = 80, .height = 32 }, "Context Menu", null, .{}))
+        ContextMenu.open = true;
+
+    if (ContextMenu.open) {
+        const items = [_]MouseMode.ContextMenuItem{
+            .{ .title = "Move to workspace", .enabled = false },
+            .{ .title = "Move to own workspace" },
+            .{ .title = "Close application" },
+        };
+
+        const result = try self.doContextMenu(builder, "Dummy Application", &items);
+        switch (result) {
+            .none => {},
+            .clicked => |index| {
+                logger.info("clicked on menu item {}: {s}", .{ index, items[index].title });
+            },
+            .closed => ContextMenu.open = false,
+        }
+    }
 
     // Check if we started dragging a app.
     // This must be done before checking the (app_drag_menu -> app_drag_desktop) transition as this might happen in the same frame!
     if (self.mode == .app_press) {
         const info = self.mode.app_press;
-        const dx = std.math.absCast(self.mouse_pos.x - info.position.x);
-        const dy = std.math.absCast(self.mouse_pos.y - info.position.y);
-        if (dx >= 16 or dy >= 16) {
+        if (self.isDragDistanceReached(info.position)) {
             self.mode = .{ .app_drag_menu = info.index };
         }
     }
@@ -593,7 +1054,7 @@ pub fn update(self: *Self, dt: f32) !void {
                     const button_rect = self.getMenuButtonRectangle(idx);
                     if (button_rect.contains(self.mouse_pos)) {
                         if (self.current_workspace != idx) {
-                            log.info("Select workspace {d}", .{idx});
+                            logger.info("Select workspace {d}", .{idx});
                         }
 
                         self.current_workspace = idx;
@@ -650,56 +1111,160 @@ pub fn update(self: *Self, dt: f32) !void {
         for (self.available_apps.items) |*app, app_index| {
             app.button_state.clicked = (self.mode == .app_press and self.mode.app_press.index == app_index);
             app.button_state.hovered = (if (hovered_app) |i| (i == app_index) else false);
+            app.button_state.enabled = (app.application.state == .ready);
             app.button_state.update(dt);
         }
     }
+}
 
-    // Update all running applications
-    {
-        for (self.menu_items.items) |*menu_item, index| {
-            if (menu_item.* != .button)
-                continue;
-            if (menu_item.button.data != .workspace)
-                continue;
-            // log.info("leafes on workspace {d}", .{index});
+fn updateWorkspace(self: *Self, builder: UserInterface.Builder, area: Rectangle, workspace: *Workspace, hovered_rectangle: *?Rectangle) RenderError!void {
+    try self.updateTreeNode(builder, area, &workspace.window_tree.root, hovered_rectangle);
+}
 
-            const workspace: *Workspace = &menu_item.button.data.workspace;
+fn renderStartingAppNode(custom: UserInterface.CustomWidget, area: Rectangle, renderer: *Renderer2D) Renderer2D.DrawError!void {
+    const self = @ptrCast(*Self, @alignCast(@alignOf(Self), custom.config.context orelse unreachable));
+    const application = @ptrCast(*ApplicationInstance, @alignCast(@alignOf(ApplicationInstance), custom.user_data orelse unreachable));
 
-            var leaf_iterator = workspace.window_tree.leafIterator();
+    const icon_size = std.math.min(area.width - 2, self.config.workspace.app_icon_size);
+    if (icon_size > 0) {
+        try self.drawIcon(
+            Rectangle{
+                .x = area.x + (area.width - icon_size) / 2,
+                .y = area.y + (area.height - icon_size) / 2,
+                .width = icon_size,
+                .height = icon_size,
+            },
+            application.description.icon orelse icons.app_placeholder,
+            Color.white,
+        );
+    }
 
-            while (leaf_iterator.next()) |leaf| {
-                // log.info("  available node: {}", .{leaf});
-                switch (leaf.*) {
-                    .starting => |*app| {
-                        try app.application.update(dt);
-                        if (app.application.status == .running) {
-                            // workaround for re-tagging with RLS
-                            var app_copy = app.*;
-                            leaf.* = .{ .connected = app_copy };
-                        } else if (app.application.status == .exited) {
-                            // workaround for re-tagging with RLS
-                            var app_copy = app.*;
-                            leaf.* = .{ .exited = app_copy };
-                        }
-                    },
-                    .connected => |*app| {
-                        try app.application.update(dt);
-                        if (app.application.status == .exited) {
-                            // workaround for re-tagging with RLS
-                            var app_copy = app.*;
-                            leaf.* = .{ .exited = app_copy };
-                        }
-                    },
-                    .exited => {
-                        // the exited application isn't updated anymore
-                        // as there is nothing to do here
-                    },
-                    .empty, .group => {
-                        // those have no update logic, but .group might be animated in the future which would go here
-                    },
-                }
+    const display_name = application.description.display_name;
+    if (display_name.len > 0) {
+        const size = self.renderer.measureString(self.app_title_font, display_name);
+        try self.renderer.drawString(
+            self.app_title_font,
+            display_name,
+            area.x + (area.width - size.width) / 2,
+            area.y + (area.height - icon_size) / 2 - self.app_title_font.font_size,
+            .{ .r = 0xFF, .g = 0xFF, .b = 0xFF }, // TODO: Replace by theme config
+        );
+    }
+
+    const startup_message = application.status.starting; // this is safe as the status might only be changed in the update fn
+    if (startup_message.len > 0) {
+        const size = self.renderer.measureString(self.app_status_font, startup_message);
+        try self.renderer.drawString(
+            self.app_status_font,
+            startup_message,
+            area.x + (area.width - size.width) / 2,
+            area.y + (area.height + icon_size) / 2,
+            .{ .r = 0xFF, .g = 0xFF, .b = 0xFF }, // TODO: Replace by theme config
+        );
+    }
+}
+
+fn renderRunningAppNode(custom: UserInterface.CustomWidget, area: Rectangle, renderer: *Renderer2D) Renderer2D.DrawError!void {
+    const self = @ptrCast(*Self, @alignCast(@alignOf(Self), custom.config.context orelse unreachable));
+    const application = @ptrCast(*ApplicationInstance, @alignCast(@alignOf(ApplicationInstance), custom.user_data orelse unreachable));
+
+    application.render(area, self.renderer) catch |err| logger.err("failed to render application '{s}': {s}", .{
+        application.description.display_name,
+        @errorName(err),
+    });
+}
+
+fn renderExitedAppNode(custom: UserInterface.CustomWidget, area: Rectangle, renderer: *Renderer2D) Renderer2D.DrawError!void {
+    const self = @ptrCast(*Self, @alignCast(@alignOf(Self), custom.config.context orelse unreachable));
+    const application = @ptrCast(*ApplicationInstance, @alignCast(@alignOf(ApplicationInstance), custom.user_data orelse unreachable));
+
+    const exit_message = application.status.exited; // this is safe as the status might only be changed in the update fn
+    if (exit_message.len > 0) {
+        const size = self.renderer.measureString(self.app_status_font, exit_message);
+        try self.renderer.drawString(
+            self.app_status_font,
+            exit_message,
+            area.x + (area.width - size.width) / 2,
+            area.y + area.height / 2,
+            .{ .r = 0xFF, .g = 0x00, .b = 0x00 }, // TODO: Replace by theme config
+        );
+    }
+}
+
+fn updateTreeNode(self: *Self, builder: UserInterface.Builder, area: Rectangle, node: *WindowTree.Node, hovered_rectangle: *?Rectangle) RenderError!void {
+    const is_hovered = area.contains(self.mouse_pos);
+    if (is_hovered and (node.* == .empty or node.* == .starting or node.* == .connected)) {
+        hovered_rectangle.* = area;
+    }
+
+    const panel_style = if (is_hovered)
+        ui_active_window_panel_theme
+    else
+        ui_window_panel_theme;
+
+    try builder.panel(area, .{
+        .id = node,
+        .style = panel_style,
+    });
+
+    switch (node.*) {
+        .empty => {},
+        .starting => |app| {
+            _ = try builder.custom(area.shrink(1), app.application, .{
+                .id = node,
+                .draw = renderStartingAppNode,
+                .context = self,
+            });
+        },
+        .connected => |app| {
+            _ = try builder.custom(area.shrink(1), app.application, .{
+                .id = node,
+                .draw = renderRunningAppNode,
+                .context = self,
+            });
+
+            try app.application.processUserInterface(area, builder);
+        },
+        .exited => |app| {
+            _ = try builder.custom(area.shrink(1), app.application, .{
+                .id = node,
+                .draw = renderExitedAppNode,
+                .context = self,
+            });
+        },
+        .group => |*group| {
+            // if we have 1 or less children, the tree would be denormalized.
+            // we assume we have a normalized tree at this point.
+            std.debug.assert(group.children.len >= 2);
+            switch (group.split) {
+                .vertical => {
+                    const item_height = area.height / group.children.len;
+                    for (group.children) |*item, i| {
+                        const h = if (i == group.children.len - 1)
+                            item_height
+                        else
+                            (area.height - item_height * (group.children.len - 1));
+                        var child_area = area;
+                        child_area.y += @intCast(u15, item_height * i);
+                        child_area.height = @intCast(u15, h);
+                        try self.updateTreeNode(builder, child_area, item, hovered_rectangle);
+                    }
+                },
+                .horizontal => {
+                    const item_width = area.width / group.children.len;
+                    for (group.children) |*item, i| {
+                        const w = if (i == group.children.len - 1)
+                            item_width
+                        else
+                            (area.width - item_width * (group.children.len - 1));
+                        var child_area = area;
+                        child_area.x += @intCast(u15, item_width * i);
+                        child_area.width = @intCast(u15, w);
+                        try self.updateTreeNode(builder, child_area, item, hovered_rectangle);
+                    }
+                },
             }
-        }
+        },
     }
 }
 
@@ -728,284 +1293,333 @@ const SubCanvas = struct {
 
 const RenderError = error{OutOfMemory} || zerog.Renderer2D.DrawError;
 pub fn render(self: *Self) RenderError!void {
-    var temp_buffer: [4096]u8 = undefined;
-    var temp_allocator = std.heap.FixedBufferAllocator.init(&temp_buffer);
+    // const bar_width = self.config.workspace_bar.getWidth();
 
-    const bar_width = self.config.workspace_bar.getWidth();
+    // const workspace_area = self.getWorkspaceRectangle();
 
-    const workspace_area = self.getWorkspaceRectangle();
+    // const bar_area = self.getBarRectangle();
 
-    const bar_area = self.getBarRectangle();
+    // const renderer = self.renderer;
 
-    const renderer = self.renderer;
+    // try renderer.fillRectangle(workspace_area, self.config.workspace.background_color);
+    // try renderer.fillRectangle(bar_area, self.config.workspace_bar.background);
 
-    try renderer.fillRectangle(workspace_area, self.config.workspace.background_color);
-    try renderer.fillRectangle(bar_area, self.config.workspace_bar.background);
+    // switch (self.config.workspace_bar.location) {
+    //     .left => try renderer.drawLine(
+    //         bar_area.x + bar_area.width,
+    //         bar_area.y,
+    //         bar_area.x + bar_area.width,
+    //         bar_area.y + bar_area.height,
+    //         self.config.workspace_bar.border,
+    //     ),
+    //     .right => try renderer.drawLine(
+    //         bar_area.x,
+    //         0,
+    //         bar_area.x,
+    //         bar_area.height,
+    //         self.config.workspace_bar.border,
+    //     ),
+    //     .top => try renderer.drawLine(
+    //         bar_area.x,
+    //         bar_area.y + bar_area.height,
+    //         bar_area.x + bar_area.width,
+    //         bar_area.y + bar_area.height,
+    //         self.config.workspace_bar.border,
+    //     ),
+    //     .bottom => try renderer.drawLine(
+    //         bar_area.x,
+    //         bar_area.y,
+    //         bar_area.x + bar_area.width,
+    //         bar_area.y,
+    //         self.config.workspace_bar.border,
+    //     ),
+    // }
 
-    switch (self.config.workspace_bar.location) {
-        .left => try renderer.drawLine(
-            bar_area.x + bar_area.width,
-            bar_area.y,
-            bar_area.x + bar_area.width,
-            bar_area.y + bar_area.height,
-            self.config.workspace_bar.border,
-        ),
-        .right => try renderer.drawLine(
-            bar_area.x,
-            0,
-            bar_area.x,
-            bar_area.height,
-            self.config.workspace_bar.border,
-        ),
-        .top => try renderer.drawLine(
-            bar_area.x,
-            bar_area.y + bar_area.height,
-            bar_area.x + bar_area.width,
-            bar_area.y + bar_area.height,
-            self.config.workspace_bar.border,
-        ),
-        .bottom => try renderer.drawLine(
-            bar_area.x,
-            bar_area.y,
-            bar_area.x + bar_area.width,
-            bar_area.y,
-            self.config.workspace_bar.border,
-        ),
-    }
+    // const dragged_app_index: ?usize = switch (self.mode) {
+    //     .app_drag_desktop => |index| index,
+    //     .app_drag_menu => |index| index,
+    //     else => null,
+    // };
 
-    const dragged_app_index: ?usize = switch (self.mode) {
-        .app_drag_desktop => |index| index,
-        .app_drag_menu => |index| index,
-        else => null,
-    };
+    // for (self.menu_items.items) |item, idx| {
+    //     const button_rect = self.getMenuButtonRectangle(idx);
 
-    for (self.menu_items.items) |item, idx| {
-        const button_rect = self.getMenuButtonRectangle(idx);
+    //     switch (item) {
+    //         .separator => {
+    //             switch (self.config.workspace_bar.location) {
+    //                 .top, .bottom => try renderer.drawLine(
+    //                     button_rect.x,
+    //                     button_rect.y,
+    //                     button_rect.x,
+    //                     button_rect.y + button_rect.height,
+    //                     self.config.workspace_bar.border,
+    //                 ),
+    //                 .left, .right => try renderer.drawLine(
+    //                     button_rect.x,
+    //                     button_rect.y,
+    //                     button_rect.x + button_rect.width,
+    //                     button_rect.y,
+    //                     self.config.workspace_bar.border,
+    //                 ),
+    //             }
+    //         },
+    //         .button => |button| {
+    //             try self.renderButton(
+    //                 button_rect,
+    //                 if (dragged_app_index) |_|
+    //                     if (button_rect.contains(self.mouse_pos) and button.data == .workspace)
+    //                         ButtonState.hovered
+    //                     else
+    //                         ButtonState.normal
+    //                 else
+    //                     button.state,
+    //                 self.config.workspace_bar.button_theme,
+    //                 null,
+    //                 switch (button.data) {
+    //                     .app_menu => @as([]const u8, &icons.app_menu),
+    //                     .workspace => &icons.workspace,
+    //                 },
+    //                 1.0,
+    //             );
+    //         },
+    //     }
+    // }
 
-        switch (item) {
-            .separator => {
-                switch (self.config.workspace_bar.location) {
-                    .top, .bottom => try renderer.drawLine(
-                        button_rect.x,
-                        button_rect.y,
-                        button_rect.x,
-                        button_rect.y + button_rect.height,
-                        self.config.workspace_bar.border,
-                    ),
-                    .left, .right => try renderer.drawLine(
-                        button_rect.x,
-                        button_rect.y,
-                        button_rect.x + button_rect.width,
-                        button_rect.y,
-                        self.config.workspace_bar.border,
-                    ),
-                }
-            },
-            .button => |button| {
-                try self.renderButton(
-                    button_rect,
-                    if (dragged_app_index) |_|
-                        if (button_rect.contains(self.mouse_pos) and button.data == .workspace)
-                            ButtonState.hovered
-                        else
-                            ButtonState.normal
-                    else
-                        button.state,
-                    self.config.workspace_bar.button_theme,
-                    null,
-                    switch (button.data) {
-                        .app_menu => @as([]const u8, &icons.app_menu),
-                        .workspace => &icons.workspace,
-                    },
-                    1.0,
-                );
-            },
-        }
-    }
+    // if (dragged_app_index) |_| {
+    //     const button_rect = self.getMenuButtonRectangle(self.menu_items.items.len);
 
-    if (dragged_app_index) |_| {
-        const button_rect = self.getMenuButtonRectangle(self.menu_items.items.len);
+    //     try self.renderButton(
+    //         button_rect,
+    //         if (button_rect.contains(self.mouse_pos))
+    //             ButtonState.hovered
+    //         else
+    //             ButtonState.normal,
+    //         self.config.workspace_bar.button_theme,
+    //         null,
+    //         &icons.workspace_add,
+    //         1.0,
+    //     );
+    // }
 
-        try self.renderButton(
-            button_rect,
-            if (button_rect.contains(self.mouse_pos))
-                ButtonState.hovered
-            else
-                ButtonState.normal,
-            self.config.workspace_bar.button_theme,
-            null,
-            &icons.workspace_add,
-            1.0,
-        );
-    }
+    // for (self.menu_items.items) |item, button_index| {
+    //     switch (item) {
+    //         .button => |btn| {
+    //             if (btn.data == .workspace) {
+    //                 if (button_index == self.current_workspace) {
+    //                     var hovered_rectangle: ?Rectangle = null;
+    //                     try self.renderWorkspace(workspace_area, btn.data.workspace, &hovered_rectangle);
 
-    for (self.menu_items.items) |item, button_index| {
-        switch (item) {
-            .button => |btn| {
-                if (btn.data == .workspace) {
-                    if (button_index == self.current_workspace) {
-                        var hovered_rectangle: ?Rectangle = null;
-                        try self.renderWorkspace(workspace_area, btn.data.workspace, &hovered_rectangle);
+    //                     if (self.mode != .app_menu) {
+    //                         if (hovered_rectangle) |area| {
+    //                             try renderer.drawRectangle(area, self.config.workspace.active_app_border);
+    //                         }
+    //                     }
+    //                     if (self.mode == .app_drag_desktop) {
+    //                         if (btn.data.workspace.window_tree.findInsertLocation(workspace_area, self.mouse_pos.x, self.mouse_pos.y)) |path| {
+    //                             const insert_location = btn.data.workspace.window_tree.getInsertLocationRectangle(workspace_area, path);
 
-                        if (self.mode != .app_menu) {
-                            if (hovered_rectangle) |area| {
-                                try renderer.drawRectangle(area, self.config.workspace.active_app_border);
-                            }
-                        }
-                        if (self.mode == .app_drag_desktop) {
-                            if (btn.data.workspace.window_tree.findInsertLocation(workspace_area, self.mouse_pos.x, self.mouse_pos.y)) |path| {
-                                const insert_location = btn.data.workspace.window_tree.getInsertLocationRectangle(workspace_area, path);
+    //                             try renderer.drawRectangle(insert_location.container, self.config.workspace.insert_highlight_color);
+    //                             try renderer.fillRectangle(insert_location.splitter, self.config.workspace.insert_highlight_fill_color);
+    //                         }
+    //                     }
+    //                     break;
+    //                 }
+    //             }
+    //         },
+    //         else => {},
+    //     }
+    // }
 
-                                try renderer.drawRectangle(insert_location.container, self.config.workspace.insert_highlight_color);
-                                try renderer.fillRectangle(insert_location.splitter, self.config.workspace.insert_highlight_fill_color);
-                            }
-                        }
-                        break;
-                    }
-                }
-            },
-            else => {},
-        }
-    }
+    // if (self.mode.isAppMenuVisible()) {
+    //     const app_menu_button_rect = self.getMenuButtonRectangle(0);
+    //     const app_menu_rect = self.getAppMenuRectangle();
+    //     const layout = self.getAppMenuLayout();
+    //     const margin = self.config.app_menu.margins;
+    //     const button_size = self.config.app_menu.button_size;
 
-    if (self.mode.isAppMenuVisible()) {
-        const app_menu_button_rect = self.getMenuButtonRectangle(0);
-        const app_menu_rect = self.getAppMenuRectangle();
-        const layout = self.getAppMenuLayout();
-        const margin = self.config.app_menu.margins;
-        const button_size = self.config.app_menu.button_size;
+    //     // draw dimmed background
+    //     try renderer.fillRectangle(
+    //         Rectangle{
+    //             .x = 0,
+    //             .y = 0,
+    //             .width = self.size.width,
+    //             .height = self.size.height,
+    //         },
+    //         self.config.app_menu.dimmer,
+    //     );
 
-        // draw dimmed background
-        try renderer.fillRectangle(
-            Rectangle{
-                .x = 0,
-                .y = 0,
-                .width = self.size.width,
-                .height = self.size.height,
-            },
-            self.config.app_menu.dimmer,
-        );
+    //     // overdraw button
+    //     {
+    //         const button_rect = app_menu_button_rect;
+    //         const icon_area = Rectangle{
+    //             .x = button_rect.x + 1,
+    //             .y = button_rect.y + 1,
+    //             .width = button_rect.width - 2,
+    //             .height = button_rect.height - 2,
+    //         };
 
-        // overdraw button
-        {
-            const button_rect = app_menu_button_rect;
-            const icon_area = Rectangle{
-                .x = button_rect.x + 1,
-                .y = button_rect.y + 1,
-                .width = button_rect.width - 2,
-                .height = button_rect.height - 2,
-            };
+    //         try renderer.fillRectangle(icon_area, self.config.app_menu.background);
+    //         try renderer.drawRectangle(button_rect, self.config.app_menu.outline);
 
-            try renderer.fillRectangle(icon_area, self.config.app_menu.background);
-            try renderer.drawRectangle(button_rect, self.config.app_menu.outline);
+    //         try self.drawIcon(icon_area, &icons.app_menu, Color.white);
+    //     }
 
-            try self.drawIcon(icon_area, &icons.app_menu, Color.white);
-        }
+    //     // draw menu
+    //     try renderer.fillRectangle(app_menu_rect, self.config.app_menu.background);
+    //     try renderer.drawRectangle(app_menu_rect, self.config.app_menu.outline);
 
-        // draw menu
-        try renderer.fillRectangle(app_menu_rect, self.config.app_menu.background);
-        try renderer.drawRectangle(app_menu_rect, self.config.app_menu.outline);
+    //     try renderer.drawLine(
+    //         app_menu_rect.x + margin + layout.cols * (margin + button_size),
+    //         app_menu_rect.y + 1,
+    //         app_menu_rect.x + margin + layout.cols * (margin + button_size),
+    //         app_menu_rect.y + app_menu_rect.height - 1,
+    //         self.config.app_menu.outline,
+    //     );
+    //     // draw menu connector
+    //     {
+    //         var i: u15 = 0;
+    //         while (i < self.config.workspace_bar.margins + 2) : (i += 1) {
+    //             switch (self.config.workspace_bar.location) {
+    //                 .left => {
+    //                     const x = app_menu_button_rect.x + app_menu_button_rect.width - 1 + i;
+    //                     try renderer.setPixel(x, app_menu_button_rect.y, self.config.app_menu.outline);
+    //                     try renderer.setPixel(x, app_menu_button_rect.y + app_menu_button_rect.height + i, self.config.app_menu.outline);
+    //                     try renderer.drawLine(
+    //                         x,
+    //                         app_menu_button_rect.y + 1,
+    //                         x,
+    //                         app_menu_button_rect.y + app_menu_button_rect.height - 1 + i,
+    //                         self.config.app_menu.background,
+    //                     );
+    //                 },
+    //                 .right => {
+    //                     const x = app_menu_button_rect.x - i;
+    //                     try renderer.setPixel(x, app_menu_button_rect.y, self.config.app_menu.outline);
+    //                     try renderer.setPixel(x, app_menu_button_rect.y + app_menu_button_rect.height + i, self.config.app_menu.outline);
+    //                     try renderer.drawLine(
+    //                         x,
+    //                         app_menu_button_rect.y + 1,
+    //                         x,
+    //                         app_menu_button_rect.y + app_menu_button_rect.height - 1 + i,
+    //                         self.config.app_menu.background,
+    //                     );
+    //                 },
+    //                 .top => {
+    //                     const y = app_menu_button_rect.y + app_menu_button_rect.height - 1 + i;
+    //                     try renderer.setPixel(app_menu_button_rect.x, y, self.config.app_menu.outline);
+    //                     try renderer.setPixel(app_menu_button_rect.x + app_menu_button_rect.width + i, y, self.config.app_menu.outline);
+    //                     try renderer.drawLine(
+    //                         app_menu_button_rect.x + 1,
+    //                         y,
+    //                         app_menu_button_rect.x + app_menu_button_rect.width - 1 + i,
+    //                         y,
+    //                         self.config.app_menu.background,
+    //                     );
+    //                 },
+    //                 .bottom => {
+    //                     const y = app_menu_button_rect.y - i;
+    //                     try renderer.setPixel(app_menu_button_rect.x, y, self.config.app_menu.outline);
+    //                     try renderer.setPixel(app_menu_button_rect.x + app_menu_button_rect.width + i, y, self.config.app_menu.outline);
+    //                     try renderer.drawLine(
+    //                         app_menu_button_rect.x + 1,
+    //                         y,
+    //                         app_menu_button_rect.x + app_menu_button_rect.width - 1 + i,
+    //                         y,
+    //                         self.config.app_menu.background,
+    //                     );
+    //                 },
+    //             }
+    //         }
+    //     }
 
-        try renderer.drawLine(
-            app_menu_rect.x + margin + layout.cols * (margin + button_size),
-            app_menu_rect.y + 1,
-            app_menu_rect.x + margin + layout.cols * (margin + button_size),
-            app_menu_rect.y + app_menu_rect.height - 1,
-            self.config.app_menu.outline,
-        );
-        // draw menu connector
-        {
-            var i: u15 = 0;
-            while (i < self.config.workspace_bar.margins + 2) : (i += 1) {
-                switch (self.config.workspace_bar.location) {
-                    .left => {
-                        const x = app_menu_button_rect.x + app_menu_button_rect.width - 1 + i;
-                        try renderer.setPixel(x, app_menu_button_rect.y, self.config.app_menu.outline);
-                        try renderer.setPixel(x, app_menu_button_rect.y + app_menu_button_rect.height + i, self.config.app_menu.outline);
-                        try renderer.drawLine(
-                            x,
-                            app_menu_button_rect.y + 1,
-                            x,
-                            app_menu_button_rect.y + app_menu_button_rect.height - 1 + i,
-                            self.config.app_menu.background,
-                        );
-                    },
-                    .right => {
-                        const x = app_menu_button_rect.x - i;
-                        try renderer.setPixel(x, app_menu_button_rect.y, self.config.app_menu.outline);
-                        try renderer.setPixel(x, app_menu_button_rect.y + app_menu_button_rect.height + i, self.config.app_menu.outline);
-                        try renderer.drawLine(
-                            x,
-                            app_menu_button_rect.y + 1,
-                            x,
-                            app_menu_button_rect.y + app_menu_button_rect.height - 1 + i,
-                            self.config.app_menu.background,
-                        );
-                    },
-                    .top => {
-                        const y = app_menu_button_rect.y + app_menu_button_rect.height - 1 + i;
-                        try renderer.setPixel(app_menu_button_rect.x, y, self.config.app_menu.outline);
-                        try renderer.setPixel(app_menu_button_rect.x + app_menu_button_rect.width + i, y, self.config.app_menu.outline);
-                        try renderer.drawLine(
-                            app_menu_button_rect.x + 1,
-                            y,
-                            app_menu_button_rect.x + app_menu_button_rect.width - 1 + i,
-                            y,
-                            self.config.app_menu.background,
-                        );
-                    },
-                    .bottom => {
-                        const y = app_menu_button_rect.y - i;
-                        try renderer.setPixel(app_menu_button_rect.x, y, self.config.app_menu.outline);
-                        try renderer.setPixel(app_menu_button_rect.x + app_menu_button_rect.width + i, y, self.config.app_menu.outline);
-                        try renderer.drawLine(
-                            app_menu_button_rect.x + 1,
-                            y,
-                            app_menu_button_rect.x + app_menu_button_rect.width - 1 + i,
-                            y,
-                            self.config.app_menu.background,
-                        );
-                    },
-                }
-            }
-        }
+    //     for (self.available_apps.items) |app, app_index| {
+    //         const rect = self.getAppButtonRectangle(app_index);
 
-        for (self.available_apps.items) |app, app_index| {
-            const rect = self.getAppButtonRectangle(app_index);
+    //         // Do not draw the dragged app in the menu
+    //         if (dragged_app_index != null and (dragged_app_index.? == app_index))
+    //             continue;
 
-            // Do not draw the dragged app in the menu
-            if (dragged_app_index != null and (dragged_app_index.? == app_index))
-                continue;
+    //         try self.renderButton(
+    //             rect,
+    //             app.button_state,
+    //             self.config.app_menu.button_theme,
+    //             app.application.display_name,
+    //             app.application.icon orelse icons.app_placeholder,
+    //             1.0,
+    //         );
+    //     }
+    // }
+    // if (dragged_app_index) |index| {
+    //     const app = self.available_apps.items[index];
+    //     const button_size = self.config.app_menu.button_size;
 
-            try self.renderButton(
-                rect,
-                app.button_state,
-                self.config.app_menu.button_theme,
-                app.application.display_name,
-                app.application.icon orelse icons.app_placeholder,
-                1.0,
-            );
-        }
-    }
-    if (dragged_app_index) |index| {
-        const app = self.available_apps.items[index];
-        const button_size = self.config.app_menu.button_size;
+    //     const rect = Rectangle{
+    //         .x = self.mouse_pos.x - button_size / 2,
+    //         .y = self.mouse_pos.y - button_size / 2,
+    //         .width = button_size,
+    //         .height = button_size,
+    //     };
+    //     try self.renderButton(
+    //         rect,
+    //         ButtonState.pressed,
+    //         self.config.app_menu.button_theme,
+    //         app.application.display_name,
+    //         app.application.icon orelse icons.app_placeholder,
+    //         0.5,
+    //     );
+    // }
 
-        const rect = Rectangle{
-            .x = self.mouse_pos.x - button_size / 2,
-            .y = self.mouse_pos.y - button_size / 2,
-            .width = button_size,
-            .height = button_size,
-        };
-        try self.renderButton(
-            rect,
-            ButtonState.pressed,
-            self.config.app_menu.button_theme,
-            app.application.display_name,
-            app.application.icon orelse icons.app_placeholder,
-            0.5,
-        );
-    }
+    // if (self.mouse_down_timestamp) |ts| {
+    //     if (self.mouse_down_pos) |mdp| {
+    //         if (!self.isDragDistanceReached(mdp)) {
+    //             const delta = std.math.clamp(std.time.nanoTimestamp() - ts, 0, long_click_period);
+    //             if (delta >= long_click_indicator_period) {
+    //                 const Helper = struct {
+    //                     const radius = 24;
+    //                     center: Point,
+
+    //                     fn getFromAngle(help: @This(), a: f32) Point {
+    //                         var dx = std.math.round(radius * std.math.sin(a));
+    //                         var dy = std.math.round(radius * std.math.cos(a));
+    //                         return Point{
+    //                             .x = help.center.x + @floatToInt(i16, dx),
+    //                             .y = help.center.y - @floatToInt(i16, dy),
+    //                         };
+    //                     }
+    //                 };
+
+    //                 const delta_f = @intToFloat(f32, delta) / @intToFloat(f32, long_click_period);
+
+    //                 const segment_count: usize = 36; // 10° max
+
+    //                 const helper = Helper{
+    //                     .center = mdp,
+    //                 };
+
+    //                 var last = helper.getFromAngle(0);
+
+    //                 var i: usize = 1;
+    //                 while (i <= segment_count) : (i += 1) {
+    //                     const current = helper.getFromAngle(delta_f * 2.0 * std.math.pi * @intToFloat(f32, i) / @intToFloat(f32, segment_count));
+
+    //                     try renderer.drawLine(
+    //                         last.x,
+    //                         last.y,
+    //                         current.x,
+    //                         current.y,
+    //                         Color.red,
+    //                     );
+
+    //                     last = current;
+    //                 }
+
+    //                 std.log.info("{d}", .{delta_f});
+    //             }
+    //         }
+    //     }
+    // }
+
+    try self.ui.render();
 }
 
 fn drawIcon(self: *Self, target: Rectangle, icon: []const u8, tint: Color) !void {
@@ -1029,6 +1643,7 @@ const ButtonState = struct {
 
     hovered: bool = false,
     clicked: bool = false,
+    enabled: bool = true,
 
     visual_highlight: f32 = 0.0,
     visual_pressed: f32 = 0.0,
@@ -1053,185 +1668,78 @@ fn alphaBlend(c: u8, f: f32) u8 {
     return @floatToInt(u8, f * @intToFloat(f32, c));
 }
 
-fn renderButton(
-    self: *Self,
-    rectangle: Rectangle,
-    state: ButtonState,
-    theme: ButtonTheme,
-    text: ?[]const u8,
-    icon: ?[]const u8,
-    alpha: f32,
-) !void {
-    const interp_hover = smoothstep(state.visual_highlight, 0.0, 1.0);
-    var back_color = lerpColor(theme.default.background, theme.hovered.background, interp_hover);
-    var outline_color = lerpColor(theme.default.outline, theme.hovered.outline, interp_hover);
+// fn renderButton(
+//     self: *Self,
+//     rectangle: Rectangle,
+//     state: ButtonState,
+//     theme: ButtonTheme,
+//     text: ?[]const u8,
+//     icon: ?[]const u8,
+//     alpha: f32,
+// ) !void {
+//     const interp_hover = smoothstep(state.visual_highlight, 0.0, 1.0);
+//     var back_color = lerpColor(theme.default.background, theme.hovered.background, interp_hover);
+//     var outline_color = lerpColor(theme.default.outline, theme.hovered.outline, interp_hover);
 
-    if (state.visual_pressed > 0.0) {
-        const interp_click = smoothstep(state.visual_pressed, 0.0, 1.0);
-        back_color = lerpColor(back_color, theme.clicked.background, interp_click);
-        outline_color = lerpColor(outline_color, theme.clicked.outline, interp_click);
-    }
+//     if (state.visual_pressed > 0.0) {
+//         const interp_click = smoothstep(state.visual_pressed, 0.0, 1.0);
+//         back_color = lerpColor(back_color, theme.clicked.background, interp_click);
+//         outline_color = lerpColor(outline_color, theme.clicked.outline, interp_click);
+//     }
 
-    back_color.a = alphaBlend(back_color.a, alpha);
-    outline_color.a = alphaBlend(back_color.a, alpha);
+//     if (!state.enabled) {
+//         back_color = theme.disabled.background;
+//         outline_color = theme.disabled.outline;
+//     }
 
-    try self.renderer.fillRectangle(rectangle, back_color);
-    try self.renderer.drawRectangle(rectangle, outline_color);
+//     back_color.a = alphaBlend(back_color.a, alpha);
+//     outline_color.a = alphaBlend(back_color.a, alpha);
 
-    const icon_size = std.math.min(rectangle.width - 2, theme.icon_size);
+//     try self.renderer.fillRectangle(rectangle, back_color);
+//     try self.renderer.drawRectangle(rectangle, outline_color);
 
-    if (icon) |icon_source| {
-        if (icon_size > 0) {
-            var temp_buffer: [4096]u8 = undefined;
-            var temp_allocator = std.heap.FixedBufferAllocator.init(&temp_buffer);
+//     const icon_size = std.math.min(rectangle.width - 2, theme.icon_size);
 
-            try self.drawIcon(
-                Rectangle{
-                    .x = rectangle.x + (rectangle.width - icon_size) / 2,
-                    .y = rectangle.y + (rectangle.height - icon_size) / 2,
-                    .width = icon_size,
-                    .height = icon_size,
-                },
-                icon_source,
-                Color{ .r = 0xFF, .g = 0xFF, .b = 0xFF, .a = @floatToInt(u8, 255.0 * alpha) },
-            );
-        }
-    }
+//     if (icon) |icon_source| {
+//         if (icon_size > 0) {
+//             try self.drawIcon(
+//                 Rectangle{
+//                     .x = rectangle.x + (rectangle.width - icon_size) / 2,
+//                     .y = rectangle.y + (rectangle.height - icon_size) / 2,
+//                     .width = icon_size,
+//                     .height = icon_size,
+//                 },
+//                 icon_source,
+//                 Color{ .r = 0xFF, .g = 0xFF, .b = 0xFF, .a = @floatToInt(u8, 255.0 * alpha) },
+//             );
+//         }
+//     }
 
-    if (text) |label| {
-        if (label.len > 0) {
-            const top = ((rectangle.height + icon_size) / 2 + rectangle.height) / 2;
+//     if (text) |label| {
+//         if (label.len > 0) {
+//             const top = ((rectangle.height + icon_size) / 2 + rectangle.height) / 2;
 
-            // Debug painter: draw the middle line of the button label
-            // framebuffer.drawLine(
-            //     rectangle.x,
-            //     rectangle.y + top,
-            //     rectangle.x + rectangle.width,
-            //     rectangle.y + top,
-            //     Color{ .r = 0xFF, .g = 0x00, .b = 0xFF },
-            // );
+//             // Debug painter: draw the middle line of the button label
+//             // framebuffer.drawLine(
+//             //     rectangle.x,
+//             //     rectangle.y + top,
+//             //     rectangle.x + rectangle.width,
+//             //     rectangle.y + top,
+//             //     Color{ .r = 0xFF, .g = 0x00, .b = 0xFF },
+//             // );
 
-            const size = self.renderer.measureString(self.app_button_font, label);
+//             const size = self.renderer.measureString(self.app_button_font, label);
 
-            try self.renderer.drawString(
-                self.app_button_font,
-                label,
-                rectangle.x + (rectangle.width - size.width) / 2,
-                rectangle.y + @intCast(u15, top - self.app_button_font.font_size / 2),
-                .{ .r = 0xFF, .g = 0xFF, .b = 0xFF }, // TODO: Introduce proper config here
-            );
-        }
-    }
-}
-
-fn renderWorkspace(self: *Self, area: Rectangle, workspace: Workspace, hovered_rectangle: *?Rectangle) RenderError!void {
-    try self.renderTreeNode(area, workspace.window_tree.root, hovered_rectangle);
-}
-
-fn renderTreeNode(self: *Self, area: Rectangle, node: WindowTree.Node, hovered_rectangle: *?Rectangle) RenderError!void {
-    if (area.contains(self.mouse_pos) and (node == .empty or node == .starting or node == .connected))
-        hovered_rectangle.* = area;
-    switch (node) {
-        .empty => {
-            try self.renderer.drawRectangle(area, HomeScreenConfig.rgb("363c42"));
-            //canvas.fillRectangle(area.x + 1, area.y + 1, area.width - 2, area.height - 2, Color{ .r = 0x80, .g = 0x00, .b = 0x00 });
-        },
-        .starting => |app| {
-            const icon_size = std.math.min(area.width - 2, self.config.workspace.app_icon_size);
-            if (icon_size > 0) {
-                var temp_buffer: [4096]u8 = undefined;
-                var temp_allocator = std.heap.FixedBufferAllocator.init(&temp_buffer);
-
-                try self.drawIcon(
-                    Rectangle{
-                        .x = area.x + (area.width - icon_size) / 2,
-                        .y = area.y + (area.height - icon_size) / 2,
-                        .width = icon_size,
-                        .height = icon_size,
-                    },
-                    app.application.description.icon orelse icons.app_placeholder,
-                    Color.white,
-                );
-            }
-
-            const display_name = app.application.description.display_name;
-            if (display_name.len > 0) {
-                const size = self.renderer.measureString(self.app_title_font, display_name);
-                try self.renderer.drawString(
-                    self.app_title_font,
-                    display_name,
-                    area.x + (area.width - size.width) / 2,
-                    area.y + (area.height - icon_size) / 2 - self.app_title_font.font_size,
-                    .{ .r = 0xFF, .g = 0xFF, .b = 0xFF }, // TODO: Replace by theme config
-                );
-            }
-
-            const startup_message = app.application.status.starting; // this is safe as the status might only be changed in the update fn
-            if (startup_message.len > 0) {
-                const size = self.renderer.measureString(self.app_status_font, startup_message);
-                try self.renderer.drawString(
-                    self.app_status_font,
-                    startup_message,
-                    area.x + (area.width - size.width) / 2,
-                    area.y + (area.height + icon_size) / 2,
-                    .{ .r = 0xFF, .g = 0xFF, .b = 0xFF }, // TODO: Replace by theme config
-                );
-            }
-        },
-        .connected => |app| {
-            app.application.render(area, self.renderer) catch |err| log.err("failed to render application '{s}': {s}", .{
-                app.application.description.display_name,
-                @errorName(err),
-            });
-        },
-        .exited => |app| {
-            const exit_message = app.application.status.exited; // this is safe as the status might only be changed in the update fn
-            if (exit_message.len > 0) {
-                const size = self.renderer.measureString(self.app_status_font, exit_message);
-                try self.renderer.drawString(
-                    self.app_status_font,
-                    exit_message,
-                    area.x + (area.width - size.width) / 2,
-                    area.y + area.height / 2,
-                    .{ .r = 0xFF, .g = 0x00, .b = 0x00 }, // TODO: Replace by theme config
-                );
-            }
-        },
-        .group => |group| {
-            // if we have 1 or less children, the tree would be denormalized.
-            // we assume we have a normalized tree at this point.
-            std.debug.assert(group.children.len >= 2);
-            switch (group.split) {
-                .vertical => {
-                    const item_height = area.height / group.children.len;
-                    for (group.children) |item, i| {
-                        const h = if (i == group.children.len - 1)
-                            item_height
-                        else
-                            (area.height - item_height * (group.children.len - 1));
-                        var child_area = area;
-                        child_area.y += @intCast(u15, item_height * i);
-                        child_area.height = @intCast(u15, h);
-                        try self.renderTreeNode(child_area, item, hovered_rectangle);
-                    }
-                },
-                .horizontal => {
-                    const item_width = area.width / group.children.len;
-                    for (group.children) |item, i| {
-                        const w = if (i == group.children.len - 1)
-                            item_width
-                        else
-                            (area.width - item_width * (group.children.len - 1));
-                        var child_area = area;
-                        child_area.x += @intCast(u15, item_width * i);
-                        child_area.width = @intCast(u15, w);
-                        try self.renderTreeNode(child_area, item, hovered_rectangle);
-                    }
-                },
-            }
-        },
-    }
-}
+//             try self.renderer.drawString(
+//                 self.app_button_font,
+//                 label,
+//                 rectangle.x + (rectangle.width - size.width) / 2,
+//                 rectangle.y + @intCast(u15, top - self.app_button_font.font_size / 2),
+//                 .{ .r = 0xFF, .g = 0xFF, .b = 0xFF }, // TODO: Introduce proper config here
+//             );
+//         }
+//     }
+// }
 
 fn getBarRectangle(self: Self) Rectangle {
     const bar_width = self.config.workspace_bar.getWidth();

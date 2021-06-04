@@ -64,9 +64,17 @@ const pkgs = struct {
         .path = "./lib/wazm/src/main.zig",
     };
 
+    const zigimg = std.build.Pkg{
+        .name = "zigimg",
+        .path = "./lib/zero-graphics/vendor/zigimg/zigimg.zig",
+    };
+
     const zerog = std.build.Pkg{
         .name = "zero-graphics",
         .path = "./lib/zero-graphics/src/zero-graphics.zig",
+        .dependencies = &[_]std.build.Pkg{
+            zigimg,
+        },
     };
 };
 

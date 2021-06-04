@@ -20,6 +20,8 @@ const ApplicationInstance = @import("gui/ApplicationInstance.zig");
 
 pub usingnamespace zero_graphics.EntryPoint(.desktop_sdl2);
 
+pub const zerog_enable_window_mode = (std.builtin.mode == .Debug) and (std.builtin.cpu.arch == .x86_64);
+
 pub const Application = struct {
     allocator: *std.mem.Allocator,
     input: *zero_graphics.Input,
@@ -86,6 +88,7 @@ pub const Application = struct {
     pub fn update(app: *Application) !bool {
         defer app.renderer.reset();
 
+        try app.home_screen.beginInput();
         while (app.input.pollEvent()) |event| {
             switch (event) {
                 .quit => return false,
@@ -95,6 +98,7 @@ pub const Application = struct {
                 else => logger.info("unhandled event: {}", .{event}),
             }
         }
+        try app.home_screen.endInput();
 
         try app.app_discovery.update();
 
@@ -175,6 +179,7 @@ const DemoApp = struct {
     timer: i64,
     msg_buf: [64]u8,
     render_time: f32 = 0.0,
+    exit_request: bool = false,
 
     pub fn update(instance: *ApplicationInstance, dt: f32) !void {
         const self = @fieldParentPtr(DemoApp, "instance", instance);
@@ -185,6 +190,15 @@ const DemoApp = struct {
     pub fn resize(instance: *ApplicationInstance, size: Size) !void {
         const self = @fieldParentPtr(DemoApp, "instance", instance);
         @panic("DemoApp.resize not implemented yet!");
+    }
+
+    pub fn processUserInterface(instance: *ApplicationInstance, rectangle: zero_graphics.Rectangle, builder: zero_graphics.UserInterface.Builder) !void {
+        const self = @fieldParentPtr(DemoApp, "instance", instance);
+
+        const clicked = try builder.button(zero_graphics.Rectangle{ .x = rectangle.x + 10, .y = rectangle.y + 10, .width = 120, .height = 32 }, "Exit", null, .{});
+        if (clicked) {
+            self.exit_request = true;
+        }
     }
 
     pub fn render(instance: *ApplicationInstance, rectangle: zero_graphics.Rectangle, painter: *zero_graphics.Renderer2D) !void {
@@ -223,29 +237,6 @@ const DemoApp = struct {
             );
             prev = pt;
         }
-
-        // TODO: Reimplement this as a custom shader effect
-        // var y: u15 = 0;
-        // while (y < target.height) : (y += 1) {
-        //     var x: u15 = 0;
-        //     while (x < target.width) : (x += 1) {
-        //         const fx = @intToFloat(f32, x) / 100.0;
-        //         const fy = @intToFloat(f32, y) / 100.0;
-
-        //         const t = @sin(0.3 * self.render_time + fx + 1.3 * fy + -0.3) -
-        //             0.7 * @sin(0.6 * self.render_time - 0.4 * fx + 0.3 * fy + 0.5) +
-        //             0.6 * @sin(1.1 * self.render_time + 0.1 * fx - 0.2 * fy + 0.8) -
-        //             0.5 * @sin(1.9 * self.render_time - 0.3 * fx + 0.2 * fy + 1.4) +
-        //             0.3 * @sin(2.3 * self.render_time + 0.2 * fx - 0.1 * fy + 2.4);
-
-        //         target.set(x, y, .{
-        //             // assume pi=3
-        //             .r = @floatToInt(u8, 128.0 + 127.0 * @sin(2.5 * t + 0.0)),
-        //             .g = @floatToInt(u8, 128.0 + 127.0 * @sin(2.5 * t + 1.0)),
-        //             .b = @floatToInt(u8, 128.0 + 127.0 * @sin(2.5 * t + 2.0)),
-        //         });
-        //     }
-        // }
     }
 
     pub fn deinit(instance: *ApplicationInstance) void {
@@ -260,6 +251,8 @@ const DemoApp = struct {
 
         if (self.render_time > shutdown_time) {
             self.instance.status = .{ .exited = "Timed exit" };
+        } else if (self.exit_request) {
+            self.instance.status = .{ .exited = "User requested exit" };
         } else {
             const time = std.time.milliTimestamp();
 
