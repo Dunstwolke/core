@@ -1,5 +1,12 @@
 # TODO
 
+
+- geschlossene app kann nicht erneut geschlossen werden
+- Kollabieren von geschlossenen Anwendungen
+
+
+
+
 ## dunstblick-app
 
 - [ ] Also free the current_event thingy if any. This would dangle if the application would be closed.

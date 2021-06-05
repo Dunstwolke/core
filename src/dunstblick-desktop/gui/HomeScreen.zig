@@ -474,6 +474,12 @@ const IconCache = struct {
     }
 };
 
+const ContextMenu = union(enum) {
+    none,
+    app_instance: *AppInstance,
+    app_info: *AppReference,
+};
+
 /// Time period after which a normal click is recognized as a long-click.
 const long_click_period = 1000 * std.time.ns_per_ms;
 
@@ -512,6 +518,8 @@ app_status_font: *const Renderer2D.Font,
 app_button_font: *const Renderer2D.Font,
 
 icon_cache: IconCache,
+
+context_menu: ContextMenu = .none,
 
 pub fn init(allocator: *std.mem.Allocator, renderer: *Renderer2D) !Self {
     var self = Self{
@@ -569,7 +577,7 @@ pub fn init(allocator: *std.mem.Allocator, renderer: *Renderer2D) !Self {
 pub fn deinit(self: *Self) void {
     for (self.menu_items.items) |*item| {
         switch (item.*) {
-            .button => |*b| b.deinit(),
+            .button => |*b| b.deinit(self),
             else => {},
         }
     }
@@ -702,9 +710,9 @@ pub fn mouseUp(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
     self.mouse_down_pos = null;
 
     self.input_processor.?.pointerUp(if (long_click or mouse_button == .secondary)
-        UserInterface.InputProcessor.MouseButton.secondary
+        UserInterface.Pointer.secondary
     else
-        UserInterface.InputProcessor.MouseButton.primary);
+        UserInterface.Pointer.primary);
 
     switch (self.mode) {
         .default, .button_press, .app_menu, .app_press => {
@@ -775,7 +783,7 @@ pub fn mouseUp(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
                         },
                     };
 
-                    try workspace.window_tree.insertLeaf(target_location, node);
+                    try workspace.window_tree.insertLeaf(target_location, node, self);
                 }
             } else {
                 logger.info("cancel spawn of app[{d}] '{s}'", .{ app_index, app.application.display_name });
@@ -863,29 +871,8 @@ pub fn update(self: *Self, dt: f32) !void {
             while (leaf_iterator.next()) |leaf| {
                 // logger.info("  available node: {}", .{leaf});
                 switch (leaf.*) {
-                    .starting => |*app| {
-                        try app.application.update(dt);
-                        if (app.application.status == .running) {
-                            // workaround for re-tagging with RLS
-                            var app_copy = app.*;
-                            leaf.* = .{ .connected = app_copy };
-                        } else if (app.application.status == .exited) {
-                            // workaround for re-tagging with RLS
-                            var app_copy = app.*;
-                            leaf.* = .{ .exited = app_copy };
-                        }
-                    },
-                    .connected => |*app| {
-                        try app.application.update(dt);
-                        if (app.application.status == .exited) {
-                            // workaround for re-tagging with RLS
-                            var app_copy = app.*;
-                            leaf.* = .{ .exited = app_copy };
-                        }
-                    },
-                    .exited => {
-                        // the exited application isn't updated anymore
-                        // as there is nothing to do here
+                    .starting, .connected, .exited => {
+                        try updateAppInstance(leaf, dt);
                     },
                     .empty, .group => {
                         // those have no update logic, but .group might be animated in the future which would go here
@@ -1004,6 +991,7 @@ pub fn update(self: *Self, dt: f32) !void {
                 .none => {},
                 .clicked => logger.info("app button was clicked!", .{}),
                 .dragged => self.mode = .{ .app_drag_menu = idx },
+                .context_menu_requested => self.context_menu = .{ .app_info = app },
             }
         }
     }
@@ -1022,30 +1010,53 @@ pub fn update(self: *Self, dt: f32) !void {
         _ = try self.appButton(builder, button_rect, app, true);
     }
 
-    // // Update context menu
-    // const ContextMenu = struct {
-    //     var open: bool = false;
-    // };
+    switch (self.context_menu) {
+        .none => {},
 
-    // if (try builder.button(Rectangle{ .x = 100, .y = 100, .width = 80, .height = 32 }, "Context Menu", null, .{}))
-    //     ContextMenu.open = true;
+        .app_info => |info| {
+            const items = [_]MouseMode.ContextMenuItem{
+                .{ .title = "Remove", .enabled = (info.application.state == .gone) },
+                // .{ .title = "Move to workspace", .enabled = false },
+                // .{ .title = "Move to own workspace" },
+            };
 
-    // if (ContextMenu.open) {
-    //     const items = [_]MouseMode.ContextMenuItem{
-    //         .{ .title = "Move to workspace", .enabled = false },
-    //         .{ .title = "Move to own workspace" },
-    //         .{ .title = "Close application" },
-    //     };
+            const result = try self.doContextMenu(builder, info.application.display_name, &items);
+            switch (result) {
+                .none => {},
+                .clicked => |index| switch (index) {
+                    0 => if (info.application.destroy()) |_| {
+                        self.context_menu = .none;
+                    } else |err| {
+                        logger.err("Could not destroy application: {}", .{err});
+                    },
+                    else => unreachable,
+                },
+                .closed => self.context_menu = .none,
+            }
+        },
 
-    //     const result = try self.doContextMenu(builder, "Dummy Application", &items);
-    //     switch (result) {
-    //         .none => {},
-    //         .clicked => |index| {
-    //             logger.info("clicked on menu item {}: {s}", .{ index, items[index].title });
-    //         },
-    //         .closed => ContextMenu.open = false,
-    //     }
-    // }
+        .app_instance => |instance| {
+            const items = [_]MouseMode.ContextMenuItem{
+                .{ .title = "Move to workspace...", .enabled = false },
+                .{ .title = "Close application" },
+            };
+
+            const result = try self.doContextMenu(builder, instance.application.description.display_name, &items);
+            switch (result) {
+                .none => {},
+                .clicked => |index| switch (index) {
+                    0 => logger.err("\"move to workspace\" not implemented yet", .{}),
+                    1 => {
+                        instance.application.close();
+                        self.context_menu = .none;
+                    },
+
+                    else => unreachable,
+                },
+                .closed => self.context_menu = .none,
+            }
+        },
+    }
 
     // Check if we dragged the icon out of the app menu
     if (self.mode == .app_drag_menu) {
@@ -1112,10 +1123,47 @@ fn updateWorkspace(self: *Self, builder: UserInterface.Builder, area: Rectangle,
     try self.updateTreeNode(builder, area, &workspace.window_tree.root, hovered_rectangle);
 }
 
-fn renderStartingAppNode(custom: UserInterface.CustomWidget, area: Rectangle, renderer: *Renderer2D, info: UserInterface.CustomWidget.DrawInfo) Renderer2D.DrawError!void {
+fn processAppNodeEvent(custom: UserInterface.CustomWidget, event: UserInterface.CustomWidget.Event) ?usize {
     const self = @ptrCast(*Self, @alignCast(@alignOf(Self), custom.config.context orelse unreachable));
-    const application = @ptrCast(*ApplicationInstance, @alignCast(@alignOf(ApplicationInstance), custom.user_data orelse unreachable));
+    const app = @ptrCast(*AppInstance, @alignCast(@alignOf(AppInstance), custom.user_data orelse unreachable));
 
+    switch (event) {
+        .pointer_enter => {},
+        .pointer_leave => {
+            app.mouse_press_location = null;
+        },
+        .pointer_press => |data| {
+            app.mouse_press_location = data;
+        },
+        .pointer_release => |data| {
+            if (app.mouse_press_location) |loc| {
+                app.mouse_press_location = null;
+                if (!self.isDragDistanceReached(loc)) {
+                    if (data.pointer == .secondary) {
+                        self.context_menu = .{ .app_instance = app };
+                        return 0;
+                    }
+                }
+            }
+        },
+        .pointer_motion => |data| {},
+    }
+
+    return null;
+}
+
+fn renderAppNode(custom: UserInterface.CustomWidget, area: Rectangle, renderer: *Renderer2D, info: UserInterface.CustomWidget.DrawInfo) Renderer2D.DrawError!void {
+    const self = @ptrCast(*Self, @alignCast(@alignOf(Self), custom.config.context orelse unreachable));
+    const app = @ptrCast(*AppInstance, @alignCast(@alignOf(AppInstance), custom.user_data orelse unreachable));
+
+    switch (app.application.status) {
+        .starting => try self.renderStartingAppNode(app, area, renderer),
+        .running => try self.renderRunningAppNode(app, area, renderer),
+        .exited => try self.renderExitedAppNode(app, area, renderer),
+    }
+}
+
+fn renderStartingAppNode(self: *Self, app: *AppInstance, area: Rectangle, renderer: *Renderer2D) Renderer2D.DrawError!void {
     const icon_size = std.math.min(area.width - 2, self.config.workspace.app_icon_size);
     if (icon_size > 0) {
         try self.drawIcon(
@@ -1125,12 +1173,12 @@ fn renderStartingAppNode(custom: UserInterface.CustomWidget, area: Rectangle, re
                 .width = icon_size,
                 .height = icon_size,
             },
-            application.description.icon orelse icons.app_placeholder,
+            app.application.description.icon orelse icons.app_placeholder,
             Color.white,
         );
     }
 
-    const display_name = application.description.display_name;
+    const display_name = app.application.description.display_name;
     if (display_name.len > 0) {
         const size = self.renderer.measureString(self.app_title_font, display_name);
         try self.renderer.drawString(
@@ -1142,7 +1190,7 @@ fn renderStartingAppNode(custom: UserInterface.CustomWidget, area: Rectangle, re
         );
     }
 
-    const startup_message = application.status.starting; // this is safe as the status might only be changed in the update fn
+    const startup_message = app.application.status.starting; // this is safe as the status might only be changed in the update fn
     if (startup_message.len > 0) {
         const size = self.renderer.measureString(self.app_status_font, startup_message);
         try self.renderer.drawString(
@@ -1155,21 +1203,15 @@ fn renderStartingAppNode(custom: UserInterface.CustomWidget, area: Rectangle, re
     }
 }
 
-fn renderRunningAppNode(custom: UserInterface.CustomWidget, area: Rectangle, renderer: *Renderer2D, info: UserInterface.CustomWidget.DrawInfo) Renderer2D.DrawError!void {
-    const self = @ptrCast(*Self, @alignCast(@alignOf(Self), custom.config.context orelse unreachable));
-    const application = @ptrCast(*ApplicationInstance, @alignCast(@alignOf(ApplicationInstance), custom.user_data orelse unreachable));
-
-    application.render(area, self.renderer) catch |err| logger.err("failed to render application '{s}': {s}", .{
-        application.description.display_name,
+fn renderRunningAppNode(self: *Self, app: *AppInstance, area: Rectangle, renderer: *Renderer2D) Renderer2D.DrawError!void {
+    app.application.render(area, self.renderer) catch |err| logger.err("failed to render application '{s}': {s}", .{
+        app.application.description.display_name,
         @errorName(err),
     });
 }
 
-fn renderExitedAppNode(custom: UserInterface.CustomWidget, area: Rectangle, renderer: *Renderer2D, info: UserInterface.CustomWidget.DrawInfo) Renderer2D.DrawError!void {
-    const self = @ptrCast(*Self, @alignCast(@alignOf(Self), custom.config.context orelse unreachable));
-    const application = @ptrCast(*ApplicationInstance, @alignCast(@alignOf(ApplicationInstance), custom.user_data orelse unreachable));
-
-    const exit_message = application.status.exited; // this is safe as the status might only be changed in the update fn
+fn renderExitedAppNode(self: *Self, app: *AppInstance, area: Rectangle, renderer: *Renderer2D) Renderer2D.DrawError!void {
+    const exit_message = app.application.status.exited; // this is safe as the status might only be changed in the update fn
     if (exit_message.len > 0) {
         const size = self.renderer.measureString(self.app_status_font, exit_message);
         try self.renderer.drawString(
@@ -1200,28 +1242,16 @@ fn updateTreeNode(self: *Self, builder: UserInterface.Builder, area: Rectangle, 
 
     switch (node.*) {
         .empty => {},
-        .starting => |app| {
-            _ = try builder.custom(area.shrink(1), app.application, .{
+        .starting, .connected, .exited => |*app| {
+            _ = try builder.custom(area.shrink(1), app, .{
                 .id = node,
-                .draw = renderStartingAppNode,
+                .draw = renderAppNode,
                 .context = self,
+                .process_event = processAppNodeEvent,
             });
-        },
-        .connected => |app| {
-            _ = try builder.custom(area.shrink(1), app.application, .{
-                .id = node,
-                .draw = renderRunningAppNode,
-                .context = self,
-            });
-
-            try app.application.processUserInterface(area, builder);
-        },
-        .exited => |app| {
-            _ = try builder.custom(area.shrink(1), app.application, .{
-                .id = node,
-                .draw = renderExitedAppNode,
-                .context = self,
-            });
+            if (node.* == .connected) {
+                try app.application.processUserInterface(area.shrink(1), builder);
+            }
         },
         .group => |*group| {
             // if we have 1 or less children, the tree would be denormalized.
@@ -1408,6 +1438,7 @@ const AppButtonResult = enum(usize) {
     none = 0,
     clicked = 1,
     dragged = 2,
+    context_menu_requested = 3,
 };
 
 /// A startable application available in the app menu.
@@ -1460,7 +1491,11 @@ fn processApplicationButtonWidgetEvent(custom: UserInterface.CustomWidget, event
             if (app.mouse_press_location) |loc| {
                 app.mouse_press_location = null;
                 if (!self.isDragDistanceReached(loc)) {
-                    return @enumToInt(AppButtonResult.clicked);
+                    if (data.pointer == .primary) {
+                        return @enumToInt(AppButtonResult.clicked);
+                    } else {
+                        return @enumToInt(AppButtonResult.context_menu_requested);
+                    }
                 }
             }
         },
@@ -1708,9 +1743,9 @@ const Button = struct {
 
     data: Data,
 
-    fn deinit(self: *Button) void {
+    fn deinit(self: *Button, screen: *Self) void {
         switch (self.data) {
-            .workspace => |*ws| ws.deinit(),
+            .workspace => |*ws| ws.deinit(screen),
             else => {},
         }
         self.* = undefined;
@@ -1731,20 +1766,67 @@ const Workspace = struct {
         };
     }
 
-    fn deinit(self: *Workspace) void {
-        self.window_tree.deinit();
+    fn deinit(self: *Workspace, screen: *Self) void {
+        self.window_tree.deinit(screen);
         self.* = undefined;
     }
 };
+
+fn performAppTransition(leaf: *WindowTree.Node) !void {
+    switch (leaf.*) {
+        .starting => |*app| {
+            if (app.application.status == .running) {
+                // workaround for re-tagging with RLS
+                var app_copy = app.*;
+                leaf.* = .{ .connected = app_copy };
+            } else if (app.application.status == .exited) {
+                // workaround for re-tagging with RLS
+                var app_copy = app.*;
+                leaf.* = .{ .exited = app_copy };
+            }
+        },
+        .connected => |*app| {
+            std.debug.assert(app.application.status == .running or app.application.status == .exited);
+            if (app.application.status == .exited) {
+                // workaround for re-tagging with RLS
+                var app_copy = app.*;
+                leaf.* = .{ .exited = app_copy };
+            }
+        },
+        .exited => |*app| {
+            std.debug.assert(app.application.status == .exited);
+            // the exited application isn't updated anymore
+            // as there is nothing to do here
+        },
+        else => unreachable,
+    }
+}
+
+fn updateAppInstance(node: *WindowTree.Node, dt: f32) !void {
+    try performAppTransition(node);
+    switch (node.*) {
+        .starting, .connected => |*app| {
+            try app.application.update(dt);
+        },
+        .exited => {
+            // the exited application isn't updated anymore
+            // as there is nothing to do here
+        },
+        else => unreachable,
+    }
+    try performAppTransition(node);
+}
 
 /// A abstract application on the desktop.
 /// This might be backed by any application/window provider.
 const AppInstance = struct {
     application: *ApplicationInstance,
 
-    // TODO: Add other runtime data here
+    mouse_press_location: ?Point = null,
 
-    pub fn deinit(self: *AppInstance) void {
+    pub fn deinit(self: *AppInstance, screen: *Self) void {
+        if (screen.context_menu == .app_instance and screen.context_menu.app_instance == self)
+            screen.context_menu = .none;
         self.application.deinit();
         self.* = undefined;
     }
@@ -1860,8 +1942,8 @@ const WindowTree = struct {
     allocator: *std.mem.Allocator,
     root: Node,
 
-    pub fn deinit(self: *WindowTree) void {
-        self.destroyNode(&self.root);
+    pub fn deinit(self: *WindowTree, screen: *Self) void {
+        self.destroyNode(&self.root, screen);
         self.* = undefined;
     }
 
@@ -1873,16 +1955,16 @@ const WindowTree = struct {
         self.allocator.destroy(node);
     }
 
-    pub fn destroyNode(self: WindowTree, node: *Node) void {
+    pub fn destroyNode(self: WindowTree, node: *Node, screen: *Self) void {
         switch (node.*) {
             .empty => {},
             .group => |group| {
                 for (group.children) |*child| {
-                    self.destroyNode(child);
+                    self.destroyNode(child, screen);
                 }
                 self.allocator.free(group.children);
             },
-            .starting, .connected, .exited => |*app| app.deinit(),
+            .starting, .connected, .exited => |*app| app.deinit(screen),
         }
         node.* = undefined;
     }
@@ -2111,7 +2193,7 @@ const WindowTree = struct {
 
     /// Inserts a new leaf in the tree at the given location. The node will be copied into the tree and the
     /// original variant might not be used anymore. 
-    pub fn insertLeaf(self: *WindowTree, location: NodeInsertLocation, node: Node) !void {
+    pub fn insertLeaf(self: *WindowTree, location: NodeInsertLocation, node: Node, screen: *Self) !void {
         var target_node = &self.root;
         for (location.path[0..location.path_len]) |child_index| {
             target_node = &target_node.group.children[child_index];
@@ -2162,7 +2244,7 @@ const WindowTree = struct {
             },
             .replace => {
                 std.debug.assert(target_node.* == .empty or target_node.* == .exited);
-                self.destroyNode(target_node);
+                self.destroyNode(target_node, screen);
                 target_node.* = node;
             },
         }

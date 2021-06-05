@@ -13,6 +13,7 @@ pub const Interface = struct {
     processUserInterface: ?fn (*Self, zerog.Rectangle, zerog.UserInterface.Builder) zerog.UserInterface.Builder.Error!void,
     resize: fn (*Self, size: Size) GenericError!void,
     render: fn (*Self, zerog.Rectangle, *zerog.Renderer2D) GenericError!void,
+    close: fn (*Self) void,
     deinit: fn (*Self) void,
 
     pub fn get(comptime T: type) *const @This() {
@@ -22,6 +23,7 @@ pub const Interface = struct {
                 .resize = T.resize,
                 .render = T.render,
                 .deinit = T.deinit,
+                .close = T.close,
                 .processUserInterface = if (@hasDecl(T, "processUserInterface")) T.processUserInterface else null,
             };
         }.vtable;
@@ -66,6 +68,14 @@ pub fn processUserInterface(self: *Self, rectangle: zerog.Rectangle, builder: ze
     }
 }
 
+/// Requests the proper shutdown of the application and a transition to state `.exited`.
+/// Use this when the application should be closed.
+pub fn close(self: *Self) void {
+    std.debug.assert(self.status == .starting or self.status == .running);
+    self.vtable.close(self);
+}
+
+/// Frees all resources of this instance.
 pub fn deinit(self: *Self) void {
     self.vtable.deinit(self);
 }

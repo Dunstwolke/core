@@ -181,6 +181,7 @@ const DemoApp = struct {
     render_time: f32 = 0.0,
     exit_request: bool = false,
     afterglow: u32 = 0,
+    delta_t: u32 = 5, // 0.05
 
     pub fn update(instance: *ApplicationInstance, dt: f32) !void {
         const self = @fieldParentPtr(DemoApp, "instance", instance);
@@ -198,9 +199,9 @@ const DemoApp = struct {
         var buf: [64]u8 = undefined;
 
         const exit_button_rect = zero_graphics.Rectangle{ .x = rectangle.x + 10, .y = rectangle.y + 10, .width = 120, .height = 32 };
-        const minus_button_rect = zero_graphics.Rectangle{ .x = rectangle.x + 10, .y = rectangle.y + 50, .width = 32, .height = 32 };
-        const afterglow_cnt_rect = zero_graphics.Rectangle{ .x = rectangle.x + 10, .y = rectangle.y + 50, .width = 120, .height = 32 };
-        const plus_button_rect = zero_graphics.Rectangle{ .x = rectangle.x + 98, .y = rectangle.y + 50, .width = 32, .height = 32 };
+        var minus_button_rect = zero_graphics.Rectangle{ .x = rectangle.x + 10, .y = rectangle.y + 50, .width = 32, .height = 32 };
+        var afterglow_cnt_rect = zero_graphics.Rectangle{ .x = rectangle.x + 10, .y = rectangle.y + 50, .width = 120, .height = 32 };
+        var plus_button_rect = zero_graphics.Rectangle{ .x = rectangle.x + 98, .y = rectangle.y + 50, .width = 32, .height = 32 };
 
         const clicked_exit = try builder.button(exit_button_rect, "Exit", null, .{});
         if (clicked_exit) {
@@ -223,6 +224,26 @@ const DemoApp = struct {
             },
         );
 
+        minus_button_rect.y += 40;
+        afterglow_cnt_rect.y += 40;
+        plus_button_rect.y += 40;
+
+        if (try builder.button(minus_button_rect, "-", null, .{ .enabled = (self.delta_t > 0) })) {
+            self.delta_t -= 1;
+        }
+
+        if (try builder.button(plus_button_rect, "+", null, .{ .enabled = (self.delta_t < 1000) })) {
+            self.delta_t += 1;
+        }
+
+        try builder.label(
+            afterglow_cnt_rect,
+            std.fmt.bufPrint(&buf, "{d:.2}", .{0.01 * @intToFloat(f32, self.delta_t)}) catch unreachable,
+            .{
+                .horizontal_alignment = .center,
+            },
+        );
+
         try builder.label(
             zero_graphics.Rectangle{ .x = rectangle.x + 10, .y = rectangle.y + rectangle.height - 40, .width = 120, .height = 32 },
             std.fmt.bufPrint(&buf, "{d:.3} s", .{self.render_time}) catch unreachable,
@@ -238,7 +259,7 @@ const DemoApp = struct {
 
         var round: usize = 0;
         while (round <= self.afterglow) : (round += 1) {
-            const t = self.render_time - 0.05 * @intToFloat(f32, round);
+            const t = self.render_time - 0.01 * @intToFloat(f32, self.delta_t) * @intToFloat(f32, round);
             const a = @intCast(u8, 255 - 10 * round);
 
             const r = @floatToInt(u8, 255.0 * (0.5 + 0.5 * std.math.sin(0.3 * t + 0.3)));
@@ -279,8 +300,13 @@ const DemoApp = struct {
 
     pub fn deinit(instance: *ApplicationInstance) void {
         const self = @fieldParentPtr(DemoApp, "instance", instance);
-
         self.allocator.destroy(self);
+    }
+
+    pub fn close(instance: *ApplicationInstance) void {
+        const self = @fieldParentPtr(DemoApp, "instance", instance);
+        self.instance.status = .{ .exited = "Closed by desktop environment" };
+        std.log.scoped(.demo_app).info("closed", .{});
     }
 
     fn updateStatus(self: *DemoApp) void {

@@ -41,6 +41,11 @@ pub fn render(instance: *ApplicationInstance, rectangle: zero_graphics.Rectangle
     const self = @fieldParentPtr(Self, "instance", instance);
 }
 
+pub fn close(instance: *ApplicationInstance) void {
+    const self = @fieldParentPtr(Self, "instance", instance);
+    self.instance.status = .{ .exited = "DE killed me" };
+}
+
 pub fn deinit(instance: *ApplicationInstance) void {
     const self = @fieldParentPtr(Self, "instance", instance);
     self.arena.deinit();
