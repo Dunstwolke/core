@@ -2,24 +2,23 @@
 
 ## dunstblick-desktop
 
-- [ ] User Interface
-	- [ ] Open context menu near the mouse cursor
-	- [ ] Collapsing of `exited` applications
-- [ ] Dunstblick protocol
-	- [ ] Implement the authentication view
-	- [ ] Implement the initial network handshake and protocol
-	- [ ] Implement object system
-		- [ ] Implement a generic `Value` type
-		- [ ] Objects are just `ArrayHashMap`
-	- [ ] Implement widget structures
-		- [ ] Bindings to a generic object provider
-	- [ ] Implement widget deserialization
-	- [ ] Implement the layouting engine
-	- [ ] Implement image loading/rendering
-		- [ ] PNG
-		- [ ] TVG
-- [ ] Port the implementation to Android
-- [ ] Port the implementation to Wasm
+- User Interface
+	- Collapsing of `exited` applications
+- Dunstblick protocol
+	- Implement the authentication view
+	- Implement the initial network handshake and protocol
+	- Implement object system
+		- Implement a generic `Value` type
+		- Objects are just `ArrayHashMap`
+	- Implement widget structures
+		- Bindings to a generic object provider
+	- Implement widget deserialization
+	- Implement the layouting engine
+	- Implement image loading/rendering
+		- PNG
+		- TVG
+- Port the implementation to Android
+- Port the implementation to Wasm
 
 ## dunstblick-app
 

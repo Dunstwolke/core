@@ -125,8 +125,8 @@ pub const Application = struct {
             var buf: [64]u8 = undefined;
             try app.renderer.drawString(
                 app.debug_font,
-                try std.fmt.bufPrint(&buf, "{d} ms", .{1000.0 * frametime}),
-                10,
+                try std.fmt.bufPrint(&buf, "{d:.2} ms", .{1000.0 * frametime}),
+                app.screen_size.width - 100,
                 app.screen_size.height - app.debug_font.font_size - 10,
                 zero_graphics.Color.red,
             );

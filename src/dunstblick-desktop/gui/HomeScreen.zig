@@ -983,7 +983,11 @@ pub fn update(self: *Self, dt: f32) !void {
         if (dragged_app_index) |_| {
             const button_rect = self.getMenuButtonRectangle(self.menu_items.items.len);
             const texture = try self.icon_cache.get(&icons.workspace_add, Size{ .width = 48, .height = 48 });
-            _ = try builder.button(button_rect, null, texture, .{ .style = ui_workspace_bar_button_theme });
+            const style = if (button_rect.contains(self.mouse_pos))
+                ui_workspace_bar_current_button_theme
+            else
+                ui_workspace_bar_button_theme;
+            _ = try builder.button(button_rect, null, texture, .{ .style = style });
         }
     }
 
