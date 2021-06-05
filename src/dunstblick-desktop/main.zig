@@ -180,6 +180,7 @@ const DemoApp = struct {
     msg_buf: [64]u8,
     render_time: f32 = 0.0,
     exit_request: bool = false,
+    afterglow: u32 = 0,
 
     pub fn update(instance: *ApplicationInstance, dt: f32) !void {
         const self = @fieldParentPtr(DemoApp, "instance", instance);
@@ -192,50 +193,87 @@ const DemoApp = struct {
         @panic("DemoApp.resize not implemented yet!");
     }
 
-    pub fn processUserInterface(instance: *ApplicationInstance, rectangle: zero_graphics.Rectangle, builder: zero_graphics.UserInterface.Builder) !void {
+    pub fn processUserInterface(instance: *ApplicationInstance, rectangle: zero_graphics.Rectangle, builder: zero_graphics.UserInterface.Builder) zero_graphics.UserInterface.Builder.Error!void {
         const self = @fieldParentPtr(DemoApp, "instance", instance);
+        var buf: [64]u8 = undefined;
 
-        const clicked = try builder.button(zero_graphics.Rectangle{ .x = rectangle.x + 10, .y = rectangle.y + 10, .width = 120, .height = 32 }, "Exit", null, .{});
-        if (clicked) {
+        const exit_button_rect = zero_graphics.Rectangle{ .x = rectangle.x + 10, .y = rectangle.y + 10, .width = 120, .height = 32 };
+        const minus_button_rect = zero_graphics.Rectangle{ .x = rectangle.x + 10, .y = rectangle.y + 50, .width = 32, .height = 32 };
+        const afterglow_cnt_rect = zero_graphics.Rectangle{ .x = rectangle.x + 10, .y = rectangle.y + 50, .width = 120, .height = 32 };
+        const plus_button_rect = zero_graphics.Rectangle{ .x = rectangle.x + 98, .y = rectangle.y + 50, .width = 32, .height = 32 };
+
+        const clicked_exit = try builder.button(exit_button_rect, "Exit", null, .{});
+        if (clicked_exit) {
             self.exit_request = true;
         }
+
+        if (try builder.button(minus_button_rect, "-", null, .{ .enabled = (self.afterglow > 0) })) {
+            self.afterglow -= 1;
+        }
+
+        if (try builder.button(plus_button_rect, "+", null, .{ .enabled = (self.afterglow < 25) })) {
+            self.afterglow += 1;
+        }
+
+        try builder.label(
+            afterglow_cnt_rect,
+            std.fmt.bufPrint(&buf, "{d}", .{self.afterglow}) catch unreachable,
+            .{
+                .horizontal_alignment = .center,
+            },
+        );
+
+        try builder.label(
+            zero_graphics.Rectangle{ .x = rectangle.x + 10, .y = rectangle.y + rectangle.height - 40, .width = 120, .height = 32 },
+            std.fmt.bufPrint(&buf, "{d:.3} s", .{self.render_time}) catch unreachable,
+            .{},
+        );
     }
 
-    pub fn render(instance: *ApplicationInstance, rectangle: zero_graphics.Rectangle, painter: *zero_graphics.Renderer2D) !void {
+    pub fn render(instance: *ApplicationInstance, rectangle: zero_graphics.Rectangle, painter: *zero_graphics.Renderer2D) zero_graphics.Renderer2D.DrawError!void {
         const self = @fieldParentPtr(DemoApp, "instance", instance);
 
         const Color = zero_graphics.Color;
         try painter.fillRectangle(rectangle, Color{ .r = 0xFF, .g = 0xFF, .b = 0xFF, .a = 0x10 });
 
-        const t = self.render_time;
-        var points: [3][2]f32 = undefined;
+        var round: usize = 0;
+        while (round <= self.afterglow) : (round += 1) {
+            const t = self.render_time - 0.05 * @intToFloat(f32, round);
+            const a = @intCast(u8, 255 - 10 * round);
 
-        for (points) |*pt, i| {
-            const offset = @intToFloat(f32, i);
-            const mirror = std.math.sin((1.0 + 0.2 * offset) * t + offset);
+            const r = @floatToInt(u8, 255.0 * (0.5 + 0.5 * std.math.sin(0.3 * t + 0.3)));
+            const g = @floatToInt(u8, 255.0 * (0.5 + 0.5 * std.math.sin(0.3 * t + 1.3)));
+            const b = @floatToInt(u8, 255.0 * (0.5 + 0.5 * std.math.sin(0.3 * t + 2.3)));
 
-            pt[0] = mirror * std.math.sin((0.1 * offset) * 0.4 * t + offset);
-            pt[1] = mirror * std.math.cos((0.1 * offset) * 0.4 * t + offset);
-        }
+            var points: [3][2]f32 = undefined;
 
-        var real_pt: [3]zero_graphics.Point = undefined;
-        for (real_pt) |*dst, i| {
-            const src = points[i];
-            dst.* = .{
-                .x = rectangle.x + @floatToInt(i16, (0.5 + 0.5 * src[0]) * @intToFloat(f32, rectangle.width)),
-                .y = rectangle.y + @floatToInt(i16, (0.5 + 0.5 * src[1]) * @intToFloat(f32, rectangle.height)),
-            };
-        }
-        var prev = real_pt[real_pt.len - 1];
-        for (real_pt) |pt| {
-            try painter.drawLine(
-                pt.x,
-                pt.y,
-                prev.x,
-                prev.y,
-                zero_graphics.Color{ .r = 0xFF, .g = 0x00, .b = 0x80 },
-            );
-            prev = pt;
+            for (points) |*pt, i| {
+                const offset = @intToFloat(f32, i);
+                const mirror = std.math.sin((1.0 + 0.2 * offset) * t + offset);
+
+                pt[0] = mirror * std.math.sin((0.1 * offset) * 0.4 * t + offset);
+                pt[1] = mirror * std.math.cos((0.1 * offset) * 0.4 * t + offset);
+            }
+
+            var real_pt: [3]zero_graphics.Point = undefined;
+            for (real_pt) |*dst, i| {
+                const src = points[i];
+                dst.* = .{
+                    .x = rectangle.x + @floatToInt(i16, (0.5 + 0.5 * src[0]) * @intToFloat(f32, rectangle.width)),
+                    .y = rectangle.y + @floatToInt(i16, (0.5 + 0.5 * src[1]) * @intToFloat(f32, rectangle.height)),
+                };
+            }
+            var prev = real_pt[real_pt.len - 1];
+            for (real_pt) |pt| {
+                try painter.drawLine(
+                    pt.x,
+                    pt.y,
+                    prev.x,
+                    prev.y,
+                    zero_graphics.Color{ .r = r, .g = g, .b = b, .a = a },
+                );
+                prev = pt;
+            }
         }
     }
 
@@ -247,7 +285,7 @@ const DemoApp = struct {
 
     fn updateStatus(self: *DemoApp) void {
         const startup_time = 3 * std.time.ms_per_s;
-        const shutdown_time = 15.0;
+        const shutdown_time = 60.0;
 
         if (self.render_time > shutdown_time) {
             self.instance.status = .{ .exited = "Timed exit" };

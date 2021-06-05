@@ -49,6 +49,15 @@ fn rgba(comptime str: *const [6]u8, alpha: f32) Color {
     return color;
 }
 
+const default_colors = struct {
+    pub const bright_green = rgb("1abc9c");
+    pub const dark_green = rgb("0e443f");
+
+    pub const bright_gray = rgb("363c42");
+    pub const dark_gray = rgb("292f35");
+    pub const tinted_gray = rgb("263238");
+};
+
 const HomeScreenConfig = struct {
     const WorkspaceBarConfig = struct {
         background: Color,
@@ -89,7 +98,7 @@ const HomeScreenConfig = struct {
 
     app_menu: AppMenuConfig = AppMenuConfig{
         .dimmer = rgba("292f35", 0.5),
-        .outline = rgb("1abc9c"),
+        .outline = default_colors.bright_green,
         .background = rgb("255953"),
         .scrollbar_width = 8,
         .margins = 8,
@@ -99,16 +108,16 @@ const HomeScreenConfig = struct {
             .text_color = rgb("ffffff"),
             .icon_size = 64,
             .default = .{
-                .outline = rgb("1abc9c"),
+                .outline = default_colors.bright_green,
                 .background = rgb("255953"),
             },
             .hovered = .{
-                .outline = rgb("1abc9c"),
-                .background = rgb("0e443f"),
+                .outline = default_colors.bright_green,
+                .background = default_colors.dark_green,
             },
             .clicked = .{
-                .outline = rgb("1abc9c"),
-                .background = rgb("0e443f"),
+                .outline = default_colors.bright_green,
+                .background = default_colors.dark_green,
             },
             .disabled = .{
                 .outline = rgb("a6a6a6"),
@@ -119,7 +128,7 @@ const HomeScreenConfig = struct {
 
     workspace_bar: WorkspaceBarConfig = WorkspaceBarConfig{
         .location = .bottom,
-        .background = rgb("292f35"),
+        .background = default_colors.dark_gray,
         .border = rgb("212529"),
         .button_size = 50,
         .margins = 8,
@@ -127,16 +136,16 @@ const HomeScreenConfig = struct {
             .icon_size = 48,
             .text_color = rgb("ffffff"),
             .default = .{
-                .outline = rgb("363c42"),
-                .background = rgb("292f35"),
+                .outline = default_colors.bright_gray,
+                .background = default_colors.dark_gray,
             },
             .hovered = .{
-                .outline = rgb("1abc9c"),
+                .outline = default_colors.bright_green,
                 .background = rgb("255953"),
             },
             .clicked = .{
-                .outline = rgb("1abc9c"),
-                .background = rgb("0e443f"),
+                .outline = default_colors.bright_green,
+                .background = default_colors.dark_green,
             },
             .disabled = .{
                 .outline = rgb("a6a6a6"),
@@ -147,7 +156,7 @@ const HomeScreenConfig = struct {
 
     workspace: WorkspaceConfig = WorkspaceConfig{
         .app_icon_size = 96,
-        .background_color = rgb("263238"),
+        .background_color = default_colors.tinted_gray,
         .active_app_border = rgb("255853"),
         .insert_highlight_color = rgb("FF00FF"),
         .insert_highlight_fill_color = rgba("FF00FF", 0.3),
@@ -155,30 +164,30 @@ const HomeScreenConfig = struct {
 
     longclick_indicator: LongClickIndicator = LongClickIndicator{
         .fill_color = rgb("255953"),
-        .outline = rgb("1abc9c"),
+        .outline = default_colors.bright_green,
     },
 };
 
 const ui_workspace_bar_button_theme = UserInterface.ButtonTheme{
     .icon_size = 48,
     .default = .{
-        .border = rgb("363c42"),
-        .background = rgb("292f35"),
+        .border = default_colors.bright_gray,
+        .background = default_colors.dark_gray,
         .text_color = Color.white,
     },
     .hovered = .{
-        .border = rgb("1abc9c"),
-        .background = rgb("0e443f"),
+        .border = default_colors.bright_green,
+        .background = default_colors.dark_green,
         .text_color = Color.white,
     },
     .clicked = .{
-        .border = rgb("1abc9c"),
+        .border = default_colors.bright_green,
         .background = rgb("003934"),
         .text_color = Color.white,
     },
     .disabled = .{
-        .border = rgb("363c42"),
-        .background = rgb("292f35"),
+        .border = default_colors.bright_gray,
+        .background = default_colors.dark_gray,
         .text_color = rgb("cccccc"),
     },
 };
@@ -190,39 +199,44 @@ const ui_contextmenu_panel_theme = UserInterface.BoxStyle{
 
 const ui_window_panel_theme = UserInterface.BoxStyle{
     .border = rgb("212529"),
-    .background = rgb("263238"),
+    .background = default_colors.tinted_gray,
 };
 
 const ui_active_window_panel_theme = UserInterface.BoxStyle{
-    .border = rgb("1abc9c"),
-    .background = rgb("263238"),
+    .border = default_colors.dark_green,
+    .background = default_colors.tinted_gray,
 };
 
 const ui_app_menu_panel_theme = UserInterface.BoxStyle{
-    .border = rgb("1abc9c"),
-    .background = rgb("0e443f"),
+    .border = default_colors.bright_green,
+    .background = default_colors.dark_green,
+};
+
+const ui_split_panel = UserInterface.BoxStyle{
+    .border = default_colors.bright_green,
+    .background = default_colors.dark_green,
 };
 
 const ui_workspace_bar_current_button_theme = UserInterface.ButtonTheme{
     .icon_size = 48,
     .default = .{
-        .border = rgb("1abc9c"),
-        .background = rgb("0e443f"),
+        .border = default_colors.bright_green,
+        .background = default_colors.dark_green,
         .text_color = Color.white,
     },
     .hovered = .{
-        .border = rgb("1abc9c"),
-        .background = rgb("0e443f"),
+        .border = default_colors.bright_green,
+        .background = default_colors.dark_green,
         .text_color = Color.white,
     },
     .clicked = .{
-        .border = rgb("1abc9c"),
+        .border = default_colors.bright_green,
         .background = rgb("003934"),
         .text_color = Color.white,
     },
     .disabled = .{
-        .border = rgb("363c42"),
-        .background = rgb("292f35"),
+        .border = default_colors.bright_gray,
+        .background = default_colors.dark_gray,
         .text_color = rgb("cccccc"),
     },
 };
@@ -230,17 +244,17 @@ const ui_workspace_bar_current_button_theme = UserInterface.ButtonTheme{
 const ui_appmenu_button_theme = UserInterface.ButtonTheme{
     .icon_size = 64,
     .default = .{
-        .border = rgb("1abc9c"),
+        .border = default_colors.bright_green,
         .background = rgb("255953"),
         .text_color = Color.white,
     },
     .hovered = .{
-        .border = rgb("1abc9c"),
-        .background = rgb("0e443f"),
+        .border = default_colors.bright_green,
+        .background = default_colors.dark_green,
         .text_color = Color.white,
     },
     .clicked = .{
-        .border = rgb("1abc9c"),
+        .border = default_colors.bright_green,
         .background = rgb("003934"),
         .text_color = Color.white,
     },
@@ -255,17 +269,17 @@ const ui_theme = UserInterface.Theme{
     .button = .{
         .icon_size = 24,
         .default = .{
-            .border = rgb("1abc9c"),
+            .border = default_colors.bright_green,
             .background = rgb("255953"),
             .text_color = Color.white,
         },
         .hovered = .{
-            .border = rgb("1abc9c"),
-            .background = rgb("0e443f"),
+            .border = default_colors.bright_green,
+            .background = default_colors.dark_green,
             .text_color = Color.white,
         },
         .clicked = .{
-            .border = rgb("1abc9c"),
+            .border = default_colors.bright_green,
             .background = rgb("003934"),
             .text_color = Color.white,
         },
@@ -278,7 +292,7 @@ const ui_theme = UserInterface.Theme{
 
     .panel = .{
         .border = rgb("212529"),
-        .background = rgb("292f35"),
+        .background = default_colors.dark_gray,
     },
 
     .text_box = .{
@@ -902,12 +916,16 @@ pub fn update(self: *Self, dt: f32) !void {
                             // }
 
                             if (self.mode == .app_drag_desktop) {
-                                // if (btn.data.workspace.window_tree.findInsertLocation(workspace_area, self.mouse_pos.x, self.mouse_pos.y)) |path| {
-                                //     const insert_location = btn.data.workspace.window_tree.getInsertLocationRectangle(workspace_area, path);
+                                if (btn.data.workspace.window_tree.findInsertLocation(workspace_area, self.mouse_pos.x, self.mouse_pos.y)) |path| {
+                                    const insert_location = btn.data.workspace.window_tree.getInsertLocationRectangle(workspace_area, path);
 
-                                //     try renderer.drawRectangle(insert_location.container, self.config.workspace.insert_highlight_color);
-                                //     try renderer.fillRectangle(insert_location.splitter, self.config.workspace.insert_highlight_fill_color);
-                                // }
+                                    try builder.panel(insert_location.splitter.shrink(1), .{
+                                        .style = ui_split_panel,
+                                    });
+
+                                    // try renderer.drawRectangle(insert_location.container, self.config.workspace.insert_highlight_color);
+                                    // try renderer.fillRectangle(insert_location.splitter, self.config.workspace.insert_highlight_fill_color);
+                                }
                             }
                             break;
                         }
@@ -1029,15 +1047,6 @@ pub fn update(self: *Self, dt: f32) !void {
     //     }
     // }
 
-    // Check if we started dragging a app.
-    // This must be done before checking the (app_drag_menu -> app_drag_desktop) transition as this might happen in the same frame!
-    if (self.mode == .app_press) {
-        const info = self.mode.app_press;
-        if (self.isDragDistanceReached(info.position)) {
-            self.mode = .{ .app_drag_menu = info.index };
-        }
-    }
-
     // Check if we dragged the icon out of the app menu
     if (self.mode == .app_drag_menu) {
         const app_menu_rect = self.getAppMenuRectangle();
@@ -1081,20 +1090,6 @@ pub fn update(self: *Self, dt: f32) !void {
             },
             .app_menu, .app_press, .app_drag_desktop, .app_drag_menu => {},
         }
-
-        // for (self.menu_items.items) |*item, idx| {
-        //     switch (item.*) {
-        //         .button => |*button| {
-        //             button.state.clicked = (self.mode == .button_press and self.mode.button_press == idx) or
-        //                 (self.current_workspace == idx);
-        //             button.state.hovered = (if (hovered_button) |i| (i == idx) else false) or
-        //                 ((button.data == .app_menu) and (self.mode == .app_menu)) or
-        //                 (self.current_workspace == idx);
-        //             button.state.update(dt);
-        //         },
-        //         else => {},
-        //     }
-        // }
     }
 
     {
@@ -1110,13 +1105,6 @@ pub fn update(self: *Self, dt: f32) !void {
             },
             .app_drag_desktop, .app_drag_menu => {},
         }
-
-        // for (self.available_apps.items) |*app, app_index| {
-        //     app.button_state.clicked = (self.mode == .app_press and self.mode.app_press.index == app_index);
-        //     app.button_state.hovered = (if (hovered_app) |i| (i == app_index) else false);
-        //     app.button_state.enabled = (app.application.state == .ready);
-        //     app.button_state.update(dt);
-        // }
     }
 }
 
@@ -1411,34 +1399,6 @@ fn drawIcon(self: *Self, target: Rectangle, icon: []const u8, tint: Color) !void
 fn initColor(r: u8, g: u8, b: u8, a: u8) Color {
     return Color{ .r = r, .g = g, .b = b, .a = a };
 }
-
-// const ButtonState = struct {
-//     pub const normal = ButtonState{};
-//     pub const pressed = ButtonState{ .visual_pressed = 1.0, .clicked = true };
-//     pub const hovered = ButtonState{ .visual_highlight = 1.0, .hovered = true };
-
-//     hovered: bool = false,
-//     clicked: bool = false,
-//     enabled: bool = true,
-
-//     visual_highlight: f32 = 0.0,
-//     visual_pressed: f32 = 0.0,
-
-//     fn update(self: *ButtonState, dt: f32) void {
-//         const hover_delta = if (self.hovered)
-//             @as(f32, 5.0) // fade-in time, normal
-//         else
-//             @as(f32, -5.0); // fade-out time
-
-//         const click_delta = if (self.clicked and self.hovered)
-//             @as(f32, 15.0) // fade-in time
-//         else
-//             @as(f32, -3.0); // fade-out time
-
-//         self.visual_highlight = std.math.clamp(self.visual_highlight + dt * hover_delta, 0.0, 1.0);
-//         self.visual_pressed = std.math.clamp(self.visual_pressed + dt * click_delta, 0.0, 1.0);
-//     }
-// };
 
 fn alphaBlend(c: u8, f: f32) u8 {
     return @floatToInt(u8, f * @intToFloat(f32, c));
@@ -1747,7 +1707,6 @@ const Button = struct {
     };
 
     data: Data,
-    // state: ButtonState = .{},
 
     fn deinit(self: *Button) void {
         switch (self.data) {
