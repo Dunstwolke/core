@@ -7,8 +7,16 @@ pub const EventID = extern enum(u32) { invalid, _ };
 pub const WidgetName = extern enum(u32) { none, _ };
 
 pub const ResourceKind = extern enum(u8) {
+    /// A dunstblick layout.
+    /// TODO: Write documentation
     layout = 0,
+
+    /// A PNG bitmap
+    /// See: https://en.wikipedia.org/wiki/Portable_Network_Graphics
     bitmap = 1,
+
+    /// A TVG vector graphic.
+    /// See: https://github.com/MasterQ32/tvg
     drawing = 2,
     _,
 };

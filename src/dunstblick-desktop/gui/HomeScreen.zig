@@ -474,12 +474,6 @@ const IconCache = struct {
     }
 };
 
-const ContextMenu = union(enum) {
-    none,
-    app_instance: *AppInstance,
-    app_info: *AppReference,
-};
-
 /// Time period after which a normal click is recognized as a long-click.
 const long_click_period = 1000 * std.time.ns_per_ms;
 
@@ -519,7 +513,7 @@ app_button_font: *const Renderer2D.Font,
 
 icon_cache: IconCache,
 
-context_menu: ContextMenu = .none,
+context_menu: ?ContextMenu = null,
 
 pub fn init(allocator: *std.mem.Allocator, renderer: *Renderer2D) !Self {
     var self = Self{
@@ -798,18 +792,40 @@ fn isDragDistanceReached(self: Self, start: Point) bool {
     return (dx >= minimal_drag_distance or dy >= minimal_drag_distance);
 }
 
+const ContextMenu = struct {
+    const Data = union(enum) {
+        app_instance: *AppInstance,
+        app_info: *AppReference,
+    };
+    data: Data,
+    position: Point,
+};
+
+fn openContextMenu(self: *Self, data: ContextMenu.Data) void {
+    self.context_menu = ContextMenu{
+        .position = self.mouse_down_pos orelse self.mouse_pos,
+        .data = data,
+    };
+}
+fn closeContextMenu(self: *Self) void {
+    self.context_menu = null;
+}
+
 const ContextMenuResult = union(enum) {
     none,
     clicked: usize,
     closed,
 };
 
-fn doContextMenu(self: Self, builder: UserInterface.Builder, title: []const u8, menu_items: []const MouseMode.ContextMenuItem) !ContextMenuResult {
+fn doContextMenu(self: Self, builder: UserInterface.Builder, focus_point: Point, title: []const u8, menu_items: []const MouseMode.ContextMenuItem) !ContextMenuResult {
+    const width = 210;
+    const height = @intCast(u15, 40 * (menu_items.len + 1)) + 1;
+
     const menu_rectangle = Rectangle{
-        .x = (self.size.width - 210) / 2,
-        .y = (self.size.height - 240) / 2,
-        .width = 210,
-        .height = @intCast(u15, 40 * (menu_items.len + 1)) + 1,
+        .x = std.math.clamp(focus_point.x - width / 2, 0, self.size.width),
+        .y = std.math.clamp(focus_point.y - (height - 40) / 2 - 40, 0, self.size.height),
+        .width = width,
+        .height = height,
     };
 
     if (try builder.modalLayer(.{})) {
@@ -991,7 +1007,17 @@ pub fn update(self: *Self, dt: f32) !void {
                 .none => {},
                 .clicked => logger.info("app button was clicked!", .{}),
                 .dragged => self.mode = .{ .app_drag_menu = idx },
-                .context_menu_requested => self.context_menu = .{ .app_info = app },
+                .context_menu_requested => self.openContextMenu(.{ .app_info = app }),
+            }
+        }
+    } else {
+        // When the menu is hidden, we can se
+        for (self.available_apps.items) |*app| {
+            if (app.application.state == .gone) {
+                app.application.destroy() catch |err| logger.err("could not remove application icon '{s}': {}", .{
+                    app.application.display_name,
+                    err,
+                });
             }
         }
     }
@@ -1010,52 +1036,70 @@ pub fn update(self: *Self, dt: f32) !void {
         _ = try self.appButton(builder, button_rect, app, true);
     }
 
-    switch (self.context_menu) {
-        .none => {},
+    if (self.context_menu) |context_menu| {
+        switch (context_menu.data) {
+            .app_info => |info| {
+                const items = [_]MouseMode.ContextMenuItem{
+                    .{ .title = "Remove", .enabled = (info.application.state == .gone) },
+                    // .{ .title = "Move to workspace", .enabled = false },
+                    // .{ .title = "Move to own workspace" },
+                };
 
-        .app_info => |info| {
-            const items = [_]MouseMode.ContextMenuItem{
-                .{ .title = "Remove", .enabled = (info.application.state == .gone) },
-                // .{ .title = "Move to workspace", .enabled = false },
-                // .{ .title = "Move to own workspace" },
-            };
-
-            const result = try self.doContextMenu(builder, info.application.display_name, &items);
-            switch (result) {
-                .none => {},
-                .clicked => |index| switch (index) {
-                    0 => if (info.application.destroy()) |_| {
-                        self.context_menu = .none;
-                    } else |err| {
-                        logger.err("Could not destroy application: {}", .{err});
+                const result = try self.doContextMenu(builder, context_menu.position, info.application.display_name, &items);
+                switch (result) {
+                    .none => {},
+                    .clicked => |index| switch (index) {
+                        0 => if (info.application.destroy()) |_| {
+                            self.closeContextMenu();
+                        } else |err| {
+                            logger.err("Could not destroy application: {}", .{err});
+                        },
+                        else => unreachable,
                     },
-                    else => unreachable,
-                },
-                .closed => self.context_menu = .none,
-            }
-        },
+                    .closed => self.closeContextMenu(),
+                }
+            },
 
-        .app_instance => |instance| {
-            const items = [_]MouseMode.ContextMenuItem{
-                .{ .title = "Move to workspace...", .enabled = false },
-                .{ .title = "Close application" },
-            };
+            .app_instance => |instance| {
+                if (instance.application.status == .exited) {
+                    const items = [_]MouseMode.ContextMenuItem{
+                        .{ .title = "Collapse window" },
+                    };
 
-            const result = try self.doContextMenu(builder, instance.application.description.display_name, &items);
-            switch (result) {
-                .none => {},
-                .clicked => |index| switch (index) {
-                    0 => logger.err("\"move to workspace\" not implemented yet", .{}),
-                    1 => {
-                        instance.application.close();
-                        self.context_menu = .none;
-                    },
+                    const result = try self.doContextMenu(builder, context_menu.position, instance.application.description.display_name, &items);
+                    switch (result) {
+                        .none => {},
+                        .clicked => |index| switch (index) {
+                            0 => logger.err("\"collapse window\" not implemented yet", .{}),
 
-                    else => unreachable,
-                },
-                .closed => self.context_menu = .none,
-            }
-        },
+                            else => unreachable,
+                        },
+                        .closed => self.closeContextMenu(),
+                    }
+                } else {
+                    const items = [_]MouseMode.ContextMenuItem{
+                        // TODO: Implement a way to move windows between
+                        .{ .title = "Move to workspace...", .enabled = false },
+                        .{ .title = "Close application" },
+                    };
+
+                    const result = try self.doContextMenu(builder, context_menu.position, instance.application.description.display_name, &items);
+                    switch (result) {
+                        .none => {},
+                        .clicked => |index| switch (index) {
+                            0 => logger.err("\"move to workspace\" not implemented yet", .{}),
+                            1 => {
+                                instance.application.close();
+                                self.closeContextMenu();
+                            },
+
+                            else => unreachable,
+                        },
+                        .closed => self.closeContextMenu(),
+                    }
+                }
+            },
+        }
     }
 
     // Check if we dragged the icon out of the app menu
@@ -1140,7 +1184,7 @@ fn processAppNodeEvent(custom: UserInterface.CustomWidget, event: UserInterface.
                 app.mouse_press_location = null;
                 if (!self.isDragDistanceReached(loc)) {
                     if (data.pointer == .secondary) {
-                        self.context_menu = .{ .app_instance = app };
+                        self.openContextMenu(.{ .app_instance = app });
                         return 0;
                     }
                 }
@@ -1501,7 +1545,7 @@ fn processApplicationButtonWidgetEvent(custom: UserInterface.CustomWidget, event
         },
         .pointer_motion => |data| {
             if (app.mouse_press_location) |loc| {
-                if (self.isDragDistanceReached(loc)) {
+                if (app.application.state == .ready and self.isDragDistanceReached(loc)) {
                     return @enumToInt(AppButtonResult.dragged);
                 }
             }
@@ -1539,7 +1583,9 @@ fn renderApplicationButtonWidget(
     const self = @ptrCast(*Self, @alignCast(@alignOf(Self), custom.config.context orelse unreachable));
     const app = @ptrCast(*AppReference, @alignCast(@alignOf(AppReference), custom.user_data orelse unreachable));
 
-    const style = if (info.is_pressed)
+    const style = if (app.application.state != .ready)
+        self.config.app_menu.button_theme.disabled
+    else if (info.is_pressed)
         self.config.app_menu.button_theme.clicked
     else if (info.is_hovered)
         self.config.app_menu.button_theme.hovered
@@ -1825,8 +1871,8 @@ const AppInstance = struct {
     mouse_press_location: ?Point = null,
 
     pub fn deinit(self: *AppInstance, screen: *Self) void {
-        if (screen.context_menu == .app_instance and screen.context_menu.app_instance == self)
-            screen.context_menu = .none;
+        if (screen.context_menu != null and screen.context_menu.?.data == .app_instance and screen.context_menu.?.data.app_instance == self)
+            screen.closeContextMenu();
         self.application.deinit();
         self.* = undefined;
     }

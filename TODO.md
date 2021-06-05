@@ -1,11 +1,25 @@
 # TODO
 
+## dunstblick-desktop
 
-- geschlossene app kann nicht erneut geschlossen werden
-- Kollabieren von geschlossenen Anwendungen
-
-
-
+- [ ] User Interface
+	- [ ] Open context menu near the mouse cursor
+	- [ ] Collapsing of `exited` applications
+- [ ] Dunstblick protocol
+	- [ ] Implement the authentication view
+	- [ ] Implement the initial network handshake and protocol
+	- [ ] Implement object system
+		- [ ] Implement a generic `Value` type
+		- [ ] Objects are just `ArrayHashMap`
+	- [ ] Implement widget structures
+		- [ ] Bindings to a generic object provider
+	- [ ] Implement widget deserialization
+	- [ ] Implement the layouting engine
+	- [ ] Implement image loading/rendering
+		- [ ] PNG
+		- [ ] TVG
+- [ ] Port the implementation to Android
+- [ ] Port the implementation to Wasm
 
 ## dunstblick-app
 
@@ -15,8 +29,7 @@
 - [ ] Rework the C api to use the event-driven API style as well
 
 ## dunstblick-display
-- [ ] Create a pure-zig implementation
-- [ ] Port the implementation to android
+=> see dunstblick-desktop
 
 ## dunstblick-compiler
 - [ ] Create a generator for resource info ("bindgen")
