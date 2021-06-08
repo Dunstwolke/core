@@ -143,8 +143,8 @@ pub const AuthenticationResult = struct {
 /// the client geometry and capabilities.
 pub const ConnectHeader = struct {
     capabilities: ClientCapabilities,
-    screen_size_x: u16,
-    screen_size_y: u16,
+    screen_width: u16,
+    screen_height: u16,
 
     // This might be expanded later
 };
@@ -177,7 +177,7 @@ pub const ConnectResponseItem = struct {
 /// The client answers with the number of requested resources.
 /// The server will then respond with `resource_count` instances of the `ResourceHeader`.
 pub const ResourceRequest = struct {
-    resource_count: u32,
+    // resource_count: u32,
     // id: [resource_count]ResourceID,
 };
 
@@ -186,11 +186,11 @@ pub const ResourceRequest = struct {
 /// After all `ResourceHeader`s are sent, the protocol will switch over to 
 /// a message-based approach, see `Message`.
 pub const ResourceHeader = struct {
+    // /// size of the transferred resource
+    // size: u32,
+
     /// id of the resource
     id: types.ResourceID,
-
-    /// size of the transferred resource
-    size: u32,
 
     // /// The payload of the resource
     // data: [size]u8,

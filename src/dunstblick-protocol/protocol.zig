@@ -71,34 +71,68 @@ test {
     _ = tcp.ClientStateMachine;
 }
 
+const TestStream = std.io.FixedBufferStream([]u8);
+
+fn expectServerEvent(
+    stream: *TestStream,
+    server: *tcp.ServerStateMachine(TestStream.Writer),
+    comptime event_type: std.meta.Tag(tcp.server_state_machine.ReceiveEvent),
+) !std.meta.fieldInfo(
+    tcp.server_state_machine.ReceiveEvent,
+    @field(std.meta.FieldEnum(tcp.server_state_machine.ReceiveEvent), @tagName(event_type)),
+).field_type {
+    const name = @tagName(event_type);
+
+    const result = try server.pushData(stream.getWritten());
+    try std.testing.expectEqual(stream.getPos(), result.consumed);
+    try std.testing.expect(result.event != null);
+    try std.testing.expectEqual(event_type, result.event.?);
+
+    return @field(result.event.?, name);
+}
+
+fn expectClientEvent(
+    stream: *TestStream,
+    client: *tcp.ClientStateMachine(TestStream.Writer),
+    comptime event_type: std.meta.Tag(tcp.client_state_machine.ReceiveEvent),
+) !std.meta.fieldInfo(
+    tcp.client_state_machine.ReceiveEvent,
+    @field(std.meta.FieldEnum(tcp.client_state_machine.ReceiveEvent), @tagName(event_type)),
+).field_type {
+    const name = @tagName(event_type);
+
+    const result = try client.pushData(stream.getWritten());
+    try std.testing.expectEqual(stream.getPos(), result.consumed);
+    try std.testing.expect(result.event != null);
+    try std.testing.expectEqual(event_type, result.event.?);
+
+    return @field(result.event.?, name);
+}
+
 test "Network protocol implementation (unencrypted, no authentication)" {
-    const Stream = std.io.FixedBufferStream([]u8);
-
     var backing_buffer: [4096]u8 = undefined;
-    var stream = Stream{ .buffer = &backing_buffer, .pos = 0 };
+    var stream = TestStream{ .buffer = &backing_buffer, .pos = 0 };
 
-    var server = tcp.ServerStateMachine(Stream.Writer).init(std.testing.allocator, stream.writer());
+    var server = tcp.ServerStateMachine(TestStream.Writer).init(std.testing.allocator, stream.writer());
     defer server.deinit();
 
-    var client = tcp.ClientStateMachine(Stream.Writer).init(std.testing.allocator, stream.writer());
+    var client = tcp.ClientStateMachine(TestStream.Writer).init(std.testing.allocator, stream.writer());
     defer client.deinit();
 
-    try client.initiateHandshake(null, null);
-
     {
-        const result = try server.pushData(stream.getWritten());
-        try std.testing.expectEqual(stream.getPos(), result.consumed);
-        try std.testing.expect(result.event != null);
-        try std.testing.expectEqual(std.meta.Tag(tcp.server_state_machine.ReceiveEvent).initiate_handshake, result.event.?);
-
-        const msg = result.event.?.initiate_handshake;
-        try std.testing.expectEqual(false, msg.has_username);
-        try std.testing.expectEqual(false, msg.has_password);
-
         stream.reset();
+        try client.initiateHandshake(null, null);
     }
 
     {
+        const msg = try expectServerEvent(&stream, &server, .initiate_handshake);
+
+        try std.testing.expectEqual(false, msg.has_username);
+        try std.testing.expectEqual(false, msg.has_password);
+    }
+
+    {
+        stream.reset();
         const auth_action = try server.acknowledgeHandshake(.{
             .requires_username = false,
             .requires_password = false,
@@ -108,14 +142,186 @@ test "Network protocol implementation (unencrypted, no authentication)" {
         try std.testing.expectEqual(tcp.server_state_machine.AuthAction.send_auth_result, auth_action);
     }
 
-    // {
-    //     const result = try client.pushData(stream.getWritten());
-    //     try std.testing.expectEqual(stream.getPos(), result.consumed);
-    //     try std.testing.expect(result.event != null);
-    //     try std.testing.expectEqual(std.meta.Tag(tcp.client_state_machine.ReceiveEvent).acknowledge_handshake, result.event.?);
+    {
+        const msg = try expectClientEvent(&stream, &client, .acknowledge_handshake);
 
-    //     const msg = result.event.?.acknowledge_handshake;
+        try std.testing.expectEqual(false, msg.requires_password);
+        try std.testing.expectEqual(false, msg.requires_username);
+        try std.testing.expectEqual(false, msg.rejects_password);
+        try std.testing.expectEqual(false, msg.rejects_username);
 
-    //     stream.reset();
-    // }
+        try std.testing.expectEqual(true, msg.ok());
+    }
+
+    {
+        stream.reset();
+        try server.sendAuthenticationResult(.success, false);
+    }
+
+    {
+        const msg = try expectClientEvent(&stream, &client, .authenticate_result);
+
+        try std.testing.expectEqual(tcp.AuthenticationResult.Result.success, msg.result);
+    }
+
+    try testCommonHandshake(&server, &client, &stream);
+}
+
+/// Run the test suite for encryption/auth agnostic code.
+/// This must run with any encryption/auth combination
+fn testCommonHandshake(
+    server: *tcp.ServerStateMachine(TestStream.Writer),
+    client: *tcp.ClientStateMachine(TestStream.Writer),
+    stream: *TestStream,
+) !void {
+    const all_resources = [4][]const u8{
+        "Hello, i am a resource",
+        "",
+        &("THIS IS A VERY LONG AND LOUD RESOURCE. I AM SHOUTING! ".* ** 50),
+        "I am a resource as well. See my might!",
+    };
+
+    const all_resources_descriptors: [all_resources.len]tcp.ConnectResponseItem = blk: {
+        var descriptors: [all_resources.len]tcp.ConnectResponseItem = undefined;
+        for (descriptors) |*desc, i| {
+            desc.* = .{
+                .id = @intToEnum(ResourceID, @truncate(u32, i)),
+                .type = @intToEnum(ResourceKind, @truncate(u8, i % 3)),
+                .size = @truncate(u32, all_resources[i].len),
+                .hash = undefined,
+            };
+            std.mem.writeIntLittle(u64, &desc.hash, std.hash.Fnv1a_64.hash(all_resources[i]));
+        }
+        break :blk descriptors;
+    };
+
+    const dummy_caps = tcp.ClientCapabilities{
+        .mouse = true,
+        .keyboard = true,
+        .touch = false,
+        .highdpi = false,
+        .tiltable = true,
+        .resizable = false,
+        .req_accessibility = true,
+    };
+
+    {
+        stream.reset();
+        try client.sendConnectHeader(640, 480, dummy_caps);
+    }
+
+    {
+        const msg = try expectServerEvent(stream, server, .connect_header);
+        try std.testing.expectEqual(@as(u16, 640), msg.screen_width);
+        try std.testing.expectEqual(@as(u16, 480), msg.screen_height);
+        try std.testing.expectEqual(dummy_caps, msg.capabilities);
+    }
+
+    {
+        stream.reset();
+        try server.sendConnectResponse(&all_resources_descriptors);
+    }
+
+    // This is tested for the consume value.
+    // In this case, sendConnectResponse writes several messages at once
+    var stream_offset: usize = 0;
+
+    {
+        const result = try client.pushData(stream.getWritten()[stream_offset..]);
+        stream_offset += result.consumed;
+
+        try std.testing.expect((try stream.getPos()) >= result.consumed);
+        try std.testing.expect(result.event != null);
+        try std.testing.expectEqual(std.meta.Tag(tcp.client_state_machine.ReceiveEvent).connect_response, result.event.?);
+
+        const msg = result.event.?.connect_response;
+
+        try std.testing.expectEqual(all_resources.len, msg.resource_count);
+    }
+
+    for (all_resources_descriptors) |desc, i| {
+        const result = try client.pushData(stream.getWritten()[stream_offset..]);
+        stream_offset += result.consumed;
+
+        try std.testing.expect((try stream.getPos()) >= result.consumed);
+        try std.testing.expect(result.event != null);
+        try std.testing.expectEqual(std.meta.Tag(tcp.client_state_machine.ReceiveEvent).connect_response_item, result.event.?);
+
+        const msg = result.event.?.connect_response_item;
+
+        try std.testing.expectEqual(desc, msg);
+    }
+
+    try std.testing.expectEqual(stream.getPos(), stream_offset);
+
+    const requested_resources = [_]ResourceID{
+        all_resources_descriptors[1].id, // request the empty resource
+        all_resources_descriptors[2].id, // request the large resource
+    };
+
+    {
+        stream.reset();
+        try client.sendResourceRequest(&requested_resources);
+    }
+
+    {
+        const msg = try expectServerEvent(stream, server, .resource_request);
+
+        try std.testing.expectEqualSlices(ResourceID, &requested_resources, msg.requested_resources);
+    }
+
+    {
+        stream.reset();
+        try server.sendResourceHeader(all_resources_descriptors[1].id, all_resources[1]);
+    }
+
+    {
+        const msg = try expectClientEvent(stream, client, .resource_header);
+        try std.testing.expectEqual(all_resources_descriptors[1].id, msg.resource_id);
+        try std.testing.expectEqualSlices(u8, all_resources[1], msg.data);
+    }
+
+    {
+        stream.reset();
+        try server.sendResourceHeader(all_resources_descriptors[2].id, all_resources[2]);
+    }
+
+    {
+        const msg = try expectClientEvent(stream, client, .resource_header);
+        try std.testing.expectEqual(all_resources_descriptors[2].id, msg.resource_id);
+        try std.testing.expectEqualSlices(u8, all_resources[2], msg.data);
+    }
+
+    // The connection is now fully established, we can now send arbitrary messages between the client
+    // and the server \o/
+
+    {
+        stream.reset();
+        try server.sendMessage("Hello, Client!");
+    }
+
+    {
+        const msg = try expectClientEvent(stream, client, .message);
+        try std.testing.expectEqualStrings("Hello, Client!", msg);
+    }
+
+    {
+        stream.reset();
+        try server.sendMessage("This is a second message...");
+    }
+
+    {
+        const msg = try expectClientEvent(stream, client, .message);
+        try std.testing.expectEqualStrings("This is a second message...", msg);
+    }
+
+    {
+        stream.reset();
+        try client.sendMessage("Hello, Server!");
+    }
+
+    {
+        const msg = try expectServerEvent(stream, server, .message);
+        try std.testing.expectEqualStrings("Hello, Server!", msg);
+    }
 }

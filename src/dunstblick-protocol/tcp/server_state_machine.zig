@@ -9,6 +9,7 @@
 const std = @import("std");
 const zig_charm = @import("charm");
 const shared_types = @import("shared_types.zig");
+const types = @import("../data-types.zig");
 const protocol = @import("v1.zig");
 
 const CryptoState = @import("CryptoState.zig");
@@ -21,6 +22,13 @@ pub const ReceiveData = struct {
         return .{
             .consumed = len,
             .event = null,
+        };
+    }
+
+    fn createEvent(consumed: usize, event: ReceiveEvent) @This() {
+        return @This(){
+            .consumed = consumed,
+            .event = event,
         };
     }
 };
@@ -40,16 +48,33 @@ pub const ReceiveEvent = union(enum) {
         //
     };
     const ConnectHeader = struct {
-        //
+        capabilities: protocol.ClientCapabilities,
+        screen_width: u16,
+        screen_height: u16,
     };
     const ResourceRequest = struct {
-        //
+        requested_resources: []const types.ResourceID,
     };
 };
 
 pub const AuthAction = enum {
+    /// The server waits for authentication informationen.
+    /// Provide more data from the client.
     expect_auth_info,
+
+    /// The server does not expend authentication information,
+    /// just invoke `sendAuthenticationResult()`
     send_auth_result,
+
+    /// Drop the connection, the authentication would fail anyways (server does not expect what client sends)
+    drop,
+};
+
+pub const ReceiveError = error{
+    OutOfMemory,
+    UnexpectedData,
+    UnsupportedVersion,
+    ProtocolViolation,
 };
 
 pub fn ServerStateMachine(comptime Writer: type) type {
@@ -63,12 +88,6 @@ pub fn ServerStateMachine(comptime Writer: type) type {
             SliceOutOfRange,
         };
 
-        pub const ReceiveError = error{
-            OutOfMemory,
-            UnexpectedData,
-            UnsupportedVersion,
-        };
-
         allocator: *std.mem.Allocator,
         writer: Writer,
 
@@ -78,10 +97,16 @@ pub fn ServerStateMachine(comptime Writer: type) type {
         /// When this is `true`, the packages will be encrypted/decrypted with `charm`.
         crpyto_enabled: bool = false,
 
-        receive_buffer: std.ArrayListUnmanaged(u8) = .{},
+        receive_buffer: shared_types.MsgReceiveBuffer = .{},
         temp_msg_buffer: std.ArrayListUnmanaged(u8) = .{},
 
         state: shared_types.State = .initiate_handshake,
+
+        /// Number of resources that are available on the server
+        available_resource_count: u32 = undefined,
+
+        /// Number of resources that are requested by the client.
+        requested_resource_count: u32 = undefined,
 
         expects_password: bool = false,
         expects_username: bool = false,
@@ -99,45 +124,21 @@ pub fn ServerStateMachine(comptime Writer: type) type {
 
         pub fn deinit(self: *Self) void {
             self.receive_buffer.deinit(self.allocator);
+            self.temp_msg_buffer.deinit(self.allocator);
             self.* = undefined;
         }
 
-        const ConsumeResult = union(enum) {
-            not_enough: ReceiveData,
-            fits: Info,
-
-            const Info = struct {
-                consumed: usize,
-                data: []u8,
-            };
-        };
-        fn consumeData(self: *Self, new_data: []const u8, expected_size: usize) !ConsumeResult {
-            const old_len = self.receive_buffer.items.len;
-            if (old_len + new_data.len < expected_size)
-                return ConsumeResult{ .not_enough = ReceiveData.notEnough(new_data.len) };
-            const consumed = new_data.len - ((new_data.len + old_len) - expected_size);
-
-            try self.receive_buffer.appendSlice(self.allocator, new_data[0..consumed]);
-
-            return ConsumeResult{
-                .fits = .{
-                    .consumed = consumed,
-                    .data = self.receive_buffer.items[0..expected_size],
-                },
-            };
+        pub fn isFaulted(self: Self) bool {
+            return (self.state == .faulted);
         }
 
         pub fn pushData(self: *Self, new_data: []const u8) ReceiveError!ReceiveData {
-            const old_data = self.receive_buffer.items;
-
             switch (self.state) {
                 .initiate_handshake => {
-                    switch (try self.consumeData(new_data, @sizeOf(protocol.InitiateHandshake))) {
-                        .not_enough => |v| return v,
-                        .fits => |info| {
-                            defer self.receive_buffer.shrinkRetainingCapacity(0);
-
-                            const value = std.mem.bytesAsValue(protocol.InitiateHandshake, info.data[0..@sizeOf(protocol.InitiateHandshake)]);
+                    switch (try self.receive_buffer.pushData(self.allocator, new_data, @sizeOf(protocol.InitiateHandshake))) {
+                        .need_more => return ReceiveData.notEnough(new_data.len),
+                        .ok => |info| {
+                            const value = info.get(protocol.InitiateHandshake);
 
                             if (!std.mem.eql(u8, &value.magic, &protocol.magic))
                                 return error.UnexpectedData;
@@ -149,27 +150,98 @@ pub fn ServerStateMachine(comptime Writer: type) type {
                             self.will_receive_password = value.flags.has_password;
 
                             self.state = .acknowledge_handshake;
-                            return ReceiveData{
-                                .consumed = info.consumed,
-                                .event = ReceiveEvent{
+                            return ReceiveData.createEvent(
+                                info.consumed,
+                                ReceiveEvent{
                                     .initiate_handshake = .{
                                         .has_username = value.flags.has_username,
                                         .has_password = value.flags.has_password,
                                     },
                                 },
-                            };
+                            );
                         },
                     }
                 },
                 .acknowledge_handshake => return error.UnexpectedData,
                 .authenticate_info => @panic("not implemented yet"),
                 .authenticate_result => return error.UnexpectedData,
-                .connect_header => @panic("not implemented yet"),
+                .connect_header => {
+                    switch (try self.receive_buffer.pushData(self.allocator, new_data, @sizeOf(protocol.ConnectHeader))) {
+                        .need_more => return ReceiveData.notEnough(new_data.len),
+                        .ok => |info| {
+                            const value = info.get(protocol.ConnectHeader);
+
+                            self.state = .connect_response;
+
+                            return ReceiveData.createEvent(
+                                info.consumed,
+                                ReceiveEvent{
+                                    .connect_header = .{
+                                        .capabilities = value.capabilities,
+                                        .screen_width = value.screen_width,
+                                        .screen_height = value.screen_height,
+                                    },
+                                },
+                            );
+                        },
+                    }
+                },
                 .connect_response => return error.UnexpectedData,
                 .connect_response_item => return error.UnexpectedData,
-                .resource_request => @panic("not implemented yet"),
+                .resource_request => {
+                    switch (try self.receive_buffer.pushPrefix(self.allocator, new_data, 4)) {
+                        .need_more => return ReceiveData.notEnough(new_data.len),
+                        .ok => |prefix_info| {
+                            // prefix_info.consumed
+                            const len = std.mem.readIntLittle(u32, prefix_info.data[0..4]);
+
+                            const total_len = @sizeOf(u32) + @sizeOf(types.ResourceID) * len;
+
+                            switch (try self.receive_buffer.pushData(self.allocator, new_data[prefix_info.consumed..], total_len)) {
+                                .need_more => return ReceiveData.notEnough(new_data.len - prefix_info.consumed),
+                                .ok => |info| {
+                                    const resources = @alignCast(4, std.mem.bytesAsSlice(types.ResourceID, info.data[4..]));
+                                    std.debug.assert(resources.len == len);
+
+                                    self.requested_resource_count = len;
+                                    self.state = .{ .resource_header = 0 };
+
+                                    return ReceiveData.createEvent(
+                                        prefix_info.consumed + info.consumed,
+                                        ReceiveEvent{
+                                            .resource_request = .{
+                                                .requested_resources = resources,
+                                            },
+                                        },
+                                    );
+                                },
+                            }
+                        },
+                    }
+                },
                 .resource_header => return error.UnexpectedData,
-                .established => @panic("not implemented yet"),
+                .established => {
+                    switch (try self.receive_buffer.pushPrefix(self.allocator, new_data, 4)) {
+                        .need_more => return ReceiveData.notEnough(new_data.len),
+                        .ok => |prefix_info| {
+                            // prefix_info.consumed
+                            const len = std.mem.readIntLittle(u32, prefix_info.data[0..4]);
+
+                            const total_len = @sizeOf(u32) + len;
+
+                            switch (try self.receive_buffer.pushData(self.allocator, new_data[prefix_info.consumed..], total_len)) {
+                                .need_more => return ReceiveData.notEnough(new_data.len - prefix_info.consumed),
+                                .ok => |info| {
+                                    return ReceiveData.createEvent(
+                                        prefix_info.consumed + info.consumed,
+                                        ReceiveEvent{ .message = info.data[4..] },
+                                    );
+                                },
+                            }
+                        },
+                    }
+                },
+                .faulted => return error.UnexpectedData,
             }
         }
 
@@ -208,13 +280,107 @@ pub fn ServerStateMachine(comptime Writer: type) type {
 
             try self.send(std.mem.asBytes(&bits));
 
-            if (self.will_receive_username or self.will_receive_password) {
-                self.state = .authenticate_info;
-                return .expect_auth_info;
+            if (response.rejects_username or
+                response.rejects_password or
+                response.requires_username or
+                response.requires_password)
+            {
+                self.state = .faulted;
+                return .drop;
             } else {
-                self.state = .authenticate_result;
-                return .send_auth_result;
+                if (self.will_receive_username or self.will_receive_password) {
+                    self.state = .authenticate_info;
+                    return .expect_auth_info;
+                } else {
+                    self.state = .authenticate_result;
+                    return .send_auth_result;
+                }
             }
+        }
+
+        pub fn sendAuthenticationResult(self: *Self, result: protocol.AuthenticationResult.Result, encrypt_transport: bool) SendError!void {
+            std.debug.assert(self.state == .authenticate_result);
+
+            // Encryption is only allowed when a password was provided
+            std.debug.assert(!encrypt_transport or self.will_receive_password);
+
+            var bits = protocol.AuthenticationResult{
+                .result = result,
+                .flags = .{
+                    .encrypted = encrypt_transport,
+                },
+            };
+
+            try self.send(std.mem.asBytes(&bits));
+
+            // After this, crypto handshake is done, we can now successfully
+            // encrypt our messages if wanted
+            self.crypto.encryption_enabled = encrypt_transport;
+
+            self.state = .connect_header;
+        }
+
+        pub fn sendConnectResponse(self: *Self, resources: []const protocol.ConnectResponseItem) SendError!void {
+            std.debug.assert(self.state == .connect_response);
+
+            var bits = protocol.ConnectResponse{
+                .resource_count = std.math.cast(u32, resources.len) catch return error.SliceOutOfRange,
+            };
+
+            try self.send(std.mem.asBytes(&bits));
+
+            for (resources) |descriptor| {
+                var clone = descriptor;
+                try self.send(std.mem.asBytes(&clone));
+            }
+
+            self.available_resource_count = bits.resource_count;
+            if (self.available_resource_count == 0) {
+                self.state = .established;
+            } else {
+                self.state = .resource_request;
+            }
+        }
+
+        pub fn sendResourceHeader(self: *Self, id: types.ResourceID, data: []const u8) SendError!void {
+            std.debug.assert(self.state == .resource_header);
+            std.debug.assert(self.state.resource_header < self.available_resource_count);
+
+            var length_data: [4]u8 = undefined;
+            std.mem.writeIntLittle(u32, &length_data, std.math.cast(u32, data.len) catch return error.SliceOutOfRange);
+
+            var bits = protocol.ResourceHeader{
+                .id = id,
+            };
+
+            const header_len = @sizeOf(protocol.ResourceHeader);
+
+            self.temp_msg_buffer.shrinkRetainingCapacity(0);
+            try self.temp_msg_buffer.resize(self.allocator, header_len + data.len);
+
+            std.mem.copy(u8, self.temp_msg_buffer.items, std.mem.asBytes(&bits));
+            std.mem.copy(u8, self.temp_msg_buffer.items[header_len..], data);
+
+            try self.sendRaw(&length_data); // must be unencrypted data!
+            try self.send(self.temp_msg_buffer.items);
+
+            self.state.resource_header += 1;
+            if (self.state.resource_header == self.requested_resource_count) {
+                self.state = .established;
+            }
+        }
+
+        pub fn sendMessage(self: *Self, message: []const u8) SendError!void {
+            std.debug.assert(self.state == .established);
+
+            var length_data: [4]u8 = undefined;
+            std.mem.writeIntLittle(u32, &length_data, std.math.cast(u32, message.len) catch return error.SliceOutOfRange);
+
+            try self.temp_msg_buffer.resize(self.allocator, message.len);
+            std.mem.copy(u8, self.temp_msg_buffer.items, message);
+
+            try self.sendRaw(&length_data); // must be unencrypted data!
+            try self.send(self.temp_msg_buffer.items);
         }
     };
 }
