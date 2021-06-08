@@ -45,7 +45,8 @@ pub const ReceiveEvent = union(enum) {
         has_password: bool,
     };
     const AuthenticateInfo = struct {
-        //
+        username: ?[]const u8,
+        password: ?CryptoState.Hash,
     };
     const ConnectHeader = struct {
         capabilities: protocol.ClientCapabilities,
@@ -108,9 +109,6 @@ pub fn ServerStateMachine(comptime Writer: type) type {
         /// Number of resources that are requested by the client.
         requested_resource_count: u32 = undefined,
 
-        expects_password: bool = false,
-        expects_username: bool = false,
-
         will_receive_username: bool = false,
         will_receive_password: bool = false,
 
@@ -163,7 +161,43 @@ pub fn ServerStateMachine(comptime Writer: type) type {
                     }
                 },
                 .acknowledge_handshake => return error.UnexpectedData,
-                .authenticate_info => @panic("not implemented yet"),
+                .authenticate_info => {
+                    var total_len: usize = 0;
+                    if (self.will_receive_username)
+                        total_len += 32;
+                    if (self.will_receive_password)
+                        total_len += 32;
+
+                    switch (try self.receive_buffer.pushData(self.allocator, new_data, total_len)) {
+                        .need_more => return ReceiveData.notEnough(new_data.len),
+                        .ok => |info| {
+                            var buffer = info.data;
+                            var offset: usize = 0;
+
+                            var username = if (self.will_receive_username) blk: {
+                                defer offset += 32;
+                                break :blk std.mem.sliceTo(buffer[offset..][0..32], 0);
+                            } else null;
+
+                            var password = if (self.will_receive_password) blk: {
+                                defer offset += 32;
+                                break :blk buffer[offset..][0..32].*;
+                            } else null;
+
+                            self.state = .authenticate_result;
+
+                            return ReceiveData.createEvent(
+                                info.consumed,
+                                ReceiveEvent{
+                                    .authenticate_info = .{
+                                        .username = username,
+                                        .password = password,
+                                    },
+                                },
+                            );
+                        },
+                    }
+                },
                 .authenticate_result => return error.UnexpectedData,
                 .connect_header => {
                     switch (try self.receive_buffer.pushData(self.allocator, new_data, @sizeOf(protocol.ConnectHeader))) {

@@ -332,7 +332,7 @@ pub fn ClientStateMachine(comptime Writer: type) type {
                 offset += password.len;
             }
 
-            try self.send(&buffer[0..offset]);
+            try self.send(buffer[0..offset]);
 
             self.state = .authenticate_result;
         }
