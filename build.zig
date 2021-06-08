@@ -40,6 +40,9 @@ const pkgs = struct {
     const dunstblick_protocol = std.build.Pkg{
         .name = "dunstblick-protocol",
         .path = "./src/dunstblick-protocol/protocol.zig",
+        .dependencies = &[_]std.build.Pkg{
+            charm,
+        },
     };
 
     const dunstblick_app = std.build.Pkg{
@@ -75,6 +78,11 @@ const pkgs = struct {
         .dependencies = &[_]std.build.Pkg{
             zigimg,
         },
+    };
+
+    const charm = std.build.Pkg{
+        .name = "charm",
+        .path = "./lib/zig-charm/src/main.zig",
     };
 };
 
@@ -272,15 +280,16 @@ pub fn build(b: *Builder) !void {
     dunstnetz_daemon.addPackage(pkgs.wasm);
     // dunstnetz_daemon.install();
 
-    const display_client_test = b.addTest("src/dunstblick-desktop/main.zig");
+    const dunstblick_desktop_test = b.addTest("src/dunstblick-desktop/main.zig");
     {
-        display_client_test.addPackage(pkgs.dunstblick_protocol);
-        display_client_test.addPackage(pkgs.network);
-        display_client_test.addPackage(pkgs.args);
-        display_client_test.addPackage(pkgs.sdl2);
-        display_client_test.addPackage(pkgs.uri);
-        display_client_test.addPackage(pkgs.painterz);
-        display_client_test.addPackage(pkgs.meta);
+        dunstblick_desktop_test.addPackage(pkgs.dunstblick_protocol);
+        dunstblick_desktop_test.addPackage(pkgs.network);
+        dunstblick_desktop_test.addPackage(pkgs.args);
+        dunstblick_desktop_test.addPackage(pkgs.sdl2);
+        dunstblick_desktop_test.addPackage(pkgs.uri);
+        dunstblick_desktop_test.addPackage(pkgs.painterz);
+        dunstblick_desktop_test.addPackage(pkgs.meta);
+        dunstblick_desktop_test.addPackage(pkgs.zerog);
     }
 
     const dunstnetz_test = b.addTest("src/dunstnetz/main.zig");
@@ -293,6 +302,11 @@ pub fn build(b: *Builder) !void {
         dunstnetz_daemon_test.addPackage(pkgs.args);
         dunstnetz_daemon_test.addPackage(pkgs.dunstnetz);
         dunstnetz_daemon_test.addPackage(pkgs.wasm);
+    }
+
+    const dunstblick_protocol_test = b.addTest(pkgs.dunstblick_protocol.path);
+    {
+        dunstblick_protocol_test.addPackage(pkgs.charm);
     }
 
     const run_cmd = display_client.run();
@@ -319,9 +333,10 @@ pub fn build(b: *Builder) !void {
 
     const test_step = b.step("test", "Runs all required tests.");
     test_step.dependOn(&compiler_test.step);
-    test_step.dependOn(&display_client_test.step);
+    test_step.dependOn(&dunstblick_desktop_test.step);
     test_step.dependOn(&dunstnetz_test.step);
     test_step.dependOn(&dunstnetz_daemon_test.step);
+    test_step.dependOn(&dunstblick_protocol_test.step);
 }
 
 const display_client_sources = [_][]const u8{

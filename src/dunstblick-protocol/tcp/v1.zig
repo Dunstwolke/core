@@ -1,3 +1,15 @@
+//! All data is encoded little-endian and uses utf-8 for strings.
+//! Text fields are either used fully or will be padded with NUL characters.
+//! The protocol is built on top of the `charm` library which is available in
+//! - C: https://github.com/jedisct1/charm
+//! - Zig: https://github.com/jedisct1/zig-charm
+//!
+//! When encryption will be enabled by `AuthenticationResult`:
+//! Each message after `AuthenticationResult` will be followed by a 16 byte `tag`
+//! and will be encrypted with `charm`.
+//! This means the client might be required to cache the full message into RAM, but the 
+//! display server is able to stream-encrypt data from a ROM.
+
 const types = @import("../data-types.zig");
 
 pub const magic = [4]u8{ 0x21, 0x06, 0xc1, 0x62 };
@@ -15,38 +27,140 @@ pub const ClientCapabilities = packed struct {
 };
 
 comptime {
-    @import("std").debug.assert(@bitSizeOf(ClientCapabilities) == 32);
+    const assert = @import("std").debug.assert;
+
+    assert(@bitSizeOf(ClientCapabilities) == 32);
+    assert(@sizeOf(InitiateHandshake.Flags) == 2);
+    assert(@sizeOf(AcknowledgeHandshake.Response) == 2);
+    assert(@sizeOf(AuthenticationResult.Result) == 2);
 }
 
-/// Protocol initiating message sent from the display client to
-/// the UI provider.
-pub const ConnectHeader = packed struct {
-
-    // protocol header, must not be changed or reordered between
-    // different protocol versions!
+/// Client → Server
+/// This is the initial kick-off for the protocol.
+pub const InitiateHandshake = struct {
+    /// Protocol identifier
     magic: [4]u8 = magic,
+
+    /// Protocol version, designates 
     protocol_version: u16 = protocol_version,
 
-    // data header
-    name: [32]u8,
-    password: [32]u8,
+    /// Client nonce for cryptography. This is a randomly generated
+    /// byte sequence which should be provided by a cryptographic RNG API.
+    client_nonce: [16]u8,
+
+    /// Connection flags
+    flags: Flags,
+
+    pub const Flags = packed struct { // u16
+        /// Tells the server that we provide a user name for authentication.
+        /// If a user name is provided, it might be used for distinct authentication.
+        has_username: bool,
+
+        /// Tells the server that we provide a password for authentication.
+        /// If a user name is present, this can be distinct per user, but there
+        /// can also be just a single password for a server.
+        has_password: bool,
+
+        padding: u14 = 0,
+    };
+};
+
+/// Server → Client
+/// This is sent in response to the `InitiateHandshake` message.
+/// This message will be followed by `AuthenticationInfo` when successful.
+pub const AcknowledgeHandshake = struct {
+    pub const Response = packed struct {
+        /// The server requires a username to be present, but the client didn't declare
+        /// to provide one.
+        requires_username: bool,
+
+        /// The server requires a password to be present, but the client didn't declare
+        /// to provide one.
+        requires_password: bool,
+
+        /// The server doesn't accept usernames, but the client wants to send one.
+        rejects_username: bool,
+
+        /// The server doesn't accept passwords, but the client wants to send one.
+        rejects_password: bool,
+
+        padding: u12 = 0,
+    };
+
+    response: Response,
+
+    /// Server nonce for cryptography. This is a randomly generated
+    /// byte sequence which should be provided by a cryptographic RNG API.
+    /// If respone is not 0 for all bits, this is allowed to be garbage.
+    server_nonce: [16]u8,
+};
+
+/// Client → Server
+/// This provides the server with the information *who* is authenticating
+/// and if they are who they tell they are.
+/// This might be skipped if no username and password is present and the server
+/// will just send the final authentication info
+pub const AuthenticationInfo = struct {
+    // if(InitiateHandshake.flags.has_username) {
+    //     /// The user name
+    //     username: [32]u8,
+    // },
+
+    // if(InitiateHandshake.flags.has_password) {
+    //     /// `hash(client_nonce ++ server_nonce)`
+    //     server_verification: [32]u8,
+    // },
+};
+
+/// Server → Client
+/// This will be either sent after `AcknowledgeHandshake` or `AuthenticationInfo`
+/// and will notify the client about the success of the authentication.
+pub const AuthenticationResult = struct {
+    pub const Result = enum(u16) {
+        /// The authentication was successful and the client is verified.
+        success = 0,
+
+        /// The provided user credentials are invalid or the user name is
+        /// not known.
+        invalid_credentials = 1,
+    };
+
+    result: Result,
+
+    /// Connection flags
+    flags: packed struct { // u16
+        /// Tells the client that this connection will be encrypted after this package.
+        /// No information is leaked until this point.
+        /// Note that it might be possible that
+        encrypted: bool,
+
+        padding: u15 = 0,
+    },
+};
+
+/// Client → Server
+/// Sent after a successful `AuthenticationResult`. Will inform the server about
+/// the client geometry and capabilities.
+pub const ConnectHeader = struct {
     capabilities: ClientCapabilities,
     screen_size_x: u16,
     screen_size_y: u16,
+
+    // This might be expanded later
 };
 
-/// Response from the ui provider to the display client.
-/// Is the direct answer to @ref TcpConnectHeader.
-pub const ConnectResponse = packed struct {
-    ///< is `1` if the connection was successful, otherwise `0`.
-    success: u32,
-    ///< Number of resources that should be transferred to the display client.
+/// Server → Client
+/// Response to the `ConnectHeader` message. Informs the client about all resources
+/// that are provided by the server.
+pub const ConnectResponse = struct {
+    /// Number of resources that should be transferred to the display client.
     resource_count: u32,
 };
 
-/// Followed after the @ref TcpConnectResponse, `resourceCount` descriptors
-/// are transferred to the display client.
-pub const ResourceDescriptor = packed struct {
+/// Server → Client
+/// One descriptor for each resource.
+/// Send `ConnectResponse.resource_count` times after a `ConnectResponse`.
+pub const ConnectResponseItem = struct {
     /// The unique resource identifier.
     id: types.ResourceID,
     /// The type of the resource.
@@ -54,28 +168,43 @@ pub const ResourceDescriptor = packed struct {
     /// Size of the resource in bytes.
     size: u32,
     /// Siphash of the resource data.
-    /// Key used is
+    /// TODO: Specify parameters for the siphash function
     hash: [8]u8,
 };
 
-/// Followed after the set of @ref TcpResourceDescriptor
-/// the display client answers with the number of required resources.
-pub const ResourceRequestHeader = packed struct {
-    request_count: u32,
+/// Client → Server
+/// Followed after the last `ConnectResponseItem`.
+/// The client answers with the number of requested resources.
+/// The server will then respond with `resource_count` instances of the `ResourceHeader`.
+pub const ResourceRequest = struct {
+    resource_count: u32,
+    // id: [resource_count]ResourceID,
 };
 
-/// Sent `request_count` times by the display server after the
-/// @ref TcpResourceRequestHeader.
-pub const ResourceRequest = packed struct {
+/// Server → Client
+/// Sent after `ResourceRequest` for each requested resource.
+/// After all `ResourceHeader`s are sent, the protocol will switch over to 
+/// a message-based approach, see `Message`.
+pub const ResourceHeader = struct {
+    /// id of the resource
     id: types.ResourceID,
-};
 
-/// Sent after the last @ref TcpResourceRequest for each
-/// requested resource. Each @ref TcpResourceHeader is followed by a
-/// blob containing the resource itself.
-pub const ResourceHeader = packed struct {
-    ///< id of the resource
-    id: types.ResourceID,
-    ///< size of the transferred resource
+    /// size of the transferred resource
     size: u32,
+
+    // /// The payload of the resource
+    // data: [size]u8,
+};
+
+/// Server → Client
+/// Client → Server
+/// This will be the wrapper for messages after the full handshake is done for both messages
+/// from server to client as well as client to server.
+pub const Message = struct {
+    /// Length of the message in bytes
+    length: u32,
+
+    // /// `length` bytes that contain the message body. When encryption is enabled,
+    // /// this data will be encrypted.
+    // data: [length]u32,
 };

@@ -35,6 +35,8 @@ pub fn update(instance: *ApplicationInstance, dt: f32) !void {
 
 pub fn resize(instance: *ApplicationInstance, size: Size) !void {
     const self = @fieldParentPtr(Self, "instance", instance);
+
+    
 }
 
 pub fn render(instance: *ApplicationInstance, rectangle: zero_graphics.Rectangle, painter: *zero_graphics.Renderer2D) !void {

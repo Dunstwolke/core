@@ -40,18 +40,26 @@ pub const DiscoverResponse = extern struct {
     pub const Features = packed struct {
         /// A ShortDescription struct is present
         has_description: bool,
+
         /// A IconDescription struct is present
         has_icon: bool,
+
         /// If this is `true`, authentication is *required* to use this
         /// service.
         requires_auth: bool,
+
         /// If this is `true`, the user is requested to enter a user name.
         /// If authentication is optional, the user can skip this.
         wants_username: bool,
+
         /// If this is `true`, the user is requested to enter a password.
         /// If authentication is optional, the user can skip this.
         wants_password: bool,
-        reserved: u10 = 0,
+
+        /// If this is `true`, the connection will be encrypted
+        is_encrypted: bool,
+
+        reserved: u9 = 0,
     };
 
     pub const ShortDescription = extern struct {

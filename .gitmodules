@@ -37,3 +37,6 @@
 [submodule "lib/zero-graphics"]
 	path = lib/zero-graphics
 	url = https://github.com/MasterQ32/zero-graphics
+[submodule "lib/zig-charm"]
+	path = lib/zig-charm
+	url = https://github.com/jedisct1/zig-charm
