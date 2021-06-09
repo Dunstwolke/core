@@ -85,8 +85,6 @@ fn expectServerEvent(
 
     const data = stream.getWritten();
 
-    std.debug.print("expectServerEvent({s}): write {} bytes of data\n", .{ @tagName(event_type), data.len });
-
     // Simulate wild packet fragmentation based on the packet itself
     var rng_engine = std.rand.DefaultPrng.init(@enumToInt(event_type) + 16 * data.len);
     const random = &rng_engine.random;
@@ -100,15 +98,6 @@ fn expectServerEvent(
         std.debug.assert(partial_len > 0);
 
         const result = try server.pushData(data[i..][0..partial_len]);
-
-        std.debug.print("  expectServerEvent({s}): Wrote {} bytes @ {} of {}, consumed {}\n", .{
-            @tagName(event_type),
-            partial_len,
-            i,
-            data.len,
-            result.consumed,
-        });
-
         i += result.consumed;
         if (result.event == null) {
             continue;
@@ -133,12 +122,33 @@ fn expectClientEvent(
 ).field_type {
     const name = @tagName(event_type);
 
-    const result = try client.pushData(stream.getWritten());
-    try std.testing.expectEqual(stream.getPos(), result.consumed);
-    try std.testing.expect(result.event != null);
-    try std.testing.expectEqual(event_type, result.event.?);
+    const data = stream.getWritten();
 
-    return @field(result.event.?, name);
+    // Simulate wild packet fragmentation based on the packet itself
+    var rng_engine = std.rand.DefaultPrng.init(@enumToInt(event_type) + 16 * data.len);
+    const random = &rng_engine.random;
+
+    var i: usize = 0;
+    while (i < data.len) {
+        const partial_len = if (data.len - i > 1)
+            random.intRangeLessThan(usize, 1, data.len - i)
+        else
+            data.len - i;
+        std.debug.assert(partial_len > 0);
+
+        const result = try client.pushData(data[i..][0..partial_len]);
+        i += result.consumed;
+        if (result.event == null) {
+            continue;
+        }
+
+        try std.testing.expectEqual(stream.getPos(), i);
+        try std.testing.expectEqual(event_type, result.event.?);
+
+        return @field(result.event.?, name);
+    }
+
+    return error.ParserMissedEvent;
 }
 
 test "Network protocol implementation (unencrypted, no authentication)" {

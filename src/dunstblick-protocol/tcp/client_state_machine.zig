@@ -254,7 +254,7 @@ pub fn ClientStateMachine(comptime Writer: type) type {
                             const total_len = @sizeOf(u32) + @sizeOf(types.ResourceID) + len;
 
                             switch (try self.receive_buffer.pushData(self.allocator, new_data[prefix_info.consumed..], expected_additional_len + total_len)) {
-                                .need_more => return ReceiveData.notEnough(new_data.len - prefix_info.consumed),
+                                .need_more => return ReceiveData.notEnough(new_data.len),
                                 .ok => |info| {
                                     const data = try self.decrypt(info.data[4..]);
 
@@ -289,7 +289,7 @@ pub fn ClientStateMachine(comptime Writer: type) type {
                             const total_len = @sizeOf(u32) + len;
 
                             switch (try self.receive_buffer.pushData(self.allocator, new_data[prefix_info.consumed..], expected_additional_len + total_len)) {
-                                .need_more => return ReceiveData.notEnough(new_data.len - prefix_info.consumed),
+                                .need_more => return ReceiveData.notEnough(new_data.len),
                                 .ok => |info| {
                                     const data = try self.decrypt(info.data[4..]);
                                     return ReceiveData.createEvent(
