@@ -83,12 +83,44 @@ fn expectServerEvent(
 ).field_type {
     const name = @tagName(event_type);
 
-    const result = try server.pushData(stream.getWritten());
-    try std.testing.expectEqual(stream.getPos(), result.consumed);
-    try std.testing.expect(result.event != null);
-    try std.testing.expectEqual(event_type, result.event.?);
+    const data = stream.getWritten();
 
-    return @field(result.event.?, name);
+    std.debug.print("expectServerEvent({s}): write {} bytes of data\n", .{ @tagName(event_type), data.len });
+
+    // Simulate wild packet fragmentation based on the packet itself
+    var rng_engine = std.rand.DefaultPrng.init(@enumToInt(event_type) + 16 * data.len);
+    const random = &rng_engine.random;
+
+    var i: usize = 0;
+    while (i < data.len) {
+        const partial_len = if (data.len - i > 1)
+            random.intRangeLessThan(usize, 1, data.len - i)
+        else
+            data.len - i;
+        std.debug.assert(partial_len > 0);
+
+        const result = try server.pushData(data[i..][0..partial_len]);
+
+        std.debug.print("  expectServerEvent({s}): Wrote {} bytes @ {} of {}, consumed {}\n", .{
+            @tagName(event_type),
+            partial_len,
+            i,
+            data.len,
+            result.consumed,
+        });
+
+        i += result.consumed;
+        if (result.event == null) {
+            continue;
+        }
+
+        try std.testing.expectEqual(stream.getPos(), i);
+        try std.testing.expectEqual(event_type, result.event.?);
+
+        return @field(result.event.?, name);
+    }
+
+    return error.ParserMissedEvent;
 }
 
 fn expectClientEvent(
@@ -728,6 +760,45 @@ fn testCommonHandshake(
     {
         const msg = try expectServerEvent(stream, server, .message);
         try std.testing.expectEqualStrings("Hello, Server!", msg);
+    }
+
+    // Do some stress testing with bigger, partially transferred message which require re-assembly
+
+    {
+        var rng_engine = std.rand.DefaultPrng.init(13_37);
+        const random = &rng_engine.random;
+
+        var i: usize = 0;
+        while (i < 1_000) : (i += 1) {
+            var tmp_message_buffer: [3800]u8 = undefined;
+
+            const tmp_message = tmp_message_buffer[0..random.intRangeLessThan(usize, 1, tmp_message_buffer.len)];
+            random.bytes(tmp_message);
+
+            if (random.boolean()) {
+                // Client -> Server
+                {
+                    stream.reset();
+                    try client.sendMessage(tmp_message);
+                }
+
+                {
+                    const msg = try expectServerEvent(stream, server, .message);
+                    try std.testing.expectEqualSlices(u8, tmp_message, msg);
+                }
+            } else {
+                // Server -> Client
+                {
+                    stream.reset();
+                    try server.sendMessage(tmp_message);
+                }
+
+                {
+                    const msg = try expectClientEvent(stream, client, .message);
+                    try std.testing.expectEqualSlices(u8, tmp_message, msg);
+                }
+            }
+        }
     }
 }
 

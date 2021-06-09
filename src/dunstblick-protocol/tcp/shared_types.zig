@@ -57,9 +57,47 @@ pub const MsgReceiveBuffer = struct {
 
     pub fn pushDataGeneric(self: *Self, allocator: *std.mem.Allocator, new_data: []const u8, expected_size: usize, auto_reset: bool) error{OutOfMemory}!ConsumeResult {
         const old_len = self.buffer.items.len;
-        if (old_len + new_data.len < expected_size)
+        if (auto_reset)
+            std.debug.print("pushData", .{})
+        else
+            std.debug.print("pushPrefix", .{});
+
+        std.debug.print(": ({} + {} == {}) < {} => {}: ", .{
+            old_len,
+            new_data.len,
+            old_len + new_data.len,
+            expected_size,
+            old_len + new_data.len < expected_size,
+        });
+
+        if (old_len + new_data.len < expected_size) {
+            // new_data does not contain enough data to fulfill our request, we consume the full slice
+            // and append it:
+            try self.buffer.appendSlice(allocator, new_data);
+            std.debug.print("consume all\n", .{});
             return .need_more;
+        }
+
+        if (!auto_reset and old_len >= expected_size) {
+            // we already collected enough data for a non-auto_reset event
+            return ConsumeResult{
+                .ok = .{
+                    .consumed = 0,
+                    .data = self.buffer.items[0..expected_size],
+                },
+            };
+        }
+
+        // new_data has at least enough bytes to fulfill the request.
+        // append the requested bits and ignore the rest.
+
         const rest = ((new_data.len + old_len) - expected_size);
+
+        std.debug.print(": consume ({}-{})\n", .{
+            new_data.len,
+            rest,
+        });
+
         const consumed = new_data.len - rest;
 
         try self.buffer.appendSlice(allocator, new_data[0..consumed]);
