@@ -17,6 +17,7 @@ const CryptoState = @import("CryptoState.zig");
 pub const ReceiveError = error{
     OutOfMemory,
     UnexpectedData,
+    InvalidData,
     UnsupportedVersion,
     ProtocolViolation,
 };
@@ -88,7 +89,7 @@ pub fn ClientStateMachine(comptime Writer: type) type {
         state: shared_types.State = .initiate_handshake,
 
         username: ?[32]u8 = null,
-        password: ?CryptoState.Key = null,
+        crpyto_key: ?CryptoState.Key = null,
 
         temp_msg_buffer: std.ArrayListUnmanaged(u8) = .{},
         receive_buffer: shared_types.MsgReceiveBuffer = .{},
@@ -119,14 +120,37 @@ pub fn ClientStateMachine(comptime Writer: type) type {
             return (self.state == .faulted);
         }
 
+        /// Strips the tag from the payload and decrypts the message if necessary.
+        fn decrypt(self: *Self, data: []u8) ![]u8 {
+            if (self.crypto.encryption_enabled) {
+                const payload = data[0 .. data.len - 16];
+                const tag = data[data.len - 16 ..][0..16];
+                try self.crypto.decrypt(tag.*, payload);
+                return payload;
+            } else {
+                return data;
+            }
+        }
+
+        fn decryptAndGet(self: *Self, info: shared_types.ConsumeResult.Info, comptime T: type) !*align(1) T {
+            const data = try self.decrypt(info.data);
+            std.debug.assert(data.len == @sizeOf(T));
+            return std.mem.bytesAsValue(T, data[0..@sizeOf(T)]);
+        }
+
         pub fn pushData(self: *Self, new_data: []const u8) ReceiveError!ReceiveData {
+            const expected_additional_len = if (self.crypto.encryption_enabled)
+                @as(usize, 16)
+            else
+                @as(usize, 0);
+
             switch (self.state) {
                 .initiate_handshake => return error.UnexpectedData,
                 .acknowledge_handshake => {
-                    switch (try self.receive_buffer.pushData(self.allocator, new_data, @sizeOf(protocol.AcknowledgeHandshake))) {
+                    switch (try self.receive_buffer.pushData(self.allocator, new_data, expected_additional_len + @sizeOf(protocol.AcknowledgeHandshake))) {
                         .need_more => return ReceiveData.notEnough(new_data.len),
                         .ok => |info| {
-                            const value = info.get(protocol.AcknowledgeHandshake);
+                            const value = try self.decryptAndGet(info, protocol.AcknowledgeHandshake);
 
                             self.crypto.server_nonce = value.server_nonce;
 
@@ -141,7 +165,7 @@ pub fn ClientStateMachine(comptime Writer: type) type {
                             );
 
                             if (response.event.?.acknowledge_handshake.ok()) {
-                                if (self.username != null or self.password != null) {
+                                if (self.username != null or self.crpyto_key != null) {
                                     self.state = .authenticate_info;
                                 } else {
                                     self.state = .authenticate_result;
@@ -155,16 +179,16 @@ pub fn ClientStateMachine(comptime Writer: type) type {
                 },
                 .authenticate_info => return error.UnexpectedData,
                 .authenticate_result => {
-                    switch (try self.receive_buffer.pushData(self.allocator, new_data, @sizeOf(protocol.AuthenticationResult))) {
+                    switch (try self.receive_buffer.pushData(self.allocator, new_data, expected_additional_len + @sizeOf(protocol.AuthenticationResult))) {
                         .need_more => return ReceiveData.notEnough(new_data.len),
                         .ok => |info| {
-                            const value = info.get(protocol.AuthenticationResult);
+                            const value = try self.decryptAndGet(info, protocol.AuthenticationResult);
 
-                            if (self.password == null and value.flags.encrypted) {
+                            if (self.crpyto_key == null and value.flags.encrypted) {
                                 self.state = .faulted;
                                 return error.ProtocolViolation;
                             }
-
+                            self.crypto.encryption_enabled = value.flags.encrypted;
                             self.state = .connect_header;
                             return ReceiveData.createEvent(
                                 info.consumed,
@@ -175,10 +199,10 @@ pub fn ClientStateMachine(comptime Writer: type) type {
                 },
                 .connect_header => return error.UnexpectedData,
                 .connect_response => {
-                    switch (try self.receive_buffer.pushData(self.allocator, new_data, @sizeOf(protocol.ConnectResponse))) {
+                    switch (try self.receive_buffer.pushData(self.allocator, new_data, expected_additional_len + @sizeOf(protocol.ConnectResponse))) {
                         .need_more => return ReceiveData.notEnough(new_data.len),
                         .ok => |info| {
-                            const value = info.get(protocol.ConnectResponse);
+                            const value = try self.decryptAndGet(info, protocol.ConnectResponse);
 
                             self.available_resource_count = value.resource_count;
                             self.state = .{ .connect_response_item = 0 };
@@ -193,10 +217,10 @@ pub fn ClientStateMachine(comptime Writer: type) type {
                     }
                 },
                 .connect_response_item => |*current_index| {
-                    switch (try self.receive_buffer.pushData(self.allocator, new_data, @sizeOf(protocol.ConnectResponseItem))) {
+                    switch (try self.receive_buffer.pushData(self.allocator, new_data, expected_additional_len + @sizeOf(protocol.ConnectResponseItem))) {
                         .need_more => return ReceiveData.notEnough(new_data.len),
                         .ok => |info| {
-                            const value = info.get(protocol.ConnectResponseItem);
+                            const value = try self.decryptAndGet(info, protocol.ConnectResponseItem);
 
                             current_index.* += 1;
                             if (current_index.* >= self.available_resource_count) {
@@ -220,10 +244,12 @@ pub fn ClientStateMachine(comptime Writer: type) type {
 
                             const total_len = @sizeOf(u32) + @sizeOf(types.ResourceID) + len;
 
-                            switch (try self.receive_buffer.pushData(self.allocator, new_data[prefix_info.consumed..], total_len)) {
+                            switch (try self.receive_buffer.pushData(self.allocator, new_data[prefix_info.consumed..], expected_additional_len + total_len)) {
                                 .need_more => return ReceiveData.notEnough(new_data.len - prefix_info.consumed),
                                 .ok => |info| {
-                                    const resource_id = @intToEnum(types.ResourceID, std.mem.readIntLittle(u32, info.data[4..8]));
+                                    const data = try self.decrypt(info.data[4..]);
+
+                                    const resource_id = @intToEnum(types.ResourceID, std.mem.readIntLittle(u32, data[0..4]));
 
                                     current_index.* += 1;
                                     if (current_index.* >= self.requested_resource_count) {
@@ -235,7 +261,7 @@ pub fn ClientStateMachine(comptime Writer: type) type {
                                         ReceiveEvent{
                                             .resource_header = .{
                                                 .resource_id = resource_id,
-                                                .data = info.data[8..],
+                                                .data = data[4..],
                                             },
                                         },
                                     );
@@ -253,12 +279,13 @@ pub fn ClientStateMachine(comptime Writer: type) type {
 
                             const total_len = @sizeOf(u32) + len;
 
-                            switch (try self.receive_buffer.pushData(self.allocator, new_data[prefix_info.consumed..], total_len)) {
+                            switch (try self.receive_buffer.pushData(self.allocator, new_data[prefix_info.consumed..], expected_additional_len + total_len)) {
                                 .need_more => return ReceiveData.notEnough(new_data.len - prefix_info.consumed),
                                 .ok => |info| {
+                                    const data = try self.decrypt(info.data[4..]);
                                     return ReceiveData.createEvent(
                                         prefix_info.consumed + info.consumed,
-                                        ReceiveEvent{ .message = info.data[4..] },
+                                        ReceiveEvent{ .message = data },
                                     );
                                 },
                             }
@@ -286,7 +313,17 @@ pub fn ClientStateMachine(comptime Writer: type) type {
             }
         }
 
-        pub fn initiateHandshake(self: *Self, username: ?[]const u8, password: ?[]const u8) SendError!void {
+        pub fn initiateHandshakeWithPassword(self: *Self, username: ?[]const u8, password: ?[]const u8) SendError!void {
+            return initiateHandshake(
+                self,
+                username,
+                if (password) |passwd|
+                    CryptoState.hashPassword(passwd, username orelse "static server")
+                else
+                    null,
+            );
+        }
+        pub fn initiateHandshake(self: *Self, username: ?[]const u8, key: ?CryptoState.Key) SendError!void {
             std.debug.assert(self.state == .initiate_handshake);
             if (username) |name| {
                 if (name.len > 32)
@@ -301,15 +338,13 @@ pub fn ClientStateMachine(comptime Writer: type) type {
                 self.username = buf;
             }
 
-            if (password) |passwd| {
-                self.password = CryptoState.hashPassword(passwd, username orelse "static server");
-            }
+            self.crpyto_key = key;
 
             var handshake = protocol.InitiateHandshake{
                 .client_nonce = self.crypto.client_nonce,
                 .flags = .{
                     .has_username = (username != null),
-                    .has_password = (password != null),
+                    .has_password = (key != null),
                 },
             };
 
@@ -327,9 +362,11 @@ pub fn ClientStateMachine(comptime Writer: type) type {
                 std.mem.copy(u8, buffer[offset..][0..32], &username);
                 offset += 32;
             }
-            if (self.password) |password| {
-                std.mem.copy(u8, buffer[offset..][0..password.len], &password);
-                offset += password.len;
+            if (self.crpyto_key) |key| {
+                const auth_token: [32]u8 = self.crypto.start(key, .client);
+
+                std.mem.copy(u8, buffer[offset..][0..32], &auth_token);
+                offset += auth_token.len;
             }
 
             try self.send(buffer[0..offset]);

@@ -164,6 +164,9 @@ test "Network protocol implementation (unencrypted, no authentication)" {
         try std.testing.expectEqual(tcp.AuthenticationResult.Result.success, msg.result);
     }
 
+    try std.testing.expectEqual(false, client.crypto.encryption_enabled);
+    try std.testing.expectEqual(false, server.crypto.encryption_enabled);
+
     try testCommonHandshake(&server, &client, &stream);
 }
 
@@ -221,7 +224,7 @@ test "Network protocol implementation (unencrypted, username)" {
 
         try std.testing.expect(msg.username != null);
         try std.testing.expectEqualStrings("Ziggy Stardust", msg.username.?);
-        try std.testing.expectEqual(@as(?[32]u8, null), msg.password);
+        try std.testing.expectEqual(false, msg.requires_key);
     }
 
     {
@@ -234,6 +237,335 @@ test "Network protocol implementation (unencrypted, username)" {
 
         try std.testing.expectEqual(tcp.AuthenticationResult.Result.success, msg.result);
     }
+
+    try std.testing.expectEqual(false, client.crypto.encryption_enabled);
+    try std.testing.expectEqual(false, server.crypto.encryption_enabled);
+
+    try testCommonHandshake(&server, &client, &stream);
+}
+
+test "Network protocol implementation (unencrypted, only password)" {
+    var backing_buffer: [4096]u8 = undefined;
+    var stream = TestStream{ .buffer = &backing_buffer, .pos = 0 };
+
+    const test_key: [32]u8 = "0123456789ABCDEF0123456789ABCDEF".*;
+
+    var server = tcp.ServerStateMachine(TestStream.Writer).init(std.testing.allocator, stream.writer());
+    defer server.deinit();
+
+    var client = tcp.ClientStateMachine(TestStream.Writer).init(std.testing.allocator, stream.writer());
+    defer client.deinit();
+
+    {
+        stream.reset();
+        try client.initiateHandshake(null, test_key);
+    }
+
+    {
+        const msg = try expectServerEvent(&stream, &server, .initiate_handshake);
+
+        try std.testing.expectEqual(false, msg.has_username);
+        try std.testing.expectEqual(true, msg.has_password);
+    }
+
+    {
+        stream.reset();
+        const auth_action = try server.acknowledgeHandshake(.{
+            .requires_username = false,
+            .requires_password = false,
+            .rejects_username = false,
+            .rejects_password = false,
+        });
+        try std.testing.expectEqual(tcp.server_state_machine.AuthAction.expect_auth_info, auth_action);
+    }
+
+    {
+        const msg = try expectClientEvent(&stream, &client, .acknowledge_handshake);
+
+        try std.testing.expectEqual(false, msg.requires_password);
+        try std.testing.expectEqual(false, msg.requires_username);
+        try std.testing.expectEqual(false, msg.rejects_password);
+        try std.testing.expectEqual(false, msg.rejects_username);
+
+        try std.testing.expectEqual(true, msg.ok());
+    }
+
+    {
+        stream.reset();
+        try client.sendAuthenticationInfo();
+    }
+
+    {
+        const msg = try expectServerEvent(&stream, &server, .authenticate_info);
+
+        try std.testing.expectEqual(@as(?[]const u8, null), msg.username);
+        try std.testing.expectEqual(true, msg.requires_key);
+
+        // The key here is usually fetched either from a static config
+        // for a normal server key or a user database.
+        const auth_result = server.setKeyAndVerify(test_key);
+
+        try std.testing.expectEqual(tcp.server_state_machine.AuthenticationResult.success, auth_result);
+    }
+
+    {
+        stream.reset();
+        try server.sendAuthenticationResult(.success, false);
+    }
+
+    {
+        const msg = try expectClientEvent(&stream, &client, .authenticate_result);
+
+        try std.testing.expectEqual(tcp.AuthenticationResult.Result.success, msg.result);
+    }
+
+    try std.testing.expectEqual(false, client.crypto.encryption_enabled);
+    try std.testing.expectEqual(false, server.crypto.encryption_enabled);
+
+    try testCommonHandshake(&server, &client, &stream);
+}
+
+test "Network protocol implementation (unencrypted, username + password)" {
+    var backing_buffer: [4096]u8 = undefined;
+    var stream = TestStream{ .buffer = &backing_buffer, .pos = 0 };
+
+    const test_key: [32]u8 = "0123456789ABCDEF0123456789ABCDEF".*;
+
+    var server = tcp.ServerStateMachine(TestStream.Writer).init(std.testing.allocator, stream.writer());
+    defer server.deinit();
+
+    var client = tcp.ClientStateMachine(TestStream.Writer).init(std.testing.allocator, stream.writer());
+    defer client.deinit();
+
+    {
+        stream.reset();
+        try client.initiateHandshake("Ziggy Stardust", test_key);
+    }
+
+    {
+        const msg = try expectServerEvent(&stream, &server, .initiate_handshake);
+
+        try std.testing.expectEqual(true, msg.has_username);
+        try std.testing.expectEqual(true, msg.has_password);
+    }
+
+    {
+        stream.reset();
+        const auth_action = try server.acknowledgeHandshake(.{
+            .requires_username = false,
+            .requires_password = false,
+            .rejects_username = false,
+            .rejects_password = false,
+        });
+        try std.testing.expectEqual(tcp.server_state_machine.AuthAction.expect_auth_info, auth_action);
+    }
+
+    {
+        const msg = try expectClientEvent(&stream, &client, .acknowledge_handshake);
+
+        try std.testing.expectEqual(false, msg.requires_password);
+        try std.testing.expectEqual(false, msg.requires_username);
+        try std.testing.expectEqual(false, msg.rejects_password);
+        try std.testing.expectEqual(false, msg.rejects_username);
+
+        try std.testing.expectEqual(true, msg.ok());
+    }
+
+    {
+        stream.reset();
+        try client.sendAuthenticationInfo();
+    }
+
+    {
+        const msg = try expectServerEvent(&stream, &server, .authenticate_info);
+
+        try std.testing.expect(msg.username != null);
+        try std.testing.expectEqualStrings("Ziggy Stardust", msg.username.?);
+        try std.testing.expectEqual(true, msg.requires_key);
+
+        // The key here is usually fetched either from a static config
+        // for a normal server key or a user database.
+        const auth_result = server.setKeyAndVerify(test_key);
+
+        try std.testing.expectEqual(tcp.server_state_machine.AuthenticationResult.success, auth_result);
+    }
+
+    {
+        stream.reset();
+        try server.sendAuthenticationResult(.success, false);
+    }
+
+    {
+        const msg = try expectClientEvent(&stream, &client, .authenticate_result);
+
+        try std.testing.expectEqual(tcp.AuthenticationResult.Result.success, msg.result);
+    }
+
+    try std.testing.expectEqual(false, client.crypto.encryption_enabled);
+    try std.testing.expectEqual(false, server.crypto.encryption_enabled);
+
+    try testCommonHandshake(&server, &client, &stream);
+}
+
+test "Network protocol implementation (encrypted, only password)" {
+    var backing_buffer: [4096]u8 = undefined;
+    var stream = TestStream{ .buffer = &backing_buffer, .pos = 0 };
+
+    const test_key: [32]u8 = "0123456789ABCDEF0123456789ABCDEF".*;
+
+    var server = tcp.ServerStateMachine(TestStream.Writer).init(std.testing.allocator, stream.writer());
+    defer server.deinit();
+
+    var client = tcp.ClientStateMachine(TestStream.Writer).init(std.testing.allocator, stream.writer());
+    defer client.deinit();
+
+    {
+        stream.reset();
+        try client.initiateHandshake(null, test_key);
+    }
+
+    {
+        const msg = try expectServerEvent(&stream, &server, .initiate_handshake);
+
+        try std.testing.expectEqual(false, msg.has_username);
+        try std.testing.expectEqual(true, msg.has_password);
+    }
+
+    {
+        stream.reset();
+        const auth_action = try server.acknowledgeHandshake(.{
+            .requires_username = false,
+            .requires_password = false,
+            .rejects_username = false,
+            .rejects_password = false,
+        });
+        try std.testing.expectEqual(tcp.server_state_machine.AuthAction.expect_auth_info, auth_action);
+    }
+
+    {
+        const msg = try expectClientEvent(&stream, &client, .acknowledge_handshake);
+
+        try std.testing.expectEqual(false, msg.requires_password);
+        try std.testing.expectEqual(false, msg.requires_username);
+        try std.testing.expectEqual(false, msg.rejects_password);
+        try std.testing.expectEqual(false, msg.rejects_username);
+
+        try std.testing.expectEqual(true, msg.ok());
+    }
+
+    {
+        stream.reset();
+        try client.sendAuthenticationInfo();
+    }
+
+    {
+        const msg = try expectServerEvent(&stream, &server, .authenticate_info);
+
+        try std.testing.expectEqual(@as(?[]const u8, null), msg.username);
+        try std.testing.expectEqual(true, msg.requires_key);
+
+        // The key here is usually fetched either from a static config
+        // for a normal server key or a user database.
+        const auth_result = server.setKeyAndVerify(test_key);
+
+        try std.testing.expectEqual(tcp.server_state_machine.AuthenticationResult.success, auth_result);
+    }
+
+    {
+        stream.reset();
+        try server.sendAuthenticationResult(.success, true);
+    }
+
+    {
+        const msg = try expectClientEvent(&stream, &client, .authenticate_result);
+
+        try std.testing.expectEqual(tcp.AuthenticationResult.Result.success, msg.result);
+    }
+
+    try std.testing.expectEqual(true, client.crypto.encryption_enabled);
+    try std.testing.expectEqual(true, server.crypto.encryption_enabled);
+
+    try testCommonHandshake(&server, &client, &stream);
+}
+
+test "Network protocol implementation (encrypted, username + password)" {
+    var backing_buffer: [4096]u8 = undefined;
+    var stream = TestStream{ .buffer = &backing_buffer, .pos = 0 };
+
+    const test_key: [32]u8 = "0123456789ABCDEF0123456789ABCDEF".*;
+
+    var server = tcp.ServerStateMachine(TestStream.Writer).init(std.testing.allocator, stream.writer());
+    defer server.deinit();
+
+    var client = tcp.ClientStateMachine(TestStream.Writer).init(std.testing.allocator, stream.writer());
+    defer client.deinit();
+
+    {
+        stream.reset();
+        try client.initiateHandshake("Ziggy Stardust", test_key);
+    }
+
+    {
+        const msg = try expectServerEvent(&stream, &server, .initiate_handshake);
+
+        try std.testing.expectEqual(true, msg.has_username);
+        try std.testing.expectEqual(true, msg.has_password);
+    }
+
+    {
+        stream.reset();
+        const auth_action = try server.acknowledgeHandshake(.{
+            .requires_username = false,
+            .requires_password = false,
+            .rejects_username = false,
+            .rejects_password = false,
+        });
+        try std.testing.expectEqual(tcp.server_state_machine.AuthAction.expect_auth_info, auth_action);
+    }
+
+    {
+        const msg = try expectClientEvent(&stream, &client, .acknowledge_handshake);
+
+        try std.testing.expectEqual(false, msg.requires_password);
+        try std.testing.expectEqual(false, msg.requires_username);
+        try std.testing.expectEqual(false, msg.rejects_password);
+        try std.testing.expectEqual(false, msg.rejects_username);
+
+        try std.testing.expectEqual(true, msg.ok());
+    }
+
+    {
+        stream.reset();
+        try client.sendAuthenticationInfo();
+    }
+
+    {
+        const msg = try expectServerEvent(&stream, &server, .authenticate_info);
+
+        try std.testing.expect(msg.username != null);
+        try std.testing.expectEqualStrings("Ziggy Stardust", msg.username.?);
+        try std.testing.expectEqual(true, msg.requires_key);
+
+        // The key here is usually fetched either from a static config
+        // for a normal server key or a user database.
+        const auth_result = server.setKeyAndVerify(test_key);
+
+        try std.testing.expectEqual(tcp.server_state_machine.AuthenticationResult.success, auth_result);
+    }
+
+    {
+        stream.reset();
+        try server.sendAuthenticationResult(.success, true);
+    }
+
+    {
+        const msg = try expectClientEvent(&stream, &client, .authenticate_result);
+
+        try std.testing.expectEqual(tcp.AuthenticationResult.Result.success, msg.result);
+    }
+
+    try std.testing.expectEqual(true, client.crypto.encryption_enabled);
+    try std.testing.expectEqual(true, server.crypto.encryption_enabled);
 
     try testCommonHandshake(&server, &client, &stream);
 }

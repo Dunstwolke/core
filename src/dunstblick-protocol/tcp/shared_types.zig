@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const CryptoState = @import("CryptoState.zig");
+
 pub const State = union(enum) {
     initiate_handshake,
     acknowledge_handshake,
@@ -18,18 +20,18 @@ pub const State = union(enum) {
     faulted,
 };
 
-const ConsumeResult = union(enum) {
+pub const ConsumeResult = union(enum) {
     need_more,
     ok: Info,
 
-    const Info = struct {
+    pub const Info = struct {
         consumed: usize,
         data: []u8,
 
-        pub fn get(self: @This(), comptime T: type) *align(1) T {
-            std.debug.assert(self.data.len == @sizeOf(T));
-            return std.mem.bytesAsValue(T, self.data[0..@sizeOf(T)]);
-        }
+        // pub fn get(self: @This(), comptime T: type) *align(1) T {
+        //     std.debug.assert(self.data.len == @sizeOf(T));
+        //     return std.mem.bytesAsValue(T, self.data[0..@sizeOf(T)]);
+        // }
     };
 };
 

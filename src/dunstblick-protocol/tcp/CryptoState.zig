@@ -43,21 +43,22 @@ pub fn init() Self {
     return self;
 }
 
-pub fn startServer(self: *Self, client_nonce: Nonce) void {
-    self.client_nonce = client_nonce;
-    return self.start(.server);
-}
-
-pub fn startClient(self: *Self, server_nonce: Nonce) void {
-    self.server_nonce = server_nonce;
-    return self.start(.client);
-}
-
-fn start(self: *Self, mode: Mode) void {
+pub fn start(self: *Self, key: Key, mode: Mode) Hash {
     std.debug.assert(mode != .not_started);
-    _ = self.hash(&self.client_nonce);
-    _ = self.hash(&self.server_nonce);
+
+    self.charm = Charm.new(key, null);
+    // feed the state some random data, so we
+    // kill replayability with this and
+    // make the same data look different each connection
+    _ = self.charm.hash(&self.client_nonce);
+    _ = self.charm.hash(&self.server_nonce);
+
+    var auth_token_src: [32]u8 = undefined;
+    std.mem.copy(u8, auth_token_src[0..16], &self.client_nonce);
+    std.mem.copy(u8, auth_token_src[16..32], &self.server_nonce);
+    const auth_token = self.charm.hash(&auth_token_src);
     self.mode = mode;
+    return auth_token;
 }
 
 pub fn encrypt(self: *Self, data: []u8) Tag {
@@ -65,9 +66,9 @@ pub fn encrypt(self: *Self, data: []u8) Tag {
     return self.charm.encrypt(data);
 }
 
-pub fn decrypt(self: *Self, tag: Tag, data: []u8) Tag {
+pub fn decrypt(self: *Self, tag: Tag, data: []u8) error{InvalidData}!void {
     std.debug.assert(self.mode != .not_started);
-    self.charm.decrypt(data, tag);
+    self.charm.decrypt(data, tag) catch return error.InvalidData;
 }
 
 pub fn hash(self: *Self, data: []const u8) Hash {

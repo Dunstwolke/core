@@ -45,8 +45,12 @@ pub const ReceiveEvent = union(enum) {
         has_password: bool,
     };
     const AuthenticateInfo = struct {
+        /// If not null, the user has provided a user name
         username: ?[]const u8,
-        password: ?CryptoState.Hash,
+
+        /// When `true`, a key must now be provided via 
+        /// the `setKeyAndVerify()` method.
+        requires_key: bool,
     };
     const ConnectHeader = struct {
         capabilities: protocol.ClientCapabilities,
@@ -74,8 +78,14 @@ pub const AuthAction = enum {
 pub const ReceiveError = error{
     OutOfMemory,
     UnexpectedData,
+    InvalidData,
     UnsupportedVersion,
     ProtocolViolation,
+};
+
+pub const AuthenticationResult = enum {
+    failure,
+    success,
 };
 
 pub fn ServerStateMachine(comptime Writer: type) type {
@@ -95,8 +105,7 @@ pub fn ServerStateMachine(comptime Writer: type) type {
         /// The cryptographic provider for the connection.
         crypto: CryptoState,
 
-        /// When this is `true`, the packages will be encrypted/decrypted with `charm`.
-        crpyto_enabled: bool = false,
+        auth_token: ?CryptoState.Hash = null,
 
         receive_buffer: shared_types.MsgReceiveBuffer = .{},
         temp_msg_buffer: std.ArrayListUnmanaged(u8) = .{},
@@ -130,13 +139,52 @@ pub fn ServerStateMachine(comptime Writer: type) type {
             return (self.state == .faulted);
         }
 
+        pub fn setKeyAndVerify(self: *Self, key: CryptoState.Key) AuthenticationResult {
+            std.debug.assert(self.auth_token != null);
+            const sent_auth_token = self.auth_token.?;
+
+            const valid_auth_token = self.crypto.start(key, .server);
+
+            const auth_valid = std.mem.eql(u8, &sent_auth_token, &valid_auth_token);
+
+            if (auth_valid) {
+                return AuthenticationResult.success;
+            } else {
+                self.state = .faulted;
+                return AuthenticationResult.failure;
+            }
+        }
+
+        /// Strips the tag from the payload and decrypts the message if necessary.
+        fn decrypt(self: *Self, data: []u8) ![]u8 {
+            if (self.crypto.encryption_enabled) {
+                const payload = data[0 .. data.len - 16];
+                const tag = data[data.len - 16 ..][0..16];
+                try self.crypto.decrypt(tag.*, payload);
+                return payload;
+            } else {
+                return data;
+            }
+        }
+
+        fn decryptAndGet(self: *Self, info: shared_types.ConsumeResult.Info, comptime T: type) !*align(1) T {
+            const data = try self.decrypt(info.data);
+            std.debug.assert(data.len == @sizeOf(T));
+            return std.mem.bytesAsValue(T, data[0..@sizeOf(T)]);
+        }
+
         pub fn pushData(self: *Self, new_data: []const u8) ReceiveError!ReceiveData {
+            const expected_additional_len = if (self.crypto.encryption_enabled)
+                @as(usize, 16)
+            else
+                @as(usize, 0);
+
             switch (self.state) {
                 .initiate_handshake => {
-                    switch (try self.receive_buffer.pushData(self.allocator, new_data, @sizeOf(protocol.InitiateHandshake))) {
+                    switch (try self.receive_buffer.pushData(self.allocator, new_data, expected_additional_len + @sizeOf(protocol.InitiateHandshake))) {
                         .need_more => return ReceiveData.notEnough(new_data.len),
                         .ok => |info| {
-                            const value = info.get(protocol.InitiateHandshake);
+                            const value = try self.decryptAndGet(info, protocol.InitiateHandshake);
 
                             if (!std.mem.eql(u8, &value.magic, &protocol.magic))
                                 return error.UnexpectedData;
@@ -168,10 +216,10 @@ pub fn ServerStateMachine(comptime Writer: type) type {
                     if (self.will_receive_password)
                         total_len += 32;
 
-                    switch (try self.receive_buffer.pushData(self.allocator, new_data, total_len)) {
+                    switch (try self.receive_buffer.pushData(self.allocator, new_data, expected_additional_len + total_len)) {
                         .need_more => return ReceiveData.notEnough(new_data.len),
                         .ok => |info| {
-                            var buffer = info.data;
+                            var buffer = try self.decrypt(info.data);
                             var offset: usize = 0;
 
                             var username = if (self.will_receive_username) blk: {
@@ -179,7 +227,7 @@ pub fn ServerStateMachine(comptime Writer: type) type {
                                 break :blk std.mem.sliceTo(buffer[offset..][0..32], 0);
                             } else null;
 
-                            var password = if (self.will_receive_password) blk: {
+                            self.auth_token = if (self.will_receive_password) blk: {
                                 defer offset += 32;
                                 break :blk buffer[offset..][0..32].*;
                             } else null;
@@ -191,7 +239,7 @@ pub fn ServerStateMachine(comptime Writer: type) type {
                                 ReceiveEvent{
                                     .authenticate_info = .{
                                         .username = username,
-                                        .password = password,
+                                        .requires_key = (self.auth_token != null),
                                     },
                                 },
                             );
@@ -200,10 +248,10 @@ pub fn ServerStateMachine(comptime Writer: type) type {
                 },
                 .authenticate_result => return error.UnexpectedData,
                 .connect_header => {
-                    switch (try self.receive_buffer.pushData(self.allocator, new_data, @sizeOf(protocol.ConnectHeader))) {
+                    switch (try self.receive_buffer.pushData(self.allocator, new_data, expected_additional_len + @sizeOf(protocol.ConnectHeader))) {
                         .need_more => return ReceiveData.notEnough(new_data.len),
                         .ok => |info| {
-                            const value = info.get(protocol.ConnectHeader);
+                            const value = try self.decryptAndGet(info, protocol.ConnectHeader);
 
                             self.state = .connect_response;
 
@@ -231,10 +279,12 @@ pub fn ServerStateMachine(comptime Writer: type) type {
 
                             const total_len = @sizeOf(u32) + @sizeOf(types.ResourceID) * len;
 
-                            switch (try self.receive_buffer.pushData(self.allocator, new_data[prefix_info.consumed..], total_len)) {
+                            switch (try self.receive_buffer.pushData(self.allocator, new_data[prefix_info.consumed..], expected_additional_len + total_len)) {
                                 .need_more => return ReceiveData.notEnough(new_data.len - prefix_info.consumed),
                                 .ok => |info| {
-                                    const resources = @alignCast(4, std.mem.bytesAsSlice(types.ResourceID, info.data[4..]));
+                                    const data = try self.decrypt(info.data[4..]);
+
+                                    const resources = @alignCast(4, std.mem.bytesAsSlice(types.ResourceID, data));
                                     std.debug.assert(resources.len == len);
 
                                     self.requested_resource_count = len;
@@ -263,12 +313,14 @@ pub fn ServerStateMachine(comptime Writer: type) type {
 
                             const total_len = @sizeOf(u32) + len;
 
-                            switch (try self.receive_buffer.pushData(self.allocator, new_data[prefix_info.consumed..], total_len)) {
+                            switch (try self.receive_buffer.pushData(self.allocator, new_data[prefix_info.consumed..], expected_additional_len + total_len)) {
                                 .need_more => return ReceiveData.notEnough(new_data.len - prefix_info.consumed),
                                 .ok => |info| {
+                                    const data = try self.decrypt(info.data[4..]);
+
                                     return ReceiveData.createEvent(
                                         prefix_info.consumed + info.consumed,
-                                        ReceiveEvent{ .message = info.data[4..] },
+                                        ReceiveEvent{ .message = data },
                                     );
                                 },
                             }
