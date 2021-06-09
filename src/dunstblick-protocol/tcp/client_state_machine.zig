@@ -56,7 +56,10 @@ pub const ReceiveEvent = union(enum) {
         rejects_password: bool,
 
         pub fn ok(self: @This()) bool {
-            return !self.requires_password;
+            return !self.requires_username and
+                !self.requires_password and
+                !self.rejects_username and
+                !self.rejects_password;
         }
     };
     const AuthenticateResult = struct {
@@ -188,8 +191,14 @@ pub fn ClientStateMachine(comptime Writer: type) type {
                                 self.state = .faulted;
                                 return error.ProtocolViolation;
                             }
+
                             self.crypto.encryption_enabled = value.flags.encrypted;
                             self.state = .connect_header;
+
+                            if (value.result != .success) {
+                                self.state = .faulted;
+                            }
+
                             return ReceiveData.createEvent(
                                 info.consumed,
                                 ReceiveEvent{ .authenticate_result = .{ .result = value.result } },

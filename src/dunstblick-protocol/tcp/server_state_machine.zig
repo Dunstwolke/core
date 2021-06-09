@@ -150,7 +150,9 @@ pub fn ServerStateMachine(comptime Writer: type) type {
             if (auth_valid) {
                 return AuthenticationResult.success;
             } else {
-                self.state = .faulted;
+                // This would be the correct thing here, but we still need to be able to send the
+                // correct message back to the client
+                //                self.state = .faulted;
                 return AuthenticationResult.failure;
             }
         }
@@ -356,8 +358,8 @@ pub fn ServerStateMachine(comptime Writer: type) type {
             std.debug.assert(!response.rejects_password or self.will_receive_password);
 
             // "require" must only be set when no name/password was sent
-            std.debug.assert(!response.requires_username or self.will_receive_username);
-            std.debug.assert(!response.requires_password or self.will_receive_password);
+            std.debug.assert(!response.requires_username or !self.will_receive_username);
+            std.debug.assert(!response.requires_password or !self.will_receive_password);
 
             var bits = protocol.AcknowledgeHandshake{
                 .response = response,
@@ -403,7 +405,11 @@ pub fn ServerStateMachine(comptime Writer: type) type {
             // encrypt our messages if wanted
             self.crypto.encryption_enabled = encrypt_transport;
 
-            self.state = .connect_header;
+            if (result == .success) {
+                self.state = .connect_header;
+            } else {
+                self.state = .faulted;
+            }
         }
 
         pub fn sendConnectResponse(self: *Self, resources: []const protocol.ConnectResponseItem) SendError!void {
