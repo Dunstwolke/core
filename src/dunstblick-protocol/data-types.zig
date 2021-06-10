@@ -6,6 +6,8 @@ pub const PropertyName = extern enum(u32) { invalid, _ };
 pub const EventID = extern enum(u32) { invalid, _ };
 pub const WidgetName = extern enum(u32) { none, _ };
 
+pub const ResourceHash = [8]u8;
+
 pub const ResourceKind = extern enum(u8) {
     /// A dunstblick layout.
     /// TODO: Write documentation

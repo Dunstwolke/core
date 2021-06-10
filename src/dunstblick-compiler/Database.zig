@@ -60,21 +60,21 @@ pub fn get(self: *Self, kind: Entry, name: []const u8) !?u32 {
             errdefer _ = map.remove(name);
 
             // Insert into memory
-            gop.entry.key = try self.dupe(name);
+            gop.key_ptr.* = try self.dupe(name);
 
             // As we will find ourselves in the map as well,
             // we will increment that zero to 1
-            gop.entry.value = 0;
+            gop.value_ptr.* = 0;
             var iter = map.iterator();
             while (iter.next()) |item| {
-                if (gop.entry.value < item.value) {
-                    gop.entry.value = item.value;
+                if (gop.value_ptr.* < item.value_ptr.*) {
+                    gop.value_ptr.* = item.value_ptr.*;
                 }
             }
-            gop.entry.value += 1;
-            std.debug.assert(gop.entry.value >= 1);
+            gop.value_ptr.* += 1;
+            std.debug.assert(gop.value_ptr.* >= 1);
         }
-        return gop.entry.value;
+        return gop.value_ptr.*;
     } else {
         return map.get(name);
     }
@@ -117,7 +117,7 @@ fn loadIdMap(self: *Self, config: std.json.ValueTree, key: []const u8, map: *IDM
     if (config.root.Object.get(key)) |value| {
         var items = value.Object.iterator();
         while (items.next()) |kv| {
-            try map.put(try self.dupe(kv.key), @intCast(u32, kv.value.Integer));
+            try map.put(try self.dupe(kv.key_ptr.*), @intCast(u32, kv.value_ptr.Integer));
         }
     }
 }
@@ -127,7 +127,7 @@ fn validateObjectMap(list: std.json.Value) !void {
         return error.InvalidConfig;
     var iter = list.Object.iterator();
     while (iter.next()) |kv| {
-        if (kv.value != .Integer)
+        if (kv.value_ptr.* != .Integer)
             return error.InvalidConfig;
     }
 }
@@ -174,8 +174,8 @@ fn writeJsonMap(any: bool, key: []const u8, map: IDMap, writer: anytype) !bool {
         }
         first = false;
         try writer.writeAll("    ");
-        try std.json.stringify(item.key, std.json.StringifyOptions{}, writer);
-        try writer.print(": {d}", .{item.value});
+        try std.json.stringify(item.key_ptr.*, std.json.StringifyOptions{}, writer);
+        try writer.print(": {d}", .{item.value_ptr.*});
     }
     try writer.writeAll("\n  }");
     return true;

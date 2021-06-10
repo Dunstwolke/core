@@ -74,16 +74,18 @@ pub const NetworkSession = struct {
         var writer = sock.writer();
         var reader = sock.reader();
 
-        try writer.writeAll(std.mem.asBytes(&protocol.tcp.ConnectHeader{
-            .name = sliceToArray(u8, 32, "Test Client", 0),
-            .password = sliceToArray(u8, 32, "", 0),
-            .screen_size_x = 640, // TODO: Set to real values here
-            .screen_size_y = 480,
-            .capabilities = .{
-                .mouse = true,
-                .keyboard = true,
-            },
-        }));
+        if (true)
+            @panic("niy");
+        // try writer.writeAll(std.mem.asBytes(&protocol.tcp.ConnectHeader{
+        //     .name = @panic("niy"), // sliceToArray(u8, 32, "Test Client", 0),
+        //     .password = @panic("niy"), //sliceToArray(u8, 32, "", 0),
+        //     .screen_size_x = 640, // TODO: Set to real values here
+        //     .screen_size_y = 480,
+        //     .capabilities = .{
+        //         .mouse = true,
+        //         .keyboard = true,
+        //     },
+        // }));
 
         var connect_response: protocol.tcp.ConnectResponse = undefined;
         try reader.readNoEof(std.mem.asBytes(&connect_response));

@@ -235,6 +235,13 @@ pub fn build(b: *Builder) !void {
         }
     }
 
+    const dummy_application = b.addExecutable("dummy-application", "src/test/dummy-application.zig");
+    dummy_application.addPackage(pkgs.dunstblick_protocol);
+    dummy_application.addPackage(pkgs.network);
+    dummy_application.setTarget(target);
+    dummy_application.setBuildMode(mode);
+    dummy_application.install();
+
     const desktop_app = b.addExecutable("dunstblick-desktop", "src/dunstblick-desktop/main.zig");
     {
         desktop_app.setBuildMode(mode);

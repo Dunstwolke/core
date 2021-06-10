@@ -123,6 +123,10 @@ pub fn ClientStateMachine(comptime Writer: type) type {
             return (self.state == .faulted);
         }
 
+        pub fn isConnectionEstablished(self: Self) bool {
+            return (self.state == .establish);
+        }
+
         /// Strips the tag from the payload and decrypts the message if necessary.
         fn decrypt(self: *Self, data: []u8) ![]u8 {
             if (self.crypto.encryption_enabled) {

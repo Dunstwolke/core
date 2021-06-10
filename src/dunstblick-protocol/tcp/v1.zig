@@ -37,7 +37,7 @@ comptime {
 
 /// Client → Server
 /// This is the initial kick-off for the protocol.
-pub const InitiateHandshake = struct {
+pub const InitiateHandshake = extern struct {
     /// Protocol identifier
     magic: [4]u8 = magic,
 
@@ -68,7 +68,7 @@ pub const InitiateHandshake = struct {
 /// Server → Client
 /// This is sent in response to the `InitiateHandshake` message.
 /// This message will be followed by `AuthenticationInfo` when successful.
-pub const AcknowledgeHandshake = struct {
+pub const AcknowledgeHandshake = extern struct {
     pub const Response = packed struct {
         /// The server requires a username to be present, but the client didn't declare
         /// to provide one.
@@ -100,7 +100,7 @@ pub const AcknowledgeHandshake = struct {
 /// and if they are who they tell they are.
 /// This might be skipped if no username and password is present and the server
 /// will just send the final authentication info
-pub const AuthenticationInfo = struct {
+pub const AuthenticationInfo = extern struct {
     // if(InitiateHandshake.flags.has_username) {
     //     /// The user name
     //     username: [32]u8,
@@ -115,7 +115,7 @@ pub const AuthenticationInfo = struct {
 /// Server → Client
 /// This will be either sent after `AcknowledgeHandshake` or `AuthenticationInfo`
 /// and will notify the client about the success of the authentication.
-pub const AuthenticationResult = struct {
+pub const AuthenticationResult = extern struct {
     pub const Result = enum(u16) {
         /// The authentication was successful and the client is verified.
         success = 0,
@@ -141,7 +141,7 @@ pub const AuthenticationResult = struct {
 /// Client → Server
 /// Sent after a successful `AuthenticationResult`. Will inform the server about
 /// the client geometry and capabilities.
-pub const ConnectHeader = struct {
+pub const ConnectHeader = extern struct {
     capabilities: ClientCapabilities,
     screen_width: u16,
     screen_height: u16,
@@ -152,7 +152,7 @@ pub const ConnectHeader = struct {
 /// Server → Client
 /// Response to the `ConnectHeader` message. Informs the client about all resources
 /// that are provided by the server.
-pub const ConnectResponse = struct {
+pub const ConnectResponse = extern struct {
     /// Number of resources that should be transferred to the display client.
     resource_count: u32,
 };
@@ -160,23 +160,23 @@ pub const ConnectResponse = struct {
 /// Server → Client
 /// One descriptor for each resource.
 /// Send `ConnectResponse.resource_count` times after a `ConnectResponse`.
-pub const ConnectResponseItem = struct {
+pub const ConnectResponseItem = extern struct {
     /// The unique resource identifier.
     id: types.ResourceID,
     /// The type of the resource.
     type: types.ResourceKind,
     /// Size of the resource in bytes.
     size: u32,
-    /// Siphash of the resource data.
-    /// TODO: Specify parameters for the siphash function
-    hash: [8]u8,
+    /// Hash of the resource data.
+    /// Is computed by `std.hash.Fnv1a_64`.
+    hash: ResourceHash,
 };
 
 /// Client → Server
 /// Followed after the last `ConnectResponseItem`.
 /// The client answers with the number of requested resources.
 /// The server will then respond with `resource_count` instances of the `ResourceHeader`.
-pub const ResourceRequest = struct {
+pub const ResourceRequest = extern struct {
     // resource_count: u32,
     // id: [resource_count]ResourceID,
 };
@@ -185,7 +185,7 @@ pub const ResourceRequest = struct {
 /// Sent after `ResourceRequest` for each requested resource.
 /// After all `ResourceHeader`s are sent, the protocol will switch over to 
 /// a message-based approach, see `Message`.
-pub const ResourceHeader = struct {
+pub const ResourceHeader = extern struct {
     // /// size of the transferred resource
     // size: u32,
 
@@ -200,7 +200,7 @@ pub const ResourceHeader = struct {
 /// Client → Server
 /// This will be the wrapper for messages after the full handshake is done for both messages
 /// from server to client as well as client to server.
-pub const Message = struct {
+pub const Message = extern struct {
     /// Length of the message in bytes
     length: u32,
 

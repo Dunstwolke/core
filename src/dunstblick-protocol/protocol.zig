@@ -73,6 +73,13 @@ test {
 
 const TestStream = std.io.FixedBufferStream([]u8);
 
+/// Computes the hash for a resource file
+pub fn computeResourceHash(data: []const u8) ResourceHash {
+    var hash: ResourceHash = undefined;
+    std.mem.writeIntLittle(u64, &hash, std.hash.Fnv1a_64.hash(data));
+    return hash;
+}
+
 fn expectServerEvent(
     stream: *TestStream,
     server: *tcp.ServerStateMachine(TestStream.Writer),
@@ -633,9 +640,8 @@ fn testCommonHandshake(
                 .id = @intToEnum(ResourceID, @truncate(u32, i)),
                 .type = @intToEnum(ResourceKind, @truncate(u8, i % 3)),
                 .size = @truncate(u32, all_resources[i].len),
-                .hash = undefined,
+                .hash = computeResourceHash(all_resources[i]),
             };
-            std.mem.writeIntLittle(u64, &desc.hash, std.hash.Fnv1a_64.hash(all_resources[i]));
         }
         break :blk descriptors;
     };

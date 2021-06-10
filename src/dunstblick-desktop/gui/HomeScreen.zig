@@ -407,12 +407,12 @@ const IconCache = struct {
     pub fn get(self: *IconCache, icon: []const u8, size: Size) !*const Renderer2D.Texture {
         const gop1 = try self.icon_map.getOrPut(self.allocator, icon);
         if (!gop1.found_existing) {
-            gop1.entry.value = SizedIcons{};
+            gop1.value_ptr.* = SizedIcons{};
         }
 
         const size_key = (@as(u30, size.width) << 15) | size.width;
 
-        const gop2 = try gop1.entry.value.getOrPut(self.allocator, size_key);
+        const gop2 = try gop1.value_ptr.getOrPut(self.allocator, size_key);
         if (!gop2.found_existing) {
             var arena = std.heap.ArenaAllocator.init(self.allocator);
             defer arena.deinit();
@@ -458,17 +458,17 @@ const IconCache = struct {
                 icon,
             ) catch {};
 
-            gop2.entry.value = self.renderer.createTexture(size.width, size.height, std.mem.sliceAsBytes(pixels)) catch return error.OutOfMemory;
+            gop2.value_ptr.* = self.renderer.createTexture(size.width, size.height, std.mem.sliceAsBytes(pixels)) catch return error.OutOfMemory;
         }
-        return gop2.entry.value;
+        return gop2.value_ptr.*;
     }
 
     pub fn deinit(self: *IconCache) void {
         var outer_it = self.icon_map.iterator();
         while (outer_it.next()) |list| {
-            var inner_it = list.value.iterator();
+            var inner_it = list.value_ptr.iterator();
             while (inner_it.next()) |item| {
-                self.renderer.destroyTexture(item.value);
+                self.renderer.destroyTexture(item.value_ptr.*);
             }
         }
     }

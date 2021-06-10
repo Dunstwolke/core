@@ -151,34 +151,16 @@ const ConnectionHeader = struct {
     capabilities: ClientCapabilities,
 };
 
-const SipHash = [8]u8;
-
-fn computeHash(data: []const u8) SipHash {
-    var hash: SipHash = undefined;
-
-    const key = "DUNSTBLICK Hash!";
-
-    const int_hash = std.hash.SipHash64(3, 2).toInt(data, key);
-
-    std.mem.writeIntLittle(
-        u64,
-        &hash,
-        int_hash,
-    );
-
-    return hash;
-}
-
 const StoredResource = struct {
     const Self = @This();
 
     id: protocol.ResourceID,
     type: protocol.ResourceKind,
+    hash: protocol.ResourceHash,
     data: []u8, // allocated with Application.allocator
-    hash: SipHash,
 
     fn updateHash(self: *Self) void {
-        self.hash = computeHash(self.data);
+        self.hash = protocol.computeResourceHash(self.data);
     }
 };
 
@@ -360,239 +342,244 @@ pub const Connection = struct {
 
     /// Shoves data from the display server into the connection.
     fn pushData(self: *Self, blob: []const u8) !void {
-        const MAX_BUFFER_LIMIT = 5 * 1024 * 1024; // 5 MeBiByte
+        @panic("not implemented yet!");
 
-        if (self.receive_buffer.items.len + blob.len >= MAX_BUFFER_LIMIT) {
-            return self.drop(.invalid_data);
-        }
+        // const MAX_BUFFER_LIMIT = 5 * 1024 * 1024; // 5 MeBiByte
 
-        try self.receive_buffer.appendSlice(blob);
+        // if (self.receive_buffer.items.len + blob.len >= MAX_BUFFER_LIMIT) {
+        //     return self.drop(.invalid_data);
+        // }
 
-        log.debug("read {} bytes from {} into buffer of {}", .{
-            blob.len,
-            self.remote,
-            self.receive_buffer.items.len,
-        });
+        // try self.receive_buffer.appendSlice(blob);
 
-        while (self.receive_buffer.items.len > 0) {
-            const stream_data = self.receive_buffer.items;
-            const consumed_size = switch (self.state) {
-                .READ_HEADER => blk: {
-                    if (stream_data.len > @sizeOf(protocol.tcp.ConnectHeader)) {
-                        // Drop if we received too much data.
-                        // Server is not allowed to send more than the actual
-                        // connect header.
-                        return self.drop(.invalid_data);
-                    }
-                    if (stream_data.len < @sizeOf(protocol.tcp.ConnectHeader)) {
-                        // not yet enough data
-                        return;
-                    }
-                    std.debug.assert(stream_data.len == @sizeOf(protocol.tcp.ConnectHeader));
+        // log.debug("read {} bytes from {} into buffer of {}", .{
+        //     blob.len,
+        //     self.remote,
+        //     self.receive_buffer.items.len,
+        // });
 
-                    const net_header = @ptrCast(*align(1) const protocol.tcp.ConnectHeader, stream_data.ptr);
+        // while (self.receive_buffer.items.len > 0) {
+        //     const stream_data = self.receive_buffer.items;
+        //     const consumed_size = switch (self.state) {
+        //         .READ_HEADER => blk: {
+        //             if (stream_data.len > @sizeOf(protocol.tcp.ConnectHeader)) {
+        //                 // Drop if we received too much data.
+        //                 // Server is not allowed to send more than the actual
+        //                 // connect header.
+        //                 return self.drop(.invalid_data);
+        //             }
+        //             if (stream_data.len < @sizeOf(protocol.tcp.ConnectHeader)) {
+        //                 // not yet enough data
+        //                 return;
+        //             }
+        //             std.debug.assert(stream_data.len == @sizeOf(protocol.tcp.ConnectHeader));
 
-                    if (!std.mem.eql(u8, &net_header.magic, &protocol.tcp.magic))
-                        return self.drop(.invalid_data);
-                    if (net_header.protocol_version != protocol.tcp.protocol_version)
-                        return self.drop(.protocol_mismatch);
+        //             const net_header = @ptrCast(*align(1) const protocol.tcp.ConnectHeader, stream_data.ptr);
 
-                    {
-                        var header = ConnectionHeader{
-                            .password = undefined,
-                            .clientName = undefined,
-                            .capabilities = @bitCast(u32, net_header.capabilities),
-                        };
+        //             if (!std.mem.eql(u8, &net_header.magic, &protocol.tcp.magic))
+        //                 return self.drop(.invalid_data);
+        //             if (net_header.protocol_version != protocol.tcp.protocol_version)
+        //                 return self.drop(.protocol_mismatch);
 
-                        header.password = try std.mem.dupeZ(self.provider.allocator, u8, extractString(&net_header.password));
-                        errdefer self.provider.allocator.free(header.password);
+        //             {
+        //                 var header = ConnectionHeader{
+        //                     .password = undefined,
+        //                     .clientName = undefined,
+        //                     .capabilities = @bitCast(u32, net_header.capabilities),
+        //                 };
 
-                        header.clientName = try std.mem.dupeZ(self.provider.allocator, u8, extractString(&net_header.name));
-                        errdefer self.provider.allocator.free(header.clientName);
+        //                 header.password = try std.mem.dupeZ(self.provider.allocator, u8, extractString(&net_header.password));
+        //                 errdefer self.provider.allocator.free(header.password);
 
-                        self.header = header;
-                    }
+        //                 header.clientName = try std.mem.dupeZ(self.provider.allocator, u8, extractString(&net_header.name));
+        //                 errdefer self.provider.allocator.free(header.clientName);
 
-                    self.screen_resolution.width = net_header.screen_size_x;
-                    self.screen_resolution.height = net_header.screen_size_y;
+        //                 self.header = header;
+        //             }
 
-                    {
-                        const lock = self.provider.resource_lock.acquire();
-                        defer lock.release();
+        //             self.screen_resolution.width = net_header.screen_size_x;
+        //             self.screen_resolution.height = net_header.screen_size_y;
 
-                        var stream = self.sock.writer();
+        //             {
+        //                 const lock = self.provider.resource_lock.acquire();
+        //                 defer lock.release();
 
-                        var response = protocol.tcp.ConnectResponse{
-                            .success = 1,
-                            .resource_count = @intCast(u32, self.provider.resources.count()),
-                        };
+        //                 var stream = self.sock.writer();
 
-                        try stream.writeAll(std.mem.asBytes(&response));
+        //                 var response = protocol.tcp.ConnectResponse{
+        //                     .success = 1,
+        //                     .resource_count = @intCast(u32, self.provider.resources.count()),
+        //                 };
 
-                        var iter = self.provider.resources.iterator();
-                        while (iter.next()) |kv| {
-                            const resource = &kv.value;
-                            var descriptor = protocol.tcp.ResourceDescriptor{
-                                .id = resource.id,
-                                .size = @intCast(u32, resource.data.len),
-                                .type = resource.type,
-                                .hash = resource.hash,
-                            };
-                            try stream.writeAll(std.mem.asBytes(&descriptor));
-                        }
-                    }
+        //                 try stream.writeAll(std.mem.asBytes(&response));
 
-                    self.state = .READ_REQUIRED_RESOURCE_HEADER;
+        //                 var iter = self.provider.resources.iterator();
+        //                 while (iter.next()) |kv| {
+        //                     const resource = &kv.value;
+        //                     var descriptor = protocol.tcp.ResourceDescriptor{
+        //                         .id = resource.id,
+        //                         .size = @intCast(u32, resource.data.len),
+        //                         .type = resource.type,
+        //                         .hash = resource.hash,
+        //                     };
+        //                     try stream.writeAll(std.mem.asBytes(&descriptor));
+        //                 }
+        //             }
 
-                    break :blk @sizeOf(protocol.tcp.ConnectHeader);
-                },
+        //             self.state = .READ_REQUIRED_RESOURCE_HEADER;
 
-                .READ_REQUIRED_RESOURCE_HEADER => blk: {
-                    if (stream_data.len < @sizeOf(protocol.tcp.ResourceRequestHeader))
-                        return;
+        //             break :blk @sizeOf(protocol.tcp.ConnectHeader);
+        //         },
 
-                    const header = @ptrCast(*align(1) const protocol.tcp.ResourceRequestHeader, stream_data.ptr);
+        //         .READ_REQUIRED_RESOURCE_HEADER => blk: {
+        //             if (stream_data.len < @sizeOf(protocol.tcp.ResourceRequestHeader))
+        //                 return;
 
-                    self.required_resource_count = header.request_count;
+        //             const header = @ptrCast(*align(1) const protocol.tcp.ResourceRequestHeader, stream_data.ptr);
 
-                    if (self.required_resource_count > 0) {
-                        self.required_resources.shrinkRetainingCapacity(0);
-                        try self.required_resources.ensureCapacity(self.required_resource_count);
+        //             self.required_resource_count = header.request_count;
 
-                        self.state = .READ_REQUIRED_RESOURCES;
-                    } else {
-                        self.state = .READY;
+        //             if (self.required_resource_count > 0) {
+        //                 self.required_resources.shrinkRetainingCapacity(0);
+        //                 try self.required_resources.ensureCapacity(self.required_resource_count);
 
-                        // handshake phase is complete,
-                        // switch over to main phase
-                        self.is_initialized = true;
-                    }
+        //                 self.state = .READ_REQUIRED_RESOURCES;
+        //             } else {
+        //                 self.state = .READY;
 
-                    break :blk @sizeOf(protocol.tcp.ResourceRequestHeader);
-                },
+        //                 // handshake phase is complete,
+        //                 // switch over to main phase
+        //                 self.is_initialized = true;
+        //             }
 
-                .READ_REQUIRED_RESOURCES => blk: {
-                    if (stream_data.len < @sizeOf(protocol.tcp.ResourceRequest))
-                        return;
+        //             break :blk @sizeOf(protocol.tcp.ResourceRequestHeader);
+        //         },
 
-                    const request = @ptrCast(*align(1) const protocol.tcp.ResourceRequest, stream_data.ptr);
+        //         .READ_REQUIRED_RESOURCES => blk: {
+        //             if (stream_data.len < @sizeOf(protocol.tcp.ResourceRequest))
+        //                 return;
 
-                    try self.required_resources.append(request.id);
+        //             const request = @ptrCast(*align(1) const protocol.tcp.ResourceRequest, stream_data.ptr);
 
-                    std.debug.assert(self.required_resources.items.len <= self.required_resource_count);
-                    if (self.required_resources.items.len == self.required_resource_count) {
-                        if (stream_data.len > @sizeOf(protocol.tcp.ResourceRequest)) {
-                            // If excess data was sent, we drop the connection
-                            return self.drop(.invalid_data);
-                        }
+        //             try self.required_resources.append(request.id);
 
-                        self.resource_send_index = 0;
-                        self.resource_send_offset = 0;
-                        self.state = .SEND_RESOURCES;
-                    }
+        //             std.debug.assert(self.required_resources.items.len <= self.required_resource_count);
+        //             if (self.required_resources.items.len == self.required_resource_count) {
+        //                 if (stream_data.len > @sizeOf(protocol.tcp.ResourceRequest)) {
+        //                     // If excess data was sent, we drop the connection
+        //                     return self.drop(.invalid_data);
+        //                 }
 
-                    // wait for a packet of all required resources
+        //                 self.resource_send_index = 0;
+        //                 self.resource_send_offset = 0;
+        //                 self.state = .SEND_RESOURCES;
+        //             }
 
-                    break :blk @sizeOf(protocol.tcp.ResourceRequest);
-                },
+        //             // wait for a packet of all required resources
 
-                .SEND_RESOURCES => {
-                    // we are currently uploading all resources,
-                    // receiving anything here would be protocol violation
-                    return self.drop(.invalid_data);
-                },
+        //             break :blk @sizeOf(protocol.tcp.ResourceRequest);
+        //         },
 
-                .READY => blk: {
-                    if (stream_data.len < 4)
-                        return; // Not enough data for size decoding
+        //         .SEND_RESOURCES => {
+        //             // we are currently uploading all resources,
+        //             // receiving anything here would be protocol violation
+        //             return self.drop(.invalid_data);
+        //         },
 
-                    const length = std.mem.readIntLittle(u32, stream_data[0..4]);
+        //         .READY => blk: {
+        //             if (stream_data.len < 4)
+        //                 return; // Not enough data for size decoding
 
-                    if (stream_data.len < (4 + length))
-                        return; // not enough data
+        //             const length = std.mem.readIntLittle(u32, stream_data[0..4]);
 
-                    try self.decodePacket(stream_data[4..]);
+        //             if (stream_data.len < (4 + length))
+        //                 return; // not enough data
 
-                    break :blk (length + 4);
-                },
-            };
-            std.debug.assert(consumed_size > 0);
-            std.debug.assert(consumed_size <= self.receive_buffer.items.len);
+        //             try self.decodePacket(stream_data[4..]);
 
-            std.mem.copy(u8, self.receive_buffer.items[0..], self.receive_buffer.items[consumed_size..]);
+        //             break :blk (length + 4);
+        //         },
+        //     };
+        //     std.debug.assert(consumed_size > 0);
+        //     std.debug.assert(consumed_size <= self.receive_buffer.items.len);
 
-            self.receive_buffer.shrinkRetainingCapacity(self.receive_buffer.items.len - consumed_size);
-        }
+        //     std.mem.copy(u8, self.receive_buffer.items[0..], self.receive_buffer.items[consumed_size..]);
+
+        //     self.receive_buffer.shrinkRetainingCapacity(self.receive_buffer.items.len - consumed_size);
+        // }
     }
 
     /// Is called whenever the socket is ready to send
     /// data and we're not yet in "READY" state
     fn sendData(self: *Self) !void {
-        std.debug.assert(self.is_initialized == false);
-        std.debug.assert(self.state != .READY);
-        switch (self.state) {
-            .SEND_RESOURCES => {
-                const lock = self.provider.resource_lock.acquire();
-                defer lock.release();
+        @panic("not implemented yet!");
+        // std.debug.assert(self.is_initialized == false);
+        // std.debug.assert(self.state != .READY);
+        // switch (self.state) {
+        //     .SEND_RESOURCES => {
+        //         const lock = self.provider.resource_lock.acquire();
+        //         defer lock.release();
 
-                const resource_id = self.required_resources.items[self.resource_send_index];
-                const resource = &(self.provider.resources.getEntry(resource_id) orelse return error.ResourceNotFound).value;
+        //         const resource_id = self.required_resources.items[self.resource_send_index];
+        //         const resource = &(self.provider.resources.getEntry(resource_id) orelse return error.ResourceNotFound).value_ptr.*;
 
-                var stream = self.sock.writer();
+        //         var stream = self.sock.writer();
 
-                if (self.resource_send_offset == 0) {
-                    const header = protocol.tcp.ResourceHeader{
-                        .id = resource_id,
-                        .size = @intCast(u32, resource.data.len),
-                    };
+        //         if (self.resource_send_offset == 0) {
+        //             @panic("re-implement this!");
+        //             // const header = protocol.tcp.ResourceHeader{
+        //             //     .id = resource_id,
+        //             //     .size = @intCast(u32, resource.data.len),
+        //             // };
 
-                    try stream.writeAll(std.mem.asBytes(&header));
-                }
+        //             // try stream.writeAll(std.mem.asBytes(&header));
+        //         }
 
-                const rest = resource.data.len - self.resource_send_offset;
+        //         const rest = resource.data.len - self.resource_send_offset;
 
-                const len = try stream.write(resource.data[self.resource_send_offset .. self.resource_send_offset + rest]);
+        //         const len = try stream.write(resource.data[self.resource_send_offset .. self.resource_send_offset + rest]);
 
-                self.resource_send_offset += len;
-                std.debug.assert(self.resource_send_offset <= resource.data.len);
-                if (self.resource_send_offset == resource.data.len) {
-                    // sending was completed
-                    self.resource_send_index += 1;
-                    self.resource_send_offset = 0;
-                    if (self.resource_send_index == self.required_resources.items.len) {
-                        // sending is done!
-                        self.state = .READY;
+        //         self.resource_send_offset += len;
+        //         std.debug.assert(self.resource_send_offset <= resource.data.len);
+        //         if (self.resource_send_offset == resource.data.len) {
+        //             // sending was completed
+        //             self.resource_send_index += 1;
+        //             self.resource_send_offset = 0;
+        //             if (self.resource_send_index == self.required_resources.items.len) {
+        //                 // sending is done!
+        //                 self.state = .READY;
 
-                        // handshake phase is complete,
-                        // switch over to
-                        self.is_initialized = true;
-                    }
-                }
-            },
-            // we don't need to send anything by-default
-            else => return,
-        }
+        //                 // handshake phase is complete,
+        //                 // switch over to
+        //                 self.is_initialized = true;
+        //             }
+        //         }
+        //     },
+        //     // we don't need to send anything by-default
+        //     else => return,
+        // }
     }
 
     /// transmit a CommandBuffer synchronously
     /// @remarks self will lock the Connection internally,
     ///          so don't wrap self call into a mutex!
     fn send(self: *Self, packet: []const u8) DunstblickError!void {
-        std.debug.assert(self.state == .READY);
+        @panic("not implemented yet!");
+        // std.debug.assert(self.state == .READY);
 
-        if (packet.len > std.math.maxInt(u32))
-            return error.OutOfRange;
+        // if (packet.len > std.math.maxInt(u32))
+        //     return error.OutOfRange;
 
-        errdefer self.drop(.network_error);
+        // errdefer self.drop(.network_error);
 
-        const length = @truncate(u32, packet.len);
+        // const length = @truncate(u32, packet.len);
 
-        const lock = self.mutex.acquire();
-        defer lock.release();
+        // const lock = self.mutex.acquire();
+        // defer lock.release();
 
-        var stream = self.sock.writer();
-        stream.writeIntLittle(u32, length) catch |err| return mapNetworkError(err);
-        stream.writeAll(packet[0..length]) catch |err| return mapNetworkError(err);
+        // var stream = self.sock.writer();
+        // stream.writeIntLittle(u32, length) catch |err| return mapNetworkError(err);
+        // stream.writeAll(packet[0..length]) catch |err| return mapNetworkError(err);
     }
 
     fn decodePacket(self: *Self, packet: []const u8) !void {
@@ -1149,6 +1136,7 @@ pub const Application = struct {
                                             .requires_auth = false,
                                             .wants_username = false,
                                             .wants_password = false,
+                                            .is_encrypted = false,
                                         },
                                         .tcp_port = self.tcp_listener_ep.port,
                                         .display_name = undefined,
@@ -1390,16 +1378,16 @@ pub const Application = struct {
 
         const result = try self.resources.getOrPut(id);
 
-        std.debug.assert(result.entry.key == id);
+        std.debug.assert(result.key_ptr.* == id);
         if (result.found_existing) {
-            std.debug.assert(result.entry.value.id == id);
-            self.allocator.free(result.entry.value.data);
+            std.debug.assert(result.value_ptr.id == id);
+            self.allocator.free(result.value_ptr.data);
         } else {
-            result.entry.value.id = id;
+            result.value_ptr.id = id;
         }
-        result.entry.value.type = @intToEnum(protocol.ResourceKind, @enumToInt(kind));
-        result.entry.value.data = cloned_data;
-        result.entry.value.updateHash();
+        result.value_ptr.type = @intToEnum(protocol.ResourceKind, @enumToInt(kind));
+        result.value_ptr.data = cloned_data;
+        result.value_ptr.updateHash();
 
         // TODO: Forward the result to all connected clients.
     }
@@ -1412,7 +1400,7 @@ pub const Application = struct {
         const lock = self.mutex.acquire();
         defer lock.release();
 
-        if (self.resources.remove(id)) |item| {
+        if (self.resources.fetchRemove(id)) |item| {
             self.allocator.free(item.value.data);
         }
     }

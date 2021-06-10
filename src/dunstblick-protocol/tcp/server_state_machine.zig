@@ -139,6 +139,10 @@ pub fn ServerStateMachine(comptime Writer: type) type {
             return (self.state == .faulted);
         }
 
+        pub fn isConnectionEstablished(self: Self) bool {
+            return (self.state == .establish);
+        }
+
         pub fn setKeyAndVerify(self: *Self, key: CryptoState.Key) AuthenticationResult {
             std.debug.assert(self.auth_token != null);
             const sent_auth_token = self.auth_token.?;

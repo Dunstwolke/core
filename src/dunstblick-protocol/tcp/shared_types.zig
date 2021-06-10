@@ -98,6 +98,7 @@ pub const MsgReceiveBuffer = struct {
             // the bytes in `buffer.items`, it will just resize `buffer.items` to zero.
             self.buffer.shrinkRetainingCapacity(0);
         }
+
         return result;
     }
 
