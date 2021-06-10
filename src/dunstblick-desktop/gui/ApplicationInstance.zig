@@ -9,10 +9,15 @@ const Size = zerog.Size;
 
 pub const Interface = struct {
     const GenericError = error{OutOfMemory};
-    update: fn (*Self, f32) GenericError!void,
+
+    pub const UpdateError = GenericError || error{IoError};
+    pub const ResizeError = GenericError;
+    pub const RenderError = GenericError || zerog.Renderer2D.DrawError;
+
+    update: fn (*Self, f32) UpdateError!void,
     processUserInterface: ?fn (*Self, zerog.Rectangle, zerog.UserInterface.Builder) zerog.UserInterface.Builder.Error!void,
-    resize: fn (*Self, size: Size) GenericError!void,
-    render: fn (*Self, zerog.Rectangle, *zerog.Renderer2D) GenericError!void,
+    resize: fn (*Self, size: Size) ResizeError!void,
+    render: fn (*Self, zerog.Rectangle, *zerog.Renderer2D) RenderError!void,
     close: fn (*Self) void,
     deinit: fn (*Self) void,
 

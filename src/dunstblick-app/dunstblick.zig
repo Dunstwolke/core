@@ -1138,7 +1138,9 @@ pub const Application = struct {
                                             .wants_password = false,
                                             .is_encrypted = false,
                                         },
-                                        .tcp_port = self.tcp_listener_ep.port,
+                                        // TODO: Revert this to the proper port, we just abuse the fact that our dummy application
+                                        // is tied to port 1337
+                                        .tcp_port = 1337, //self.tcp_listener_ep.port,
                                         .display_name = undefined,
                                     };
                                     response.setName(self.discovery_name) catch @panic("Application name too long!");

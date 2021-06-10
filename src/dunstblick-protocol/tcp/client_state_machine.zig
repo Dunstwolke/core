@@ -124,7 +124,7 @@ pub fn ClientStateMachine(comptime Writer: type) type {
         }
 
         pub fn isConnectionEstablished(self: Self) bool {
-            return (self.state == .establish);
+            return (self.state == .established);
         }
 
         /// Strips the tag from the payload and decrypts the message if necessary.
@@ -218,7 +218,11 @@ pub fn ClientStateMachine(comptime Writer: type) type {
                             const value = try self.decryptAndGet(info, protocol.ConnectResponse);
 
                             self.available_resource_count = value.resource_count;
-                            self.state = .{ .connect_response_item = 0 };
+                            if (self.available_resource_count > 0) {
+                                self.state = .{ .connect_response_item = 0 };
+                            } else {
+                                self.state = .established;
+                            }
 
                             return ReceiveData.createEvent(
                                 info.consumed,

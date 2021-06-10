@@ -4,9 +4,9 @@ const Self = @This();
 const ApplicationInstance = @import("ApplicationInstance.zig");
 
 pub const Interface = struct {
-    const GenericError = error{OutOfMemory};
-    const DestroyError = error{Indestructible};
-    spawn: fn (*Self, *std.mem.Allocator) GenericError!*ApplicationInstance,
+    pub const SpawnError = error{ IoError, OutOfMemory };
+    pub const DestroyError = error{Indestructible};
+    spawn: fn (*Self, *std.mem.Allocator) SpawnError!*ApplicationInstance,
     destroy: fn (*Self) DestroyError!void,
 
     pub fn get(comptime T: type) *const @This() {
@@ -45,7 +45,7 @@ vtable: *const Interface,
 state: State,
 
 /// Spawns a new instance of this application
-pub fn spawn(self: *Self, allocator: *std.mem.Allocator) Interface.GenericError!*ApplicationInstance {
+pub fn spawn(self: *Self, allocator: *std.mem.Allocator) Interface.SpawnError!*ApplicationInstance {
     return try self.vtable.spawn(self, allocator);
 }
 

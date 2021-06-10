@@ -60,6 +60,9 @@ pub const Application = struct {
         };
         errdefer app.available_apps.deinit();
 
+        app.app_discovery = try AppDiscovery.init(allocator);
+        errdefer app.app_discovery.deinit();
+
         app.renderer = try zero_graphics.Renderer2D.init(allocator);
         errdefer app.renderer.deinit();
 
@@ -67,14 +70,11 @@ pub const Application = struct {
 
         app.home_screen = try HomeScreen.init(allocator, &app.renderer);
         errdefer app.home_screen.deinit();
-
-        app.app_discovery = try AppDiscovery.init(allocator);
-        errdefer app.app_discovery.deinit();
     }
 
     pub fn deinit(app: *Application) void {
-        app.app_discovery.deinit();
         app.home_screen.deinit();
+        app.app_discovery.deinit();
         app.available_apps.deinit();
         app.* = undefined;
     }

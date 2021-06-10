@@ -1,14 +1,20 @@
 const std = @import("std");
 const network = @import("network");
 const protocol = @import("dunstblick-protocol");
+const logger = std.log.scoped(.app_discovery);
 
 const ApplicationDescription = @import("../gui/ApplicationDescription.zig");
 const ApplicationInstance = @import("../gui/ApplicationInstance.zig");
+
+const NetworkApplication = @import("NetworkApplication.zig");
 
 const Self = @This();
 
 const AppList = std.TailQueue(Application);
 const AppNode = std.TailQueue(Application).Node;
+
+const AppInstanceList = std.TailQueue(NetworkApplication);
+const AppInstanceNode = std.TailQueue(NetworkApplication).Node;
 
 const multicast_ep = network.EndPoint{
     .address = network.Address{
@@ -31,6 +37,8 @@ socket_set: network.SocketSet,
 
 app_list: AppList,
 free_app_list: AppList,
+
+active_apps: AppInstanceList,
 
 /// This stores the time stamp when the next scan update will happen.
 next_scan: i128,
@@ -57,15 +65,28 @@ pub fn init(allocator: *std.mem.Allocator) !Self {
         .app_list = .{},
         .free_app_list = .{},
 
+        .active_apps = .{},
+
         .next_scan = std.time.nanoTimestamp(),
     };
 }
 
 pub fn deinit(self: *Self) void {
+    while (self.active_apps.first) |node| {
+        self.destroyApplication(node);
+    }
     self.socket_set.deinit();
     self.multicast_sock.close();
     self.arena.deinit();
     self.* = undefined;
+}
+
+fn destroyApplication(self: *Self, node: *AppInstanceNode) void {
+    if (!node.data.flagged_for_deletion) {
+        node.data.deinit();
+    }
+    self.active_apps.remove(node);
+    self.allocator.destroy(node);
 }
 
 fn allocApp(self: *Self) !*AppNode {
@@ -91,6 +112,17 @@ fn freeApp(self: *Self, app_node: *AppNode) void {
 pub fn update(self: *Self) !void {
     const time_stamp = std.time.nanoTimestamp();
 
+    // Clean up all deleted applications:
+    {
+        var it = self.active_apps.first;
+        while (it) |node| {
+            it = node.next;
+            if (node.data.flagged_for_deletion) {
+                self.destroyApplication(node);
+            }
+        }
+    }
+
     if (time_stamp >= self.next_scan) {
         var discover_msg = protocol.udp.Discover{
             .header = protocol.udp.Header.create(.discover),
@@ -110,9 +142,30 @@ pub fn update(self: *Self) !void {
 
     while (true) {
         // check if we received some messages, if not: stop
+
         const count = try network.waitForSocketEvent(&self.socket_set, 0);
         if (count == 0)
             break;
+
+        {
+            var it = self.active_apps.first;
+            while (it) |node| : (it = node.next) {
+                std.debug.assert(node.data.flagged_for_deletion == false);
+
+                if (self.socket_set.isReadyWrite(node.data.socket)) {
+                    if (try node.data.notifyWritable()) {
+                        self.socket_set.remove(node.data.socket);
+                        try self.socket_set.add(node.data.socket, .{ .read = true, .write = false });
+                    }
+                }
+                if (self.socket_set.isReadyRead(node.data.socket)) {
+                    try node.data.notifyReadable();
+                }
+                if (node.data.isFaulted()) {
+                    self.socket_set.remove(node.data.socket);
+                }
+            }
+        }
 
         if (self.socket_set.isReadyRead(self.multicast_sock)) {
             var message: protocol.udp.Message = undefined;
@@ -143,6 +196,7 @@ pub fn update(self: *Self) !void {
                 } else blk: {
                     const node = try self.allocApp();
                     node.data = Application{
+                        .discovery = self,
                         .description = ApplicationDescription{
                             .display_name = undefined,
                             .icon = null,
@@ -193,7 +247,7 @@ pub fn update(self: *Self) !void {
     }
 }
 
-pub fn iterator(self: @This()) Iterator {
+pub fn iterator(self: Self) Iterator {
     return Iterator{
         .it = self.app_list.first,
     };
@@ -228,12 +282,27 @@ pub const Application = struct {
     strings_buffer: std.ArrayList(u8),
     was_removal_requested: bool = false,
 
-    pub fn spawn(desc: *ApplicationDescription, allocator: *std.mem.Allocator) !*ApplicationInstance {
-        const NetworkApplication = @import("NetworkApplication.zig");
+    discovery: *Self,
 
-        const app = try NetworkApplication.init(allocator, desc);
+    pub fn spawn(desc: *ApplicationDescription, allocator: *std.mem.Allocator) ApplicationDescription.Interface.SpawnError!*ApplicationInstance {
+        const self = @fieldParentPtr(Application, "description", desc);
 
-        return &app.instance;
+        const node = try self.discovery.allocator.create(AppInstanceNode);
+        errdefer self.discovery.allocator.destroy(node);
+
+        NetworkApplication.init(&node.data, allocator, self) catch |err| {
+            logger.err("failed to start app: {}", .{err});
+            return switch (err) {
+                error.OutOfMemory => error.OutOfMemory,
+                else => error.IoError,
+            };
+        };
+
+        try self.discovery.socket_set.add(node.data.socket, .{ .read = true, .write = true });
+
+        self.discovery.active_apps.append(node);
+
+        return &node.data.instance;
     }
 
     /// Requests the removal of this application.
@@ -241,7 +310,7 @@ pub const Application = struct {
     /// as they are still displayed in the menu and it could cause evil
     /// misclicks when a app is removed in the moment a user clicks. This
     /// function will destroy the application state.
-    pub fn destroy(desc: *ApplicationDescription) !void {
+    pub fn destroy(desc: *ApplicationDescription) ApplicationDescription.Interface.DestroyError!void {
         const self = @fieldParentPtr(Application, "description", desc);
         self.was_removal_requested = true;
     }
