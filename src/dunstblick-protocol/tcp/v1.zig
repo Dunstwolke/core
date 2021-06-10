@@ -169,7 +169,7 @@ pub const ConnectResponseItem = extern struct {
     size: u32,
     /// Hash of the resource data.
     /// Is computed by `std.hash.Fnv1a_64`.
-    hash: ResourceHash,
+    hash: types.ResourceHash,
 };
 
 /// Client → Server

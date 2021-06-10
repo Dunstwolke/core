@@ -163,6 +163,13 @@ pub const DiscoverResponse = extern struct {
     }
 };
 
+// comptime {
+//     @compileLog(@sizeOf(DiscoverResponse));
+//     for (std.meta.fields(DiscoverResponse)) |fld| {
+//         @compileLog(fld.name, @byteOffsetOf(DiscoverResponse, fld.name), @byteOffsetOf(DiscoverResponse, fld.name) + @sizeOf(fld.field_type) - 1, @sizeOf(fld.field_type));
+//     }
+// }
+
 /// Message union that contains all possible messages.
 /// Use `header` field to query which field is valid.
 pub const Message = extern union {
