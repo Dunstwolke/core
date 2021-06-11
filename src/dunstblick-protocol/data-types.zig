@@ -8,7 +8,7 @@ pub const WidgetName = extern enum(u32) { none, _ };
 
 pub const ResourceHash = [8]u8;
 
-pub const ResourceKind = extern enum(u8) {
+pub const ResourceKind = enum(u8) {
     /// A dunstblick layout.
     /// TODO: Write documentation
     layout = 0,
@@ -23,7 +23,7 @@ pub const ResourceKind = extern enum(u8) {
     _,
 };
 
-pub const Type = extern enum(u32) {
+pub const Type = enum(u32) {
     none = 0,
     integer = 1,
     number = 2,
@@ -43,7 +43,7 @@ pub const Type = extern enum(u32) {
 };
 
 /// Possible properties a client can expose.
-pub const ClientCapabilities = extern enum(u32) {
+pub const ClientCapabilities = enum(u32) {
     /// The client does not have any capabilities. Provide the bare minimum GUI.
     none = 0,
     /// The client has a mouse with at least one button available.
@@ -65,7 +65,7 @@ pub const ClientCapabilities = extern enum(u32) {
     _,
 };
 
-pub const DisconnectReason = extern enum(u32) {
+pub const DisconnectReason = enum(u32) {
     /// The user closed the connection.
     quit = 0,
 

@@ -45,9 +45,15 @@ pub const ReceiveEvent = union(enum) {
     acknowledge_handshake: AcknowledgeHandshake,
     authenticate_result: AuthenticateResult,
     connect_response: ConnectResponse,
-    connect_response_item: protocol.ConnectResponseItem,
+    connect_response_item: ConnectResponseItem,
     resource_header: ResourceHeader,
     message: []const u8,
+
+    const ConnectResponseItem = struct {
+        index: usize,
+        descriptor: protocol.ConnectResponseItem,
+        is_last: bool,
+    };
 
     const AcknowledgeHandshake = struct {
         requires_username: bool,
@@ -239,6 +245,8 @@ pub fn ClientStateMachine(comptime Writer: type) type {
                         .ok => |info| {
                             const value = try self.decryptAndGet(info, protocol.ConnectResponseItem);
 
+                            const index = current_index.*;
+
                             current_index.* += 1;
                             if (current_index.* >= self.available_resource_count) {
                                 self.state = .resource_request;
@@ -246,7 +254,11 @@ pub fn ClientStateMachine(comptime Writer: type) type {
 
                             return ReceiveData.createEvent(
                                 info.consumed,
-                                ReceiveEvent{ .connect_response_item = value.* },
+                                ReceiveEvent{ .connect_response_item = .{
+                                    .index = index,
+                                    .descriptor = value.*,
+                                    .is_last = (self.state == .resource_request),
+                                } },
                             );
                         },
                     }
@@ -423,7 +435,11 @@ pub fn ClientStateMachine(comptime Writer: type) type {
             try self.send(self.temp_msg_buffer.items);
 
             self.requested_resource_count = @truncate(u32, resources.len);
-            self.state = .{ .resource_header = 0 };
+            if (self.requested_resource_count > 0) {
+                self.state = .{ .resource_header = 0 };
+            } else {
+                self.state = .established;
+            }
         }
 
         pub fn sendMessage(self: *Self, message: []const u8) SendError!void {

@@ -7,6 +7,13 @@ const std = @import("std");
 const network = @import("network");
 const protocol = @import("dunstblick-protocol");
 
+const resources = [_][]const u8{
+    @embedFile("../images/kristall-32.png"),
+    @embedFile("../images/person-female-01.png"),
+    @embedFile("../images/person-male-01.png"),
+    @embedFile("../images/small-test.png"),
+};
+
 pub fn main() !void {
     var listener = try network.Socket.create(.ipv4, .tcp);
     defer listener.close();
@@ -75,9 +82,27 @@ fn handleConnection(client: network.Socket) !void {
                         .connect_header => |hdr| {
                             std.log.info("client specs: {}", .{hdr});
 
-                            try server.sendConnectResponse(&[_]protocol.tcp.ConnectResponseItem{
-                                // empty resources
-                            });
+                            const headers = blk: {
+                                var items: [resources.len]protocol.tcp.ConnectResponseItem = undefined;
+                                for (items) |*desc, i| {
+                                    desc.* = .{
+                                        .id = @intToEnum(protocol.ResourceID, @truncate(u32, i + 1)),
+                                        .size = @intCast(u32, resources[i].len),
+                                        .hash = protocol.computeResourceHash(resources[i]),
+                                        .type = .bitmap,
+                                    };
+                                }
+                                break :blk items;
+                            };
+
+                            try server.sendConnectResponse(&headers);
+                        },
+                        .resource_request => |info| {
+                            std.log.info("client requests the following resources: {any}", .{info.requested_resources});
+
+                            for (info.requested_resources) |res_id| {
+                                try server.sendResourceHeader(res_id, resources[@enumToInt(res_id) - 1]);
+                            }
                         },
                         else => std.log.info("received unhandled event: {}", .{event}),
                     }

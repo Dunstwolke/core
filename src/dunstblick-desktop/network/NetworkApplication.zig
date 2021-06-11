@@ -18,6 +18,12 @@ const State = enum {
     faulted,
 };
 
+const Resource = struct {
+    kind: protocol.ResourceKind,
+    data: std.ArrayList(u8),
+    hash: [8]u8,
+};
+
 const Self = @This();
 
 flagged_for_deletion: bool = false,
@@ -25,7 +31,7 @@ instance: ApplicationInstance,
 allocator: *std.mem.Allocator,
 arena: std.heap.ArenaAllocator,
 
-socket: network.Socket,
+socket: ?network.Socket,
 
 remote_end_point: network.EndPoint,
 
@@ -35,6 +41,8 @@ state: State = .unconnected,
 
 screen_size: Size,
 
+resources: std.AutoArrayHashMap(protocol.ResourceID, Resource),
+
 pub fn init(self: *Self, allocator: *std.mem.Allocator, app_desc: *const AppDiscovery.Application) !void {
     self.* = Self{
         .instance = ApplicationInstance{
@@ -43,19 +51,20 @@ pub fn init(self: *Self, allocator: *std.mem.Allocator, app_desc: *const AppDisc
         },
         .allocator = allocator,
         .arena = std.heap.ArenaAllocator.init(allocator),
-        .socket = undefined,
+        .socket = null,
         .client = undefined,
         .remote_end_point = network.EndPoint{
             .address = app_desc.address,
             .port = app_desc.tcp_port,
         },
         .screen_size = Size.empty,
+        .resources = std.AutoArrayHashMap(protocol.ResourceID, Resource).init(allocator),
     };
 
     self.socket = try network.Socket.create(std.meta.activeTag(app_desc.address), .tcp);
-    errdefer self.socket.close();
+    errdefer self.socket.?.close();
 
-    self.client = protocol.tcp.ClientStateMachine(network.Socket.Writer).init(allocator, self.socket.writer());
+    self.client = protocol.tcp.ClientStateMachine(network.Socket.Writer).init(allocator, self.socket.?.writer());
     errdefer self.client.deinit();
 
     self.instance.description.display_name = try self.arena.allocator.dupeZ(u8, self.instance.description.display_name);
@@ -66,11 +75,21 @@ pub fn init(self: *Self, allocator: *std.mem.Allocator, app_desc: *const AppDisc
     self.instance.status = .{ .starting = "Connecting..." };
 
     if (std.builtin.os.tag == .linux) {
-        var flags = try std.os.fcntl(self.socket.internal, std.os.F_GETFL, 0);
+        var flags = try std.os.fcntl(self.socket.?.internal, std.os.F_GETFL, 0);
         flags |= @as(usize, std.os.O_NONBLOCK);
-        _ = try std.os.fcntl(self.socket.internal, std.os.F_SETFL, flags);
+        _ = try std.os.fcntl(self.socket.?.internal, std.os.F_SETFL, flags);
     }
     try self.tryConnect();
+}
+
+pub fn deinit(self: *Self) void {
+    if (self.socket) |*sock| {
+        self.client.deinit();
+        sock.close();
+    }
+    self.arena.deinit();
+    self.* = undefined;
+    self.flagged_for_deletion = true;
 }
 
 pub fn isFaulted(self: Self) bool {
@@ -78,12 +97,14 @@ pub fn isFaulted(self: Self) bool {
 }
 
 fn tryConnect(self: *Self) !void {
-    if (self.socket.connect(self.remote_end_point)) {
+    std.debug.assert(self.socket != null);
+
+    if (self.socket.?.connect(self.remote_end_point)) {
         // remove blocking from socket
         if (std.builtin.os.tag == .linux) {
-            var flags = try std.os.fcntl(self.socket.internal, std.os.F_GETFL, 0);
+            var flags = try std.os.fcntl(self.socket.?.internal, std.os.F_GETFL, 0);
             flags &= ~@as(usize, std.os.O_NONBLOCK);
-            _ = try std.os.fcntl(self.socket.internal, std.os.F_SETFL, flags);
+            _ = try std.os.fcntl(self.socket.?.internal, std.os.F_SETFL, flags);
         }
 
         // start handshaking
@@ -128,7 +149,7 @@ pub fn notifyReadable(self: *Self) !void {
         .protocol_connecting, .connected => {
             var backing_buffer: [8192]u8 = undefined;
 
-            const len = try self.socket.receive(&backing_buffer);
+            const len = try self.socket.?.receive(&backing_buffer);
 
             if (len == 0) {
                 self.state = .faulted;
@@ -147,8 +168,7 @@ pub fn notifyReadable(self: *Self) !void {
                     switch (event) {
                         .acknowledge_handshake => |data| { //  AcknowledgeHandshake{ .requires_username = false, .requires_password = false, .rejects_username = false, .rejects_password = false } }
                             if (!data.ok()) {
-                                self.socket.close();
-                                self.state = .faulted;
+                                self.disconnect(null);
                             }
                             // TODO: Send auth info if required
                         },
@@ -158,6 +178,7 @@ pub fn notifyReadable(self: *Self) !void {
                                     .success => unreachable,
                                     .invalid_credentials => "Invalid credentials",
                                 } };
+                                self.disconnect(null);
                             } else {
                                 try self.client.sendConnectHeader(
                                     self.screen_size.width,
@@ -175,13 +196,52 @@ pub fn notifyReadable(self: *Self) !void {
                             }
                         },
                         .connect_response => |info| {
-
                             // TODO: Request available resources
                             logger.info("server has {} resources, we want none!", .{info.resource_count});
+                        },
+                        .connect_response_item => |info| {
+                            const gop = try self.resources.getOrPut(info.descriptor.id);
+                            if (gop.found_existing) {
+                                self.disconnect(null);
+                                self.instance.status = .{ .exited = "protocol violation: dup res" };
+                                return;
+                            }
+                            gop.value_ptr.* = .{
+                                .kind = info.descriptor.type,
+                                .hash = info.descriptor.hash,
+                                .data = std.ArrayList(u8).init(self.allocator),
+                            };
 
-                            if (info.resource_count > 0) {
-                                // Request no resources:
-                                try self.client.sendResourceRequest(&[_]protocol.ResourceID{});
+                            if (info.is_last) {
+                                // just request all resources
+
+                                var temp_list = std.ArrayList(protocol.ResourceID).init(self.allocator);
+                                defer temp_list.deinit();
+
+                                try temp_list.ensureCapacity(self.resources.count());
+                                var it = self.resources.iterator();
+                                while (it.next()) |res| {
+                                    temp_list.appendAssumeCapacity(res.key_ptr.*);
+                                }
+
+                                try self.client.sendResourceRequest(temp_list.items);
+                            }
+                        },
+                        .resource_header => |info| {
+                            if (self.resources.getEntry(info.resource_id)) |entry| {
+                                const received_hash = protocol.computeResourceHash(info.data);
+                                if (!std.mem.eql(u8, &received_hash, &entry.value_ptr.hash)) {
+                                    self.disconnect(null);
+                                    self.instance.status = .{ .exited = "protocol violation: invalid hash" };
+                                    return;
+                                }
+
+                                try entry.value_ptr.data.resize(info.data.len);
+                                std.mem.copy(u8, entry.value_ptr.data.items, info.data);
+                            } else {
+                                self.disconnect(null);
+                                self.instance.status = .{ .exited = "protocol violation: invalid res" };
+                                return;
                             }
                         },
                         else => logger.info("unhandled event: {}", .{event}),
@@ -228,20 +288,46 @@ pub fn render(self: *Self, rectangle: zero_graphics.Rectangle, painter: *zero_gr
     //
 }
 
-pub fn close(self: *Self) void {
-    // self.client.sendMessage("Good bye!") catch {};
+pub fn processUserInterface(self: *Self, rectangle: zero_graphics.Rectangle, ui: zero_graphics.UserInterface.Builder) zero_graphics.UserInterface.Builder.Error!void {
+    const center_rect = rectangle.centered(200, 400);
 
-    self.socket.close();
-    self.state = .faulted;
-    self.instance.status = .{ .exited = "DE killed me" };
+    var temp_string_buffer: [256]u8 = undefined;
+
+    try ui.panel(center_rect, .{});
+
+    var layout = zero_graphics.UserInterface.VerticalStackLayout.init(center_rect.shrink(4));
+
+    try ui.label(layout.get(24), "Remote Application", .{ .horizontal_alignment = .center });
+
+    try ui.label(layout.get(24), std.fmt.bufPrint(&temp_string_buffer, "End Point: {}", .{self.remote_end_point}) catch "<oom>", .{});
+    try ui.label(layout.get(24), "Resources:", .{});
+    {
+        var it = self.resources.iterator();
+
+        while (it.next()) |res| {
+            try ui.label(layout.get(20), std.fmt.bufPrint(&temp_string_buffer, "RES {}: {:.3} of {s}", .{
+                @enumToInt(res.key_ptr.*),
+                std.fmt.fmtIntSizeBin(res.value_ptr.data.items.len),
+                @tagName(res.value_ptr.kind),
+            }) catch "<oom>", .{});
+        }
+    }
 }
 
-pub fn deinit(self: *Self) void {
-    self.client.deinit();
-    self.socket.close();
-    self.arena.deinit();
-    self.* = undefined;
-    self.flagged_for_deletion = true;
+fn disconnect(self: *Self, msg: ?[]const u8) void {
+    if (self.socket) |*sock| {
+        // self.client.sendMessage("Good bye!") catch {};
+
+        self.client.deinit();
+        sock.close();
+        self.state = .faulted;
+    }
+    self.socket = null;
+}
+
+pub fn close(self: *Self) void {
+    self.disconnect("User closed the connection.");
+    self.instance.status = .{ .exited = "DE killed me" };
 }
 
 const Interface = struct {
@@ -261,6 +347,11 @@ const Interface = struct {
     pub fn render(instance: *ApplicationInstance, rectangle: zero_graphics.Rectangle, painter: *zero_graphics.Renderer2D) ApplicationInstance.Interface.RenderError!void {
         const self = @fieldParentPtr(Self, "instance", instance);
         try self.render(rectangle, painter);
+    }
+
+    pub fn processUserInterface(instance: *ApplicationInstance, rectangle: zero_graphics.Rectangle, ui: zero_graphics.UserInterface.Builder) zero_graphics.UserInterface.Builder.Error!void {
+        const self = @fieldParentPtr(Self, "instance", instance);
+        try self.processUserInterface(rectangle, ui);
     }
 
     pub fn close(instance: *ApplicationInstance) void {

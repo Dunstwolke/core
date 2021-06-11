@@ -294,7 +294,11 @@ pub fn ServerStateMachine(comptime Writer: type) type {
                                     std.debug.assert(resources.len == len);
 
                                     self.requested_resource_count = len;
-                                    self.state = .{ .resource_header = 0 };
+                                    if (self.requested_resource_count > 0) {
+                                        self.state = .{ .resource_header = 0 };
+                                    } else {
+                                        self.state = .established;
+                                    }
 
                                     return ReceiveData.createEvent(
                                         prefix_info.consumed + info.consumed,
