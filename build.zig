@@ -4,42 +4,42 @@ const Builder = std.build.Builder;
 const pkgs = struct {
     const network = std.build.Pkg{
         .name = "network",
-        .path = "./lib/zig-network/network.zig",
+        .path = .{ .path = "./lib/zig-network/network.zig" },
     };
 
     const sdl2 = std.build.Pkg{
         .name = "sdl2",
-        .path = "./lib/SDL.zig/src/lib.zig",
+        .path = .{ .path = "./lib/SDL.zig/src/lib.zig" },
     };
 
     const args = std.build.Pkg{
         .name = "args",
-        .path = "./lib/zig-args/args.zig",
+        .path = .{ .path = "./lib/zig-args/args.zig" },
     };
 
     const uri = std.build.Pkg{
         .name = "uri",
-        .path = "./lib/zig-uri/uri.zig",
+        .path = .{ .path = "./lib/zig-uri/uri.zig" },
     };
 
     const painterz = std.build.Pkg{
         .name = "painterz",
-        .path = "./lib/painterz/painterz.zig",
+        .path = .{ .path = "./lib/painterz/painterz.zig" },
     };
 
     const tvg = std.build.Pkg{
         .name = "tvg",
-        .path = "./lib/tvg/src/lib/tvg.zig",
+        .path = .{ .path = "./lib/tvg/src/lib/tvg.zig" },
     };
 
     const meta = std.build.Pkg{
         .name = "zig-meta",
-        .path = "./lib/zig-meta/meta.zig",
+        .path = .{ .path = "./lib/zig-meta/meta.zig" },
     };
 
     const dunstblick_protocol = std.build.Pkg{
         .name = "dunstblick-protocol",
-        .path = "./src/dunstblick-protocol/protocol.zig",
+        .path = .{ .path = "./src/dunstblick-protocol/protocol.zig" },
         .dependencies = &[_]std.build.Pkg{
             charm,
         },
@@ -47,7 +47,7 @@ const pkgs = struct {
 
     const dunstblick_app = std.build.Pkg{
         .name = "dunstblick-app",
-        .path = "./src/dunstblick-app/dunstblick.zig",
+        .path = .{ .path = "./src/dunstblick-app/dunstblick.zig" },
         .dependencies = &[_]std.build.Pkg{
             dunstblick_protocol,
             network,
@@ -56,7 +56,7 @@ const pkgs = struct {
 
     const dunstnetz = std.build.Pkg{
         .name = "dunstnetz",
-        .path = "./src/dunstnetz/main.zig",
+        .path = .{ .path = "./src/dunstnetz/main.zig" },
         .dependencies = &[_]std.build.Pkg{
             network,
         },
@@ -64,17 +64,17 @@ const pkgs = struct {
 
     const wasm = std.build.Pkg{
         .name = "wasm",
-        .path = "./lib/wazm/src/main.zig",
+        .path = .{ .path = "./lib/wazm/src/main.zig" },
     };
 
     const zigimg = std.build.Pkg{
         .name = "zigimg",
-        .path = "./lib/zero-graphics/vendor/zigimg/zigimg.zig",
+        .path = .{ .path = "./lib/zero-graphics/vendor/zigimg/zigimg.zig" },
     };
 
     const zerog = std.build.Pkg{
         .name = "zero-graphics",
-        .path = "./lib/zero-graphics/src/zero-graphics.zig",
+        .path = .{ .path = "./lib/zero-graphics/src/zero-graphics.zig" },
         .dependencies = &[_]std.build.Pkg{
             zigimg,
         },
@@ -82,7 +82,7 @@ const pkgs = struct {
 
     const charm = std.build.Pkg{
         .name = "charm",
-        .path = "./lib/zig-charm/src/main.zig",
+        .path = .{ .path = "./lib/zig-charm/src/main.zig" },
     };
 };
 
@@ -311,7 +311,7 @@ pub fn build(b: *Builder) !void {
         dunstnetz_daemon_test.addPackage(pkgs.wasm);
     }
 
-    const dunstblick_protocol_test = b.addTest(pkgs.dunstblick_protocol.path);
+    const dunstblick_protocol_test = b.addTest(pkgs.dunstblick_protocol.path.path);
     {
         dunstblick_protocol_test.addPackage(pkgs.charm);
     }
