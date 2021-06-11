@@ -140,7 +140,7 @@ pub fn ServerStateMachine(comptime Writer: type) type {
         }
 
         pub fn isConnectionEstablished(self: Self) bool {
-            return (self.state == .establish);
+            return (self.state == .established);
         }
 
         pub fn setKeyAndVerify(self: *Self, key: CryptoState.Key) AuthenticationResult {
