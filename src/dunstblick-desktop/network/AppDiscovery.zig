@@ -152,23 +152,12 @@ pub fn update(self: *Self) !void {
             while (it) |node| : (it = node.next) {
                 std.debug.assert(node.data.flagged_for_deletion == false);
 
-                if (node.data.isFaulted()) {
-                    if (node.data.socket) |sock| {
-                        self.socket_set.remove(sock);
-                    }
-                } else {
-                    const sock = node.data.socket.?;
+                if (node.data.socket) |sock| {
                     if (self.socket_set.isReadyWrite(sock)) {
-                        if (try node.data.notifyWritable()) {
-                            self.socket_set.remove(sock);
-                            try self.socket_set.add(sock, .{ .read = true, .write = false });
-                        }
+                        try node.data.notifyWritable();
                     }
                     if (self.socket_set.isReadyRead(sock)) {
                         try node.data.notifyReadable();
-                    }
-                    if (node.data.isFaulted()) {
-                        self.socket_set.remove(sock);
                     }
                 }
             }
@@ -304,8 +293,6 @@ pub const Application = struct {
                 else => error.IoError,
             };
         };
-
-        try self.discovery.socket_set.add(node.data.socket.?, .{ .read = true, .write = true });
 
         self.discovery.active_apps.append(node);
 

@@ -43,6 +43,8 @@ screen_size: Size,
 
 resources: std.AutoArrayHashMap(protocol.ResourceID, Resource),
 
+discovery: *AppDiscovery,
+
 pub fn init(self: *Self, allocator: *std.mem.Allocator, app_desc: *const AppDiscovery.Application) !void {
     self.* = Self{
         .instance = ApplicationInstance{
@@ -59,6 +61,7 @@ pub fn init(self: *Self, allocator: *std.mem.Allocator, app_desc: *const AppDisc
         },
         .screen_size = Size.empty,
         .resources = std.AutoArrayHashMap(protocol.ResourceID, Resource).init(allocator),
+        .discovery = app_desc.discovery,
     };
 
     self.socket = try network.Socket.create(std.meta.activeTag(app_desc.address), .tcp);
@@ -79,6 +82,10 @@ pub fn init(self: *Self, allocator: *std.mem.Allocator, app_desc: *const AppDisc
         flags |= @as(usize, std.os.O_NONBLOCK);
         _ = try std.os.fcntl(self.socket.?.internal, std.os.F_SETFL, flags);
     }
+
+    try self.discovery.socket_set.add(self.socket.?, .{ .read = true, .write = true });
+    errdefer self.discovery.socket_set.remove(self.socket.?);
+
     try self.tryConnect();
 }
 
@@ -127,17 +134,22 @@ fn tryConnect(self: *Self) !void {
     // logger.info("tryConnect() => {}", .{self.state});
 }
 
-pub fn notifyWritable(self: *Self) !bool {
+pub fn notifyWritable(self: *Self) !void {
     // logger.info("socket write {}", .{self.state});
     switch (self.state) {
         .unconnected => return error.InvalidState,
 
         .socket_connecting => {
             try self.tryConnect();
-            return (self.state != .socket_connecting);
+            if (self.state != .socket_connecting) {
+                if (self.socket) |sock| {
+                    self.discovery.socket_set.remove(sock);
+                    try self.discovery.socket_set.add(sock, .{ .read = true, .write = false });
+                }
+            }
         },
 
-        .protocol_connecting, .connected, .faulted => return false,
+        .protocol_connecting, .connected, .faulted => {},
     }
 }
 
@@ -244,7 +256,9 @@ pub fn notifyReadable(self: *Self) !void {
                                 return;
                             }
                         },
-                        else => logger.info("unhandled event: {}", .{event}),
+                        .message => |packet| {
+                            logger.info("unhandled packet: {}", .{std.fmt.fmtSliceEscapeUpper(packet)});
+                        },
                     }
 
                     if (self.client.isConnectionEstablished()) {
@@ -314,11 +328,19 @@ pub fn processUserInterface(self: *Self, rectangle: zero_graphics.Rectangle, ui:
     }
 }
 
-fn disconnect(self: *Self, msg: ?[]const u8) void {
+fn disconnect(self: *Self, quit_message: ?[]const u8) void {
     if (self.socket) |*sock| {
-        // self.client.sendMessage("Good bye!") catch {};
+        if (self.client.isConnectionEstablished()) {
+            if (quit_message) |msg| {
+                // TODO: Send proper quit message
+                self.client.sendMessage(msg) catch {};
+            }
+        }
 
         self.client.deinit();
+
+        self.discovery.socket_set.remove(sock.*);
+
         sock.close();
         self.state = .faulted;
     }
