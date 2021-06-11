@@ -439,6 +439,7 @@ pub fn update(self: *Self, dt: f32) !void {
             // we're waiting for the connection
         },
         .connected => {
+            // try self.user_interface.update(dt);
             // we're done now :)
         },
         .faulted => {},
@@ -455,6 +456,10 @@ pub fn render(self: *Self, rectangle: zero_graphics.Rectangle, painter: *zero_gr
 }
 
 pub fn processUserInterface(self: *Self, rectangle: zero_graphics.Rectangle, ui: zero_graphics.UserInterface.Builder) zero_graphics.UserInterface.Builder.Error!void {
+    if (self.state == .connected) {
+        try self.user_interface.processUserInterface(rectangle, ui);
+    }
+
     const center_rect = rectangle.centered(200, 400);
 
     var temp_string_buffer: [256]u8 = undefined;

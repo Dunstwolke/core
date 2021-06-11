@@ -11,11 +11,14 @@ allocator: *std.mem.Allocator,
 objects: std.AutoArrayHashMapUnmanaged(protocol.ObjectID, Object),
 resources: std.AutoArrayHashMapUnmanaged(protocol.ResourceID, Resource),
 
+current_view: ?WidgetTree,
+
 pub fn init(allocator: *std.mem.Allocator) DunstblickUI {
     return DunstblickUI{
         .allocator = allocator,
         .objects = .{},
         .resources = .{},
+        .current_view = null,
     };
 }
 
@@ -37,6 +40,12 @@ pub fn deinit(self: *DunstblickUI) void {
     self.objects.deinit(self.allocator);
 
     self.* = undefined;
+}
+
+pub fn processUserInterface(self: *DunstblickUI, rectangle: zero_graphics.Rectangle, ui: zero_graphics.UserInterface.Builder) !void {
+    if (self.current_view) |*view| {
+        try view.processUserInterface(rectangle, ui);
+    }
 }
 
 pub fn addOrReplaceResource(self: *DunstblickUI, id: protocol.ResourceID, kind: protocol.ResourceKind, data: []const u8) !void {
@@ -69,8 +78,19 @@ pub fn removeObject(self: *DunstblickUI, oid: protocol.ObjectID) void {
     }
 }
 
-pub fn setView(self: *DunstblickUI, resource: protocol.ResourceID) !void {
-    logger.err("setView({}) not implemented yet!", .{@enumToInt(resource)});
+pub fn setView(self: *DunstblickUI, id: protocol.ResourceID) !void {
+    const resource = self.resources.get(id) orelse return error.ResourceNotFound;
+
+    var decoder = protocol.Decoder.init(resource.data.items);
+
+    var tree = try WidgetTree.deserialize(self.allocator, &decoder);
+    errdefer tree.deinit();
+
+    if (self.current_view) |*view| {
+        view.deinit();
+    }
+
+    self.current_view = tree;
 }
 
 pub fn setRoot(self: *DunstblickUI, object: protocol.ObjectID) !void {
@@ -293,4 +313,36 @@ pub const Value = union(protocol.Type) {
         }
         self.* = undefined;
     }
+};
+
+pub const WidgetTree = struct {
+    allocator: *std.mem.Allocator,
+    arena: std.heap.ArenaAllocator,
+    root: *Widget,
+
+    pub fn deserialize(allocator: *std.mem.Allocator, decoder: *protocol.Decoder) !WidgetTree {
+        @panic("not implemented yet!");
+    }
+
+    pub fn deinit(self: *WidgetTree) void {
+        self.arena.deinit();
+        self.* = undefined;
+    }
+
+    pub fn processUserInterface(self: *WidgetTree, rectangle: zero_graphics.Rectangle, ui: zero_graphics.UserInterface.Builder) !void {
+        // TODO: Implement
+
+        const rect = zero_graphics.Rectangle{
+            .x = rectangle.x + 10,
+            .y = rectangle.y + 10,
+            .width = rectangle.width - 20,
+            .height = 24,
+        };
+
+        try ui.label(rect, "TODO: Implement WidgetTree", .{});
+    }
+};
+
+pub const Widget = struct {
+    // TODO: Implement this
 };
