@@ -8,6 +8,8 @@ const AppDiscovery = @import("AppDiscovery.zig");
 const ApplicationInstance = @import("../gui/ApplicationInstance.zig");
 const ApplicationDescription = @import("../gui/ApplicationDescription.zig");
 
+const DunstblickUI = @import("../dunst-ui/DunstblickUI.zig");
+
 const Size = zero_graphics.Size;
 
 const State = enum {
@@ -45,6 +47,8 @@ resources: std.AutoArrayHashMap(protocol.ResourceID, Resource),
 
 discovery: *AppDiscovery,
 
+user_interface: DunstblickUI,
+
 pub fn init(self: *Self, allocator: *std.mem.Allocator, app_desc: *const AppDiscovery.Application) !void {
     self.* = Self{
         .instance = ApplicationInstance{
@@ -62,6 +66,7 @@ pub fn init(self: *Self, allocator: *std.mem.Allocator, app_desc: *const AppDisc
         .screen_size = Size.empty,
         .resources = std.AutoArrayHashMap(protocol.ResourceID, Resource).init(allocator),
         .discovery = app_desc.discovery,
+        .user_interface = DunstblickUI.init(allocator),
     };
 
     self.socket = try network.Socket.create(std.meta.activeTag(app_desc.address), .tcp);
@@ -94,6 +99,7 @@ pub fn deinit(self: *Self) void {
         self.client.deinit();
         sock.close();
     }
+    self.user_interface.deinit();
     self.arena.deinit();
     self.* = undefined;
     self.flagged_for_deletion = true;
@@ -257,7 +263,7 @@ pub fn notifyReadable(self: *Self) !void {
                             }
                         },
                         .message => |packet| {
-                            logger.info("unhandled packet: {}", .{std.fmt.fmtSliceEscapeUpper(packet)});
+                            try self.decodeAndExecuteMessage(packet);
                         },
                     }
 
@@ -271,6 +277,151 @@ pub fn notifyReadable(self: *Self) !void {
             }
         },
         .faulted => return error.InvalidState,
+    }
+}
+
+fn decodeAndExecuteMessage(self: *Self, packet: []const u8) !void {
+    logger.info("Received packet of {} bytes: {}", .{
+        packet.len,
+        std.fmt.fmtSliceHexUpper(packet),
+    });
+
+    var decoder = protocol.Decoder.init(packet);
+
+    const message_type = @intToEnum(protocol.DisplayCommand, try decoder.readByte());
+
+    switch (message_type) {
+        .uploadResource => { // (rid, kind, data)
+            const resource = @intToEnum(protocol.ResourceID, try decoder.readVarUInt());
+            const kind = @intToEnum(protocol.ResourceKind, try decoder.readByte());
+
+            const data = try decoder.readToEnd();
+
+            try self.user_interface.addOrReplaceResource(resource, kind, data);
+        },
+
+        .addOrUpdateObject => { // (obj)
+            const oid = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
+
+            var obj = DunstblickUI.Object.init(self.allocator);
+            errdefer obj.deinit();
+
+            while (true) {
+                const value_type = @intToEnum(protocol.Type, try decoder.readByte());
+                if (value_type == .none) {
+                    break;
+                }
+
+                const prop = @intToEnum(protocol.PropertyName, try decoder.readVarUInt());
+
+                logger.debug("read value of type {}", .{value_type});
+
+                var value = try DunstblickUI.Value.deserialize(self.allocator, value_type, &decoder);
+                errdefer value.deinit();
+
+                try obj.addProperty(prop, value);
+            }
+
+            try self.user_interface.addOrUpdateObject(oid, obj);
+        },
+
+        .removeObject => { // (oid)
+            const oid = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
+            self.user_interface.removeObject(oid);
+        },
+
+        .setView => { // (rid)
+            const rid = @intToEnum(protocol.ResourceID, try decoder.readVarUInt());
+            try self.user_interface.setView(rid);
+        },
+
+        .setRoot => { // (oid)
+            const oid = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
+            try self.user_interface.setRoot(oid);
+        },
+
+        .setProperty => { // (oid, name, value)
+            const oid = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
+
+            const propName = @intToEnum(protocol.PropertyName, try decoder.readVarUInt());
+
+            const value_type = @intToEnum(protocol.Type, try decoder.readByte());
+
+            var value = try DunstblickUI.Value.deserialize(self.allocator, value_type, &decoder);
+            errdefer value.deinit();
+
+            if (self.user_interface.getObject(oid)) |object| {
+                try object.setProperty(propName, value);
+            } else {
+                logger.err("object {} does not exist!", .{@enumToInt(oid)});
+            }
+        },
+
+        .clear => { // (oid, name)
+            const oid = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
+            const propName = @intToEnum(protocol.PropertyName, try decoder.readVarUInt());
+
+            if (self.user_interface.getObject(oid)) |object| {
+                try object.clear(propName);
+            } else {
+                logger.err("object {} does not exist!", .{@enumToInt(oid)});
+            }
+        },
+
+        .insertRange => { // (oid, name, index, count, oids …) // manipulate lists
+            const oid = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
+            const propName = @intToEnum(protocol.PropertyName, try decoder.readVarUInt());
+            const index = try decoder.readVarUInt();
+            const count = try decoder.readVarUInt();
+
+            var refs = std.ArrayList(protocol.ObjectID).init(self.allocator);
+            defer refs.deinit();
+
+            try refs.resize(count);
+
+            for (refs.items) |*item| {
+                item.* = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
+            }
+
+            if (self.user_interface.getObject(oid)) |object| {
+                try object.insertRange(propName, index, refs.items);
+            } else {
+                logger.err("object {} does not exist!", .{@enumToInt(oid)});
+            }
+        },
+
+        .removeRange => { // (oid, name, index, count) // manipulate lists
+            const oid = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
+            const propName = @intToEnum(protocol.PropertyName, try decoder.readVarUInt());
+            const index = try decoder.readVarUInt();
+            const count = try decoder.readVarUInt();
+
+            if (self.user_interface.getObject(oid)) |object| {
+                try object.removeRange(propName, index, count);
+            } else {
+                logger.err("object {} does not exist!", .{@enumToInt(oid)});
+            }
+        },
+
+        .moveRange => { // (oid, name, indexFrom, indexTo, count) // manipulate lists
+            const oid = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
+            const propName = @intToEnum(protocol.PropertyName, try decoder.readVarUInt());
+            const indexFrom = try decoder.readVarUInt();
+            const indexTo = try decoder.readVarUInt();
+            const count = try decoder.readVarUInt();
+
+            if (self.user_interface.getObject(oid)) |object| {
+                try object.moveRange(propName, indexFrom, indexTo, count);
+            } else {
+                logger.err("object {} does not exist!", .{@enumToInt(oid)});
+            }
+        },
+
+        else => {
+            logger.warn("received message of unknown type: {}", .{
+                message_type,
+            });
+        },
     }
 }
 
