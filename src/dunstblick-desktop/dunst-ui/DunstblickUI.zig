@@ -9,20 +9,49 @@ const DunstblickUI = @This();
 allocator: *std.mem.Allocator,
 
 objects: std.AutoArrayHashMapUnmanaged(protocol.ObjectID, Object),
+resources: std.AutoArrayHashMapUnmanaged(protocol.ResourceID, Resource),
 
 pub fn init(allocator: *std.mem.Allocator) DunstblickUI {
     return DunstblickUI{
         .allocator = allocator,
         .objects = .{},
+        .resources = .{},
     };
 }
 
 pub fn deinit(self: *DunstblickUI) void {
+    {
+        var it = self.resources.iterator();
+        while (it.next()) |entry| {
+            entry.value_ptr.data.deinit(self.allocator);
+        }
+    }
+    self.resources.deinit(self.allocator);
+
+    {
+        var it = self.objects.iterator();
+        while (it.next()) |entry| {
+            entry.value_ptr.deinit();
+        }
+    }
+    self.objects.deinit(self.allocator);
+
     self.* = undefined;
 }
 
 pub fn addOrReplaceResource(self: *DunstblickUI, id: protocol.ResourceID, kind: protocol.ResourceKind, data: []const u8) !void {
-    @panic("not implemented yet!");
+    const gop = try self.resources.getOrPut(self.allocator, id);
+    if (!gop.found_existing) {
+        gop.value_ptr.* = .{
+            .kind = kind,
+            .data = .{},
+        };
+    }
+
+    gop.value_ptr.kind = kind;
+
+    try gop.value_ptr.data.resize(self.allocator, data.len);
+    std.mem.copy(u8, gop.value_ptr.data.items, data);
 }
 
 pub fn addOrUpdateObject(self: *DunstblickUI, id: protocol.ObjectID, obj: Object) !void {
@@ -55,6 +84,11 @@ pub fn getObject(self: *DunstblickUI, id: protocol.ObjectID) ?*Object {
         null;
 }
 
+pub const Resource = struct {
+    kind: protocol.ResourceKind,
+    data: std.ArrayListUnmanaged(u8),
+};
+
 pub const Object = struct {
     allocator: *std.mem.Allocator,
     properties: std.AutoArrayHashMapUnmanaged(protocol.PropertyName, Value),
@@ -67,6 +101,12 @@ pub const Object = struct {
     }
 
     pub fn deinit(self: *Object) void {
+        {
+            var it = self.properties.iterator();
+            while (it.next()) |entry| {
+                entry.value_ptr.deinit();
+            }
+        }
         self.properties.deinit(self.allocator);
         self.* = undefined;
     }
@@ -247,6 +287,8 @@ pub const Value = union(protocol.Type) {
 
     pub fn deinit(self: *Value) void {
         switch (self.*) {
+            .string => |*list| list.deinit(),
+            .objectlist => |*list| list.deinit(),
             else => {},
         }
         self.* = undefined;

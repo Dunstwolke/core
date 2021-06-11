@@ -22,7 +22,6 @@ const State = enum {
 
 const Resource = struct {
     kind: protocol.ResourceKind,
-    data: std.ArrayList(u8),
     hash: [8]u8,
 };
 
@@ -227,7 +226,6 @@ pub fn notifyReadable(self: *Self) !void {
                             gop.value_ptr.* = .{
                                 .kind = info.descriptor.type,
                                 .hash = info.descriptor.hash,
-                                .data = std.ArrayList(u8).init(self.allocator),
                             };
 
                             if (info.is_last) {
@@ -254,8 +252,11 @@ pub fn notifyReadable(self: *Self) !void {
                                     return;
                                 }
 
-                                try entry.value_ptr.data.resize(info.data.len);
-                                std.mem.copy(u8, entry.value_ptr.data.items, info.data);
+                                try self.user_interface.addOrReplaceResource(
+                                    info.resource_id,
+                                    entry.value_ptr.kind,
+                                    info.data,
+                                );
                             } else {
                                 self.disconnect(null);
                                 self.instance.status = .{ .exited = "protocol violation: invalid res" };
@@ -466,17 +467,17 @@ pub fn processUserInterface(self: *Self, rectangle: zero_graphics.Rectangle, ui:
 
     try ui.label(layout.get(24), std.fmt.bufPrint(&temp_string_buffer, "End Point: {}", .{self.remote_end_point}) catch "<oom>", .{});
     try ui.label(layout.get(24), "Resources:", .{});
-    {
-        var it = self.resources.iterator();
+    // {
+    //     var it = self.resources.iterator();
 
-        while (it.next()) |res| {
-            try ui.label(layout.get(20), std.fmt.bufPrint(&temp_string_buffer, "RES {}: {:.3} of {s}", .{
-                @enumToInt(res.key_ptr.*),
-                std.fmt.fmtIntSizeBin(res.value_ptr.data.items.len),
-                @tagName(res.value_ptr.kind),
-            }) catch "<oom>", .{});
-        }
-    }
+    //     while (it.next()) |res| {
+    //         try ui.label(layout.get(20), std.fmt.bufPrint(&temp_string_buffer, "RES {}: {:.3} of {s}", .{
+    //             @enumToInt(res.key_ptr.*),
+    //             std.fmt.fmtIntSizeBin(res.value_ptr.data.items.len),
+    //             @tagName(res.value_ptr.kind),
+    //         }) catch "<oom>", .{});
+    //     }
+    // }
 }
 
 fn disconnect(self: *Self, quit_message: ?[]const u8) void {
