@@ -200,8 +200,6 @@ extern "C"
     typedef void (*dunstblick_ConnectedCallback)(
         dunstblick_Provider * provider,     ///< The provider to which the connection was established.
         dunstblick_Connection * connection, ///< The newly created connection.
-        char const * clientName,            ///< The name of the display client. If none is given, it's just `IP:port`
-        char const * password,              ///< The password that was passed by the user.
         dunstblick_Size screenSize,         ///< Current screen size of the display client.
         dunstblick_ClientCapabilities
             capabilities, ///< Bitmask containing all available capabilities of the display client.

@@ -28,6 +28,9 @@ const NativeErrorCode = extern enum(c_int) {
 
     /// A requested resource was not found.
     resource_not_found = 6,
+
+    /// The dunstblick protocol was violated by the other host.
+    protocol_violation = 7,
 };
 
 // Configure std.log
@@ -41,6 +44,7 @@ fn mapDunstblickError(err: app.DunstblickError) NativeErrorCode {
         error.OutOfRange => .argument_out_of_range,
         error.EndOfStream => .network,
         error.ResourceNotFound => .resource_not_found,
+        error.ProtocolViolation => .protocol_violation,
     };
 }
 
@@ -149,7 +153,7 @@ export fn dunstblick_CloseConnection(connection: *app.Connection, reason: ?[*:0]
 }
 
 export fn dunstblick_GetClientName(connection: *app.Connection) callconv(.C) [*:0]const u8 {
-    return connection.header.?.clientName;
+    return "unknown"; // TODO: Reintrocude client names?
 }
 
 export fn dunstblick_GetDisplaySize(connection: *app.Connection) callconv(.C) app.Size {

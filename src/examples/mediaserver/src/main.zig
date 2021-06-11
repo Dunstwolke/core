@@ -169,15 +169,11 @@ fn clientEvent(
 fn clientConnected(
     provider: ?*c.dunstblick_Provider,
     connection: ?*c.dunstblick_Connection,
-    client_name: ?[*:0]const u8,
-    password: ?[*:0]const u8,
     size: c.dunstblick_Size,
     capabilities: c.dunstblick_ClientCapabilities,
     user_data: ?*c_void,
 ) callconv(.C) void {
-    std.debug.warn("hi: {s} {s} {} {}\n", .{
-        client_name,
-        password,
+    std.debug.warn("hi: {} {}\n", .{
         size,
         capabilities,
     });

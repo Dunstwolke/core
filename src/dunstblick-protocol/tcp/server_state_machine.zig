@@ -75,14 +75,6 @@ pub const AuthAction = enum {
     drop,
 };
 
-pub const ReceiveError = error{
-    OutOfMemory,
-    UnexpectedData,
-    InvalidData,
-    UnsupportedVersion,
-    ProtocolViolation,
-};
-
 pub const AuthenticationResult = enum {
     failure,
     success,
@@ -97,6 +89,19 @@ pub fn ServerStateMachine(comptime Writer: type) type {
             OutOfMemory,
             /// A slice contained too many elements
             SliceOutOfRange,
+        };
+
+        pub const ReceiveError = error{
+            /// A necessary allocation couldn't be performed.
+            OutOfMemory,
+            /// The other peer sent data when it was not expected
+            UnexpectedData,
+            /// The other peer sent data that could be identified as invalid
+            InvalidData,
+            /// The other peer tried to connect with an unsupported version
+            UnsupportedVersion,
+            /// The other peer violated protocol constrains,
+            ProtocolViolation,
         };
 
         allocator: *std.mem.Allocator,
