@@ -240,9 +240,14 @@ pub const Value = union(protocol.Type) {
     }
 
     pub fn get(self: Value, comptime T: type) !T {
-        if (@typeInfo(T) == .Enum) {
-            if (self != .enumeration)
+        if (@typeInfo(T) == .Enum and std.meta.Tag(T) == u8) {
+            if (self != .enumeration) {
+                logger.debug("invalid value: {} is not a enum (when querying {s})", .{
+                    std.meta.activeTag(self),
+                    @typeName(T),
+                });
                 return error.InvalidValue;
+            }
             return std.meta.intToEnum(T, self.enumeration) catch |err| {
                 logger.debug("invalid enum tag: {} is not contained in enum {s}", .{
                     self.enumeration,
@@ -611,7 +616,7 @@ pub const WidgetTree = struct {
         widget.* = Widget.init(self.allocator, widget_type);
         errdefer widget.deinit();
 
-        logger.debug("deserialize widget of type {}", .{widget_type});
+        // logger.debug("deserialize widget of type {}", .{widget_type});
 
         // read properites
         while (true) {
@@ -624,7 +629,7 @@ pub const WidgetTree = struct {
             var from_stream = if ((property_tag & 0x80) != 0) blk: {
                 const property_name = @intToEnum(protocol.PropertyName, try decoder.readVarUInt());
 
-                logger.debug("property {} is bound to {}", .{ property_id, property_name });
+                // logger.debug("property {} is bound to {}", .{ property_id, property_name });
 
                 break :blk ValueFromStream{ .binding = property_name };
             } else blk: {
@@ -633,7 +638,7 @@ pub const WidgetTree = struct {
                         break desc.type;
                 } else unreachable;
 
-                logger.debug("read {} of type {}", .{ property_id, property_type });
+                // logger.debug("read {} of type {}", .{ property_id, property_type });
 
                 var value = try Value.deserialize(self.allocator, property_type, decoder);
                 break :blk ValueFromStream{ .value = value };
@@ -656,7 +661,7 @@ pub const WidgetTree = struct {
                     .value => |*value| value.deinit(),
                     .binding => {},
                 }
-                // TODO:
+                // TODO: Reinclude this when everything is properly implemented
                 // return error.InvalidProperty;
             }
         }
@@ -669,6 +674,7 @@ pub const WidgetTree = struct {
             const child_type = try std.meta.intToEnum(protocol.WidgetType, widget_type_tag);
 
             const child = try widget.children.addOne();
+            errdefer _ = widget.children.pop();
 
             try self.deserializeWidget(child, decoder, child_type);
         }
@@ -766,18 +772,17 @@ pub const Widget = struct {
 
         deinitAllProperties(Self, self);
 
-        self.child_source.value.deinit();
-        self.tab_title.value.deinit();
+        self.* = undefined;
     }
 };
 
 pub const Control = union(protocol.WidgetType) {
-    button: DummyControl,
-    label: DummyControl,
+    button: Button,
+    label: Label,
     combobox: DummyControl,
     treeview: DummyControl,
     listbox: DummyControl,
-    picture: DummyControl,
+    picture: Picture,
     textbox: DummyControl,
     checkbox: DummyControl,
     radiobutton: DummyControl,
@@ -811,6 +816,61 @@ pub const Control = union(protocol.WidgetType) {
 
         pub fn init(allocator: *std.mem.Allocator) Self {
             return Self{};
+        }
+
+        pub fn deinit(self: *Self) void {
+            deinitAllProperties(Self, self);
+            self.* = undefined;
+        }
+    };
+
+    const Button = struct {
+        const Self = @This();
+
+        on_click: Property(protocol.EventID),
+
+        pub fn init(allocator: *std.mem.Allocator) Self {
+            return Self{
+                .on_click = .{ .value = .invalid },
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            deinitAllProperties(Self, self);
+            self.* = undefined;
+        }
+    };
+
+    const Label = struct {
+        const Self = @This();
+
+        text: Property(String),
+        font_family: Property(protocol.enums.Font),
+
+        pub fn init(allocator: *std.mem.Allocator) Self {
+            return Self{
+                .text = .{ .value = String.init(allocator) },
+                .font_family = .{ .value = .sans },
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            deinitAllProperties(Self, self);
+            self.* = undefined;
+        }
+    };
+
+    const Picture = struct {
+        const Self = @This();
+
+        image: Property(protocol.ResourceID),
+        image_scaling: Property(protocol.enums.ImageScaling),
+
+        pub fn init(allocator: *std.mem.Allocator) Self {
+            return Self{
+                .image = .{ .value = .invalid },
+                .image_scaling = .{ .value = .stretch },
+            };
         }
 
         pub fn deinit(self: *Self) void {

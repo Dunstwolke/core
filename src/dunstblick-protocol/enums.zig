@@ -17,7 +17,7 @@ pub const HorizontalAlignment = enum(u8) {
 
 pub const VerticalAlignment = enum(u8) {
     top = val(.top),
-    center = val(.center),
+    middle = val(.middle),
     bottom = val(.bottom),
     stretch = val(.stretch),
 };
@@ -33,4 +33,19 @@ pub const Visibility = enum(u8) {
     visible = val(.visible),
     hidden = val(.hidden),
     collapsed = val(.collapsed),
+};
+
+pub const Font = enum(u8) {
+    sans = val(.sans),
+    serif = val(.serif),
+    monospace = val(.monospace),
+};
+
+pub const ImageScaling = enum(u8) {
+    none = val(.none),
+    center = val(.center),
+    stretch = val(.stretch),
+    zoom = val(.zoom),
+    contain = val(.contain),
+    cover = val(.cover),
 };
