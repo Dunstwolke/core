@@ -92,6 +92,7 @@ pub fn build(b: *Builder) !void {
 
     const compiler = b.addExecutable("dunstblick-compiler", "./src/dunstblick-compiler/main.zig");
     compiler.addPackage(pkgs.args);
+    compiler.addPackage(pkgs.dunstblick_protocol);
     compiler.setTarget(target);
     compiler.setBuildMode(mode);
     compiler.install();

@@ -1,4 +1,10 @@
-pub const widget_types = .{
+const enums = @import("data-types.zig");
+
+pub const WidgetDescriptor = struct {
+    widget: []const u8,
+    type: enums.WidgetType,
+};
+pub const widget_types = [_]WidgetDescriptor{
     .{ .widget = "Button", .type = .button },
     .{ .widget = "Label", .type = .label },
     .{ .widget = "ComboBox", .type = .combobox },
@@ -25,40 +31,49 @@ pub const widget_types = .{
     .{ .widget = "StackLayout", .type = .stack_layout },
 };
 
-pub const properties = .{
-    .{ .property = "horizontal-alignment", .value = .horizontalAlignment, .type = .enumeration },
-    .{ .property = "vertical-alignment", .value = .verticalAlignment, .type = .enumeration },
+pub const PropertyDescriptor = struct {
+    property: []const u8,
+    value: enums.Property,
+    type: enums.Type,
+};
+pub const properties = [_]PropertyDescriptor{
+    .{ .property = "horizontal-alignment", .value = .horizontal_alignment, .type = .enumeration },
+    .{ .property = "vertical-alignment", .value = .vertical_alignment, .type = .enumeration },
     .{ .property = "margins", .value = .margins, .type = .margins },
     .{ .property = "paddings", .value = .paddings, .type = .margins },
-    .{ .property = "dock-site", .value = .dockSite, .type = .enumeration },
+    .{ .property = "dock-site", .value = .dock_site, .type = .enumeration },
     .{ .property = "visibility", .value = .visibility, .type = .enumeration },
-    .{ .property = "size-hint", .value = .sizeHint, .type = .size },
-    .{ .property = "font-family", .value = .fontFamily, .type = .enumeration },
+    .{ .property = "size-hint", .value = .size_hint, .type = .size },
+    .{ .property = "font-family", .value = .font_family, .type = .enumeration },
     .{ .property = "text", .value = .text, .type = .string },
     .{ .property = "minimum", .value = .minimum, .type = .number },
     .{ .property = "maximum", .value = .maximum, .type = .number },
     .{ .property = "value", .value = .value, .type = .number },
-    .{ .property = "display-progress-style", .value = .displayProgressStyle, .type = .enumeration },
-    .{ .property = "is-checked", .value = .isChecked, .type = .boolean },
-    .{ .property = "tab-title", .value = .tabTitle, .type = .string },
-    .{ .property = "selected-index", .value = .selectedIndex, .type = .integer },
+    .{ .property = "display-progress-style", .value = .display_progress_style, .type = .enumeration },
+    .{ .property = "is-checked", .value = .is_checked, .type = .boolean },
+    .{ .property = "tab-title", .value = .tab_title, .type = .string },
+    .{ .property = "selected-index", .value = .selected_index, .type = .integer },
     .{ .property = "columns", .value = .columns, .type = .sizelist },
     .{ .property = "rows", .value = .rows, .type = .sizelist },
     .{ .property = "left", .value = .left, .type = .integer },
     .{ .property = "top", .value = .top, .type = .integer },
     .{ .property = "enabled", .value = .enabled, .type = .boolean },
-    .{ .property = "image-scaling", .value = .imageScaling, .type = .enumeration },
+    .{ .property = "image-scaling", .value = .image_scaling, .type = .enumeration },
     .{ .property = "image", .value = .image, .type = .resource },
-    .{ .property = "binding-context", .value = .bindingContext, .type = .object },
-    .{ .property = "child-source", .value = .childSource, .type = .objectlist },
-    .{ .property = "child-template", .value = .childTemplate, .type = .resource },
-    .{ .property = "hit-test-visible", .value = .hitTestVisible, .type = .boolean },
-    .{ .property = "on-click", .value = .onClick, .type = .event },
+    .{ .property = "binding-context", .value = .binding_context, .type = .object },
+    .{ .property = "child-source", .value = .child_source, .type = .objectlist },
+    .{ .property = "child-template", .value = .child_template, .type = .resource },
+    .{ .property = "hit-test-visible", .value = .hit_test_visible, .type = .boolean },
+    .{ .property = "on-click", .value = .on_click, .type = .event },
     .{ .property = "orientation", .value = .orientation, .type = .enumeration },
     .{ .property = "widget-name", .value = .name, .type = .name },
 };
 
-pub const enumerations = .{
+pub const EnumDescriptor = struct {
+    enumeration: []const u8,
+    value: enums.Enum,
+};
+pub const enumerations = [_]EnumDescriptor{
     .{ .enumeration = "none", .value = .none },
     .{ .enumeration = "left", .value = .left },
     .{ .enumeration = "center", .value = .center },
@@ -68,7 +83,7 @@ pub const enumerations = .{
     .{ .enumeration = "bottom", .value = .bottom },
     .{ .enumeration = "stretch", .value = .stretch },
     .{ .enumeration = "expand", .value = .expand },
-    .{ .enumeration = "auto", .value = ._auto },
+    .{ .enumeration = "auto", .value = .auto },
     .{ .enumeration = "yesno", .value = .yesno },
     .{ .enumeration = "truefalse", .value = .truefalse },
     .{ .enumeration = "onoff", .value = .onoff },

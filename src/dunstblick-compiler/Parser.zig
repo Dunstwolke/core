@@ -1,7 +1,7 @@
 const std = @import("std");
 
-const string_luts = @import("strings.zig");
-const enums = @import("enums.zig");
+const string_luts = @import("dunstblick-protocol").layout_format.strings;
+const enums = @import("dunstblick-protocol").layout_format.enums;
 
 const Tokenizer = @import("Tokenizer.zig");
 const ErrorCollection = @import("ErrorCollection.zig");
@@ -16,7 +16,7 @@ errors: *ErrorCollection,
 tokens: *Tokenizer,
 
 fn widgetFromName(name: []const u8) ?enums.WidgetType {
-    inline for (string_luts.widget_types) |tup| {
+    for (string_luts.widget_types) |tup| {
         if (std.mem.eql(u8, tup.widget, name))
             return tup.type;
     }
@@ -24,7 +24,7 @@ fn widgetFromName(name: []const u8) ?enums.WidgetType {
 }
 
 fn propertyFromName(name: []const u8) ?enums.Property {
-    inline for (string_luts.properties) |tup| {
+    for (string_luts.properties) |tup| {
         if (std.mem.eql(u8, tup.property, name))
             return tup.value;
     }
@@ -45,7 +45,7 @@ fn widgetOrPropertyFromName(name: []const u8) ?WidgetOrProperty {
 }
 
 fn getTypeOfProperty(prop: enums.Property) enums.Type {
-    inline for (string_luts.properties) |v| {
+    for (string_luts.properties) |v| {
         if (v.value == prop)
             return v.type;
     }
@@ -325,21 +325,10 @@ fn parseProperty(parser: Parser, writer: anytype, property: enums.Property, prop
 
         // (identifier|percentage|integer)
         .sizelist => {
-            // bitmask containing two bits per entry:
-            // 00 = auto
-            // 01 = expand
-            // 10 = integer / pixels
-            // 11 = number / percentage
-            const SizeType = enum(u2) {
-                auto = 0b00,
-                expand = 0b01,
-                pixels = 0b10,
-                percentage = 0b11,
-            };
-            const SizeEntry = union(SizeType) {
+            const SizeEntry = union(ColumnSizeType) {
                 auto: void,
                 expand: void,
-                pixels: u32,
+                absolute: u32,
                 percentage: u7,
             };
 
@@ -356,7 +345,7 @@ fn parseProperty(parser: Parser, writer: anytype, property: enums.Property, prop
                     },
                     .integer => {
                         try list.append(SizeEntry{
-                            .pixels = try tokenToUnsignedInteger(item),
+                            .absolute = try tokenToUnsignedInteger(item),
                         });
                     },
                     .identifier => {
@@ -380,6 +369,8 @@ fn parseProperty(parser: Parser, writer: anytype, property: enums.Property, prop
 
             try writeVarUInt(writer, @intCast(u32, list.items.len));
 
+            // size list is packed as dense as posssible. each byte contains up to 4
+            // size entries
             {
                 var i: usize = 0;
                 while (i < list.items.len) : (i += 4) {
@@ -396,8 +387,8 @@ fn parseProperty(parser: Parser, writer: anytype, property: enums.Property, prop
 
             for (list.items) |item| {
                 switch (item) {
-                    .pixels => |v| try writeVarUInt(writer, v),
-                    .percentage => |v| try writer.writeByte(@as(u8, v) | 0x80),
+                    .absolute => |v| try writeVarUInt(writer, v),
+                    .percentage => |v| try writer.writeByte(@as(u8, v) | 0x80), // TODO: WTF?!
                     else => {},
                 }
             }

@@ -14,6 +14,8 @@ pub const tcp = struct {
     pub const ClientStateMachine = client_state_machine.ClientStateMachine;
 };
 
+pub const layout_format = @import("layout.zig");
+
 pub usingnamespace @import("data-types.zig");
 
 pub const Decoder = @import("decoder.zig").Decoder;
@@ -69,6 +71,9 @@ test {
     _ = tcp.v1;
     _ = tcp.ServerStateMachine;
     _ = tcp.ClientStateMachine;
+
+    // pure data declaration, must always be valid
+    std.testing.refAllDecls(layout_format);
 }
 
 const TestStream = std.io.FixedBufferStream([]u8);

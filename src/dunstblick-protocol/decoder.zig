@@ -25,6 +25,23 @@ pub const Decoder = struct {
         return value;
     }
 
+    pub fn readEnum(self: *Self, comptime T: type) !T {
+        if (@typeInfo(T) != .Enum) @compileError("T must be a enum type!");
+
+        const I = std.meta.Tag(T);
+        switch (I) {
+            u8 => {
+                const byte = try self.readByte();
+                return std.meta.intToEnum(T, byte);
+            },
+            u32 => {
+                const int = try self.readVarUInt();
+                return std.meta.intToEnum(T, int);
+            },
+            else => @compileError(@typeName(I) ++ " is not a supported enumeration tag type!"),
+        }
+    }
+
     pub fn readVarUInt(self: *Self) !u32 {
         var number: u32 = 0;
 
