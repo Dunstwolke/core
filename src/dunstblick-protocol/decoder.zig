@@ -88,8 +88,6 @@ pub const Decoder = struct {
         };
         const val = &value.value;
         switch (value_type) {
-            .none => unreachable, // usage fault
-
             .enumeration => val.enumeration = try self.readByte(),
 
             .integer => val.integer = try self.readVarSInt(),
@@ -152,7 +150,7 @@ pub const Decoder = struct {
 
             .name => val.name = @intToEnum(WidgetName, try self.readVarUInt()),
 
-            _ => return error.NotSupported,
+            .sizelist => return error.NotSupported,
         }
         return value;
     }

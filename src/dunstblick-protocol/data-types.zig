@@ -24,7 +24,7 @@ pub const ResourceKind = enum(u8) {
 };
 
 pub const Type = enum(u32) {
-    none = 0,
+    // none = 0,
     integer = 1,
     number = 2,
     string = 3,
@@ -108,6 +108,24 @@ pub const Margins = extern struct {
     top: u32,
     right: u32,
     bottom: u32,
+
+    pub fn horizontalVertical(h: u32, v: u32) Margins {
+        return Margins{
+            .left = h,
+            .top = v,
+            .right = h,
+            .bottom = v,
+        };
+    }
+
+    pub fn all(v: u32) Margins {
+        return Margins{
+            .left = v,
+            .top = v,
+            .right = v,
+            .bottom = v,
+        };
+    }
 };
 
 // only required for the API
@@ -188,7 +206,6 @@ pub const Value = extern struct {
 // };
 
 pub const WidgetType = enum(u8) {
-    invalid = 0,
     button = 1,
     label = 2,
     combobox = 3,
@@ -245,7 +262,7 @@ pub const Property = enum(u7) {
     hit_test_visible = 29,
     on_click = 30,
     orientation = 31,
-    name = 32,
+    widget_name = 32,
 };
 
 pub const Enum = enum(u8) {

@@ -194,15 +194,14 @@ const SizeList = std.ArrayList(protocol.ColumnSizeDefinition);
 const String = std.ArrayList(u8);
 
 pub const Value = union(protocol.Type) {
-    none,
     integer: i32,
     number: f32,
     string: String,
     enumeration: u8,
     margins: protocol.Margins,
-    color: zero_graphics.Color,
-    size: zero_graphics.Size,
-    point: zero_graphics.Point,
+    color: protocol.Color,
+    size: protocol.Size,
+    point: protocol.Point,
     resource: protocol.ResourceID,
     boolean: bool,
     object: protocol.ObjectID,
@@ -223,7 +222,6 @@ pub const Value = union(protocol.Type) {
 
     pub fn convertTo(self: Self, comptime T: type) !T {
         switch (self) {
-            .none => |val| return error.UnsupportedConversion,
             .integer => |val| return error.UnsupportedConversion,
             .number => |val| return error.UnsupportedConversion,
             .string => |val| return error.UnsupportedConversion,
@@ -241,10 +239,82 @@ pub const Value = union(protocol.Type) {
         }
     }
 
+    pub fn get(self: Value, comptime T: type) !T {
+        if (@typeInfo(T) == .Enum) {
+            if (self != .enumeration)
+                return error.InvalidValue;
+            return std.meta.intToEnum(T, self.enumeration) catch |err| {
+                logger.debug("invalid enum tag: {} is not contained in enum {s}", .{
+                    self.enumeration,
+                    @typeName(T),
+                });
+                return err;
+            };
+        }
+
+        switch (T) {
+            i32 => {
+                if (self != .integer) return error.InvalidValue;
+                return self.integer;
+            },
+            f32 => {
+                if (self != .number) return error.InvalidValue;
+                return self.number;
+            },
+            String => {
+                if (self != .string) return error.InvalidValue;
+                return self.string;
+            },
+            protocol.Margins => {
+                if (self != .margins) return error.InvalidValue;
+                return self.margins;
+            },
+            protocol.Color => {
+                if (self != .color) return error.InvalidValue;
+                return self.color;
+            },
+            protocol.Size => {
+                if (self != .size) return error.InvalidValue;
+                return self.size;
+            },
+            protocol.Point => {
+                if (self != .point) return error.InvalidValue;
+                return self.point;
+            },
+            protocol.ResourceID => {
+                if (self != .resource) return error.InvalidValue;
+                return self.resource;
+            },
+            bool => {
+                if (self != .boolean) return error.InvalidValue;
+                return self.boolean;
+            },
+            protocol.ObjectID => {
+                if (self != .object) return error.InvalidValue;
+                return self.object;
+            },
+            ObjectList => {
+                if (self != .objectlist) return error.InvalidValue;
+                return self.objectlist;
+            },
+            SizeList => {
+                if (self != .sizelist) return error.InvalidValue;
+                return self.sizelist;
+            },
+            protocol.EventID => {
+                if (self != .event) return error.InvalidValue;
+                return self.event;
+            },
+            protocol.WidgetName => {
+                if (self != .name) return error.InvalidValue;
+                return self.name;
+            },
+            else => @compileError(@typeName(T) ++ " is not a dunstblick primitive type"),
+        }
+    }
+
     pub fn deserialize(allocator: *std.mem.Allocator, value_type: protocol.Type, decoder: *protocol.Decoder) !Value {
         return switch (value_type) {
-            .none => .none, // usage fault
-
             .enumeration => Value{
                 .enumeration = try decoder.readByte(),
             },
@@ -271,10 +341,10 @@ pub const Value = union(protocol.Type) {
 
             .color => Value{
                 .color = .{
-                    .r = try decoder.readByte(),
-                    .g = try decoder.readByte(),
-                    .b = try decoder.readByte(),
-                    .a = try decoder.readByte(),
+                    .red = try decoder.readByte(),
+                    .green = try decoder.readByte(),
+                    .blue = try decoder.readByte(),
+                    .alpha = try decoder.readByte(),
                 },
             },
 
@@ -381,14 +451,25 @@ pub const Value = union(protocol.Type) {
 };
 
 pub fn Property(comptime T: type) type {
+    comptime {
+        if (@typeInfo(T) != .Enum) {
+            for (std.meta.fields(Value)) |field| {
+                if (field.field_type == T)
+                    break;
+            } else @compileError(@typeName(T) ++ " is not a supported property type");
+        }
+    }
     return struct {
         const Self = @This();
 
-        // this marks the type as a bindable property
+        /// this marks the type as a bindable property
         pub const property_tag = {};
 
+        /// The type of the property
+        pub const Type = T;
+
         value: T,
-        binding: ?protocol.PropertyName,
+        binding: ?protocol.PropertyName = null,
 
         pub fn get(self: Self, binding_context: ?Object) T {
             if (self.binding != null and binding_context != null) {
@@ -407,10 +488,54 @@ pub fn Property(comptime T: type) type {
             return self.value;
         }
 
-        pub fn set(self: *Self, binding_context: ?Object) !void {
-            @panic("not implemented yet!");
+        pub fn set(self: *Self, binding_context: ?Object, value: T) !void {
+            std.debug.assert(binding_context == null); // TODO: Implement the pass-through
+            switch (T) {
+                ObjectList => {
+                    try self.value.resize(value.items.len);
+                    std.mem.copy(protocol.ObjectID, self.value.items, value.items);
+                    var copy = value;
+                    copy.deinit();
+                },
+
+                SizeList => {
+                    try self.value.resize(value.items.len);
+                    std.mem.copy(protocol.ColumnSizeDefinition, self.value.items, value.items);
+                    var copy = value;
+                    copy.deinit();
+                },
+
+                String => {
+                    try self.value.resize(value.items.len);
+                    std.mem.copy(u8, self.value.items, value.items);
+                    var copy = value;
+                    copy.deinit();
+                },
+
+                // trivial cases can be made with this
+                else => self.value = value,
+            }
+        }
+
+        pub fn deinit(self: *Self) void {
+            switch (T) {
+                ObjectList, SizeList, String => self.value.deinit(),
+
+                // trivial cases can be made with this
+                else => {},
+            }
+            self.* = undefined;
         }
     };
+}
+
+fn deinitAllProperties(comptime T: type, container: *T) void {
+    inline for (std.meta.fields(T)) |fld| {
+        if (@hasDecl(fld.field_type, "property_tag")) {
+            const property = &@field(container, fld.name);
+            property.deinit();
+        }
+    }
 }
 
 pub const WidgetTree = struct {
@@ -435,12 +560,56 @@ pub const WidgetTree = struct {
         return tree;
     }
 
-    const DeserializeWidgetError = error{ OutOfMemory, EndOfStream, InvalidEnumTag, Overflow };
+    const DeserializeWidgetError = error{
+        OutOfMemory,
+        EndOfStream,
+        InvalidEnumTag,
+        Overflow,
+        InvalidValue,
+    };
+
+    const ValueFromStream = union(enum) {
+        value: Value,
+        binding: protocol.PropertyName,
+    };
+
+    fn setValue(property: anytype, property_id: protocol.Property, value_from_stream: ValueFromStream) !bool {
+        switch (value_from_stream) {
+            .value => |untyped_value| {
+                const typed_value = try untyped_value.get(@TypeOf(property.*).Type);
+                try property.set(null, typed_value);
+            },
+            .binding => |id| {
+                property.binding = id;
+            },
+        }
+        return true;
+    }
+
+    fn setPropertyValue(comptime T: type, container: *T, property_id: protocol.Property, value_from_stream: ValueFromStream) !bool {
+        inline for (std.meta.fields(T)) |fld| {
+            if (@hasDecl(fld.field_type, "property_tag")) {
+                if (property_id == @field(protocol.Property, fld.name)) {
+                    const property = &@field(container, fld.name);
+                    return setValue(property, property_id, value_from_stream);
+                }
+            }
+        }
+        return false;
+    }
+
+    fn setActiveControlPropertyValue(widget: *Widget, property_id: protocol.Property, value_from_stream: ValueFromStream) !bool {
+        inline for (std.meta.fields(Control)) |control_fld| {
+            if (widget.control == @field(protocol.WidgetType, control_fld.name)) {
+                return try setPropertyValue(control_fld.field_type, &@field(widget.control, control_fld.name), property_id, value_from_stream);
+            }
+        }
+        return false;
+    }
+
     fn deserializeWidget(self: *WidgetTree, widget: *Widget, decoder: *protocol.Decoder, widget_type: protocol.WidgetType) DeserializeWidgetError!void {
-        widget.* = Widget{
-            .children = std.ArrayList(Widget).init(self.allocator), // widgets need dynamic allocation, arena is poop here
-        };
-        errdefer widget.children.deinit();
+        widget.* = Widget.init(self.allocator, widget_type);
+        errdefer widget.deinit();
 
         logger.debug("deserialize widget of type {}", .{widget_type});
 
@@ -450,22 +619,45 @@ pub const WidgetTree = struct {
             if (property_tag == 0)
                 break;
 
-            var property = try std.meta.intToEnum(protocol.Property, property_tag & 0x7F);
+            var property_id = try std.meta.intToEnum(protocol.Property, property_tag & 0x7F);
 
-            if ((property_tag & 0x80) != 0) {
+            var from_stream = if ((property_tag & 0x80) != 0) blk: {
                 const property_name = @intToEnum(protocol.PropertyName, try decoder.readVarUInt());
 
-                logger.debug("property {} is bound to {}", .{ property, property_name });
-            } else {
+                logger.debug("property {} is bound to {}", .{ property_id, property_name });
+
+                break :blk ValueFromStream{ .binding = property_name };
+            } else blk: {
                 const property_type = for (protocol.layout_format.properties) |desc| {
-                    if (desc.value == property)
+                    if (desc.value == property_id)
                         break desc.type;
                 } else unreachable;
 
-                logger.debug("read {} of type {}", .{ property, property_type });
+                logger.debug("read {} of type {}", .{ property_id, property_type });
 
                 var value = try Value.deserialize(self.allocator, property_type, decoder);
-                defer value.deinit();
+                break :blk ValueFromStream{ .value = value };
+            };
+
+            // find the proper property
+
+            errdefer switch (from_stream) {
+                .value => |*value| value.deinit(),
+                .binding => {},
+            };
+
+            var found_property = try setPropertyValue(Widget, widget, property_id, from_stream);
+            if (!found_property) {
+                found_property = try setActiveControlPropertyValue(widget, property_id, from_stream);
+            }
+            if (!found_property) {
+                logger.warn("property {} does not exist on widget {}", .{ property_id, widget_type });
+                switch (from_stream) {
+                    .value => |*value| value.deinit(),
+                    .binding => {},
+                }
+                // TODO:
+                // return error.InvalidProperty;
             }
         }
 
@@ -504,7 +696,126 @@ pub const WidgetTree = struct {
 pub const Widget = struct {
     const Self = @This();
 
-    // TODO: Implement this
-
     children: std.ArrayList(Self),
+    control: Control,
+
+    // shared properties:
+
+    horizontal_alignment: Property(protocol.enums.HorizontalAlignment),
+    vertical_alignment: Property(protocol.enums.VerticalAlignment),
+
+    margins: Property(protocol.Margins),
+    paddings: Property(protocol.Margins),
+    dock_site: Property(protocol.enums.DockSite),
+    visibility: Property(protocol.enums.Visibility),
+    enabled: Property(bool),
+    hit_test_visible: Property(bool),
+    binding_context: Property(protocol.ObjectID),
+    child_source: Property(ObjectList),
+    child_template: Property(protocol.ResourceID),
+
+    widget_name: Property(protocol.WidgetName),
+    tab_title: Property(String),
+    size_hint: Property(protocol.Size),
+
+    left: Property(i32),
+    top: Property(i32),
+
+    fn initControl(control_type: protocol.WidgetType, allocator: *std.mem.Allocator) Control {
+        inline for (std.meta.fields(Control)) |field| {
+            if (control_type == @field(protocol.WidgetType, field.name)) {
+                return @unionInit(Control, field.name, field.field_type.init(allocator));
+            }
+        }
+        unreachable;
+    }
+
+    pub fn init(allocator: *std.mem.Allocator, control_type: protocol.WidgetType) Widget {
+        var control = initControl(control_type, allocator);
+
+        return Widget{
+            .children = std.ArrayList(Widget).init(allocator),
+            .control = control,
+
+            .horizontal_alignment = .{ .value = .stretch },
+            .vertical_alignment = .{ .value = .stretch },
+            .margins = .{ .value = protocol.Margins.all(0) },
+            .paddings = .{ .value = protocol.Margins.all(0) },
+            .dock_site = .{ .value = .left },
+            .visibility = .{ .value = .visible },
+            .enabled = .{ .value = true },
+            .hit_test_visible = .{ .value = true },
+            .binding_context = .{ .value = .invalid },
+            .child_source = .{ .value = ObjectList.init(allocator) },
+            .child_template = .{ .value = .invalid },
+            .widget_name = .{ .value = .none },
+            .tab_title = .{ .value = String.init(allocator) },
+            .size_hint = .{ .value = protocol.Size{ .width = 0, .height = 0 } },
+            .left = .{ .value = 0 },
+            .top = .{ .value = 0 },
+        };
+    }
+
+    pub fn deinit(self: *Self) void {
+        for (self.children.items) |*child| {
+            child.deinit();
+        }
+        self.children.deinit();
+
+        self.control.deinit();
+
+        deinitAllProperties(Self, self);
+
+        self.child_source.value.deinit();
+        self.tab_title.value.deinit();
+    }
+};
+
+pub const Control = union(protocol.WidgetType) {
+    button: DummyControl,
+    label: DummyControl,
+    combobox: DummyControl,
+    treeview: DummyControl,
+    listbox: DummyControl,
+    picture: DummyControl,
+    textbox: DummyControl,
+    checkbox: DummyControl,
+    radiobutton: DummyControl,
+    scrollview: DummyControl,
+    scrollbar: DummyControl,
+    slider: DummyControl,
+    progressbar: DummyControl,
+    spinedit: DummyControl,
+    separator: DummyControl,
+    spacer: DummyControl,
+    panel: DummyControl,
+    container: DummyControl,
+    tab_layout: DummyControl,
+    canvas_layout: DummyControl,
+    flow_layout: DummyControl,
+    grid_layout: DummyControl,
+    dock_layout: DummyControl,
+    stack_layout: DummyControl,
+
+    pub fn deinit(self: *Control) void {
+        inline for (std.meta.fields(Control)) |field| {
+            if (self.* == @field(protocol.WidgetType, field.name)) {
+                @field(self.*, field.name).deinit();
+            }
+        }
+        self.* = undefined;
+    }
+
+    const DummyControl = struct {
+        const Self = @This();
+
+        pub fn init(allocator: *std.mem.Allocator) Self {
+            return Self{};
+        }
+
+        pub fn deinit(self: *Self) void {
+            deinitAllProperties(Self, self);
+            self.* = undefined;
+        }
+    };
 };

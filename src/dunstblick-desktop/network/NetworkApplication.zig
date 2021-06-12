@@ -308,10 +308,10 @@ fn decodeAndExecuteMessage(self: *Self, packet: []const u8) !void {
             errdefer obj.deinit();
 
             while (true) {
-                const value_type = @intToEnum(protocol.Type, try decoder.readByte());
-                if (value_type == .none) {
+                const value_tag = try decoder.readByte();
+                if (value_tag == 0)
                     break;
-                }
+                const value_type = @intToEnum(protocol.Type, value_tag);
 
                 const prop = @intToEnum(protocol.PropertyName, try decoder.readVarUInt());
 

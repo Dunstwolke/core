@@ -16,6 +16,8 @@ pub const tcp = struct {
 
 pub const layout_format = @import("layout.zig");
 
+pub const enums = @import("enums.zig");
+
 pub usingnamespace @import("data-types.zig");
 
 pub const Decoder = @import("decoder.zig").Decoder;

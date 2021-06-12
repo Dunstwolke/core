@@ -66,7 +66,7 @@ pub const properties = [_]PropertyDescriptor{
     .{ .property = "hit-test-visible", .value = .hit_test_visible, .type = .boolean },
     .{ .property = "on-click", .value = .on_click, .type = .event },
     .{ .property = "orientation", .value = .orientation, .type = .enumeration },
-    .{ .property = "widget-name", .value = .name, .type = .name },
+    .{ .property = "widget-name", .value = .widget_name, .type = .name },
 };
 
 pub const EnumDescriptor = struct {

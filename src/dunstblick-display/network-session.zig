@@ -246,10 +246,10 @@ pub const NetworkSession = struct {
                 errdefer cpp.object_destroy(obj);
 
                 while (true) {
-                    const value_type = @intToEnum(protocol.Type, try decoder.readByte());
-                    if (value_type == .none) {
+                    const type_tag = try decoder.readByte();
+                    if (type_tag == 0)
                         break;
-                    }
+                    const value_type = @intToEnum(protocol.Type, type_tag);
 
                     const prop = @intToEnum(protocol.PropertyName, try decoder.readVarUInt());
 
@@ -405,8 +405,6 @@ pub const NetworkSession = struct {
         if (oid == .invalid)
             return;
         if (name == .invalid)
-            return;
-        if (value.type == .none)
             return;
 
         var backing_buf: [4096]u8 = undefined;

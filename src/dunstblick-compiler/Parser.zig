@@ -1,7 +1,7 @@
 const std = @import("std");
 
-const string_luts = @import("dunstblick-protocol").layout_format.strings;
-const enums = @import("dunstblick-protocol").layout_format.enums;
+const string_luts = @import("dunstblick-protocol").layout_format;
+const enums = @import("dunstblick-protocol");
 
 const Tokenizer = @import("Tokenizer.zig");
 const ErrorCollection = @import("ErrorCollection.zig");
@@ -198,7 +198,7 @@ fn parseProperty(parser: Parser, writer: anytype, property: enums.Property, prop
     try writer.writeByte(@enumToInt(property));
 
     switch (propertyType) {
-        .invalid => unreachable,
+        // .none
 
         // integer;
         .integer => {
@@ -325,7 +325,7 @@ fn parseProperty(parser: Parser, writer: anytype, property: enums.Property, prop
 
         // (identifier|percentage|integer)
         .sizelist => {
-            const SizeEntry = union(ColumnSizeType) {
+            const SizeEntry = union(enums.ColumnSizeType) {
                 auto: void,
                 expand: void,
                 absolute: u32,
@@ -378,7 +378,7 @@ fn parseProperty(parser: Parser, writer: anytype, property: enums.Property, prop
 
                     var j: usize = 0;
                     while (j < std.math.min(4, list.items.len - i)) : (j += 1) {
-                        value |= @as(u8, @enumToInt(@as(SizeType, list.items[i + j]))) << @intCast(u3, 2 * j);
+                        value |= @as(u8, @enumToInt(@as(enums.ColumnSizeType, list.items[i + j]))) << @intCast(u3, 2 * j);
                     }
 
                     try writer.writeByte(value);
