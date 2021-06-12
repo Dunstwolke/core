@@ -49,3 +49,19 @@ pub const ImageScaling = enum(u8) {
     contain = val(.contain),
     cover = val(.cover),
 };
+
+pub const StackDirection = enum(u8) {
+    vertical = val(.vertical),
+    horizontal = val(.horizontal),
+};
+
+pub const Orientation = enum(u8) {
+    horizontal = val(.horizontal),
+    vertical = val(.vertical),
+};
+
+pub const DisplayProgressStyle = enum(u8) {
+    none = val(.none),
+    percent = val(.percent),
+    absolute = val(.absolute),
+};

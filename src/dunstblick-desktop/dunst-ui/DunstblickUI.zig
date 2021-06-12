@@ -606,10 +606,10 @@ pub const WidgetTree = struct {
     fn setActiveControlPropertyValue(widget: *Widget, property_id: protocol.Property, value_from_stream: ValueFromStream) !bool {
         inline for (std.meta.fields(Control)) |control_fld| {
             if (widget.control == @field(protocol.WidgetType, control_fld.name)) {
-                return try setPropertyValue(control_fld.field_type, &@field(widget.control, control_fld.name), property_id, value_from_stream);
+                return setPropertyValue(control_fld.field_type, &@field(widget.control, control_fld.name), property_id, value_from_stream);
             }
         }
-        return false;
+        unreachable;
     }
 
     fn deserializeWidget(self: *WidgetTree, widget: *Widget, decoder: *protocol.Decoder, widget_type: protocol.WidgetType) DeserializeWidgetError!void {
@@ -779,28 +779,28 @@ pub const Widget = struct {
 pub const Control = union(protocol.WidgetType) {
     button: Button,
     label: Label,
-    combobox: DummyControl,
-    treeview: DummyControl,
-    listbox: DummyControl,
+    combobox: EmptyControl,
+    treeview: EmptyControl,
+    listbox: EmptyControl,
     picture: Picture,
-    textbox: DummyControl,
-    checkbox: DummyControl,
-    radiobutton: DummyControl,
-    scrollview: DummyControl,
-    scrollbar: DummyControl,
-    slider: DummyControl,
-    progressbar: DummyControl,
-    spinedit: DummyControl,
-    separator: DummyControl,
-    spacer: DummyControl,
-    panel: DummyControl,
-    container: DummyControl,
-    tab_layout: DummyControl,
-    canvas_layout: DummyControl,
-    flow_layout: DummyControl,
-    grid_layout: DummyControl,
-    dock_layout: DummyControl,
-    stack_layout: DummyControl,
+    textbox: EmptyControl,
+    checkbox: CheckBox,
+    radiobutton: RadioButton,
+    scrollview: EmptyControl,
+    scrollbar: ScrollBar,
+    slider: Slider,
+    progressbar: ProgressBar,
+    spinedit: EmptyControl,
+    separator: EmptyControl,
+    spacer: EmptyControl,
+    panel: EmptyControl,
+    container: EmptyControl,
+    tab_layout: TabLayout,
+    canvas_layout: EmptyControl,
+    flow_layout: EmptyControl,
+    grid_layout: GridLayout,
+    dock_layout: EmptyControl,
+    stack_layout: StackLayout,
 
     pub fn deinit(self: *Control) void {
         inline for (std.meta.fields(Control)) |field| {
@@ -811,7 +811,7 @@ pub const Control = union(protocol.WidgetType) {
         self.* = undefined;
     }
 
-    const DummyControl = struct {
+    pub const EmptyControl = struct {
         const Self = @This();
 
         pub fn init(allocator: *std.mem.Allocator) Self {
@@ -824,7 +824,7 @@ pub const Control = union(protocol.WidgetType) {
         }
     };
 
-    const Button = struct {
+    pub const Button = struct {
         const Self = @This();
 
         on_click: Property(protocol.EventID),
@@ -841,7 +841,7 @@ pub const Control = union(protocol.WidgetType) {
         }
     };
 
-    const Label = struct {
+    pub const Label = struct {
         const Self = @This();
 
         text: Property(String),
@@ -860,7 +860,7 @@ pub const Control = union(protocol.WidgetType) {
         }
     };
 
-    const Picture = struct {
+    pub const Picture = struct {
         const Self = @This();
 
         image: Property(protocol.ResourceID),
@@ -870,6 +870,164 @@ pub const Control = union(protocol.WidgetType) {
             return Self{
                 .image = .{ .value = .invalid },
                 .image_scaling = .{ .value = .stretch },
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            deinitAllProperties(Self, self);
+            self.* = undefined;
+        }
+    };
+
+    pub const CheckBox = struct {
+        const Self = @This();
+
+        is_checked: Property(bool),
+
+        pub fn init(allocator: *std.mem.Allocator) Self {
+            return Self{
+                .is_checked = .{ .value = false },
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            deinitAllProperties(Self, self);
+            self.* = undefined;
+        }
+    };
+
+    pub const RadioButton = struct {
+        const Self = @This();
+
+        is_checked: Property(bool),
+
+        pub fn init(allocator: *std.mem.Allocator) Self {
+            return Self{
+                .is_checked = .{ .value = false },
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            deinitAllProperties(Self, self);
+            self.* = undefined;
+        }
+    };
+
+    pub const ScrollBar = struct {
+        const Self = @This();
+
+        minimum: Property(f32),
+        maximum: Property(f32),
+        value: Property(f32),
+        orientation: Property(protocol.enums.Orientation),
+
+        pub fn init(allocator: *std.mem.Allocator) Self {
+            return Self{
+                .minimum = .{ .value = 0.0 },
+                .maximum = .{ .value = 100.0 },
+                .value = .{ .value = 25.0 },
+                .orientation = .{ .value = .horizontal },
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            deinitAllProperties(Self, self);
+            self.* = undefined;
+        }
+    };
+
+    pub const Slider = struct {
+        const Self = @This();
+
+        minimum: Property(f32),
+        maximum: Property(f32),
+        value: Property(f32),
+        orientation: Property(protocol.enums.Orientation),
+
+        pub fn init(allocator: *std.mem.Allocator) Self {
+            return Self{
+                .minimum = .{ .value = 0.0 },
+                .maximum = .{ .value = 100.0 },
+                .value = .{ .value = 0.0 },
+                .orientation = .{ .value = .horizontal },
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            deinitAllProperties(Self, self);
+            self.* = undefined;
+        }
+    };
+
+    pub const ProgressBar = struct {
+        const Self = @This();
+
+        minimum: Property(f32),
+        maximum: Property(f32),
+        value: Property(f32),
+        orientation: Property(protocol.enums.Orientation),
+        display_progress_style: Property(protocol.enums.DisplayProgressStyle),
+
+        pub fn init(allocator: *std.mem.Allocator) Self {
+            return Self{
+                .minimum = .{ .value = 0.0 },
+                .maximum = .{ .value = 100.0 },
+                .value = .{ .value = 0.0 },
+                .orientation = .{ .value = .horizontal },
+                .display_progress_style = .{ .value = .percent },
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            deinitAllProperties(Self, self);
+            self.* = undefined;
+        }
+    };
+
+    pub const StackLayout = struct {
+        const Self = @This();
+
+        orientation: Property(protocol.enums.StackDirection),
+
+        pub fn init(allocator: *std.mem.Allocator) Self {
+            return Self{
+                .orientation = .{ .value = .vertical },
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            deinitAllProperties(Self, self);
+            self.* = undefined;
+        }
+    };
+
+    pub const TabLayout = struct {
+        const Self = @This();
+
+        selected_index: Property(i32),
+
+        pub fn init(allocator: *std.mem.Allocator) Self {
+            return Self{
+                .selected_index = .{ .value = 0 },
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            deinitAllProperties(Self, self);
+            self.* = undefined;
+        }
+    };
+
+    pub const GridLayout = struct {
+        const Self = @This();
+
+        rows: Property(SizeList),
+        columns: Property(SizeList),
+
+        pub fn init(allocator: *std.mem.Allocator) Self {
+            return Self{
+                .rows = .{ .value = SizeList.init(allocator) },
+                .columns = .{ .value = SizeList.init(allocator) },
             };
         }
 
