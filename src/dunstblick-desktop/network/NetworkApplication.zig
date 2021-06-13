@@ -159,7 +159,7 @@ pub fn notifyWritable(self: *Self) !void {
 }
 
 pub fn notifyReadable(self: *Self) !void {
-    logger.info("socket read {}", .{self.state});
+    // logger.info("socket read {}", .{self.state});
     switch (self.state) {
         .unconnected, .socket_connecting => return error.InvalidState,
 
@@ -181,7 +181,7 @@ pub fn notifyReadable(self: *Self) !void {
                 const push_info = try self.client.pushData(buffer[offset..]);
                 offset += push_info.consumed;
                 if (push_info.event) |event| {
-                    logger.debug("received event: {s}", .{@tagName(std.meta.activeTag(event))});
+                    // logger.debug("received event: {s}", .{@tagName(std.meta.activeTag(event))});
                     switch (event) {
                         .acknowledge_handshake => |data| { //  AcknowledgeHandshake{ .requires_username = false, .requires_password = false, .rejects_username = false, .rejects_password = false } }
                             if (!data.ok()) {
@@ -214,7 +214,7 @@ pub fn notifyReadable(self: *Self) !void {
                         },
                         .connect_response => |info| {
                             // TODO: Request available resources
-                            logger.info("server has {} resources, we want none!", .{info.resource_count});
+                            logger.info("server provides {} resources", .{info.resource_count});
                         },
                         .connect_response_item => |info| {
                             const gop = try self.resources.getOrPut(info.descriptor.id);
@@ -282,10 +282,10 @@ pub fn notifyReadable(self: *Self) !void {
 }
 
 fn decodeAndExecuteMessage(self: *Self, packet: []const u8) !void {
-    logger.info("Received packet of {} bytes: {}", .{
-        packet.len,
-        std.fmt.fmtSliceHexUpper(packet),
-    });
+    // logger.info("Received packet of {} bytes: {}", .{
+    //     packet.len,
+    //     std.fmt.fmtSliceHexUpper(packet),
+    // });
 
     var decoder = protocol.Decoder.init(packet);
 
@@ -314,8 +314,6 @@ fn decodeAndExecuteMessage(self: *Self, packet: []const u8) !void {
                 const value_type = @intToEnum(protocol.Type, value_tag);
 
                 const prop = @intToEnum(protocol.PropertyName, try decoder.readVarUInt());
-
-                logger.debug("read value of type {}", .{value_type});
 
                 var value = try DunstblickUI.Value.deserialize(self.allocator, value_type, &decoder);
                 errdefer value.deinit();

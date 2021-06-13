@@ -12,6 +12,7 @@ objects: std.AutoArrayHashMapUnmanaged(protocol.ObjectID, Object),
 resources: std.AutoArrayHashMapUnmanaged(protocol.ResourceID, Resource),
 
 current_view: ?WidgetTree,
+root_object: ?protocol.ObjectID,
 
 pub fn init(allocator: *std.mem.Allocator) DunstblickUI {
     return DunstblickUI{
@@ -19,6 +20,7 @@ pub fn init(allocator: *std.mem.Allocator) DunstblickUI {
         .objects = .{},
         .resources = .{},
         .current_view = null,
+        .root_object = null,
     };
 }
 
@@ -44,6 +46,15 @@ pub fn deinit(self: *DunstblickUI) void {
 
 pub fn processUserInterface(self: *DunstblickUI, rectangle: zero_graphics.Rectangle, ui: zero_graphics.UserInterface.Builder) !void {
     if (self.current_view) |*view| {
+        const root_object = if (self.root_object) |obj_id|
+            self.objects.getPtr(obj_id)
+        else
+            null;
+
+        try view.updateBindings(root_object);
+        view.updateWantedSize(ui.ui);
+        view.layout(rectangle);
+
         try view.processUserInterface(rectangle, ui);
     }
 }
@@ -83,7 +94,7 @@ pub fn setView(self: *DunstblickUI, id: protocol.ResourceID) !void {
 
     var decoder = protocol.Decoder.init(resource.data.items);
 
-    var tree = try WidgetTree.deserialize(self.allocator, &decoder);
+    var tree = try WidgetTree.deserialize(self, self.allocator, &decoder);
     errdefer tree.deinit();
 
     if (self.current_view) |*view| {
@@ -220,22 +231,47 @@ pub const Value = union(protocol.Type) {
         self.* = undefined;
     }
 
-    pub fn convertTo(self: Self, comptime T: type) !T {
+    pub fn convertTo(self: Value, comptime T: type) !T {
+        if (self.get(T)) |v| {
+            return v;
+        } else |err| {
+            // we ignore the conversion error, we just want to short-cut
+            // the conversion path when a compatible type is queried.
+        }
+
+        const ti = @typeInfo(T);
+
         switch (self) {
             .integer => |val| return error.UnsupportedConversion,
             .number => |val| return error.UnsupportedConversion,
             .string => |val| return error.UnsupportedConversion,
-            .enumeration => |val| return error.UnsupportedConversion,
             .margins => |val| return error.UnsupportedConversion,
             .color => |val| return error.UnsupportedConversion,
             .size => |val| return error.UnsupportedConversion,
             .point => |val| return error.UnsupportedConversion,
-            .resource => |val| return error.UnsupportedConversion,
-            .boolean => |val| return error.UnsupportedConversion,
-            .object => |val| return error.UnsupportedConversion,
-            .objectlist => |val| return error.UnsupportedConversion,
-            .event => |val| return error.UnsupportedConversion,
-            .name => |val| return error.UnsupportedConversion,
+
+            .boolean => |val| {
+                if (ti == .Int)
+                    return if (val) @as(u1, 1) else @as(u1, 0);
+                if (T == f16)
+                    return if (val) @as(f16, 1) else @as(f16, 0);
+                if (T == f32)
+                    return if (val) @as(f32, 1) else @as(f32, 0);
+                if (T == f64)
+                    return if (val) @as(f64, 1) else @as(f64, 0);
+
+                return error.UnsupportedConversion;
+            },
+
+            // unconvertible types:
+            .enumeration,
+            .resource,
+            .object,
+            .event,
+            .name,
+            .objectlist,
+            .sizelist,
+            => return error.UnsupportedConversion,
         }
     }
 
@@ -455,6 +491,10 @@ pub const Value = union(protocol.Type) {
     }
 };
 
+fn isProperty(comptime T: type) bool {
+    return @typeInfo(T) == .Struct and @hasDecl(T, "property_tag");
+}
+
 pub fn Property(comptime T: type) type {
     comptime {
         if (@typeInfo(T) != .Enum) {
@@ -476,16 +516,17 @@ pub fn Property(comptime T: type) type {
         value: T,
         binding: ?protocol.PropertyName = null,
 
-        pub fn get(self: Self, binding_context: ?Object) T {
+        pub fn get(self: Self, binding_context: ?*Object) T {
             if (self.binding != null and binding_context != null) {
                 if (binding_context.?.getProperty(self.binding.?)) |value| {
                     if (value.convertTo(T)) |val| {
                         return val;
                     } else |err| {
-                        logger.warn("binding error: converting {}) of type {} to {} failed: {}", .{
+                        logger.warn("binding error: converting {}) of type {s} to {s} failed: {}", .{
                             self.binding.?,
                             @tagName(std.meta.activeTag(value.*)),
                             @typeName(T),
+                            err,
                         });
                     }
                 }
@@ -536,7 +577,7 @@ pub fn Property(comptime T: type) type {
 
 fn deinitAllProperties(comptime T: type, container: *T) void {
     inline for (std.meta.fields(T)) |fld| {
-        if (@hasDecl(fld.field_type, "property_tag")) {
+        if (comptime isProperty(fld.field_type)) {
             const property = &@field(container, fld.name);
             property.deinit();
         }
@@ -547,12 +588,14 @@ pub const WidgetTree = struct {
     allocator: *std.mem.Allocator,
     arena: std.heap.ArenaAllocator,
     root: Widget,
+    ui: *DunstblickUI,
 
-    pub fn deserialize(allocator: *std.mem.Allocator, decoder: *protocol.Decoder) !WidgetTree {
+    pub fn deserialize(ui: *DunstblickUI, allocator: *std.mem.Allocator, decoder: *protocol.Decoder) !WidgetTree {
         var tree = WidgetTree{
             .allocator = allocator,
             .arena = std.heap.ArenaAllocator.init(allocator),
             .root = undefined,
+            .ui = ui,
         };
         errdefer tree.arena.deinit();
 
@@ -593,7 +636,7 @@ pub const WidgetTree = struct {
 
     fn setPropertyValue(comptime T: type, container: *T, property_id: protocol.Property, value_from_stream: ValueFromStream) !bool {
         inline for (std.meta.fields(T)) |fld| {
-            if (@hasDecl(fld.field_type, "property_tag")) {
+            if (comptime isProperty(fld.field_type)) {
                 if (property_id == @field(protocol.Property, fld.name)) {
                     const property = &@field(container, fld.name);
                     return setValue(property, property_id, value_from_stream);
@@ -661,8 +704,12 @@ pub const WidgetTree = struct {
                     .value => |*value| value.deinit(),
                     .binding => {},
                 }
-                // TODO: Reinclude this when everything is properly implemented
-                // return error.InvalidProperty;
+                // TODO : Think about this:
+                // Is it required that a layout format is properly compiled?
+                // Related: format versions, future properties, …
+                if (std.builtin.mode != .Debug) {
+                    return error.InvalidProperty;
+                }
             }
         }
 
@@ -697,13 +744,85 @@ pub const WidgetTree = struct {
 
         try ui.label(rect, "TODO: Implement WidgetTree", .{});
     }
+
+    pub fn updateBindings(self: *WidgetTree, root_object: ?*Object) !void {
+        return self.updateBindingsForWidget(&self.root, root_object);
+    }
+
+    const UpdateBindingsForWidgetError = error{};
+    pub fn updateBindingsForWidget(self: *WidgetTree, widget: *Widget, parent_binding_source: ?*Object) UpdateBindingsForWidgetError!void {
+        // STAGE 1: Update the current binding source
+
+        // if we have a bindingSource of the parent available:
+        if (parent_binding_source != null and widget.binding_context.binding != null) {
+            // check if the parent source has the property
+            // we bind our bindingContext to and if yes,
+            // bind to it
+
+            @panic("not implemented yet!");
+
+            // if (auto prop = parentBindingSource.resolve(*widget_context).get(*this->bindingContext.binding); prop) {
+            //     this->bindingSource = std::get<ObjectRef>(prop->value);
+            // } else {
+            //     this->bindingSource = ObjectRef(nullptr);
+            // }
+        } else {
+            // otherwise check if our bindingContext has a valid resourceID and
+            // load that resource reference:
+            const object_id = widget.get(.binding_context);
+            widget.binding_source = if (self.ui.getObject(object_id)) |obj|
+                obj
+            else
+                parent_binding_source;
+        }
+
+        // STAGE 2: Update child widgets.
+
+        const child_template_id = widget.get(.child_template);
+        if (child_template_id != .invalid) {
+            @panic("not implemented yet!");
+            // if (auto ct = childTemplate.get(this); not ct.is_null()) {
+            //     // if we have a child binding, update the child list
+            //     auto list = childSource.get(this);
+            //     if (child_container.size() != list.size())
+            //         child_container.resize(list.size());
+            //     for (size_t i = 0; i < list.size(); i++) {
+            //         auto & child = child_container[i];
+            //         if (not child or (child->templateID != ct)) {
+            //             child = widget_context->load_widget(ct);
+            //             child->initializeRoot(widget_context);
+            //         }
+
+            //         // update the children with the list as
+            //         // parent item:
+            //         // this rebinds the logic such that each child
+            //         // will bind to the list item instead
+            //         // of the actual binding context :)
+            //         child->updateBindings(list[i]);
+            //     }
+        } else {
+            // if not, just update all children regulary
+            for (widget.children.items) |*child| {
+                try self.updateBindingsForWidget(child, widget.binding_source);
+            }
+        }
+    }
+    pub fn updateWantedSize(self: *WidgetTree, ui: *zero_graphics.UserInterface) void {
+        @panic("not implemented yet!");
+    }
+    pub fn layout(self: *WidgetTree, rectangle: zero_graphics.Rectangle) void {
+        @panic("not implemented yet!");
+    }
 };
 
 pub const Widget = struct {
     const Self = @This();
 
+    usingnamespace PropertyGetSetMixin(Self, getBindingSource);
+
     children: std.ArrayList(Self),
     control: Control,
+    binding_source: ?*Object,
 
     // shared properties:
 
@@ -742,6 +861,7 @@ pub const Widget = struct {
         return Widget{
             .children = std.ArrayList(Widget).init(allocator),
             .control = control,
+            .binding_source = null,
 
             .horizontal_alignment = .{ .value = .stretch },
             .vertical_alignment = .{ .value = .stretch },
@@ -774,7 +894,44 @@ pub const Widget = struct {
 
         self.* = undefined;
     }
+
+    fn getBindingSource(self: *Self) ?*Object {
+        return self.binding_source;
+    }
 };
+
+fn PropertyGetSetMixin(comptime Self: type, getBindingSource: fn (*Self) ?*Object) type {
+    return struct {
+        fn PropertyType(comptime property_name: protocol.Property) type {
+            const name = @tagName(property_name);
+            if (@hasField(Self, name))
+                return std.meta.fieldInfo(Self, @field(std.meta.FieldEnum(Self), name)).field_type.Type;
+
+            @compileError("The property " ++ name ++ "does not exist on " ++ @typeName(Self));
+        }
+
+        /// Gets a property
+        pub fn get(self: *Self, comptime property_name: protocol.Property) PropertyType(property_name) {
+            const name = @tagName(property_name);
+            if (@hasField(Self, name)) {
+                return @field(self, name).get(getBindingSource(self));
+            } else {
+                @compileError("The property " ++ name ++ "does not exist on " ++ @typeName(Self));
+            }
+        }
+
+        /// Sets a property
+        pub fn set(self: *Self, comptime property_name: protocol.Property, value: PropertyType(property_name)) auto {
+            const name = @tagName(property_name);
+            const name = @tagName(property_name);
+            if (@hasField(Self, name)) {
+                return @field(self, name).set(getBindingSource(self));
+            } else {
+                @compileError("The property " ++ name ++ "does not exist on " ++ @typeName(Self));
+            }
+        }
+    };
+}
 
 pub const Control = union(protocol.WidgetType) {
     button: Button,
