@@ -55,7 +55,7 @@ pub fn processUserInterface(self: *DunstblickUI, rectangle: zero_graphics.Rectan
         view.updateWantedSize(ui.ui);
         view.layout(rectangle);
 
-        try view.processUserInterface(rectangle, ui);
+        try view.processUserInterface(ui);
     }
 }
 
@@ -599,11 +599,9 @@ pub const WidgetTree = struct {
         };
         errdefer tree.arena.deinit();
 
-        const root_type = try decoder.readEnum(protocol.WidgetType);
-
         // We allocate the static part of the widget tree into the arena, makes it easier
         // to free the data later
-        try tree.deserializeWidget(&tree.root, decoder, root_type);
+        try tree.deserializeWidget(&tree.root, decoder);
 
         return tree;
     }
@@ -655,7 +653,13 @@ pub const WidgetTree = struct {
         unreachable;
     }
 
-    fn deserializeWidget(self: *WidgetTree, widget: *Widget, decoder: *protocol.Decoder, widget_type: protocol.WidgetType) DeserializeWidgetError!void {
+    fn deserializeWidget(self: *WidgetTree, widget: *Widget, decoder: *protocol.Decoder) DeserializeWidgetError!void {
+        const root_type = try decoder.readEnum(protocol.WidgetType);
+
+        try self.deserializeChildWidget(widget, decoder, root_type);
+    }
+
+    fn deserializeChildWidget(self: *WidgetTree, widget: *Widget, decoder: *protocol.Decoder, widget_type: protocol.WidgetType) DeserializeWidgetError!void {
         widget.* = Widget.init(self.allocator, widget_type);
         errdefer widget.deinit();
 
@@ -723,7 +727,7 @@ pub const WidgetTree = struct {
             const child = try widget.children.addOne();
             errdefer _ = widget.children.pop();
 
-            try self.deserializeWidget(child, decoder, child_type);
+            try self.deserializeChildWidget(child, decoder, child_type);
         }
     }
 
@@ -732,25 +736,17 @@ pub const WidgetTree = struct {
         self.* = undefined;
     }
 
-    pub fn processUserInterface(self: *WidgetTree, rectangle: zero_graphics.Rectangle, ui: zero_graphics.UserInterface.Builder) !void {
-        // TODO: Implement proper rendering here
-
-        const rect = zero_graphics.Rectangle{
-            .x = rectangle.x + 10,
-            .y = rectangle.y + 10,
-            .width = rectangle.width - 20,
-            .height = 24,
-        };
-
-        try ui.label(rect, "TODO: Implement WidgetTree", .{});
-    }
-
     pub fn updateBindings(self: *WidgetTree, root_object: ?*Object) !void {
         return self.updateBindingsForWidget(&self.root, root_object);
     }
 
-    const UpdateBindingsForWidgetError = error{};
-    pub fn updateBindingsForWidget(self: *WidgetTree, widget: *Widget, parent_binding_source: ?*Object) UpdateBindingsForWidgetError!void {
+    const UpdateBindingsForWidgetError = error{
+        ResourceMismatch,
+        InvalidLayout,
+        OutOfMemory,
+    };
+
+    fn updateBindingsForWidget(self: *WidgetTree, widget: *Widget, parent_binding_source: ?*Object) UpdateBindingsForWidgetError!void {
         // STAGE 1: Update the current binding source
 
         // if we have a bindingSource of the parent available:
@@ -759,13 +755,18 @@ pub const WidgetTree = struct {
             // we bind our bindingContext to and if yes,
             // bind to it
 
-            @panic("not implemented yet!");
-
-            // if (auto prop = parentBindingSource.resolve(*widget_context).get(*this->bindingContext.binding); prop) {
-            //     this->bindingSource = std::get<ObjectRef>(prop->value);
-            // } else {
-            //     this->bindingSource = ObjectRef(nullptr);
-            // }
+            if (parent_binding_source.?.getProperty(widget.binding_context.binding.?)) |binding_value| {
+                if (binding_value.get(protocol.ObjectID)) |binding_id| {
+                    widget.binding_source = self.ui.getObject(binding_id);
+                } else |err| {
+                    logger.warn("failed to convert {} to object id", .{
+                        widget.binding_context.binding.?,
+                    });
+                    widget.binding_source = null;
+                }
+            } else {
+                widget.binding_source = null;
+            }
         } else {
             // otherwise check if our bindingContext has a valid resourceID and
             // load that resource reference:
@@ -779,27 +780,57 @@ pub const WidgetTree = struct {
         // STAGE 2: Update child widgets.
 
         const child_template_id = widget.get(.child_template);
-        if (child_template_id != .invalid) {
-            @panic("not implemented yet!");
-            // if (auto ct = childTemplate.get(this); not ct.is_null()) {
-            //     // if we have a child binding, update the child list
-            //     auto list = childSource.get(this);
-            //     if (child_container.size() != list.size())
-            //         child_container.resize(list.size());
-            //     for (size_t i = 0; i < list.size(); i++) {
-            //         auto & child = child_container[i];
-            //         if (not child or (child->templateID != ct)) {
-            //             child = widget_context->load_widget(ct);
-            //             child->initializeRoot(widget_context);
-            //         }
+        if (self.ui.resources.get(child_template_id)) |resource| {
+            // if we have a child binding and the resource for it exists,
+            // update the child list
+            if (resource.kind != .layout)
+                return error.ResourceMismatch; // TODO: find a nicer solution here
 
-            //         // update the children with the list as
-            //         // parent item:
-            //         // this rebinds the logic such that each child
-            //         // will bind to the list item instead
-            //         // of the actual binding context :)
-            //         child->updateBindings(list[i]);
-            //     }
+            var child_source = widget.get(.child_source);
+
+            const current_len = widget.children.items.len;
+            const new_len = child_source.items.len;
+
+            if (current_len > new_len) {
+                for (widget.children.items[new_len..]) |*child| {
+                    child.deinit();
+                }
+            }
+            try widget.children.resize(new_len);
+
+            // just initialze all new widgets to spacers,
+            // which have no special configuration requirements.
+            // When everything will be cleaned up, the new elements
+            // are all readily initialized.
+            for (widget.children.items[current_len..]) |*items| {
+                items.* = Widget.init(self.allocator, .spacer);
+            }
+
+            std.debug.assert(widget.children.items.len == child_source.items.len);
+
+            for (widget.children.items) |*child, i| {
+                if (child.template_id == null or child.template_id.? != child_template_id) {
+                    var decoder = protocol.Decoder.init(resource.data.items);
+
+                    var new_child: Widget = undefined;
+                    self.deserializeWidget(&new_child, &decoder) catch |err| {
+                        logger.err("failed to deserialize layout: {}", .{err});
+                        return error.InvalidLayout;
+                    };
+                    new_child.template_id = child_template_id;
+
+                    child.deinit();
+                    child.* = new_child;
+                }
+
+                // update the children with the list as
+                // parent item:
+                // this rebinds the logic such that each child
+                // will bind to the list item instead
+                // of the actual binding context :)
+
+                try self.updateBindingsForWidget(child, self.ui.getObject(child_source.items[i]));
+            }
         } else {
             // if not, just update all children regulary
             for (widget.children.items) |*child| {
@@ -807,11 +838,285 @@ pub const WidgetTree = struct {
             }
         }
     }
+
     pub fn updateWantedSize(self: *WidgetTree, ui: *zero_graphics.UserInterface) void {
-        @panic("not implemented yet!");
+        self.updateWantedSizeForWidget(&self.root, ui);
     }
+
+    fn updateWantedSizeForWidget(self: *WidgetTree, widget: *Widget, ui: *zero_graphics.UserInterface) void {
+        for (widget.children.items) |*child| {
+            self.updateWantedSizeForWidget(child, ui);
+        }
+        self.computeWantedSize(widget, ui);
+    }
+
+    fn computeWantedSize(self: *WidgetTree, widget: *Widget, ui: *zero_graphics.UserInterface) void {
+        // WARNING: MUST CAPTURE BY POINTER AS WE USE @fieldParentPtr!
+        widget.wanted_size = switch (widget.control) {
+
+            // TODO: Implement size computation logic here :)
+            .label => |*label| blk: {
+                const str = label.get(.text);
+
+                const rectangle = ui.renderer.measureString(ui.default_font, str.items);
+
+                break :blk rectangle.size();
+            },
+
+            .separator => .{
+                .width = 5,
+                .height = 5,
+            },
+
+            .progressbar => .{
+                .width = 256,
+                .height = 32,
+            },
+
+            .checkbox, .radiobutton => .{
+                .width = 32,
+                .height = 32,
+            },
+
+            .slider => .{
+                .width = 32,
+                .height = 32,
+            },
+
+            .picture => blk: {
+                // TODO: Implement picture logic
+                logger.err("computeWantedSize(picture) not implemented yet!", .{});
+
+                break :blk .{
+                    .width = 256,
+                    .height = 256,
+                };
+            },
+
+            .scrollbar => |*scrollbar| blk: {
+                const orientation = scrollbar.get(.orientation);
+
+                break :blk switch (orientation) {
+                    .horizontal => zero_graphics.Size{ .width = 64, .height = 24 },
+                    .vertical => zero_graphics.Size{ .width = 24, .height = 64 },
+                };
+            },
+
+            .scrollview => |*scrollview| blk: {
+                logger.err("computeWantedSize(scrollview) not implemented yet!", .{});
+
+                break :blk .{
+                    .width = 256,
+                    .height = 256,
+                };
+            },
+
+            .stack_layout => |*stack_layout| blk: {
+                const paddings = widget.get(.paddings);
+                const orientation = stack_layout.get(.orientation);
+
+                var size = zero_graphics.Size.empty;
+                switch (orientation) {
+                    .vertical => for (widget.children.items) |*child| {
+                        if (child.getActualVisibility() == .collapsed)
+                            continue;
+                        const child_size = child.getWantedSizeWithMargins();
+                        size.width = std.math.max(size.width, child_size.width);
+                        size.height += child_size.height;
+                    },
+                    .horizontal => for (widget.children.items) |*child| {
+                        if (child.getActualVisibility() == .collapsed)
+                            continue;
+                        const child_size = child.getWantedSizeWithMargins();
+                        size.width += child_size.width;
+                        size.height = std.math.max(size.height, child_size.height);
+                    },
+                }
+                size.width += mapToU15(paddings.totalHorizontal());
+                size.height += mapToU15(paddings.totalVertical());
+                break :blk size;
+            },
+
+            // default logic
+            else => blk: {
+                var size = widget.get(.size_hint);
+                for (widget.children.items) |child| {
+                    const child_size = child.getWantedSizeWithMargins();
+                    size.width = std.math.max(size.width, child_size.width);
+                    size.height = std.math.max(size.height, child_size.height);
+                }
+                break :blk convertSizeToZeroG(size);
+            },
+        };
+    }
+
     pub fn layout(self: *WidgetTree, rectangle: zero_graphics.Rectangle) void {
-        @panic("not implemented yet!");
+        self.layoutWidget(&self.root, rectangle);
+    }
+
+    fn clampSub(a: u15, b: u32) u15 {
+        return if (b < a)
+            a - @truncate(u15, b)
+        else
+            0;
+    }
+
+    fn layoutWidget(self: *WidgetTree, widget: *Widget, _bounds: zero_graphics.Rectangle) void {
+        const margins = widget.get(.margins);
+        const padding = widget.get(.paddings);
+        const horizontal_alignment = widget.get(.horizontal_alignment);
+        const vertical_alignment = widget.get(.vertical_alignment);
+
+        const bounds = zero_graphics.Rectangle{
+            .x = _bounds.x + @intCast(u15, margins.left),
+            .y = _bounds.y + @intCast(u15, margins.top),
+            .width = clampSub(_bounds.width, margins.totalHorizontal()), // safety check against underflow
+            .height = clampSub(_bounds.height, margins.totalVertical()),
+        };
+
+        var target: zero_graphics.Rectangle = undefined;
+        switch (horizontal_alignment) {
+            .stretch => {
+                target.width = bounds.width;
+                target.x = 0;
+            },
+            .left => {
+                target.width = std.math.min(widget.wanted_size.width, bounds.width);
+                target.x = 0;
+            },
+            .center => {
+                target.width = std.math.min(widget.wanted_size.width, bounds.width);
+                target.x = (bounds.width - target.width) / 2;
+            },
+            .right => {
+                target.width = std.math.min(widget.wanted_size.width, bounds.width);
+                target.x = bounds.width - target.width;
+            },
+        }
+        target.x += bounds.x;
+
+        switch (vertical_alignment) {
+            .stretch => {
+                target.height = bounds.height;
+                target.y = 0;
+            },
+            .top => {
+                target.height = std.math.min(widget.wanted_size.height, bounds.height);
+                target.y = 0;
+            },
+            .middle => {
+                target.height = std.math.min(widget.wanted_size.height, bounds.height);
+                target.y = (bounds.height - target.height) / 2;
+            },
+            .bottom => {
+                target.height = std.math.min(widget.wanted_size.height, bounds.height);
+                target.y = bounds.height - target.height;
+            },
+        }
+        target.y += bounds.y;
+
+        widget.actual_bounds = target;
+
+        const child_area = zero_graphics.Rectangle{
+            .x = widget.actual_bounds.x + @intCast(u15, padding.left),
+            .y = widget.actual_bounds.y + @intCast(u15, padding.top),
+            .width = clampSub(widget.actual_bounds.width, padding.totalHorizontal()),
+            .height = clampSub(widget.actual_bounds.height, padding.totalVertical()),
+        };
+
+        self.layoutChildren(widget, child_area);
+    }
+
+    fn layoutChildren(self: *WidgetTree, widget: *Widget, rectangle: zero_graphics.Rectangle) void {
+        // WARNING: MUST CAPTURE BY POINTER AS WE USE @fieldParentPtr!
+        switch (widget.control) {
+
+            // TODO: Implement layout logic here :)
+
+            .stack_layout => |*stack_layout| {
+                const stack_direction = stack_layout.get(.orientation);
+
+                switch (stack_direction) {
+                    .vertical => {
+                        var rect = rectangle;
+                        for (widget.children.items) |*child| {
+                            if (child.getActualVisibility() == .collapsed)
+                                continue;
+
+                            rect.height = child.getWantedSizeWithMargins().height;
+                            self.layoutWidget(child, rect);
+                            rect.y += rect.height;
+                        }
+                    },
+
+                    .horizontal => {
+                        var rect = rectangle;
+                        for (widget.children.items) |*child| {
+                            if (child.getActualVisibility() == .collapsed)
+                                continue;
+                            rect.width = child.getWantedSizeWithMargins().width;
+                            self.layoutWidget(child, rect);
+                            rect.x += rect.width;
+                        }
+                    },
+                }
+            },
+
+            .scrollview => |*view| {
+                // TODO: This isn't the final logic
+                for (widget.children.items) |*child| {
+                    self.layoutWidget(child, rectangle);
+                }
+            },
+
+            // default logic for "non-containers":
+            else => {
+                for (widget.children.items) |*child| {
+                    self.layoutWidget(child, rectangle);
+                }
+            },
+        }
+    }
+
+    pub fn processUserInterface(self: *WidgetTree, ui: zero_graphics.UserInterface.Builder) !void {
+        try self.processUserInterfaceForWidget(&self.root, ui);
+    }
+
+    fn processUserInterfaceForWidget(self: *WidgetTree, widget: *Widget, ui: zero_graphics.UserInterface.Builder) zero_graphics.UserInterface.Builder.Error!void {
+        try self.doWidgetLogic(widget, ui);
+
+        for (widget.children.items) |*child| {
+            try self.processUserInterfaceForWidget(child, ui);
+        }
+    }
+
+    fn doWidgetLogic(self: *WidgetTree, widget: *Widget, ui: zero_graphics.UserInterface.Builder) !void {
+        const rect = widget.actual_bounds;
+        // WARNING: MUST CAPTURE BY POINTER AS WE USE @fieldParentPtr!
+        switch (widget.control) {
+
+            // TODO: Implement widget logic here :)
+
+            .label => |*label| {
+                const str = label.get(.text);
+                try ui.label(rect, str.items, .{ .id = widget });
+            },
+
+            else => {
+                var fmt: [128]u8 = undefined;
+
+                try ui.panel(rect, .{ .id = widget });
+                try ui.label(
+                    rect,
+                    std.fmt.bufPrint(&fmt, "{s} not implemented yet", .{@tagName(std.meta.activeTag(widget.control))}) catch unreachable,
+                    .{
+                        .id = widget,
+                        .horizontal_alignment = .left,
+                        .vertical_alignment = .top,
+                    },
+                );
+            },
+        }
     }
 };
 
@@ -820,9 +1125,33 @@ pub const Widget = struct {
 
     usingnamespace PropertyGetSetMixin(Self, getBindingSource);
 
+    /// The list of all children of this widget.
     children: std.ArrayList(Self),
+
+    /// The control that is contained in this widget.
     control: Control,
+
+    /// This is a (temporary) pointer to the object that provides the values
+    /// of all bound properties.
+    /// It is only valid *after* `updateBindings` was invoked and will be invalidated
+    /// as soon as any change to the object hierarchy is done (insertion/deletion).
     binding_source: ?*Object,
+
+    /// If this is not `null`, this widget was created from a certain template 
+    /// and will be used to keep the widget alive after a resize of the parent 
+    /// list.
+    template_id: ?protocol.ResourceID,
+
+    /// the space the widget says it needs to have.
+    /// this is a hint to each layouting algorithm to auto-size the widget
+    /// accordingly.
+    /// This value is only valid after `updateWantedSize` is called.
+    wanted_size: zero_graphics.Size,
+
+    /// the position of the widget on the screen after layouting
+    /// NOTE: this does not include the margins of the widget!
+    /// This value is only valid after `layout` is called.
+    actual_bounds: zero_graphics.Rectangle,
 
     // shared properties:
 
@@ -862,6 +1191,9 @@ pub const Widget = struct {
             .children = std.ArrayList(Widget).init(allocator),
             .control = control,
             .binding_source = null,
+            .template_id = null,
+            .wanted_size = undefined,
+            .actual_bounds = undefined,
 
             .horizontal_alignment = .{ .value = .stretch },
             .vertical_alignment = .{ .value = .stretch },
@@ -895,12 +1227,21 @@ pub const Widget = struct {
         self.* = undefined;
     }
 
-    fn getBindingSource(self: *Self) ?*Object {
+    fn getBindingSource(self: *const Self) ?*Object {
         return self.binding_source;
+    }
+
+    pub fn getWantedSizeWithMargins(self: Self) zero_graphics.Size {
+        return addMargin(self.wanted_size, self.get(.margins));
+    }
+
+    pub fn getActualVisibility(self: Self) protocol.enums.Visibility {
+        // TODO: Implement rest!
+        return self.get(.visibility);
     }
 };
 
-fn PropertyGetSetMixin(comptime Self: type, getBindingSource: fn (*Self) ?*Object) type {
+fn PropertyGetSetMixin(comptime Self: type, getBindingSource: fn (*const Self) ?*Object) type {
     return struct {
         fn PropertyType(comptime property_name: protocol.Property) type {
             const name = @tagName(property_name);
@@ -911,7 +1252,7 @@ fn PropertyGetSetMixin(comptime Self: type, getBindingSource: fn (*Self) ?*Objec
         }
 
         /// Gets a property
-        pub fn get(self: *Self, comptime property_name: protocol.Property) PropertyType(property_name) {
+        pub fn get(self: *const Self, comptime property_name: protocol.Property) PropertyType(property_name) {
             const name = @tagName(property_name);
             if (@hasField(Self, name)) {
                 return @field(self, name).get(getBindingSource(self));
@@ -931,6 +1272,29 @@ fn PropertyGetSetMixin(comptime Self: type, getBindingSource: fn (*Self) ?*Objec
             }
         }
     };
+}
+
+fn GetBindingSource(comptime T: type, comptime t: protocol.WidgetType) fn (*const T) ?*Object {
+    return struct {
+        fn getBindingSource(self: *const T) ?*Object {
+            // HACK: THIS IS A HORRIBLE HACK RIGHT NOW
+            {
+                var btn: Control.Button = undefined;
+                var dummy = Control{ .button = btn };
+
+                const delta = @ptrToInt(&dummy.button) - @ptrToInt(&dummy);
+                std.debug.assert(delta == 0);
+            }
+
+            // we "know" from the code above that a pointer to union payload
+            // is the same as the pointer to the union. This allows us converting
+            // the control from inner to a Widget.
+
+            const ctrl = @ptrCast(*const Control, @alignCast(@alignOf(Control), self));
+            const parent = @fieldParentPtr(Widget, "control", ctrl);
+            return parent.binding_source;
+        }
+    }.getBindingSource;
 }
 
 pub const Control = union(protocol.WidgetType) {
@@ -970,9 +1334,14 @@ pub const Control = union(protocol.WidgetType) {
 
     pub const EmptyControl = struct {
         const Self = @This();
+        usingnamespace PropertyGetSetMixin(Self, GetBindingSource(Self, .spacer));
+
+        dummy: u32, // prevent zero-sizing
 
         pub fn init(allocator: *std.mem.Allocator) Self {
-            return Self{};
+            return Self{
+                .dummy = 0,
+            };
         }
 
         pub fn deinit(self: *Self) void {
@@ -983,6 +1352,7 @@ pub const Control = union(protocol.WidgetType) {
 
     pub const Button = struct {
         const Self = @This();
+        usingnamespace PropertyGetSetMixin(Self, GetBindingSource(Self, .button));
 
         on_click: Property(protocol.EventID),
 
@@ -1000,6 +1370,7 @@ pub const Control = union(protocol.WidgetType) {
 
     pub const Label = struct {
         const Self = @This();
+        usingnamespace PropertyGetSetMixin(Self, GetBindingSource(Self, .label));
 
         text: Property(String),
         font_family: Property(protocol.enums.Font),
@@ -1019,6 +1390,7 @@ pub const Control = union(protocol.WidgetType) {
 
     pub const Picture = struct {
         const Self = @This();
+        usingnamespace PropertyGetSetMixin(Self, GetBindingSource(Self, .picture));
 
         image: Property(protocol.ResourceID),
         image_scaling: Property(protocol.enums.ImageScaling),
@@ -1038,6 +1410,7 @@ pub const Control = union(protocol.WidgetType) {
 
     pub const CheckBox = struct {
         const Self = @This();
+        usingnamespace PropertyGetSetMixin(Self, GetBindingSource(Self, .checkbox));
 
         is_checked: Property(bool),
 
@@ -1055,6 +1428,7 @@ pub const Control = union(protocol.WidgetType) {
 
     pub const RadioButton = struct {
         const Self = @This();
+        usingnamespace PropertyGetSetMixin(Self, GetBindingSource(Self, .radiobutton));
 
         is_checked: Property(bool),
 
@@ -1072,6 +1446,7 @@ pub const Control = union(protocol.WidgetType) {
 
     pub const ScrollBar = struct {
         const Self = @This();
+        usingnamespace PropertyGetSetMixin(Self, GetBindingSource(Self, .scrollbar));
 
         minimum: Property(f32),
         maximum: Property(f32),
@@ -1095,6 +1470,7 @@ pub const Control = union(protocol.WidgetType) {
 
     pub const Slider = struct {
         const Self = @This();
+        usingnamespace PropertyGetSetMixin(Self, GetBindingSource(Self, .slider));
 
         minimum: Property(f32),
         maximum: Property(f32),
@@ -1118,6 +1494,7 @@ pub const Control = union(protocol.WidgetType) {
 
     pub const ProgressBar = struct {
         const Self = @This();
+        usingnamespace PropertyGetSetMixin(Self, GetBindingSource(Self, .progressbar));
 
         minimum: Property(f32),
         maximum: Property(f32),
@@ -1143,6 +1520,7 @@ pub const Control = union(protocol.WidgetType) {
 
     pub const StackLayout = struct {
         const Self = @This();
+        usingnamespace PropertyGetSetMixin(Self, GetBindingSource(Self, .stack_layout));
 
         orientation: Property(protocol.enums.StackDirection),
 
@@ -1160,6 +1538,7 @@ pub const Control = union(protocol.WidgetType) {
 
     pub const TabLayout = struct {
         const Self = @This();
+        usingnamespace PropertyGetSetMixin(Self, GetBindingSource(Self, .tab_layout));
 
         selected_index: Property(i32),
 
@@ -1177,6 +1556,7 @@ pub const Control = union(protocol.WidgetType) {
 
     pub const GridLayout = struct {
         const Self = @This();
+        usingnamespace PropertyGetSetMixin(Self, GetBindingSource(Self, .grid_layout));
 
         rows: Property(SizeList),
         columns: Property(SizeList),
@@ -1194,3 +1574,25 @@ pub const Control = union(protocol.WidgetType) {
         }
     };
 };
+
+fn mapToU15(value: u32) u15 {
+    return std.math.cast(u15, value) catch std.math.maxInt(u15);
+}
+
+fn convertSizeToZeroG(size: protocol.Size) zero_graphics.Size {
+    return zero_graphics.Size{
+        .width = mapToU15(size.width),
+        .height = mapToU15(size.height),
+    };
+}
+
+fn addMargin(value: anytype, margin: protocol.Margins) @TypeOf(value) {
+    const T = @TypeOf(value);
+    return switch (T) {
+        zero_graphics.Size, protocol.Size => T{
+            .width = mapToU15(value.width + margin.totalHorizontal()),
+            .height = mapToU15(value.height + margin.totalVertical()),
+        },
+        else => @compileError("Cannot add margins to " ++ @typeName(T)),
+    };
+}

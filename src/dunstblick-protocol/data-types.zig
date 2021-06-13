@@ -101,6 +101,13 @@ pub const Point = extern struct {
 pub const Size = extern struct {
     width: u32,
     height: u32,
+
+    pub fn addMargin(self: Size, margins: Margins) Size {
+        return Size{
+            .width = self.width + margins.totalHorizontal(),
+            .height = self.height + margins.totalVertical(),
+        };
+    }
 };
 
 pub const Margins = extern struct {
@@ -125,6 +132,14 @@ pub const Margins = extern struct {
             .right = v,
             .bottom = v,
         };
+    }
+
+    pub fn totalHorizontal(self: Margins) u32 {
+        return self.left + self.right;
+    }
+
+    pub fn totalVertical(self: Margins) u32 {
+        return self.top + self.bottom;
     }
 };
 

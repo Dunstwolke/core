@@ -455,21 +455,31 @@ pub fn render(self: *Self, rectangle: zero_graphics.Rectangle, painter: *zero_gr
 
 pub fn processUserInterface(self: *Self, rectangle: zero_graphics.Rectangle, ui: zero_graphics.UserInterface.Builder) zero_graphics.UserInterface.Builder.Error!void {
     if (self.state == .connected) {
-        try self.user_interface.processUserInterface(rectangle, ui);
+        self.user_interface.processUserInterface(rectangle, ui) catch |err| switch (err) {
+            error.ResourceMismatch => {
+                // TODO: Drop connection here?!
+                @panic("unhandled error!");
+            },
+            error.InvalidLayout => {
+                // TODO: Drop connection here?!
+                @panic("unhandled error!");
+            },
+            else => |e| return e,
+        };
     }
 
-    const center_rect = rectangle.centered(200, 400);
+    // const center_rect = rectangle.centered(200, 400);
 
-    var temp_string_buffer: [256]u8 = undefined;
+    // var temp_string_buffer: [256]u8 = undefined;
 
-    try ui.panel(center_rect, .{});
+    // try ui.panel(center_rect, .{});
 
-    var layout = zero_graphics.UserInterface.VerticalStackLayout.init(center_rect.shrink(4));
+    // var layout = zero_graphics.UserInterface.VerticalStackLayout.init(center_rect.shrink(4));
 
-    try ui.label(layout.get(24), "Remote Application", .{ .horizontal_alignment = .center });
+    // try ui.label(layout.get(24), "Remote Application", .{ .horizontal_alignment = .center });
 
-    try ui.label(layout.get(24), std.fmt.bufPrint(&temp_string_buffer, "End Point: {}", .{self.remote_end_point}) catch "<oom>", .{});
-    try ui.label(layout.get(24), "Resources:", .{});
+    // try ui.label(layout.get(24), std.fmt.bufPrint(&temp_string_buffer, "End Point: {}", .{self.remote_end_point}) catch "<oom>", .{});
+    // try ui.label(layout.get(24), "Resources:", .{});
     // {
     //     var it = self.resources.iterator();
 
