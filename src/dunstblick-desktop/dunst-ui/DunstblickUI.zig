@@ -107,7 +107,10 @@ pub fn setView(self: *DunstblickUI, id: protocol.ResourceID) !void {
 }
 
 pub fn setRoot(self: *DunstblickUI, object: protocol.ObjectID) !void {
-    logger.err("setRoot({}) not implemented yet!", .{@enumToInt(object)});
+    self.root_object = if (object != .invalid)
+        object
+    else
+        null;
 }
 
 pub fn getObject(self: *DunstblickUI, id: protocol.ObjectID) ?*Object {
@@ -117,9 +120,58 @@ pub fn getObject(self: *DunstblickUI, id: protocol.ObjectID) ?*Object {
         null;
 }
 
+fn triggerEvent(self: *DunstblickUI, event: protocol.EventID, widget: protocol.WidgetName) !void {
+    logger.err("event {} was triggered for {}", .{ event, widget });
+}
+
+fn triggerPropertyChanged(self: *DunstblickUI, oid: protocol.ObjectID, name: protocol.PropertyName, value: Value) !void {
+    logger.err("property {}.{} was changed to {}", .{ oid, name, value });
+}
+
 pub const Resource = struct {
     kind: protocol.ResourceKind,
     data: std.ArrayListUnmanaged(u8),
+
+    cache_data: Cache = .none,
+
+    const Cache = union(enum) {
+        none,
+        layout,
+        bitmap: BitmapCache,
+        drawing,
+    };
+
+    const BitmapCache = struct {
+        renderer: *zero_graphics.Renderer2D,
+        texture: ?*const zero_graphics.Renderer2D.Texture,
+    };
+
+    fn getBitmap(self: *Resource, ui: *zero_graphics.UserInterface) ?*const zero_graphics.Renderer2D.Texture {
+        if (self.kind != .bitmap)
+            return null;
+        if (self.cache_data == .none) {
+            self.cache_data = .{ .bitmap = BitmapCache{
+                .renderer = ui.renderer,
+                .texture = ui.renderer.loadTexture(self.data.items) catch |err| blk: {
+                    logger.warn("Could not load resource as a bitmap: {s}", .{@errorName(err)});
+                    break :blk null;
+                },
+            } };
+        } else {
+            std.debug.assert(self.cache_data == .bitmap);
+            if (self.cache_data.bitmap.renderer != ui.renderer) {
+                if (self.cache_data.bitmap.texture) |tex| {
+                    self.cache_data.bitmap.renderer.destroyTexture(tex);
+                }
+                self.cache_data.bitmap.renderer = ui.renderer;
+                self.cache_data.bitmap.texture = ui.renderer.loadTexture(self.data.items) catch |err| blk: {
+                    logger.warn("Could not load resource as a bitmap: {s}", .{@errorName(err)});
+                    break :blk null;
+                };
+            }
+        }
+        return self.cache_data.bitmap.texture;
+    }
 };
 
 fn isProperty(comptime T: type) bool {
@@ -506,11 +558,19 @@ pub const WidgetTree = struct {
                 .height = 32,
             },
 
-            .picture => blk: {
-                // TODO: Implement picture logic
-                logger.err("computeWantedSize(picture) not implemented yet!", .{});
+            .picture => |*picture| blk: {
+                const resource_id = picture.get(.image);
 
-                break :blk .{
+                if (self.ui.resources.getPtr(resource_id)) |resource| {
+                    if (resource.getBitmap(ui)) |bmp| {
+                        break :blk zero_graphics.Size{
+                            .width = bmp.width,
+                            .height = bmp.height,
+                        };
+                    }
+                }
+
+                break :blk zero_graphics.Size{
                     .width = 256,
                     .height = 256,
                 };
@@ -595,6 +655,7 @@ pub const WidgetTree = struct {
                         },
                     }
                 }
+
                 break :blk size;
             },
 
@@ -627,7 +688,12 @@ pub const WidgetTree = struct {
                 var row: usize = 0;
                 var col: usize = 0;
                 for (children) |*child| {
+                    if (child.get(.visibility) == .collapsed)
+                        continue;
+
                     const child_size = child.getWantedSizeWithMargins();
+                    grid.column_widths.items[col] = std.math.max(grid.column_widths.items[col], child_size.width);
+                    grid.row_heights.items[row] = std.math.max(grid.row_heights.items[row], child_size.height);
 
                     col += 1;
                     if (col >= col_count) {
@@ -651,17 +717,29 @@ pub const WidgetTree = struct {
                 }
 
                 var size = zero_graphics.Size.empty;
+                for (grid.column_widths.items) |v| {
+                    size.width += v;
+                }
                 for (grid.row_heights.items) |v| {
                     size.height += v;
-                }
-                for (grid.column_widths.items) |v| {
-                    size.width += 1;
                 }
                 break :blk size;
             },
 
+            .button => blk: {
+                if (child_count == 0)
+                    break :blk zero_graphics.Size{ .width = 64, .height = 24 };
+                var size = widget.get(.size_hint);
+                for (children) |child| {
+                    const child_size = child.getWantedSizeWithMargins();
+                    size.width = std.math.max(size.width, child_size.width);
+                    size.height = std.math.max(size.height, child_size.height);
+                }
+                break :blk convertSizeToZeroG(size);
+            },
+
             // default logic
-            .button, .panel, .spacer => blk: {
+            .panel, .spacer => blk: {
                 var size = widget.get(.size_hint);
                 for (children) |child| {
                     const child_size = child.getWantedSizeWithMargins();
@@ -951,7 +1029,7 @@ pub const WidgetTree = struct {
             },
 
             // default logic for "non-containers":
-            .button, .label, .panel, .spacer => {
+            .button, .label, .panel, .spacer, .picture => {
                 for (children) |*child| {
                     self.layoutWidget(child, rectangle);
                 }
@@ -1006,11 +1084,25 @@ pub const WidgetTree = struct {
                 try ui.panel(rect, .{ .id = widget });
             },
 
+            .picture => |*picture| {
+                const resource_id = picture.get(.image);
+
+                if (self.ui.resources.getPtr(resource_id)) |resource| {
+                    if (resource.getBitmap(ui.ui)) |bmp| {
+                        try ui.image(rect, bmp, .{});
+                    }
+                }
+            },
+
             .button => |*button| {
                 const clicked = try ui.button(rect, null, null, .{ .id = widget });
                 // TODO: Process button clicks!
-                if (clicked)
-                    logger.err("button click not implemented yet!", .{});
+                if (clicked) {
+                    const click_event = button.get(.on_click);
+                    if (click_event != .invalid) {
+                        try self.ui.triggerEvent(click_event, widget.get(.widget_name));
+                    }
+                }
             },
 
             .checkbox => |*button| {
@@ -1358,7 +1450,7 @@ pub const Control = union(protocol.WidgetType) {
         }
 
         pub fn setUp(self: *Self) void {
-            self.widget().set(.size_hint, .{ .width = 64, .height = 24 });
+            // self.widget().set(.size_hint, .{});
             self.widget().set(.margins, protocol.Margins.all(8));
             self.widget().set(.paddings, protocol.Margins.all(8));
         }
