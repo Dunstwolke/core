@@ -159,6 +159,10 @@ pub const Value = union(enum) {
         }
     }
 
+    pub fn serialize(self: Value, serializer: anytype, encode_type: bool) !void {
+        @panic("not implemented yet!");
+    }
+
     pub fn deserialize(allocator: *std.mem.Allocator, value_type: protocol.Type, decoder: *protocol.Decoder) !Value {
         return switch (value_type) {
             .enumeration => Value{

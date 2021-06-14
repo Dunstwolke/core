@@ -1,6 +1,8 @@
 const std = @import("std");
 const Builder = std.build.Builder;
 
+const DunstblickSdk = @import("Sdk.zig");
+
 const pkgs = struct {
     const network = std.build.Pkg{
         .name = "network",
@@ -87,6 +89,8 @@ const pkgs = struct {
 };
 
 pub fn build(b: *Builder) !void {
+    var sdk = DunstblickSdk.init(b);
+
     const mode = b.standardReleaseOptions();
     const target = b.standardTargetOptions(.{});
 
@@ -114,35 +118,44 @@ pub fn build(b: *Builder) !void {
         mediaserver.addIncludeDir("./src/libdunstblick/include");
         mediaserver.addIncludeDir("./src/examples/mediaserver/bass");
         mediaserver.addLibPath("./src/examples/mediaserver/bass/x86_64");
+        mediaserver.setBuildMode(mode);
+        mediaserver.setTarget(target);
         mediaserver.linkSystemLibrary("bass");
         mediaserver.linkLibrary(lib);
         mediaserver.install();
 
-        const layout_files = [_][]const u8{
-            "./src/examples/mediaserver/layouts/main.dui",
-            "./src/examples/mediaserver/layouts/menu.dui",
-            "./src/examples/mediaserver/layouts/searchlist.dui",
-            "./src/examples/mediaserver/layouts/searchitem.dui",
-        };
-        inline for (layout_files) |infile| {
-            const outfile = try std.mem.dupe(b.allocator, u8, infile);
-            outfile[outfile.len - 3] = 'c';
+        {
+            const resources = sdk.addBundleResources();
 
-            const step = compiler.run();
-            step.addArgs(&[_][]const u8{
-                infile,
-                "-o",
-                outfile,
-                "-c",
-                "./src/examples/mediaserver/layouts/server.json",
-            });
-            mediaserver.step.dependOn(&step.step);
+            resources.addLayout("main", "./src/examples/mediaserver/layouts/main.dui");
+            resources.addLayout("menu", "./src/examples/mediaserver/layouts/menu.dui");
+            resources.addLayout("searchlist", "./src/examples/mediaserver/layouts/searchlist.dui");
+            resources.addLayout("searchitem", "./src/examples/mediaserver/layouts/searchitem.dui");
+
+            mediaserver.addPackage(resources.getPackage("resources"));
         }
 
-        mediaserver.linkLibrary(lib);
-        mediaserver.setTarget(target);
-        mediaserver.setBuildMode(mode);
-        mediaserver.install();
+        // const layout_files = [_][]const u8{
+        //     "./src/examples/mediaserver/layouts/main.dui",
+        //     "./src/examples/mediaserver/layouts/menu.dui",
+        //     "./src/examples/mediaserver/layouts/searchlist.dui",
+        //     "./src/examples/mediaserver/layouts/searchitem.dui",
+        // };
+        // inline for (layout_files) |infile| {
+        //     const outfile = try std.mem.dupe(b.allocator, u8, infile);
+        //     outfile[outfile.len - 3] = 'c';
+
+        //     const step = compiler.run();
+        //     step.addArgs(&[_][]const u8{
+        //         infile,
+        //         "-o",
+        //         outfile,
+        //         "-c",
+        //         "./src/examples/mediaserver/layouts/server.json",
+        //     });
+        //     mediaserver.step.dependOn(&step.step);
+        // }
+
     }
 
     // calculator example

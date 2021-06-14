@@ -8,6 +8,23 @@ usingnamespace @import("types.zig");
 
 const DunstblickUI = @This();
 
+pub const FeedbackInterface = struct {
+    pub const ErasedSelf = opaque {};
+    pub const Error = error{ OutOfMemory, IoError };
+
+    erased_self: *ErasedSelf,
+    trigger_event: fn (self: *ErasedSelf, event: protocol.EventID, widget: protocol.WidgetName) Error!void,
+    trigger_property_changed: fn (self: *ErasedSelf, oid: protocol.ObjectID, name: protocol.PropertyName, value: Value) Error!void,
+
+    pub fn triggerEvent(self: @This(), event: protocol.EventID, widget: protocol.WidgetName) Error!void {
+        return self.trigger_event(self.erased_self, event, widget);
+    }
+
+    pub fn triggerPropertyChanged(self: @This(), oid: protocol.ObjectID, name: protocol.PropertyName, value: Value) Error!void {
+        return self.trigger_property_changed(self.erased_self, oid, name, value);
+    }
+};
+
 allocator: *std.mem.Allocator,
 
 objects: std.AutoArrayHashMapUnmanaged(protocol.ObjectID, Object),
@@ -16,13 +33,18 @@ resources: std.AutoArrayHashMapUnmanaged(protocol.ResourceID, Resource),
 current_view: ?WidgetTree,
 root_object: ?protocol.ObjectID,
 
-pub fn init(allocator: *std.mem.Allocator) DunstblickUI {
+interface: FeedbackInterface,
+
+pub fn init(allocator: *std.mem.Allocator, interface: FeedbackInterface) DunstblickUI {
     return DunstblickUI{
         .allocator = allocator,
         .objects = .{},
         .resources = .{},
+
         .current_view = null,
         .root_object = null,
+
+        .interface = interface,
     };
 }
 
@@ -120,12 +142,18 @@ pub fn getObject(self: *DunstblickUI, id: protocol.ObjectID) ?*Object {
         null;
 }
 
-fn triggerEvent(self: *DunstblickUI, event: protocol.EventID, widget: protocol.WidgetName) !void {
-    logger.err("event {} was triggered for {}", .{ event, widget });
+fn triggerEvent(self: *DunstblickUI, event: protocol.EventID, widget: protocol.WidgetName) zero_graphics.UserInterface.Builder.Error!void {
+    self.interface.triggerEvent(event, widget) catch |err| switch (err) {
+        error.IoError => logger.err("{} while event {} was triggered for {}", .{ err, event, widget }),
+        else => |e| return e,
+    };
 }
 
-fn triggerPropertyChanged(self: *DunstblickUI, oid: protocol.ObjectID, name: protocol.PropertyName, value: Value) !void {
-    logger.err("property {}.{} was changed to {}", .{ oid, name, value });
+fn triggerPropertyChanged(self: *DunstblickUI, oid: protocol.ObjectID, name: protocol.PropertyName, value: Value) zero_graphics.UserInterface.Builder.Error!void {
+    self.interface.triggerPropertyChanged(oid, name, value) catch |err| switch (err) {
+        error.IoError => logger.err("{} while property {}.{} was changed to {}", .{ err, oid, name, value }),
+        else => |e| return e,
+    };
 }
 
 pub const Resource = struct {

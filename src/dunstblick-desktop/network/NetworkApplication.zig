@@ -65,7 +65,11 @@ pub fn init(self: *Self, allocator: *std.mem.Allocator, app_desc: *const AppDisc
         .screen_size = Size.empty,
         .resources = std.AutoArrayHashMap(protocol.ResourceID, Resource).init(allocator),
         .discovery = app_desc.discovery,
-        .user_interface = DunstblickUI.init(allocator),
+        .user_interface = DunstblickUI.init(allocator, DunstblickUI.FeedbackInterface{
+            .erased_self = @ptrCast(*DunstblickUI.FeedbackInterface.ErasedSelf, self),
+            .trigger_event = triggerEvent,
+            .trigger_property_changed = triggerPropertyChanged,
+        }),
     };
 
     self.socket = try network.Socket.create(std.meta.activeTag(app_desc.address), .tcp);
@@ -169,7 +173,7 @@ pub fn notifyReadable(self: *Self) !void {
             const len = try self.socket.?.receive(&backing_buffer);
 
             if (len == 0) {
-                self.state = .faulted;
+                self.disconnect(null);
                 self.instance.status = .{ .exited = "Lost connection to application." };
                 return;
             }
@@ -277,7 +281,24 @@ pub fn notifyReadable(self: *Self) !void {
                 }
             }
         },
-        .faulted => return error.InvalidState,
+        .faulted => {
+            if (self.socket) |sock| {
+                var backing_buffer: [8192]u8 = undefined;
+
+                const len = try self.socket.?.receive(&backing_buffer);
+                if (len == 0) {
+                    self.disconnect(null);
+                    self.instance.status = .{ .exited = "Lost connection to application." };
+                } else {
+                    logger.info("received {} byte in faulted state: {}", .{
+                        len,
+                        std.fmt.fmtSliceHexLower(backing_buffer[0..len]),
+                    });
+                }
+            } else {
+                return error.InvalidState;
+            }
+        },
     }
 }
 
@@ -422,6 +443,51 @@ fn decodeAndExecuteMessage(self: *Self, packet: []const u8) !void {
             });
         },
     }
+}
+
+fn mapEncodeError(err: std.io.FixedBufferStream([]u8).WriteError) DunstblickUI.FeedbackInterface.Error {
+    return switch (err) {
+        error.NoSpaceLeft => error.OutOfMemory,
+    };
+}
+
+fn mapSendError(err: protocol.tcp.ClientStateMachine(network.Socket.Writer).SendError) DunstblickUI.FeedbackInterface.Error {
+    return switch (err) {
+        // error.OutOfMemory => error.OutOfMemory,
+        else => |e| return error.IoError,
+    };
+}
+
+fn triggerEvent(erased_self: *DunstblickUI.FeedbackInterface.ErasedSelf, event: protocol.EventID, widget: protocol.WidgetName) DunstblickUI.FeedbackInterface.Error!void {
+    const self = @ptrCast(*Self, @alignCast(@alignOf(Self), erased_self));
+
+    var backing_buf: [128]u8 = undefined;
+    var stream = std.io.fixedBufferStream(&backing_buf);
+
+    var buffer = protocol.beginApplicationCommandEncoding(stream.writer(), .eventCallback) catch |err| return mapEncodeError(err);
+    buffer.writeID(@enumToInt(event)) catch |err| return mapEncodeError(err);
+    buffer.writeID(@enumToInt(widget)) catch |err| return mapEncodeError(err);
+
+    self.client.sendMessage(stream.getWritten()) catch |err| return mapSendError(err);
+}
+
+fn triggerPropertyChanged(erased_self: *DunstblickUI.FeedbackInterface.ErasedSelf, oid: protocol.ObjectID, name: protocol.PropertyName, value: DunstblickUI.Value) DunstblickUI.FeedbackInterface.Error!void {
+    const self = @ptrCast(*Self, @alignCast(@alignOf(Self), erased_self));
+
+    if (oid == .invalid)
+        return;
+    if (name == .invalid)
+        return;
+
+    var backing_buf: [4096]u8 = undefined;
+    var stream = std.io.fixedBufferStream(&backing_buf);
+
+    var buffer = protocol.beginApplicationCommandEncoding(stream.writer(), .propertyChanged) catch |err| return mapEncodeError(err);
+    buffer.writeID(@enumToInt(oid)) catch |err| return mapEncodeError(err);
+    buffer.writeID(@enumToInt(name)) catch |err| return mapEncodeError(err);
+    value.serialize(value, true) catch |err| return mapEncodeError(err);
+
+    self.client.sendMessage(stream.getWritten()) catch |err| return mapSendError(err);
 }
 
 pub fn update(self: *Self, dt: f32) !void {
