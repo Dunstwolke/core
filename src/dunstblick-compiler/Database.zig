@@ -46,14 +46,18 @@ pub fn deinit(self: *Self) void {
     self.arena.deinit();
 }
 
-pub fn get(self: *Self, kind: Entry, name: []const u8) !?u32 {
-    var map: *IDMap = switch (kind) {
+fn getMap(self: *Self, kind: Entry) *IDMap {
+    return switch (kind) {
         .resource => &self.resources,
         .event => &self.events,
         .property => &self.properties,
         .object => &self.objects,
         .widget => &self.widgets,
     };
+}
+
+pub fn get(self: *Self, kind: Entry, name: []const u8) !?u32 {
+    const map = self.getMap(kind);
     if (self.allow_new_items) {
         const gop = try map.getOrPut(name);
         if (!gop.found_existing) {
@@ -78,6 +82,11 @@ pub fn get(self: *Self, kind: Entry, name: []const u8) !?u32 {
     } else {
         return map.get(name);
     }
+}
+
+pub fn iterator(self: *Self, kind: Entry) IDMap.Iterator {
+    const map = self.getMap(kind);
+    return map.iterator();
 }
 
 /// Loads a new database from a json file.
