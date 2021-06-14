@@ -543,6 +543,19 @@ pub const WidgetTree = struct {
         try self.computeWantedSize(widget, ui);
     }
 
+    fn computeDefaultWantedSize(self: *WidgetTree, widget: *Widget) zero_graphics.Size {
+        var size = widget.get(.size_hint);
+        for (widget.children.items) |child| {
+            const child_size = child.getWantedSizeWithMargins();
+            size.width = std.math.max(size.width, child_size.width);
+            size.height = std.math.max(size.height, child_size.height);
+        }
+        const padding = widget.get(.paddings);
+        size.width += padding.totalHorizontal();
+        size.height += padding.totalVertical();
+        return convertSizeToZeroG(size);
+    }
+
     const ComputeWantedSizeError = error{OutOfMemory};
     fn computeWantedSize(self: *WidgetTree, widget: *Widget, ui: *zero_graphics.UserInterface) ComputeWantedSizeError!void {
         const children = widget.children.items;
@@ -566,25 +579,37 @@ pub const WidgetTree = struct {
                 break :blk rectangle.size();
             },
 
-            .separator => .{
-                .width = 5,
-                .height = 5,
-            },
+            .separator => if (child_count > 0)
+                self.computeDefaultWantedSize(widget)
+            else
+                zero_graphics.Size{
+                    .width = 5,
+                    .height = 5,
+                },
 
-            .progressbar => .{
-                .width = 256,
-                .height = 32,
-            },
+            .progressbar => if (child_count > 0)
+                self.computeDefaultWantedSize(widget)
+            else
+                zero_graphics.Size{
+                    .width = 256,
+                    .height = 32,
+                },
 
-            .checkbox, .radiobutton => .{
-                .width = 32,
-                .height = 32,
-            },
+            .checkbox, .radiobutton => if (child_count > 0)
+                self.computeDefaultWantedSize(widget)
+            else
+                zero_graphics.Size{
+                    .width = 32,
+                    .height = 32,
+                },
 
-            .slider => .{
-                .width = 32,
-                .height = 32,
-            },
+            .slider => if (child_count > 0)
+                self.computeDefaultWantedSize(widget)
+            else
+                zero_graphics.Size{
+                    .width = 32,
+                    .height = 32,
+                },
 
             .picture => |*picture| blk: {
                 const resource_id = picture.get(.image);
@@ -604,7 +629,9 @@ pub const WidgetTree = struct {
                 };
             },
 
-            .scrollbar => |*scrollbar| blk: {
+            .scrollbar => |*scrollbar| if (child_count > 0)
+                self.computeDefaultWantedSize(widget)
+            else blk: {
                 const orientation = scrollbar.get(.orientation);
 
                 break :blk switch (orientation) {
@@ -684,6 +711,10 @@ pub const WidgetTree = struct {
                     }
                 }
 
+                const padding = widget.get(.paddings);
+                size.width += mapToU15(padding.totalHorizontal());
+                size.height += mapToU15(padding.totalVertical());
+
                 break :blk size;
             },
 
@@ -694,6 +725,10 @@ pub const WidgetTree = struct {
                     size.width = std.math.max(size.width, child_size.width);
                     size.height = std.math.max(size.height, child_size.height);
                 }
+
+                const padding = widget.get(.paddings);
+                size.width += mapToU15(padding.totalHorizontal());
+                size.height += mapToU15(padding.totalVertical());
 
                 size.height += 32; // Tab button height
 
@@ -751,31 +786,21 @@ pub const WidgetTree = struct {
                 for (grid.row_heights.items) |v| {
                     size.height += v;
                 }
+
+                const padding = widget.get(.paddings);
+                size.width += mapToU15(padding.totalHorizontal());
+                size.height += mapToU15(padding.totalVertical());
+
                 break :blk size;
             },
 
-            .button => blk: {
-                if (child_count == 0)
-                    break :blk zero_graphics.Size{ .width = 64, .height = 24 };
-                var size = widget.get(.size_hint);
-                for (children) |child| {
-                    const child_size = child.getWantedSizeWithMargins();
-                    size.width = std.math.max(size.width, child_size.width);
-                    size.height = std.math.max(size.height, child_size.height);
-                }
-                break :blk convertSizeToZeroG(size);
-            },
+            .button => if (child_count > 0)
+                self.computeDefaultWantedSize(widget)
+            else
+                zero_graphics.Size{ .width = 64, .height = 24 },
 
             // default logic
-            .panel, .spacer => blk: {
-                var size = widget.get(.size_hint);
-                for (children) |child| {
-                    const child_size = child.getWantedSizeWithMargins();
-                    size.width = std.math.max(size.width, child_size.width);
-                    size.height = std.math.max(size.height, child_size.height);
-                }
-                break :blk convertSizeToZeroG(size);
-            },
+            .panel, .spacer => self.computeDefaultWantedSize(widget),
 
             // default logic
             else => blk: {
@@ -787,13 +812,7 @@ pub const WidgetTree = struct {
                     T.message.set(widget.control, true);
                 }
 
-                var size = widget.get(.size_hint);
-                for (children) |child| {
-                    const child_size = child.getWantedSizeWithMargins();
-                    size.width = std.math.max(size.width, child_size.width);
-                    size.height = std.math.max(size.height, child_size.height);
-                }
-                break :blk convertSizeToZeroG(size);
+                break :blk self.computeDefaultWantedSize(widget);
             },
         };
     }
@@ -1094,6 +1113,7 @@ pub const WidgetTree = struct {
 
     fn doWidgetLogic(self: *WidgetTree, widget: *Widget, ui: zero_graphics.UserInterface.Builder) !void {
         const rect = widget.actual_bounds;
+        const hit_test_visible = widget.get(.hit_test_visible);
         // WARNING: MUST CAPTURE BY POINTER AS WE USE @fieldParentPtr!
         switch (widget.control) {
 
@@ -1105,11 +1125,15 @@ pub const WidgetTree = struct {
                     .id = widget,
                     .horizontal_alignment = .left,
                     .vertical_alignment = .top,
+                    .hit_test_visible = hit_test_visible,
                 });
             },
 
             .panel => |*panel| {
-                try ui.panel(rect, .{ .id = widget });
+                try ui.panel(rect, .{
+                    .id = widget,
+                    .hit_test_visible = hit_test_visible,
+                });
             },
 
             .picture => |*picture| {
@@ -1117,13 +1141,18 @@ pub const WidgetTree = struct {
 
                 if (self.ui.resources.getPtr(resource_id)) |resource| {
                     if (resource.getBitmap(ui.ui)) |bmp| {
-                        try ui.image(rect, bmp, .{});
+                        try ui.image(rect, bmp, .{
+                            .hit_test_visible = hit_test_visible,
+                        });
                     }
                 }
             },
 
             .button => |*button| {
-                const clicked = try ui.button(rect, null, null, .{ .id = widget });
+                const clicked = try ui.button(rect, null, null, .{
+                    .id = widget,
+                    .hit_test_visible = hit_test_visible,
+                });
                 // TODO: Process button clicks!
                 if (clicked) {
                     const click_event = button.get(.on_click);
@@ -1135,7 +1164,10 @@ pub const WidgetTree = struct {
 
             .checkbox => |*button| {
                 const is_checked = button.get(.is_checked);
-                const clicked = try ui.checkBox(rect, is_checked, .{ .id = widget });
+                const clicked = try ui.checkBox(rect, is_checked, .{
+                    .id = widget,
+                    .hit_test_visible = hit_test_visible,
+                });
                 // TODO: Process button clicks!
                 if (clicked)
                     logger.err("checkbox click not implemented yet!", .{});
@@ -1143,7 +1175,10 @@ pub const WidgetTree = struct {
 
             .radiobutton => |*button| {
                 const is_checked = button.get(.is_checked);
-                const clicked = try ui.radioButton(rect, is_checked, .{ .id = widget });
+                const clicked = try ui.radioButton(rect, is_checked, .{
+                    .id = widget,
+                    .hit_test_visible = hit_test_visible,
+                });
                 // TODO: Process button clicks!
                 if (clicked)
                     logger.err("radiobutton click not implemented yet!", .{});
