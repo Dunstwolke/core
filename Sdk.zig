@@ -1,9 +1,12 @@
 const std = @import("std");
+const logger = std.log.scoped(.dunstblick_sdk);
 
 const Pkg = std.build.Pkg;
 const Step = std.build.Step;
 const FileSource = std.build.FileSource;
 const GeneratedFile = std.build.GeneratedFile;
+
+const protocol = @import("src/dunstblick-protocol/protocol.zig");
 
 const Database = @import("src/dunstblick-compiler/Database.zig");
 
@@ -121,13 +124,27 @@ pub const CompileLayoutStep = struct {
     }
 };
 
-pub fn addCompileImage(sdk: *const Sdk, image_path: []const u8) *CompileImageStep {
-    @panic("not implemented!");
+pub fn addCompileBitmap(sdk: *const Sdk, input_file: FileSource) *CompileImageStep {
+    const step = sdk.builder.allocator.create(CompileImageStep) catch unreachable;
+    step.* = CompileImageStep{
+        .sdk = sdk,
+        .step = Step.init(
+            .custom,
+            "compile bitmap",
+            sdk.builder.allocator,
+            CompileImageStep.make,
+        ),
+        .input_file = input_file,
+        .output_file = GeneratedFile{ .step = &step.step },
+    };
+    input_file.addStepDependencies(&step.step); // and we need our input file to be done
+    return step;
 }
 
 pub const CompileImageStep = struct {
     const Self = @This();
 
+    sdk: *const Sdk,
     step: Step,
     input_file: FileSource,
     output_file: GeneratedFile,
@@ -139,7 +156,23 @@ pub const CompileImageStep = struct {
     fn make(step: *Step) anyerror!void {
         const self = @fieldParentPtr(Self, "step", step);
 
-        return error.NotImplemented;
+        const allocator = self.sdk.builder.allocator;
+
+        const src_path = self.input_file.getPath(self.sdk.builder);
+
+        const ext = std.fs.path.extension(src_path);
+        if (!std.mem.eql(u8, ext, ".png")) {
+            logger.err("Cannot compile bitmap: Unsupported extension {s} on file {s}", .{
+                ext, src_path,
+            });
+            return error.InvalidExtension;
+        }
+
+        // TODO: Convert input files to png if necessary
+
+        // TODO: Verify for PNG signature!
+
+        self.output_file.path = src_path;
     }
 };
 
@@ -156,8 +189,13 @@ pub fn addBundleResources(sdk: *const Sdk) *BundleResourcesStep {
             BundleResourcesStep.make,
         ),
         .output_file = GeneratedFile{ .step = &step.step },
-        .resources = std.StringHashMap(FileSource).init(sdk.builder.allocator),
         .prepare_step = prepare_step,
+
+        .resources = std.StringHashMap(BundleResourcesStep.Resource).init(sdk.builder.allocator),
+        .properties = std.StringHashMap(void).init(sdk.builder.allocator),
+        .objects = std.StringHashMap(void).init(sdk.builder.allocator),
+        .events = std.StringHashMap(void).init(sdk.builder.allocator),
+        .widgets = std.StringHashMap(void).init(sdk.builder.allocator),
     };
 
     prepare_step.* = .{
@@ -190,38 +228,124 @@ const PrepareConfigFile = struct {
     fn make(step: *Step) anyerror!void {
         const self = @fieldParentPtr(Self, "step", step);
 
-        var cache = CacheBuilder.init(self.resource_step.sdk.builder);
-        var iter = self.resource_step.resources.iterator();
-        while (iter.next()) |entry| {
-            cache.addBytes(entry.key_ptr.*);
+        const allocator = self.resource_step.sdk.builder.allocator;
+
+        var db = Database.init(allocator, true);
+        defer db.deinit();
+
+        {
+            var it = self.resource_step.resources.iterator();
+            while (it.next()) |entry| {
+                _ = try db.get(.resource, entry.key_ptr.*);
+            }
+        }
+        {
+            var it = self.resource_step.events.iterator();
+            while (it.next()) |entry| {
+                _ = try db.get(.event, entry.key_ptr.*);
+            }
+        }
+        {
+            var it = self.resource_step.objects.iterator();
+            while (it.next()) |entry| {
+                _ = try db.get(.object, entry.key_ptr.*);
+            }
+        }
+        {
+            var it = self.resource_step.widgets.iterator();
+            while (it.next()) |entry| {
+                _ = try db.get(.widget, entry.key_ptr.*);
+            }
+        }
+        {
+            var it = self.resource_step.properties.iterator();
+            while (it.next()) |entry| {
+                _ = try db.get(.property, entry.key_ptr.*);
+            }
         }
 
-        self.config_json.path = try std.fs.path.join(self.resource_step.sdk.builder.allocator, &[_][]const u8{
+        var json = std.ArrayList(u8).init(allocator);
+        defer json.deinit();
+
+        try db.toJson(json.writer());
+
+        var cache = CacheBuilder.init(self.resource_step.sdk.builder);
+        cache.addBytes(json.items);
+
+        self.config_json.path = try std.fs.path.join(allocator, &[_][]const u8{
             try cache.createAndGetPath(),
             "config.json",
         });
 
         // Just blank the file, we do everything via updating
-        try std.fs.cwd().writeFile(self.config_json.path.?, "{}");
+        try std.fs.cwd().writeFile(self.config_json.path.?, json.items);
     }
 };
 
 pub const BundleResourcesStep = struct {
     const Self = @This();
 
+    const Resource = struct {
+        kind: protocol.ResourceKind,
+        data: ?FileSource,
+    };
+
     sdk: *const Sdk,
     step: Step,
     output_file: GeneratedFile,
-    resources: std.StringHashMap(FileSource),
+
+    resources: std.StringHashMap(Resource),
+    properties: std.StringHashMap(void),
+    objects: std.StringHashMap(void),
+    events: std.StringHashMap(void),
+    widgets: std.StringHashMap(void),
+
     prepare_step: *PrepareConfigFile,
 
     pub fn addLayout(self: *Self, name: []const u8, file: FileSource) void {
         const step = self.sdk.addCompileLayout(file, self.prepare_step.getConfigJson(), true);
 
-        self.resources.putNoClobber(self.sdk.builder.dupe(name), step.getOutputFile()) catch unreachable;
+        self.resources.putNoClobber(
+            self.sdk.builder.dupe(name),
+            Resource{ .kind = .layout, .data = step.getOutputFile() },
+        ) catch unreachable;
 
         step.step.dependOn(&self.prepare_step.step);
         self.step.dependOn(&step.step);
+    }
+
+    pub fn addBitmap(self: *Self, name: []const u8, file: FileSource) void {
+        const step = self.sdk.addCompileBitmap(file);
+
+        self.resources.putNoClobber(
+            self.sdk.builder.dupe(name),
+            Resource{ .kind = .bitmap, .data = step.getOutputFile() },
+        ) catch unreachable;
+
+        self.step.dependOn(&step.step);
+    }
+
+    pub fn addRuntimeResource(self: *Self, name: []const u8, kind: protocol.ResourceKind) void {
+        self.resources.putNoClobber(
+            self.sdk.builder.dupe(name),
+            Resource{ .kind = kind, .data = null },
+        ) catch unreachable;
+    }
+
+    pub fn addProperty(self: *Self, name: []const u8) void {
+        self.properties.putNoClobber(self.sdk.builder.dupe(name), {}) catch unreachable;
+    }
+
+    pub fn addObject(self: *Self, name: []const u8) void {
+        self.objects.putNoClobber(self.sdk.builder.dupe(name), {}) catch unreachable;
+    }
+
+    pub fn addEvent(self: *Self, name: []const u8) void {
+        self.events.putNoClobber(self.sdk.builder.dupe(name), {}) catch unreachable;
+    }
+
+    pub fn addWidget(self: *Self, name: []const u8) void {
+        self.widgets.putNoClobber(self.sdk.builder.dupe(name), {}) catch unreachable;
     }
 
     pub fn getPackage(self: *Self, name: []const u8) std.build.Pkg {
@@ -281,9 +405,8 @@ pub const BundleResourcesStep = struct {
                 var bad = false;
                 var it = db.iterator(.resource);
                 while (it.next()) |entry| {
-                    // TODO: Allow definition of "runtime generated resource" which have no .data field
-                    const file_source = self.resources.get(entry.key_ptr.*) orelse {
-                        std.log.err("Resource '{s}' was required by a layout, but is not declared in the build script.", .{entry.key_ptr.*});
+                    const resource = self.resources.get(entry.key_ptr.*) orelse {
+                        logger.err("Resource '{s}' was required by a layout, but is not declared in the build script.", .{entry.key_ptr.*});
                         bad = true;
                         continue;
                     };
@@ -291,13 +414,21 @@ pub const BundleResourcesStep = struct {
                     // TODO: Add definition of resource kind, so we know in the application
                     // what kind of resource we have :)
 
-                    const path = try std.fs.path.resolve(allocator, &[_][]const u8{file_source.getPath(self.sdk.builder)});
-
-                    try writer.print("    pub const {s} = Resource{{ .id = @intToEnum(protocol.ResourceID, {}), .data = @embedFile(\"{s}\") }};\n", .{
-                        entry.key_ptr.*,
-                        entry.value_ptr.*,
-                        path,
-                    });
+                    if (resource.data) |file_source| {
+                        const path = try std.fs.path.resolve(allocator, &[_][]const u8{file_source.getPath(self.sdk.builder)});
+                        try writer.print("    pub const @\"{s}\" = Resource{{ .id = @intToEnum(protocol.ResourceID, {}), .kind = protocol.ResourceKind.{s}, .data = @embedFile(\"{s}\") }};\n", .{
+                            entry.key_ptr.*,
+                            entry.value_ptr.*,
+                            @tagName(resource.kind),
+                            path,
+                        });
+                    } else {
+                        try writer.print("    pub const @\"{s}\" = RuntimeResource{{ .id = @intToEnum(protocol.ResourceID, {}), .kind = protocol.ResourceKind.{s} }};\n", .{
+                            entry.key_ptr.*,
+                            entry.value_ptr.*,
+                            @tagName(resource.kind),
+                        });
+                    }
                 }
 
                 if (bad)
@@ -322,7 +453,7 @@ pub const BundleResourcesStep = struct {
 
                 var it = db.iterator(setup.key);
                 while (it.next()) |entry| {
-                    try writer.print("    pub const {s} = @intToEnum(protocol.{s}, {});\n", .{
+                    try writer.print("    pub const @\"{s}\" = @intToEnum(protocol.{s}, {});\n", .{
                         entry.key_ptr.*,
                         setup.type,
                         entry.value_ptr.*,
@@ -359,14 +490,23 @@ const pkgs = struct {
         .name = "network",
         .path = FileSource{ .path = sdkRoot() ++ "/lib/zig-network/network.zig" },
     };
+
     const dunstblick_protocol = std.build.Pkg{
         .name = "dunstblick-protocol",
         .path = FileSource{ .path = sdkRoot() ++ "/src/dunstblick-protocol/protocol.zig" },
+        .dependencies = &[_]std.build.Pkg{
+            charm,
+        },
     };
 
     const args = std.build.Pkg{
         .name = "args",
         .path = FileSource{ .path = sdkRoot() ++ "/lib/zig-args/args.zig" },
+    };
+
+    const charm = std.build.Pkg{
+        .name = "charm",
+        .path = .{ .path = sdkRoot() ++ "/lib/zig-charm/src/main.zig" },
     };
 };
 

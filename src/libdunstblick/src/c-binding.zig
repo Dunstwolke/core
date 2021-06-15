@@ -198,7 +198,7 @@ export fn dunstblick_SetRoot(con: *app.Connection, id: protocol.ObjectID) callco
     return mapDunstblickErrorVoid(con.setRoot(id));
 }
 
-export fn dunstblick_SetProperty(con: *app.Connection, oid: protocol.ObjectID, name: protocol.PropertyName, value: *const protocol.Value) callconv(.C) NativeErrorCode {
+export fn dunstblick_SetProperty(con: *app.Connection, oid: protocol.ObjectID, name: protocol.PropertyName, value: *const app.Value) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(con.setProperty(oid, name, value.*));
 }
 
@@ -222,7 +222,7 @@ export fn dunstblick_MoveRange(con: *app.Connection, oid: protocol.ObjectID, nam
 //  * Object Implementation *
 //  *******************************************************************************/
 
-export fn dunstblick_SetObjectProperty(obj: *app.Object, name: protocol.PropertyName, value: *const protocol.Value) callconv(.C) NativeErrorCode {
+export fn dunstblick_SetObjectProperty(obj: *app.Object, name: protocol.PropertyName, value: *const app.Value) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(obj.setProperty(name, value.*));
 }
 

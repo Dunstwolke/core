@@ -127,35 +127,33 @@ pub fn build(b: *Builder) !void {
         {
             const resources = sdk.addBundleResources();
 
-            resources.addLayout("main", "./src/examples/mediaserver/layouts/main.dui");
-            resources.addLayout("menu", "./src/examples/mediaserver/layouts/menu.dui");
-            resources.addLayout("searchlist", "./src/examples/mediaserver/layouts/searchlist.dui");
-            resources.addLayout("searchitem", "./src/examples/mediaserver/layouts/searchitem.dui");
+            resources.addLayout("main", .{ .path = "./src/examples/mediaserver/layouts/main.ui" });
+            resources.addLayout("menu", .{ .path = "./src/examples/mediaserver/layouts/menu.ui" });
+            resources.addLayout("searchlist", .{ .path = "./src/examples/mediaserver/layouts/searchlist.ui" });
+            resources.addLayout("searchitem", .{ .path = "./src/examples/mediaserver/layouts/searchitem.ui" });
 
-            mediaserver.addPackage(resources.getPackage("resources"));
+            resources.addBitmap("icon-volume-off", .{ .path = "./src/examples/mediaserver/resources/volume-off.png" });
+            resources.addBitmap("icon-volume-low", .{ .path = "./src/examples/mediaserver/resources/volume-low.png" });
+            resources.addBitmap("icon-volume-medium", .{ .path = "./src/examples/mediaserver/resources/volume-medium.png" });
+            resources.addBitmap("icon-volume-high", .{ .path = "./src/examples/mediaserver/resources/volume-high.png" });
+            resources.addBitmap("icon-skip-next", .{ .path = "./src/examples/mediaserver/resources/skip-next.png" });
+            resources.addBitmap("icon-skip-previous", .{ .path = "./src/examples/mediaserver/resources/skip-previous.png" });
+            resources.addBitmap("icon-shuffle", .{ .path = "./src/examples/mediaserver/resources/shuffle.png" });
+            resources.addBitmap("icon-play", .{ .path = "./src/examples/mediaserver/resources/play.png" });
+            resources.addBitmap("icon-menu", .{ .path = "./src/examples/mediaserver/resources/menu.png" });
+            resources.addBitmap("icon-album", .{ .path = "./src/examples/mediaserver/resources/album.png" });
+            resources.addBitmap("icon-open-folder", .{ .path = "./src/examples/mediaserver/resources/folder-open.png" });
+            resources.addBitmap("icon-playlist", .{ .path = "./src/examples/mediaserver/resources/playlist-music.png" });
+            resources.addBitmap("icon-radio", .{ .path = "./src/examples/mediaserver/resources/radio.png" });
+            resources.addBitmap("icon-repeat-all", .{ .path = "./src/examples/mediaserver/resources/repeat.png" });
+            resources.addBitmap("icon-repeat-one", .{ .path = "./src/examples/mediaserver/resources/repeat-once.png" });
+            resources.addBitmap("wallpaper", .{ .path = "./src/examples/mediaserver/resources/wallpaper.png" });
+            resources.addBitmap("icon-add", .{ .path = "./src/examples/mediaserver/resources/add.png" });
+            resources.addBitmap("icon-settings", .{ .path = "./src/examples/mediaserver/resources/settings.png" });
+            resources.addBitmap("icon-close", .{ .path = "./src/examples/mediaserver/resources/close.png" });
+
+            mediaserver.addPackage(resources.getPackage("app-data"));
         }
-
-        // const layout_files = [_][]const u8{
-        //     "./src/examples/mediaserver/layouts/main.dui",
-        //     "./src/examples/mediaserver/layouts/menu.dui",
-        //     "./src/examples/mediaserver/layouts/searchlist.dui",
-        //     "./src/examples/mediaserver/layouts/searchitem.dui",
-        // };
-        // inline for (layout_files) |infile| {
-        //     const outfile = try std.mem.dupe(b.allocator, u8, infile);
-        //     outfile[outfile.len - 3] = 'c';
-
-        //     const step = compiler.run();
-        //     step.addArgs(&[_][]const u8{
-        //         infile,
-        //         "-o",
-        //         outfile,
-        //         "-c",
-        //         "./src/examples/mediaserver/layouts/server.json",
-        //     });
-        //     mediaserver.step.dependOn(&step.step);
-        // }
-
     }
 
     // calculator example
@@ -188,66 +186,66 @@ pub fn build(b: *Builder) !void {
     minimal.setBuildMode(mode);
     minimal.install();
 
-    const display_client = b.addExecutable("dunstblick-display", "./src/dunstblick-display/main.zig");
-    {
-        display_client.addPackage(pkgs.dunstblick_protocol);
-        display_client.addPackage(pkgs.network);
-        display_client.addPackage(pkgs.args);
-        display_client.addPackage(pkgs.sdl2);
-        display_client.addPackage(pkgs.uri);
-        display_client.addPackage(pkgs.painterz);
+    // const display_client = b.addExecutable("dunstblick-display", "./src/dunstblick-display/main.zig");
+    // {
+    //     display_client.addPackage(pkgs.dunstblick_protocol);
+    //     display_client.addPackage(pkgs.network);
+    //     display_client.addPackage(pkgs.args);
+    //     display_client.addPackage(pkgs.sdl2);
+    //     display_client.addPackage(pkgs.uri);
+    //     display_client.addPackage(pkgs.painterz);
 
-        display_client.linkLibC();
-        display_client.linkSystemLibrary("c++");
-        display_client.linkSystemLibrary("sdl2");
-        display_client.addIncludeDir("./lib/stb");
+    //     display_client.linkLibC();
+    //     display_client.linkSystemLibrary("c++");
+    //     display_client.linkSystemLibrary("sdl2");
+    //     display_client.addIncludeDir("./lib/stb");
 
-        display_client.addIncludeDir("./src/libdunstblick/include");
-        display_client.addIncludeDir("./lib/xqlib-stripped/include");
-        display_client.addIncludeDir("./lib/optional/include/tl");
-        display_client.defineCMacro("DUNSTBLICK_SERVER");
-        display_client.setBuildMode(mode);
-        display_client.setTarget(target);
-        display_client.install();
+    //     display_client.addIncludeDir("./src/libdunstblick/include");
+    //     display_client.addIncludeDir("./lib/xqlib-stripped/include");
+    //     display_client.addIncludeDir("./lib/optional/include/tl");
+    //     display_client.defineCMacro("DUNSTBLICK_SERVER");
+    //     display_client.setBuildMode(mode);
+    //     display_client.setTarget(target);
+    //     display_client.install();
 
-        display_client.addCSourceFile("./src/dunstblick-display/cpp/stb-instantiating.c", &[_][]const u8{
-            "-std=c99",
-            "-fno-sanitize=undefined",
-        });
+    //     display_client.addCSourceFile("./src/dunstblick-display/cpp/stb-instantiating.c", &[_][]const u8{
+    //         "-std=c99",
+    //         "-fno-sanitize=undefined",
+    //     });
 
-        for (display_client_sources) |src| {
-            display_client.addCSourceFile(src, &[_][]const u8{
-                "-std=c++17",
-                "-fno-sanitize=undefined",
-            });
-        }
+    //     for (display_client_sources) |src| {
+    //         display_client.addCSourceFile(src, &[_][]const u8{
+    //             "-std=c++17",
+    //             "-fno-sanitize=undefined",
+    //         });
+    //     }
 
-        for (xqlib_sources) |src| {
-            display_client.addCSourceFile(src, &[_][]const u8{
-                "-std=c++17",
-                "-fno-sanitize=undefined",
-            });
-        }
+    //     for (xqlib_sources) |src| {
+    //         display_client.addCSourceFile(src, &[_][]const u8{
+    //             "-std=c++17",
+    //             "-fno-sanitize=undefined",
+    //         });
+    //     }
 
-        const layout_files = [_][]const u8{
-            "./src/dunstblick-display/layouts/discovery-menu.dui",
-            "./src/dunstblick-display/layouts/discovery-list-item.dui",
-        };
-        inline for (layout_files) |infile| {
-            const outfile = try std.mem.dupe(b.allocator, u8, infile);
-            outfile[outfile.len - 3] = 'c';
+    //     const layout_files = [_][]const u8{
+    //         "./src/dunstblick-display/layouts/discovery-menu.dui",
+    //         "./src/dunstblick-display/layouts/discovery-list-item.dui",
+    //     };
+    //     inline for (layout_files) |infile| {
+    //         const outfile = try std.mem.dupe(b.allocator, u8, infile);
+    //         outfile[outfile.len - 3] = 'c';
 
-            const step = compiler.run();
-            step.addArgs(&[_][]const u8{
-                infile,
-                "-o",
-                outfile,
-                "-c",
-                "./src/dunstblick-display/layouts/resources.json",
-            });
-            display_client.step.dependOn(&step.step);
-        }
-    }
+    //         const step = compiler.run();
+    //         step.addArgs(&[_][]const u8{
+    //             infile,
+    //             "-o",
+    //             outfile,
+    //             "-c",
+    //             "./src/dunstblick-display/layouts/resources.json",
+    //         });
+    //         display_client.step.dependOn(&step.step);
+    //     }
+    // }
 
     const dummy_application = b.addExecutable("dummy-application", "src/test/dummy-application.zig");
     dummy_application.addPackage(pkgs.dunstblick_protocol);
@@ -330,17 +328,16 @@ pub fn build(b: *Builder) !void {
         dunstblick_protocol_test.addPackage(pkgs.charm);
     }
 
-    const run_cmd = display_client.run();
-    run_cmd.step.dependOn(b.getInstallStep());
-
-    run_cmd.setEnvironmentVariable("LD_LIBRARY_PATH", "./src/examples/mediaserver/bass/x86_64");
+    // const run_cmd = display_client.run();
+    // run_cmd.step.dependOn(b.getInstallStep());
+    // run_cmd.setEnvironmentVariable("LD_LIBRARY_PATH", "./src/examples/mediaserver/bass/x86_64");
 
     const install2_step = b.step("install-2", "Installs the new revision of the code. Highly experimental and might break the compiler.");
     install2_step.dependOn(&dunstnetz_daemon.step);
     install2_step.dependOn(&desktop_app.step);
 
-    const run_step = b.step("run", "Run the display client");
-    run_step.dependOn(&run_cmd.step);
+    // const run_step = b.step("run", "Run the display client");
+    // run_step.dependOn(&run_cmd.step);
 
     const desktop_cmd = desktop_app.run();
 
@@ -360,22 +357,22 @@ pub fn build(b: *Builder) !void {
     test_step.dependOn(&dunstblick_protocol_test.step);
 }
 
-const display_client_sources = [_][]const u8{
-    "./src/dunstblick-display/cpp/enums.cpp",
-    "./src/dunstblick-display/cpp/inputstream.cpp",
-    "./src/dunstblick-display/cpp/layouts.cpp",
-    "./src/dunstblick-display/cpp/main.cpp",
-    "./src/dunstblick-display/cpp/object.cpp",
-    "./src/dunstblick-display/cpp/rendercontext.cpp",
-    "./src/dunstblick-display/cpp/resources.cpp",
-    "./src/dunstblick-display/cpp/session.cpp",
-    "./src/dunstblick-display/cpp/types.cpp",
-    "./src/dunstblick-display/cpp/widget.cpp",
-    "./src/dunstblick-display/cpp/widget.create.cpp",
-    "./src/dunstblick-display/cpp/widgets.cpp",
-    "./src/dunstblick-display/cpp/zigsession.cpp",
-};
+// const display_client_sources = [_][]const u8{
+//     "./src/dunstblick-display/cpp/enums.cpp",
+//     "./src/dunstblick-display/cpp/inputstream.cpp",
+//     "./src/dunstblick-display/cpp/layouts.cpp",
+//     "./src/dunstblick-display/cpp/main.cpp",
+//     "./src/dunstblick-display/cpp/object.cpp",
+//     "./src/dunstblick-display/cpp/rendercontext.cpp",
+//     "./src/dunstblick-display/cpp/resources.cpp",
+//     "./src/dunstblick-display/cpp/session.cpp",
+//     "./src/dunstblick-display/cpp/types.cpp",
+//     "./src/dunstblick-display/cpp/widget.cpp",
+//     "./src/dunstblick-display/cpp/widget.create.cpp",
+//     "./src/dunstblick-display/cpp/widgets.cpp",
+//     "./src/dunstblick-display/cpp/zigsession.cpp",
+// };
 
-const xqlib_sources = [_][]const u8{
-    "./lib/xqlib-stripped/src/xlog.cpp",
-};
+// const xqlib_sources = [_][]const u8{
+//     "./lib/xqlib-stripped/src/xlog.cpp",
+// };

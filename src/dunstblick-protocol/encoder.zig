@@ -64,56 +64,5 @@ pub fn Encoder(comptime Stream: type) type {
         pub fn writeVarSInt(self: *Self, value: i32) !void {
             try self.writeVarUInt(ZigZagInt.encode(value));
         }
-
-        pub fn writeValue(self: *Self, value: Value, prefixType: bool) !void {
-            if (prefixType) {
-                try self.writeEnum(@intCast(u8, @enumToInt(value.type)));
-            }
-            const val = &value.value;
-            switch (value.type) {
-                .integer => try self.writeVarSInt(val.integer),
-
-                .number => try self.writeNumber(val.number),
-
-                .string => try self.writeString(std.mem.span(val.string)),
-
-                .enumeration => try self.writeEnum(val.enumeration),
-
-                .margins => {
-                    try self.writeVarUInt(val.margins.left);
-                    try self.writeVarUInt(val.margins.top);
-                    try self.writeVarUInt(val.margins.right);
-                    try self.writeVarUInt(val.margins.bottom);
-                },
-
-                .color => {
-                    try self.writeByte(val.color.red);
-                    try self.writeByte(val.color.green);
-                    try self.writeByte(val.color.blue);
-                    try self.writeByte(val.color.alpha);
-                },
-
-                .size => {
-                    try self.writeVarUInt(val.size.width);
-                    try self.writeVarUInt(val.size.height);
-                },
-
-                .point => {
-                    try self.writeVarSInt(val.point.x);
-                    try self.writeVarSInt(val.point.y);
-                },
-
-                .boolean => try self.writeByte(if (val.boolean) 1 else 0),
-
-                .resource => try self.writeVarUInt(@enumToInt(val.resource)),
-                .object => try self.writeVarUInt(@enumToInt(val.object)),
-                .event => try self.writeVarUInt(@enumToInt(val.event)),
-                .name => try self.writeVarUInt(@enumToInt(val.name)),
-
-                .objectlist => std.log.err("Writing objectlist property not possible yet.", .{}), // not implemented yet
-
-                else => unreachable, // api violation
-            }
-        }
     };
 }

@@ -1,4 +1,5 @@
 const std = @import("std");
+const data = @import("app-data");
 
 const c = @import("c.zig");
 
@@ -10,50 +11,19 @@ fn loword(val: u32) u16 {
     return @truncate(u16, val >> 16);
 }
 
-const resources = @import("resources.zig");
-
-const properties = struct {
-    pub const current_artist = 1;
-    pub const current_song = 2;
-    pub const current_albumart = 3;
-};
-
-const callbacks = struct {
-    pub const next_song = 1;
-    pub const previous_song = 2;
-    pub const open_volume_control = 3;
-    pub const play_pause = 4;
-    pub const open_main_menu = 5;
-    pub const open_settings = 6;
-    pub const open_albums = 7;
-    pub const open_radio = 8;
-    pub const open_playlists = 9;
-    pub const toggle_shuffle = 10;
-    pub const toggle_repeat_one = 11;
-    pub const toggle_repeat_all = 12;
-    pub const close_main_menu = 13;
-};
-
-const views = struct {
-    pub const layout_main = 1000;
-    pub const layout_menu = 1001;
-    pub const layout_searchlist = 1002;
-    pub const layout_searchitem = 1003;
-};
-
 // HLS definitions (copied from BASSHLS.H)
 const BASS_SYNC_HLS_SEGMENT = 0x10300;
 const BASS_TAG_HLS_EXTINF = 0x14000;
 
 const ROOT_OBJ = 1;
 
-fn addResource(provider: *c.dunstblick_Provider, index: u32, kind: c.dunstblick_ResourceKind, data: []const u8) !void {
+fn addResource(provider: *c.dunstblick_Provider, index: u32, kind: c.dunstblick_ResourceKind, bits: []const u8) !void {
     const err = c.dunstblick_AddResource(
         provider,
         index,
         kind,
-        data.ptr,
-        @intCast(u32, data.len),
+        bits.ptr,
+        @intCast(u32, bits.len),
     );
     if (err != .DUNSTBLICK_ERROR_NONE)
         return error.DunstblickError;
@@ -96,32 +66,16 @@ pub fn main() anyerror!u8 {
     _ = c.dunstblick_SetConnectedCallback(dbProvider, clientConnected, null);
     _ = c.dunstblick_SetDisconnectedCallback(dbProvider, clientDisconnected, null);
 
-    try addResource(dbProvider, 2, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_volume_off);
-    try addResource(dbProvider, 3, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_volume_low);
-    try addResource(dbProvider, 4, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_volume_medium);
-    try addResource(dbProvider, 5, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_volume_high);
-    try addResource(dbProvider, 6, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_skip_previous);
-    try addResource(dbProvider, 7, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_skip_next);
-    try addResource(dbProvider, 8, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_play);
-    try addResource(dbProvider, 9, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_pause);
-    try addResource(dbProvider, 10, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_menu);
-    try addResource(dbProvider, 11, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_settings);
-    try addResource(dbProvider, 12, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_repeat_one);
-    try addResource(dbProvider, 13, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_repeat_all);
-    try addResource(dbProvider, 14, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_shuffle);
-    try addResource(dbProvider, 15, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_album);
-    try addResource(dbProvider, 16, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_playlist);
-    try addResource(dbProvider, 17, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_radio);
-    try addResource(dbProvider, 18, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_add);
-    try addResource(dbProvider, 19, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_folder);
-    try addResource(dbProvider, 20, .DUNSTBLICK_RESOURCE_BITMAP, resources.icon_close);
-    try addResource(dbProvider, 22, .DUNSTBLICK_RESOURCE_BITMAP, resources.img_placeholder);
-    try addResource(dbProvider, 23, .DUNSTBLICK_RESOURCE_BITMAP, resources.img_background);
+    inline for (std.meta.declarations(data.resources)) |decl| {
+        const res = @field(data.resources, decl.name);
 
-    try addResource(dbProvider, 1000, .DUNSTBLICK_RESOURCE_LAYOUT, resources.layout_main);
-    try addResource(dbProvider, 1001, .DUNSTBLICK_RESOURCE_LAYOUT, resources.layout_menu);
-    try addResource(dbProvider, 1002, .DUNSTBLICK_RESOURCE_LAYOUT, resources.layout_searchlist);
-    try addResource(dbProvider, 1003, .DUNSTBLICK_RESOURCE_LAYOUT, resources.layout_searchitem);
+        try addResource(dbProvider, @enumToInt(res.id), switch (res.kind) {
+            .layout => .DUNSTBLICK_RESOURCE_LAYOUT,
+            .bitmap => .DUNSTBLICK_RESOURCE_BITMAP,
+            .drawing => .DUNSTBLICK_RESOURCE_DRAWING,
+            _ => unreachable,
+        }, res.data);
+    }
 
     //try openURL("http://sentinel.scenesat.com:8000/scenesatmax");
     try openFile("/dunstwolke/music/albums/Morgan Willis/Supernova/Morgan Willis - Supernova - 01 Opening (Vocal Marko Maric).mp3");
@@ -145,22 +99,22 @@ fn clientEvent(
 ) callconv(.C) void {
     std.debug.warn("event: {} {}\n", .{ event, widget });
     switch (event) {
-        callbacks.next_song => {},
-        callbacks.previous_song => {},
-        callbacks.open_volume_control => {},
-        callbacks.play_pause => {},
-        callbacks.open_main_menu => {
-            _ = c.dunstblick_SetView(connection, views.layout_menu);
+        @enumToInt(data.events.@"next-song") => {},
+        @enumToInt(data.events.@"previous-song") => {},
+        @enumToInt(data.events.@"open-volume-control") => {},
+        @enumToInt(data.events.@"play-pause") => {},
+        @enumToInt(data.events.@"open-main-menu") => {
+            _ = c.dunstblick_SetView(connection, @enumToInt(data.resources.menu.id));
         },
-        callbacks.open_settings => {},
-        callbacks.open_albums => {},
-        callbacks.open_radio => {},
-        callbacks.open_playlists => {},
-        callbacks.toggle_shuffle => {},
-        callbacks.toggle_repeat_one => {},
-        callbacks.toggle_repeat_all => {},
-        callbacks.close_main_menu => {
-            _ = c.dunstblick_SetView(connection, views.layout_main);
+        @enumToInt(data.events.@"open-settings") => {},
+        @enumToInt(data.events.@"open-albums") => {},
+        @enumToInt(data.events.@"open-radio") => {},
+        @enumToInt(data.events.@"open-playlists") => {},
+        @enumToInt(data.events.@"toggle-shuffle") => {},
+        @enumToInt(data.events.@"toggle-repeat-one") => {},
+        @enumToInt(data.events.@"toggle-repeat-all") => {},
+        @enumToInt(data.events.@"close-main-menu") => {
+            _ = c.dunstblick_SetView(connection, @enumToInt(data.resources.main.id));
         },
         else => {}, // ignore
     }
@@ -185,14 +139,14 @@ fn clientConnected(
     if (c.dunstblick_BeginChangeObject(connection, ROOT_OBJ)) |obj| {
         errdefer _ = c.dunstblick_CancelObject(obj);
 
-        _ = c.dunstblick_SetObjectProperty(obj, properties.current_song, &c.dunstblick_Value{
+        _ = c.dunstblick_SetObjectProperty(obj, @enumToInt(data.properties.@"current-song"), &c.dunstblick_Value{
             .type = .DUNSTBLICK_TYPE_STRING,
             .value = .{
                 .string = "Current Song",
             },
         });
 
-        _ = c.dunstblick_SetObjectProperty(obj, properties.current_artist, &c.dunstblick_Value{
+        _ = c.dunstblick_SetObjectProperty(obj, @enumToInt(data.properties.@"current-artist"), &c.dunstblick_Value{
             .type = .DUNSTBLICK_TYPE_STRING,
             .value = .{
                 .string = "Current Artist",
@@ -208,7 +162,7 @@ fn clientConnected(
             },
         };
         std.debug.warn("val = {} / {}\n", .{ val, val.value.resource });
-        _ = c.dunstblick_SetObjectProperty(obj, properties.current_albumart, &val);
+        _ = c.dunstblick_SetObjectProperty(obj, @enumToInt(data.properties.@"current-albumart"), &val);
 
         _ = c.dunstblick_CommitObject(obj);
     }
@@ -259,16 +213,16 @@ fn openFile(url: [*:0]const u8) !void {
     try playChannel(ch);
 }
 
-fn endSync(handle: c.HSYNC, channel: c.DWORD, data: c.DWORD, user: ?*c_void) callconv(.C) void {
+fn endSync(handle: c.HSYNC, channel: c.DWORD, bits: c.DWORD, user: ?*c_void) callconv(.C) void {
     std.io.getStdErr().writer().writeAll("end sync\n") catch |err| {};
 }
 
-fn stallSync(handle: c.HSYNC, channel: c.DWORD, data: c.DWORD, user: ?*c_void) callconv(.C) void {
+fn stallSync(handle: c.HSYNC, channel: c.DWORD, bits: c.DWORD, user: ?*c_void) callconv(.C) void {
     std.io.getStdErr().writer().writeAll("stall sync\n") catch |err| {};
 }
 
 // update stream title from metadata
-fn doMeta(handle: c.HSYNC, channel: c.DWORD, data: c.DWORD, user: ?*c_void) callconv(.C) void {
+fn doMeta(handle: c.HSYNC, channel: c.DWORD, bits: c.DWORD, user: ?*c_void) callconv(.C) void {
     if (c.BASS_ChannelGetTags(channel, c.BASS_TAG_ID3)) |raw| {
         const id3 = @ptrCast(*const c.TAG_ID3, raw);
         std.debug.warn("got id3: {s}\n", .{id3});

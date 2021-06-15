@@ -15,9 +15,200 @@ pub const ResourceID = protocol.ResourceID;
 pub const ObjectID = protocol.ObjectID;
 pub const EventID = protocol.EventID;
 pub const PropertyName = protocol.PropertyName;
-pub const Value = protocol.Value;
 pub const ResourceKind = protocol.ResourceKind;
 pub const WidgetName = protocol.WidgetName;
+pub const Type = protocol.Type;
+
+// only required for the API
+pub const ValueStorage = extern union {
+    integer: i32,
+    enumeration: u8,
+    number: f32,
+    string: [*:0]const u8,
+    resource: protocol.ResourceID,
+    object: protocol.ObjectID,
+    color: protocol.Color,
+    size: protocol.Size,
+    point: protocol.Point,
+    margins: protocol.Margins,
+    boolean: bool,
+    event: protocol.EventID,
+    name: protocol.WidgetName,
+};
+
+pub const Value = extern struct {
+    type: Type,
+    value: ValueStorage,
+
+    pub fn format(self: @This(), comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        try writer.print("{s}(", .{@tagName(self.type)});
+        switch (self.type) {
+            .integer => try writer.print("{d}", .{self.value.integer}),
+            .enumeration => try writer.print("{d}", .{self.value.enumeration}),
+            .number => try writer.print("{d}", .{self.value.number}),
+            .string => try writer.writeAll(std.mem.span(self.value.string)),
+            .resource => try writer.print("{}", .{@enumToInt(self.value.resource)}),
+            .object => try writer.print("{}", .{@enumToInt(self.value.object)}),
+            .color => try writer.print("{},{},{},{}", .{
+                self.value.color.red,
+                self.value.color.green,
+                self.value.color.blue,
+                self.value.color.alpha,
+            }),
+            .size => try writer.print("{}x{}", .{
+                self.value.size.width,
+                self.value.size.height,
+            }),
+            .point => try writer.print("{},{}", .{
+                self.value.point.x,
+                self.value.point.y,
+            }),
+            .margins => try writer.print("{},{},{},{}", .{
+                self.value.margins.left,
+                self.value.margins.top,
+                self.value.margins.right,
+                self.value.margins.bottom,
+            }),
+            .boolean => try writer.print("{}", .{self.value.boolean}),
+            .event => try writer.print("{}", .{@enumToInt(self.value.event)}),
+            .name => try writer.print("{}", .{@enumToInt(self.value.name)}),
+
+            else => try writer.writeAll("???"),
+        }
+        try writer.writeAll(")");
+    }
+
+    pub fn serialize(value: Value, self: anytype, prefixType: bool) !void {
+        if (prefixType) {
+            try self.writeEnum(@intCast(u8, @enumToInt(value.type)));
+        }
+        const val = &value.value;
+        switch (value.type) {
+            .integer => try self.writeVarSInt(val.integer),
+
+            .number => try self.writeNumber(val.number),
+
+            .string => try self.writeString(std.mem.span(val.string)),
+
+            .enumeration => try self.writeEnum(val.enumeration),
+
+            .margins => {
+                try self.writeVarUInt(val.margins.left);
+                try self.writeVarUInt(val.margins.top);
+                try self.writeVarUInt(val.margins.right);
+                try self.writeVarUInt(val.margins.bottom);
+            },
+
+            .color => {
+                try self.writeByte(val.color.red);
+                try self.writeByte(val.color.green);
+                try self.writeByte(val.color.blue);
+                try self.writeByte(val.color.alpha);
+            },
+
+            .size => {
+                try self.writeVarUInt(val.size.width);
+                try self.writeVarUInt(val.size.height);
+            },
+
+            .point => {
+                try self.writeVarSInt(val.point.x);
+                try self.writeVarSInt(val.point.y);
+            },
+
+            .boolean => try self.writeByte(if (val.boolean) 1 else 0),
+
+            .resource => try self.writeVarUInt(@enumToInt(val.resource)),
+            .object => try self.writeVarUInt(@enumToInt(val.object)),
+            .event => try self.writeVarUInt(@enumToInt(val.event)),
+            .name => try self.writeVarUInt(@enumToInt(val.name)),
+
+            .objectlist => std.debug.panic("Writing objectlist property not possible yet.", .{}), // not implemented yet
+
+            else => unreachable, // api violation
+        }
+    }
+
+    pub fn deserialize(self: *protocol.Decoder, value_type: Type, allocator: ?*std.mem.Allocator) !Value {
+        var value = Value{
+            .type = value_type,
+            .value = undefined,
+        };
+        const val = &value.value;
+        switch (value_type) {
+            .enumeration => val.enumeration = try self.readByte(),
+
+            .integer => val.integer = try self.readVarSInt(),
+
+            .resource => val.resource = @intToEnum(ResourceID, try self.readVarUInt()),
+
+            .object => val.object = @intToEnum(ObjectID, try self.readVarUInt()),
+
+            .number => val.number = try self.readNumber(),
+
+            .boolean => val.boolean = ((try self.readByte()) != 0),
+
+            .color => {
+                val.color.red = try self.readByte();
+                val.color.green = try self.readByte();
+                val.color.blue = try self.readByte();
+                val.color.alpha = try self.readByte();
+            },
+
+            .size => {
+                val.size.width = try self.readVarUInt();
+                val.size.height = try self.readVarUInt();
+            },
+
+            .point => {
+                val.point.x = try self.readVarSInt();
+                val.point.y = try self.readVarSInt();
+            },
+
+            // HOW?
+            .string => {
+                if (allocator) |allo| {
+                    const strlen = try self.readVarUInt();
+
+                    const str = try allo.allocWithOptions(u8, strlen, null, 0);
+                    errdefer allo.free(str);
+
+                    std.mem.copy(
+                        u8,
+                        str[0..],
+                        try self.readRaw(strlen),
+                    );
+
+                    val.string = str.ptr;
+                } else {
+                    return error.NotSupported; // not implemented yet
+                }
+            },
+
+            .margins => {
+                val.margins.left = try self.readVarUInt();
+                val.margins.top = try self.readVarUInt();
+                val.margins.right = try self.readVarUInt();
+                val.margins.bottom = try self.readVarUInt();
+            },
+
+            .objectlist => std.log.err("Reading objectlist property not possible yet.", .{}),
+
+            .event => val.event = @intToEnum(EventID, try self.readVarUInt()),
+
+            .name => val.name = @intToEnum(WidgetName, try self.readVarUInt()),
+
+            .sizelist => return error.NotSupported,
+        }
+        return value;
+    }
+
+    pub fn deinitValue(value: Value, allocator: *std.mem.Allocator) void {
+        if (value.type == .string) {
+            allocator.free(std.mem.spanZ(value.value.string));
+        }
+    }
+};
 
 /// A callback that is called whenever a new display client has successfully
 /// connected to the display provider.
@@ -74,7 +265,7 @@ pub const PropertyChangedCallback = fn (
     ///< The name of the property that was changed
     property: protocol.PropertyName,
     ///< The value of the property
-    value: *const protocol.Value,
+    value: *const Value,
     ///< The user data pointer that was passed to @ref dunstblick_SetPropertyChangedCallback.
     userData: ?*c_void,
 ) callconv(.C) void;
@@ -231,7 +422,7 @@ pub const PropertyChangedEvent = struct {
     /// The name of the property that was changed
     property: protocol.PropertyName,
     /// The value of the property
-    value: protocol.Value,
+    value: Value,
 };
 
 pub const EventType = std.meta.Tag(Event);
@@ -453,7 +644,7 @@ pub const Connection = struct {
                 const property = @intToEnum(protocol.PropertyName, try reader.readVarUInt());
                 const value_type = @intToEnum(protocol.Type, try reader.readByte());
 
-                const value = try reader.readValue(value_type, null);
+                const value = try Value.deserialize(&reader, value_type, null);
 
                 const event = try self.provider.createEvent();
                 event.event = Event{
@@ -600,7 +791,7 @@ pub const Connection = struct {
 
         try buffer.writeID(@enumToInt(object));
         try buffer.writeID(@enumToInt(name));
-        try buffer.writeValue(value, true);
+        try value.serialize(&buffer, true);
 
         try self.send(stream.getWritten());
     }
@@ -1272,7 +1463,7 @@ pub const Object = struct {
 
         try enc.writeEnum(@intCast(u8, @enumToInt(value.type)));
         try enc.writeID(@enumToInt(name));
-        try enc.writeValue(value, false);
+        try value.serialize(&enc, false);
     }
 
     /// The object will either be added to the list of objects

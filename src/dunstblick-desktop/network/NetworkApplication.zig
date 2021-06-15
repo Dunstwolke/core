@@ -268,7 +268,12 @@ pub fn notifyReadable(self: *Self) !void {
                             }
                         },
                         .message => |packet| {
-                            try self.decodeAndExecuteMessage(packet);
+                            self.decodeAndExecuteMessage(packet) catch |err| {
+                                logger.err("received invalid message: {s}", .{@errorName(err)});
+                                self.disconnect(null);
+                                self.instance.status = .{ .exited = "protocol violation: received invalid message" };
+                                return;
+                            };
                         },
                     }
 
