@@ -103,25 +103,20 @@ pub fn build(b: *Builder) !void {
 
     const compiler_test = b.addTest("./src/dunstblick-compiler/main.zig");
 
-    const lib = b.addStaticLibrary("dunstblick", "./src/libdunstblick/src/c-binding.zig");
-    lib.emit_docs = true;
-    lib.addPackage(pkgs.dunstblick_app);
-    lib.addPackage(pkgs.dunstblick_protocol);
-    lib.linkLibC();
-    lib.setTarget(target);
-    lib.setBuildMode(mode);
-    lib.install();
-
     // mediaserver project
     const mediaserver = b.addExecutable("mediaserver", "./src/examples/mediaserver/src/main.zig");
     {
-        mediaserver.addIncludeDir("./src/libdunstblick/include");
-        mediaserver.addIncludeDir("./src/examples/mediaserver/bass");
-        mediaserver.addLibPath("./src/examples/mediaserver/bass/x86_64");
         mediaserver.setBuildMode(mode);
         mediaserver.setTarget(target);
+
+        mediaserver.addPackage(sdk.getAppPackage("dunstblick"));
+
+        // link libbass
+        mediaserver.linkLibC();
+        mediaserver.addLibPath("./src/examples/mediaserver/bass/x86_64");
+        mediaserver.addIncludeDir("./src/examples/mediaserver/bass");
         mediaserver.linkSystemLibrary("bass");
-        mediaserver.linkLibrary(lib);
+
         mediaserver.install();
 
         {
@@ -151,101 +146,57 @@ pub fn build(b: *Builder) !void {
             resources.addBitmap("icon-add", .{ .path = "./src/examples/mediaserver/resources/add.png" });
             resources.addBitmap("icon-settings", .{ .path = "./src/examples/mediaserver/resources/settings.png" });
             resources.addBitmap("icon-close", .{ .path = "./src/examples/mediaserver/resources/close.png" });
+            resources.addBitmap("album_placeholder", .{ .path = "./src/examples/mediaserver/resources/placeholder.png" });
+
+            resources.addObject("root");
 
             mediaserver.addPackage(resources.getPackage("app-data"));
         }
     }
 
-    // calculator example
-    const calculator = b.addExecutable("calculator", null);
-    calculator.addIncludeDir("./src/libdunstblick/include");
-    calculator.addCSourceFile("src/examples/calculator/main.c", &[_][]const u8{});
-    calculator.linkLibrary(lib);
-    calculator.setTarget(target);
-    calculator.setBuildMode(mode);
-    calculator.install();
+    const step = b.step("c-api", "Compiles libdunstblick as well as the C examples");
+    {
+        // libdunstblick, a C frontend for dunstblick application
+        const lib = b.addStaticLibrary("dunstblick", "./src/libdunstblick/src/c-binding.zig");
+        lib.emit_docs = true;
+        lib.addPackage(pkgs.dunstblick_app);
+        lib.addPackage(pkgs.dunstblick_protocol);
+        lib.linkLibC();
+        lib.setTarget(target);
+        lib.setBuildMode(mode);
 
-    const calculator_headerGen = compiler.run();
-    calculator_headerGen.addArgs(&[_][]const u8{
-        "./src/examples/calculator/layout.ui",
-        "-o",
-        "./src/examples/calculator/layout.h",
-        "-f",
-        "header",
-        "-c",
-        "./src/examples/calculator/layout.json",
-    });
-    calculator.step.dependOn(&calculator_headerGen.step);
+        // calculator example
+        const calculator = b.addExecutable("calculator", null);
+        calculator.addIncludeDir("./src/libdunstblick/include");
+        calculator.addCSourceFile("src/examples/calculator/main.c", &[_][]const u8{});
+        calculator.linkLibrary(lib);
+        calculator.setTarget(target);
+        calculator.setBuildMode(mode);
 
-    // minimal example
-    const minimal = b.addExecutable("minimal", null);
-    minimal.addIncludeDir("./src/libdunstblick/include");
-    minimal.addCSourceFile("src/examples/minimal/main.c", &[_][]const u8{});
-    minimal.linkLibrary(lib);
-    minimal.setTarget(target);
-    minimal.setBuildMode(mode);
-    minimal.install();
+        const calculator_headerGen = compiler.run();
+        calculator_headerGen.addArgs(&[_][]const u8{
+            "./src/examples/calculator/layout.ui",
+            "-o",
+            "./src/examples/calculator/layout.h",
+            "-f",
+            "header",
+            "-c",
+            "./src/examples/calculator/layout.json",
+        });
+        calculator.step.dependOn(&calculator_headerGen.step);
 
-    // const display_client = b.addExecutable("dunstblick-display", "./src/dunstblick-display/main.zig");
-    // {
-    //     display_client.addPackage(pkgs.dunstblick_protocol);
-    //     display_client.addPackage(pkgs.network);
-    //     display_client.addPackage(pkgs.args);
-    //     display_client.addPackage(pkgs.sdl2);
-    //     display_client.addPackage(pkgs.uri);
-    //     display_client.addPackage(pkgs.painterz);
+        // minimal example
+        const minimal = b.addExecutable("minimal", null);
+        minimal.addIncludeDir("./src/libdunstblick/include");
+        minimal.addCSourceFile("src/examples/minimal/main.c", &[_][]const u8{});
+        minimal.linkLibrary(lib);
+        minimal.setTarget(target);
+        minimal.setBuildMode(mode);
 
-    //     display_client.linkLibC();
-    //     display_client.linkSystemLibrary("c++");
-    //     display_client.linkSystemLibrary("sdl2");
-    //     display_client.addIncludeDir("./lib/stb");
-
-    //     display_client.addIncludeDir("./src/libdunstblick/include");
-    //     display_client.addIncludeDir("./lib/xqlib-stripped/include");
-    //     display_client.addIncludeDir("./lib/optional/include/tl");
-    //     display_client.defineCMacro("DUNSTBLICK_SERVER");
-    //     display_client.setBuildMode(mode);
-    //     display_client.setTarget(target);
-    //     display_client.install();
-
-    //     display_client.addCSourceFile("./src/dunstblick-display/cpp/stb-instantiating.c", &[_][]const u8{
-    //         "-std=c99",
-    //         "-fno-sanitize=undefined",
-    //     });
-
-    //     for (display_client_sources) |src| {
-    //         display_client.addCSourceFile(src, &[_][]const u8{
-    //             "-std=c++17",
-    //             "-fno-sanitize=undefined",
-    //         });
-    //     }
-
-    //     for (xqlib_sources) |src| {
-    //         display_client.addCSourceFile(src, &[_][]const u8{
-    //             "-std=c++17",
-    //             "-fno-sanitize=undefined",
-    //         });
-    //     }
-
-    //     const layout_files = [_][]const u8{
-    //         "./src/dunstblick-display/layouts/discovery-menu.dui",
-    //         "./src/dunstblick-display/layouts/discovery-list-item.dui",
-    //     };
-    //     inline for (layout_files) |infile| {
-    //         const outfile = try std.mem.dupe(b.allocator, u8, infile);
-    //         outfile[outfile.len - 3] = 'c';
-
-    //         const step = compiler.run();
-    //         step.addArgs(&[_][]const u8{
-    //             infile,
-    //             "-o",
-    //             outfile,
-    //             "-c",
-    //             "./src/dunstblick-display/layouts/resources.json",
-    //         });
-    //         display_client.step.dependOn(&step.step);
-    //     }
-    // }
+        step.dependOn(&b.addInstallArtifact(lib).step);
+        step.dependOn(&b.addInstallArtifact(calculator).step);
+        step.dependOn(&b.addInstallArtifact(minimal).step);
+    }
 
     const dummy_application = b.addExecutable("dummy-application", "src/test/dummy-application.zig");
     dummy_application.addPackage(pkgs.dunstblick_protocol);
@@ -261,11 +212,11 @@ pub fn build(b: *Builder) !void {
 
         desktop_app.addPackage(pkgs.dunstblick_protocol);
         desktop_app.addPackage(pkgs.network);
-        //desktop_app.addPackage(pkgs.args);
-        //desktop_app.addPackage(pkgs.uri);
         desktop_app.addPackage(pkgs.tvg);
         desktop_app.addPackage(pkgs.painterz);
         desktop_app.addPackage(pkgs.zerog);
+        //desktop_app.addPackage(pkgs.args);
+        //desktop_app.addPackage(pkgs.uri);
         //desktop_app.addPackage(pkgs.meta);
 
         // TTF rendering library:
@@ -328,34 +279,93 @@ pub fn build(b: *Builder) !void {
         dunstblick_protocol_test.addPackage(pkgs.charm);
     }
 
-    // const run_cmd = display_client.run();
-    // run_cmd.step.dependOn(b.getInstallStep());
-    // run_cmd.setEnvironmentVariable("LD_LIBRARY_PATH", "./src/examples/mediaserver/bass/x86_64");
-
-    const install2_step = b.step("install-2", "Installs the new revision of the code. Highly experimental and might break the compiler.");
+    const install2_step = b.step("build-experimental", "Builds the highly experimental software parts");
     install2_step.dependOn(&dunstnetz_daemon.step);
-    install2_step.dependOn(&desktop_app.step);
-
-    // const run_step = b.step("run", "Run the display client");
-    // run_step.dependOn(&run_cmd.step);
 
     const desktop_cmd = desktop_app.run();
-
     desktop_cmd.step.dependOn(&desktop_app.install_step.?.step);
 
     const run_desktop_step = b.step("run-desktop", "Run the Dunstblick Desktop");
     run_desktop_step.dependOn(&desktop_cmd.step);
 
-    const run_daemon_step = b.step("run-daemon", "Run the new version of the display client");
+    const run_daemon_step = b.step("run-daemon", "Run the network broker");
     run_daemon_step.dependOn(&dunstnetz_daemon.run().step);
 
-    const test_step = b.step("test", "Runs all required tests.");
+    const test_step = b.step("test", "Runs the full Dunstwolke test suite");
     test_step.dependOn(&compiler_test.step);
     test_step.dependOn(&dunstblick_desktop_test.step);
     test_step.dependOn(&dunstnetz_test.step);
     test_step.dependOn(&dunstnetz_daemon_test.step);
     test_step.dependOn(&dunstblick_protocol_test.step);
 }
+
+// const run_cmd = display_client.run();
+// run_cmd.step.dependOn(b.getInstallStep());
+// run_cmd.setEnvironmentVariable("LD_LIBRARY_PATH", "./src/examples/mediaserver/bass/x86_64");
+
+// const run_step = b.step("run", "Run the display client");
+// run_step.dependOn(&run_cmd.step);
+
+// const display_client = b.addExecutable("dunstblick-display", "./src/dunstblick-display/main.zig");
+// {
+//     display_client.addPackage(pkgs.dunstblick_protocol);
+//     display_client.addPackage(pkgs.network);
+//     display_client.addPackage(pkgs.args);
+//     display_client.addPackage(pkgs.sdl2);
+//     display_client.addPackage(pkgs.uri);
+//     display_client.addPackage(pkgs.painterz);
+
+//     display_client.linkLibC();
+//     display_client.linkSystemLibrary("c++");
+//     display_client.linkSystemLibrary("sdl2");
+//     display_client.addIncludeDir("./lib/stb");
+
+//     display_client.addIncludeDir("./src/libdunstblick/include");
+//     display_client.addIncludeDir("./lib/xqlib-stripped/include");
+//     display_client.addIncludeDir("./lib/optional/include/tl");
+//     display_client.defineCMacro("DUNSTBLICK_SERVER");
+//     display_client.setBuildMode(mode);
+//     display_client.setTarget(target);
+//     display_client.install();
+
+//     display_client.addCSourceFile("./src/dunstblick-display/cpp/stb-instantiating.c", &[_][]const u8{
+//         "-std=c99",
+//         "-fno-sanitize=undefined",
+//     });
+
+//     for (display_client_sources) |src| {
+//         display_client.addCSourceFile(src, &[_][]const u8{
+//             "-std=c++17",
+//             "-fno-sanitize=undefined",
+//         });
+//     }
+
+//     for (xqlib_sources) |src| {
+//         display_client.addCSourceFile(src, &[_][]const u8{
+//             "-std=c++17",
+//             "-fno-sanitize=undefined",
+//         });
+//     }
+
+//     const layout_files = [_][]const u8{
+//         "./src/dunstblick-display/layouts/discovery-menu.dui",
+//         "./src/dunstblick-display/layouts/discovery-list-item.dui",
+//     };
+//     inline for (layout_files) |infile| {
+//         const outfile = try std.mem.dupe(b.allocator, u8, infile);
+//         outfile[outfile.len - 3] = 'c';
+
+//         const step = compiler.run();
+//         step.addArgs(&[_][]const u8{
+//             infile,
+//             "-o",
+//             outfile,
+//             "-c",
+//             "./src/dunstblick-display/layouts/resources.json",
+//         });
+//         display_client.step.dependOn(&step.step);
+//     }
+// }
 
 // const display_client_sources = [_][]const u8{
 //     "./src/dunstblick-display/cpp/enums.cpp",

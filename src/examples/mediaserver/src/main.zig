@@ -1,4 +1,5 @@
 const std = @import("std");
+const dunstblick = @import("dunstblick");
 const data = @import("app-data");
 
 const c = @import("c.zig");
@@ -16,18 +17,6 @@ const BASS_SYNC_HLS_SEGMENT = 0x10300;
 const BASS_TAG_HLS_EXTINF = 0x14000;
 
 const ROOT_OBJ = 1;
-
-fn addResource(provider: *c.dunstblick_Provider, index: u32, kind: c.dunstblick_ResourceKind, bits: []const u8) !void {
-    const err = c.dunstblick_AddResource(
-        provider,
-        index,
-        kind,
-        bits.ptr,
-        @intCast(u32, bits.len),
-    );
-    if (err != .DUNSTBLICK_ERROR_NONE)
-        return error.DunstblickError;
-}
 
 pub fn main() anyerror!u8 {
     var stderr = std.io.getStdErr().writer();
@@ -52,129 +41,92 @@ pub fn main() anyerror!u8 {
     _ = c.BASS_PluginLoad("libbasshls.so", 0); // load BASSHLS (if present) for HLS support
 
     const icon = @embedFile("../resources/disc-player.tvg");
-    var dbProvider = if (c.dunstblick_OpenProvider(
+
+    var app = try dunstblick.Application.open(
+        std.heap.c_allocator,
         "MediaPlayer",
         "A small media player with a music library.",
         icon,
-        icon.len,
-    )) |player| player else {
-        try stderr.writeAll("Could not initialize dunstblick provider!\n");
-        return 2;
-    };
-    defer c.dunstblick_CloseProvider(dbProvider);
+    );
+    defer app.close();
 
-    _ = c.dunstblick_SetConnectedCallback(dbProvider, clientConnected, null);
-    _ = c.dunstblick_SetDisconnectedCallback(dbProvider, clientDisconnected, null);
+    // _ = c.dunstblick_SetConnectedCallback(dbProvider, clientConnected, null);
+    // _ = c.dunstblick_SetDisconnectedCallback(dbProvider, clientDisconnected, null);
 
     inline for (std.meta.declarations(data.resources)) |decl| {
         const res = @field(data.resources, decl.name);
-
-        try addResource(dbProvider, @enumToInt(res.id), switch (res.kind) {
-            .layout => .DUNSTBLICK_RESOURCE_LAYOUT,
-            .bitmap => .DUNSTBLICK_RESOURCE_BITMAP,
-            .drawing => .DUNSTBLICK_RESOURCE_DRAWING,
-            _ => unreachable,
-        }, res.data);
+        try app.addResource(res.id, res.kind, res.data);
     }
 
     //try openURL("http://sentinel.scenesat.com:8000/scenesatmax");
     try openFile("/dunstwolke/music/albums/Morgan Willis/Supernova/Morgan Willis - Supernova - 01 Opening (Vocal Marko Maric).mp3");
 
     while (true) {
-        const err = c.dunstblick_WaitEvents(dbProvider);
-        if (err != .DUNSTBLICK_ERROR_NONE) {
-            try stderr.print("Failed to get event: {}!\n", .{err});
-            return 3;
+        if (try app.pollEvent(null)) |event| {
+            switch (event.*) {
+                .connected => |event_args| {
+                    const con = event_args.connection;
+                    try con.setView(data.resources.main.id);
+
+                    var root_obj = try con.beginChangeObject(data.objects.root);
+                    errdefer root_obj.cancel();
+
+                    try root_obj.setProperty(data.properties.@"current-song", .{
+                        .type = .string,
+                        .value = .{
+                            .string = "Current Song",
+                        },
+                    });
+
+                    try root_obj.setProperty(data.properties.@"current-artist", .{
+                        .type = .string,
+                        .value = .{
+                            .string = "Current Artist",
+                        },
+                    });
+
+                    try root_obj.setProperty(data.properties.@"current-albumart", .{
+                        .type = .resource,
+                        .value = .{
+                            .resource = data.resources.album_placeholder.id,
+                        },
+                    });
+
+                    try root_obj.commit();
+                },
+                .disconnected => |event_args| {
+                    //
+                },
+                .widget_event => |event_args| {
+                    switch (event_args.event) {
+                        data.events.@"next-song" => {},
+                        data.events.@"previous-song" => {},
+                        data.events.@"open-volume-control" => {},
+                        data.events.@"play-pause" => {},
+                        data.events.@"open-main-menu" => {
+                            try event_args.connection.setView(data.resources.menu.id);
+                        },
+                        data.events.@"open-settings" => {},
+                        data.events.@"open-albums" => {},
+                        data.events.@"open-radio" => {},
+                        data.events.@"open-playlists" => {},
+                        data.events.@"toggle-shuffle" => {},
+                        data.events.@"toggle-repeat-one" => {},
+                        data.events.@"toggle-repeat-all" => {},
+                        data.events.@"close-main-menu" => {
+                            try event_args.connection.setView(data.resources.main.id);
+                        },
+                        else => {}, // ignore
+                    }
+                },
+                .property_changed => |event_args| {
+                    //
+                },
+            }
         }
     }
 
     return 0;
-}
-
-fn clientEvent(
-    connection: ?*c.dunstblick_Connection,
-    event: c.dunstblick_EventID,
-    widget: c.dunstblick_WidgetName,
-    user_data: ?*c_void,
-) callconv(.C) void {
-    std.debug.warn("event: {} {}\n", .{ event, widget });
-    switch (event) {
-        @enumToInt(data.events.@"next-song") => {},
-        @enumToInt(data.events.@"previous-song") => {},
-        @enumToInt(data.events.@"open-volume-control") => {},
-        @enumToInt(data.events.@"play-pause") => {},
-        @enumToInt(data.events.@"open-main-menu") => {
-            _ = c.dunstblick_SetView(connection, @enumToInt(data.resources.menu.id));
-        },
-        @enumToInt(data.events.@"open-settings") => {},
-        @enumToInt(data.events.@"open-albums") => {},
-        @enumToInt(data.events.@"open-radio") => {},
-        @enumToInt(data.events.@"open-playlists") => {},
-        @enumToInt(data.events.@"toggle-shuffle") => {},
-        @enumToInt(data.events.@"toggle-repeat-one") => {},
-        @enumToInt(data.events.@"toggle-repeat-all") => {},
-        @enumToInt(data.events.@"close-main-menu") => {
-            _ = c.dunstblick_SetView(connection, @enumToInt(data.resources.main.id));
-        },
-        else => {}, // ignore
-    }
-}
-
-fn clientConnected(
-    provider: ?*c.dunstblick_Provider,
-    connection: ?*c.dunstblick_Connection,
-    size: c.dunstblick_Size,
-    capabilities: c.dunstblick_ClientCapabilities,
-    user_data: ?*c_void,
-) callconv(.C) void {
-    std.debug.warn("hi: {} {}\n", .{
-        size,
-        capabilities,
-    });
-
-    _ = c.dunstblick_SetEventCallback(connection, clientEvent, null);
-
-    _ = c.dunstblick_SetView(connection, 1000);
-
-    if (c.dunstblick_BeginChangeObject(connection, ROOT_OBJ)) |obj| {
-        errdefer _ = c.dunstblick_CancelObject(obj);
-
-        _ = c.dunstblick_SetObjectProperty(obj, @enumToInt(data.properties.@"current-song"), &c.dunstblick_Value{
-            .type = .DUNSTBLICK_TYPE_STRING,
-            .value = .{
-                .string = "Current Song",
-            },
-        });
-
-        _ = c.dunstblick_SetObjectProperty(obj, @enumToInt(data.properties.@"current-artist"), &c.dunstblick_Value{
-            .type = .DUNSTBLICK_TYPE_STRING,
-            .value = .{
-                .string = "Current Artist",
-            },
-        });
-
-        // TODO: Workaround for (probably) #4295
-        var val: c.dunstblick_Value = undefined;
-        val = c.dunstblick_Value{
-            .type = .DUNSTBLICK_TYPE_RESOURCE,
-            .value = .{
-                .resource = 22,
-            },
-        };
-        std.debug.warn("val = {} / {}\n", .{ val, val.value.resource });
-        _ = c.dunstblick_SetObjectProperty(obj, @enumToInt(data.properties.@"current-albumart"), &val);
-
-        _ = c.dunstblick_CommitObject(obj);
-    }
-}
-
-fn clientDisconnected(
-    provider: ?*c.dunstblick_Provider,
-    connection: ?*c.dunstblick_Connection,
-    reason: c.dunstblick_DisconnectReason,
-    user_data: ?*c_void,
-) callconv(.C) void {
-    std.debug.warn("bye: {}\n", .{reason});
 }
 
 var chan: c.HSTREAM = 0;

@@ -1,0 +1,2 @@
+*.zig text=auto eol=lf
+*.ui text=auto eol=lf

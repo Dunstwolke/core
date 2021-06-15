@@ -36,7 +36,7 @@ pub const ValueStorage = extern union {
     name: protocol.WidgetName,
 };
 
-pub const Value = extern struct {
+pub const Value = struct {
     type: Type,
     value: ValueStorage,
 

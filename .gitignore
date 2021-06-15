@@ -1,5 +1,3 @@
 .vscode/
-build/
 zig-cache/
-*.cui
 zig-out/
