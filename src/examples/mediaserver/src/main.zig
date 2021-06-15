@@ -93,6 +93,8 @@ pub fn main() anyerror!u8 {
                     });
 
                     try root_obj.commit();
+
+                    try con.setRoot(data.objects.root);
                 },
                 .disconnected => |event_args| {
                     //
