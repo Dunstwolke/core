@@ -3,6 +3,8 @@ const Builder = std.build.Builder;
 
 const DunstblickSdk = @import("Sdk.zig");
 
+const AndroidSdk = @import("lib/zero-graphics/vendor/ZigAndroidTemplate/Sdk.zig");
+
 const pkgs = struct {
     const network = std.build.Pkg{
         .name = "network",
@@ -89,7 +91,7 @@ const pkgs = struct {
 };
 
 pub fn build(b: *Builder) !void {
-    var sdk = DunstblickSdk.init(b);
+    const sdk = DunstblickSdk.init(b);
 
     const mode = b.standardReleaseOptions();
     const target = b.standardTargetOptions(.{});
@@ -215,9 +217,6 @@ pub fn build(b: *Builder) !void {
         desktop_app.addPackage(pkgs.tvg);
         desktop_app.addPackage(pkgs.painterz);
         desktop_app.addPackage(pkgs.zerog);
-        //desktop_app.addPackage(pkgs.args);
-        //desktop_app.addPackage(pkgs.uri);
-        //desktop_app.addPackage(pkgs.meta);
 
         // TTF rendering library:
         desktop_app.addIncludeDir("./lib/stb");
@@ -243,6 +242,89 @@ pub fn build(b: *Builder) !void {
         }
     }
     desktop_app.install();
+
+    // Create App:
+    if (b.option(bool, "enable-android", "Enables the Android build options as they have additional system dependencies") orelse false) {
+        const key_store = AndroidSdk.KeyStore{
+            .file = "zig-cache/key.store",
+            .password = "123456",
+            .alias = "development_key",
+        };
+
+        const sdk_version = AndroidSdk.ToolchainVersions{};
+
+        const android_sdk = AndroidSdk.init(b, null, sdk_version);
+
+        const init_keystore = android_sdk.initKeystore(key_store, .{});
+
+        const keystore_step = b.step("init-keystore", "Initializes a new keystore for development");
+        keystore_step.dependOn(init_keystore);
+
+        const app_config = AndroidSdk.AppConfig{
+            .display_name = "Dunstblick",
+            .app_name = "dunstblick",
+            .package_name = "net.random_projects.dunstblick",
+            .resources = &[_]AndroidSdk.Resource{
+                .{ .path = "mipmap/icon.png", .content = .{ .path = "design/square-logo.png" } },
+            },
+            .fullscreen = true,
+            .permissions = &[_][]const u8{
+                "android.permission.INTERNET",
+                "android.permission.ACCESS_NETWORK_STATE",
+            },
+        };
+
+        const app = android_sdk.createApp(
+            "zig-out/dunstblick.apk",
+            "src/dunstblick-desktop/main.zig",
+            app_config,
+            mode,
+            .{
+                .aarch64 = true,
+                .x86_64 = true,
+                .arm = false,
+                .x86 = false,
+            },
+            key_store,
+        );
+
+        const zero_graphics_with_android = std.build.Pkg{
+            .name = "zero-graphics",
+            .path = .{ .path = "./lib/zero-graphics/src/zero-graphics.zig" },
+            .dependencies = &[_]std.build.Pkg{
+                pkgs.zigimg,
+                app.getAndroidPackage("android"),
+            },
+        };
+
+        for (app.libraries) |app_lib| {
+            app_lib.addPackage(pkgs.dunstblick_protocol);
+            app_lib.addPackage(pkgs.network);
+            app_lib.addPackage(pkgs.tvg);
+            app_lib.addPackage(pkgs.painterz);
+            app_lib.addPackage(zero_graphics_with_android);
+
+            // TTF rendering library:
+            app_lib.addIncludeDir("./lib/stb");
+            app_lib.addCSourceFile("lib/zero-graphics/src/rendering/stb_truetype.c", &[_][]const u8{
+                "-std=c99",
+            });
+        }
+
+        const push_app = android_sdk.installApp(.{ .path = "zig-out/dunstblick.apk" });
+
+        const run_app = android_sdk.startApp(app_config);
+        run_app.dependOn(push_app);
+
+        const app_step = b.step("app", "Compiles the Android app");
+        app_step.dependOn(app.final_step);
+
+        const push_step = b.step("push", "Compiles the Android app");
+        push_step.dependOn(push_app);
+
+        const run_step = b.step("run", "Compiles the Android app");
+        run_step.dependOn(run_app);
+    }
 
     const dunstnetz_daemon = b.addExecutable("dunstnetz-daemon", "src/dunstnetz-daemon/main.zig");
     dunstnetz_daemon.addPackage(pkgs.args);

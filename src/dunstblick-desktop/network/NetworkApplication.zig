@@ -48,6 +48,8 @@ discovery: *AppDiscovery,
 
 user_interface: DunstblickUI,
 
+const support_non_block = (std.builtin.os.tag == .linux and std.builtin.abi != .android);
+
 pub fn init(self: *Self, allocator: *std.mem.Allocator, app_desc: *const AppDiscovery.Application) !void {
     self.* = Self{
         .instance = ApplicationInstance{
@@ -85,13 +87,13 @@ pub fn init(self: *Self, allocator: *std.mem.Allocator, app_desc: *const AppDisc
 
     self.instance.status = .{ .starting = "Connecting..." };
 
-    if (std.builtin.os.tag == .linux) {
+    if (support_non_block) {
         var flags = try std.os.fcntl(self.socket.?.internal, std.os.F_GETFL, 0);
         flags |= @as(usize, std.os.O_NONBLOCK);
         _ = try std.os.fcntl(self.socket.?.internal, std.os.F_SETFL, flags);
     }
 
-    try self.discovery.socket_set.add(self.socket.?, .{ .read = true, .write = true });
+    try self.discovery.socket_set.add(self.socket.?, .{ .read = true, .write = support_non_block });
     errdefer self.discovery.socket_set.remove(self.socket.?);
 
     try self.tryConnect();
@@ -117,7 +119,7 @@ fn tryConnect(self: *Self) !void {
 
     if (self.socket.?.connect(self.remote_end_point)) {
         // remove blocking from socket
-        if (std.builtin.os.tag == .linux) {
+        if (support_non_block) {
             var flags = try std.os.fcntl(self.socket.?.internal, std.os.F_GETFL, 0);
             flags &= ~@as(usize, std.os.O_NONBLOCK);
             _ = try std.os.fcntl(self.socket.?.internal, std.os.F_SETFL, flags);
@@ -347,7 +349,7 @@ fn decodeAndExecuteMessage(self: *Self, packet: []const u8) !void {
                 try obj.addProperty(prop, value);
             }
 
-            try self.user_interface.addOrUpdateObject( obj);
+            try self.user_interface.addOrUpdateObject(obj);
         },
 
         .removeObject => { // (oid)

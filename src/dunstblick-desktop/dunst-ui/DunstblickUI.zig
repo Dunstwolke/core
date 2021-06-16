@@ -1433,8 +1433,6 @@ fn PropertyGetSetMixin(comptime Self: type, getErasedWidget: fn (*const Self) *c
                 if (property.binding) |object_property| {
                     if (binding_context) |bc| {
                         if (bc.getProperty(object_property)) |prop| {
-                            // logger.err("Setting a property into the binding is not supported yet!", .{});
-
                             if (Value.tryCreate(std.meta.activeTag(prop.*), value)) |new_val| {
                                 std.debug.assert(std.meta.activeTag(new_val) == std.meta.activeTag(prop.*));
 

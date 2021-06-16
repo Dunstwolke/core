@@ -44,6 +44,8 @@ active_apps: AppInstanceList,
 next_scan: i128,
 
 pub fn init(allocator: *std.mem.Allocator) !Self {
+    errdefer |err| logger.err("failed to init app discovery: {}", .{err});
+
     var multicast_sock = try network.Socket.create(.ipv4, .udp);
     errdefer multicast_sock.close();
 

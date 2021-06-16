@@ -18,7 +18,13 @@ const HomeScreen = @import("gui/HomeScreen.zig");
 const ApplicationDescription = @import("gui/ApplicationDescription.zig");
 const ApplicationInstance = @import("gui/ApplicationInstance.zig");
 
-pub usingnamespace zero_graphics.EntryPoint(.desktop_sdl2);
+pub usingnamespace if (std.builtin.abi == .android)
+    zero_graphics.EntryPoint(.android)
+else
+    zero_graphics.EntryPoint(.desktop_sdl2);
+
+// thread_local is broken on android
+pub const crypto_always_getrandom = (std.builtin.abi == .android);
 
 pub const zerog_enable_window_mode = (std.builtin.mode == .Debug) and (std.builtin.cpu.arch == .x86_64);
 
@@ -34,12 +40,15 @@ pub const Application = struct {
     renderer: zero_graphics.Renderer2D,
 
     screen_size: Size,
+    virtual_size: Size,
 
     debug_font: *const zero_graphics.Renderer2D.Font,
 
     app_discovery: AppDiscovery,
 
     available_apps: std.ArrayList(*ApplicationDescription),
+
+    ui_scale: f32,
 
     pub fn init(app: *Application, allocator: *std.mem.Allocator, input: *zero_graphics.Input) !void {
         try gl.load({}, loadOpenGlFunction);
@@ -52,11 +61,16 @@ pub const Application = struct {
             .frame_timer = frame_timer,
             .demo_app_desc = DemoAppDescription{},
             .screen_size = Size{ .width = 0, .height = 0 },
+            .virtual_size = Size{ .width = 0, .height = 0 },
             .renderer = undefined,
             .home_screen = undefined,
             .debug_font = undefined,
             .available_apps = std.ArrayList(*ApplicationDescription).init(allocator),
             .app_discovery = undefined,
+            .ui_scale = if (std.builtin.abi == .android)
+                @as(f32, 2.0)
+            else
+                @as(f32, 1.0),
         };
         errdefer app.available_apps.deinit();
 
@@ -80,9 +94,35 @@ pub const Application = struct {
     }
 
     pub fn resize(app: *Application, width: u15, height: u15) !void {
-        logger.info("resized screen to {}×{}", .{ width, height });
-        app.screen_size = Size{ .width = width, .height = height };
-        try app.home_screen.resize(app.screen_size);
+        const new_size = Size{ .width = width, .height = height };
+        if (!std.meta.eql(app.screen_size, new_size)) {
+            logger.info("resized screen to {}×{}", .{ width, height });
+            app.screen_size = new_size;
+
+            try app.updateDpiScale();
+        }
+    }
+
+    fn updateDpiScale(app: *Application) !void {
+        app.virtual_size = Size{
+            .width = @floatToInt(u15, @intToFloat(f32, app.screen_size.width) / app.ui_scale),
+            .height = @floatToInt(u15, @intToFloat(f32, app.screen_size.height) / app.ui_scale),
+        };
+        try app.home_screen.resize(app.virtual_size);
+    }
+
+    fn physToVirtual(app: Application, pt: zero_graphics.Point) zero_graphics.Point {
+        return .{
+            .x = @floatToInt(i16, @intToFloat(f32, pt.x) / app.ui_scale),
+            .y = @floatToInt(i16, @intToFloat(f32, pt.y) / app.ui_scale),
+        };
+    }
+
+    fn virtToPhysical(app: Application, pt: zero_graphics.Point) zero_graphics.Point {
+        return .{
+            .x = @floatToInt(i16, app.ui_scale * @intToFloat(f32, pt.x)),
+            .y = @floatToInt(i16, app.ui_scale * @intToFloat(f32, pt.y)),
+        };
     }
 
     pub fn update(app: *Application) !bool {
@@ -94,7 +134,7 @@ pub const Application = struct {
                 .quit => return false,
                 .pointer_press => |button| try app.home_screen.mouseDown(button),
                 .pointer_release => |button| try app.home_screen.mouseUp(button),
-                .pointer_motion => |position| app.home_screen.setMousePos(position),
+                .pointer_motion => |position| app.home_screen.setMousePos(app.physToVirtual(position)),
                 else => logger.info("unhandled event: {}", .{event}),
             }
         }
@@ -126,8 +166,8 @@ pub const Application = struct {
             try app.renderer.drawString(
                 app.debug_font,
                 try std.fmt.bufPrint(&buf, "{d:.2} ms", .{1000.0 * frametime}),
-                app.screen_size.width - 100,
-                app.screen_size.height - app.debug_font.font_size - 10,
+                app.virtual_size.width - 100,
+                app.virtual_size.height - app.debug_font.font_size - 10,
                 zero_graphics.Color.red,
             );
         }
@@ -142,7 +182,7 @@ pub const Application = struct {
             gl.frontFace(gl.CCW);
             gl.cullFace(gl.BACK);
 
-            app.renderer.render(app.screen_size);
+            app.renderer.render(app.virtual_size);
         }
 
         return true;
