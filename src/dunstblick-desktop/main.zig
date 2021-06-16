@@ -48,7 +48,7 @@ pub const Application = struct {
 
     available_apps: std.ArrayList(*ApplicationDescription),
 
-    ui_scale: f32,
+    settings: Settings,
 
     pub fn init(app: *Application, allocator: *std.mem.Allocator, input: *zero_graphics.Input) !void {
         try gl.load({}, loadOpenGlFunction);
@@ -67,10 +67,12 @@ pub const Application = struct {
             .debug_font = undefined,
             .available_apps = std.ArrayList(*ApplicationDescription).init(allocator),
             .app_discovery = undefined,
-            .ui_scale = if (std.builtin.abi == .android)
-                @as(f32, 2.0)
-            else
-                @as(f32, 1.0),
+            .settings = Settings{
+                .ui_scale = if (std.builtin.abi == .android)
+                    @as(f32, 2.0)
+                else
+                    @as(f32, 1.0),
+            },
         };
         errdefer app.available_apps.deinit();
 
@@ -105,23 +107,23 @@ pub const Application = struct {
 
     fn updateDpiScale(app: *Application) !void {
         app.virtual_size = Size{
-            .width = @floatToInt(u15, @intToFloat(f32, app.screen_size.width) / app.ui_scale),
-            .height = @floatToInt(u15, @intToFloat(f32, app.screen_size.height) / app.ui_scale),
+            .width = @floatToInt(u15, @intToFloat(f32, app.screen_size.width) / app.settings.ui_scale),
+            .height = @floatToInt(u15, @intToFloat(f32, app.screen_size.height) / app.settings.ui_scale),
         };
         try app.home_screen.resize(app.virtual_size);
     }
 
     fn physToVirtual(app: Application, pt: zero_graphics.Point) zero_graphics.Point {
         return .{
-            .x = @floatToInt(i16, @intToFloat(f32, pt.x) / app.ui_scale),
-            .y = @floatToInt(i16, @intToFloat(f32, pt.y) / app.ui_scale),
+            .x = @floatToInt(i16, @intToFloat(f32, pt.x) / app.settings.ui_scale),
+            .y = @floatToInt(i16, @intToFloat(f32, pt.y) / app.settings.ui_scale),
         };
     }
 
     fn virtToPhysical(app: Application, pt: zero_graphics.Point) zero_graphics.Point {
         return .{
-            .x = @floatToInt(i16, app.ui_scale * @intToFloat(f32, pt.x)),
-            .y = @floatToInt(i16, app.ui_scale * @intToFloat(f32, pt.y)),
+            .x = @floatToInt(i16, app.settings.ui_scale * @intToFloat(f32, pt.x)),
+            .y = @floatToInt(i16, app.settings.ui_scale * @intToFloat(f32, pt.y)),
         };
     }
 
@@ -144,6 +146,7 @@ pub const Application = struct {
 
         {
             app.available_apps.shrinkRetainingCapacity(0);
+            try app.available_apps.append(&app.settings.description);
             try app.available_apps.append(&app.demo_app_desc.desc);
             {
                 var iter = app.app_discovery.iterator();
@@ -187,6 +190,66 @@ pub const Application = struct {
 
         return true;
     }
+
+    const Settings = struct {
+        const description = ApplicationDescription{
+            .display_name = "Settings",
+            .icon = @embedFile("gui/icons/settings.tvg"),
+            .vtable = ApplicationDescription.Interface.get(Settings),
+            .state = .ready,
+        };
+        description: ApplicationDescription = description,
+        instance: ApplicationInstance = ApplicationInstance{
+            .description = description,
+            .vtable = ApplicationInstance.Interface.get(Settings),
+            .status = .running,
+        },
+
+        ui_scale: f32,
+
+        pub fn spawn(desc: *ApplicationDescription, allocator: *std.mem.Allocator) ApplicationDescription.Interface.SpawnError!*ApplicationInstance {
+            const settings = @fieldParentPtr(Settings, "description", desc);
+            return &settings.instance;
+        }
+        pub fn destroy(desc: *ApplicationDescription) ApplicationDescription.Interface.DestroyError!void {}
+
+        pub fn processUserInterface(instance: *ApplicationInstance, rectangle: zero_graphics.Rectangle, ui: zero_graphics.UserInterface.Builder) zero_graphics.UserInterface.Builder.Error!void {
+            const settings = @fieldParentPtr(Settings, "instance", instance);
+
+            const root_rect = rectangle.centered(250, rectangle.height);
+
+            var stack = zero_graphics.UserInterface.VerticalStackLayout.init(root_rect);
+
+            try ui.label(stack.get(32), "Settings", .{});
+
+            {
+                var blub = stack.get(32);
+                blub.width -= 64;
+
+                var btn = blub;
+                btn.x += blub.width;
+                btn.width = 32;
+
+                if (try ui.button(btn, "-", null, .{})) {
+                    settings.ui_scale -= 0.1;
+                    try @fieldParentPtr(Application, "settings", settings).updateDpiScale();
+                }
+                btn.x += 32;
+                if (try ui.button(btn, "+", null, .{})) {
+                    settings.ui_scale += 0.1;
+                    try @fieldParentPtr(Application, "settings", settings).updateDpiScale();
+                }
+
+                var buf = std.mem.zeroes([64]u8);
+                try ui.label(
+                    blub,
+                    std.fmt.bufPrint(&buf, "DPI Scale: {d:.2}", .{settings.ui_scale}) catch unreachable,
+                    .{},
+                );
+            }
+        }
+        pub fn deinit(instance: *ApplicationInstance) void {}
+    };
 };
 
 const DemoAppDescription = struct {
