@@ -1,3 +1,4 @@
+const std = @import("std");
 const types = @import("data-types.zig");
 
 fn val(e: types.Enum) u8 {
@@ -6,6 +7,10 @@ fn val(e: types.Enum) u8 {
 
 pub fn enumCast(src: types.Enum, comptime E: type) !E {
     return try std.math.intToEnum(val(src));
+}
+
+pub fn isEnumeration(comptime T: type) bool {
+    return @typeInfo(T) == .Enum and std.meta.Tag(T) == u8;
 }
 
 pub const HorizontalAlignment = enum(u8) {

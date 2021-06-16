@@ -98,8 +98,8 @@ pub fn addOrReplaceResource(self: *DunstblickUI, id: protocol.ResourceID, kind: 
     std.mem.copy(u8, gop.value_ptr.data.items, data);
 }
 
-pub fn addOrUpdateObject(self: *DunstblickUI, id: protocol.ObjectID, obj: Object) !void {
-    const gop = try self.objects.getOrPut(self.allocator, id);
+pub fn addOrUpdateObject(self: *DunstblickUI, obj: Object) !void {
+    const gop = try self.objects.getOrPut(self.allocator, obj.id);
     if (gop.found_existing) {
         gop.value_ptr.deinit();
     }
@@ -227,35 +227,9 @@ pub fn Property(comptime T: type) type {
         value: T,
         binding: ?protocol.PropertyName = null,
 
-        pub fn get(self: Self, binding_context: ?*Object) T {
-            if (self.binding != null and binding_context != null) {
-                if (binding_context.?.getProperty(self.binding.?)) |value| {
-                    if (value.convertTo(T)) |val| {
-                        return val;
-                    } else |err| {
-                        logger.warn("binding error: converting {}) of type {s} to {s} failed: {}", .{
-                            self.binding.?,
-                            @tagName(std.meta.activeTag(value.*)),
-                            @typeName(T),
-                            err,
-                        });
-                    }
-                }
-            }
-            return self.value;
-        }
+        pub fn setUnderlying(self: *Self, value: T) void {
+            std.debug.assert(self.binding == null);
 
-        pub fn set(self: *Self, binding_context: ?*Object, value: T) void {
-            if (self.binding) |property_name| {
-                if (binding_context) |bc| {
-                    if (bc.getProperty(property_name)) |prop| {
-                        logger.err("Setting a property into the binding is not supported yet!", .{});
-                        //prop.
-                    } else {
-                        logger.warn("Property {} is not found on the bound object!", .{property_name});
-                    }
-                }
-            }
             switch (T) {
                 ObjectList, SizeList, String => self.value.deinit(),
 
@@ -292,6 +266,8 @@ pub const WidgetTree = struct {
     root: Widget,
     ui: *DunstblickUI,
 
+    const scroll_bar_size = 32;
+
     pub fn deserialize(ui: *DunstblickUI, allocator: *std.mem.Allocator, decoder: *protocol.Decoder) !WidgetTree {
         var tree = WidgetTree{
             .allocator = allocator,
@@ -325,7 +301,10 @@ pub const WidgetTree = struct {
         switch (value_from_stream) {
             .value => |untyped_value| {
                 const typed_value = try untyped_value.get(@TypeOf(property.*).Type);
-                property.set(null, typed_value);
+
+                // this is used in the widget deserializer, so we have no binding
+                // by guarantee
+                property.setUnderlying(typed_value);
             },
             .binding => |id| {
                 property.binding = id;
@@ -362,7 +341,7 @@ pub const WidgetTree = struct {
     }
 
     fn deserializeChildWidget(self: *WidgetTree, widget: *Widget, decoder: *protocol.Decoder, widget_type: protocol.WidgetType) DeserializeWidgetError!void {
-        widget.* = Widget.init(self.allocator, widget_type);
+        widget.* = Widget.init(self.ui, self.allocator, widget_type);
         errdefer widget.deinit();
 
         // logger.debug("deserialize widget of type {}", .{widget_type});
@@ -505,7 +484,7 @@ pub const WidgetTree = struct {
             // When everything will be cleaned up, the new elements
             // are all readily initialized.
             for (widget.children.items[current_len..]) |*items| {
-                items.* = Widget.init(self.allocator, .spacer);
+                items.* = Widget.init(self.ui, self.allocator, .spacer);
             }
 
             std.debug.assert(widget.children.items.len == child_source.items.len);
@@ -649,14 +628,14 @@ pub const WidgetTree = struct {
                 };
             },
 
-            .scrollview => |*scrollview| blk: {
-                logger.err("computeWantedSize(scrollview) not implemented yet!", .{});
+            // .scrollview => |*scrollview| blk: {
+            //     logger.err("computeWantedSize(scrollview) not implemented yet!", .{});
 
-                break :blk .{
-                    .width = 256,
-                    .height = 256,
-                };
-            },
+            //     break :blk .{
+            //         .width = 256,
+            //         .height = 256,
+            //     };
+            // },
 
             .stack_layout => |*stack_layout| blk: {
                 const paddings = widget.get(.paddings);
@@ -809,7 +788,7 @@ pub const WidgetTree = struct {
                 zero_graphics.Size{ .width = 64, .height = 24 },
 
             // default logic
-            .panel, .spacer => self.computeDefaultWantedSize(widget),
+            .panel, .spacer, .container => self.computeDefaultWantedSize(widget),
 
             // default logic
             else => blk: {
@@ -1079,13 +1058,18 @@ pub const WidgetTree = struct {
 
             .scrollview => |*view| {
                 // TODO: This isn't the final logic
+
+                var rect = rectangle;
+                rect.width = clampSub(rect.width, scroll_bar_size);
+                rect.height = clampSub(rect.height, scroll_bar_size);
+
                 for (children) |*child| {
-                    self.layoutWidget(child, rectangle);
+                    self.layoutWidget(child, rect);
                 }
             },
 
             // default logic for "non-containers":
-            .button, .label, .panel, .spacer, .picture => {
+            .button, .label, .panel, .spacer, .picture, .container => {
                 for (children) |*child| {
                     self.layoutWidget(child, rectangle);
                 }
@@ -1127,6 +1111,8 @@ pub const WidgetTree = struct {
         switch (widget.control) {
 
             // TODO: Implement widget logic here :)
+
+            .container => {},
 
             .label => |*label| {
                 const str = label.get(.text);
@@ -1194,6 +1180,27 @@ pub const WidgetTree = struct {
                     logger.err("radiobutton click not implemented yet!", .{});
             },
 
+            .scrollview => {
+                var hscroll = rect;
+                var vscroll = rect;
+                var container = rect;
+
+                container.width = clampSub(container.width, scroll_bar_size);
+                container.height = clampSub(container.height, scroll_bar_size);
+
+                hscroll.y += container.height;
+                hscroll.width = container.width;
+                hscroll.height = scroll_bar_size;
+
+                vscroll.x += container.width;
+                vscroll.width = scroll_bar_size;
+                vscroll.height = container.height;
+
+                try ui.panel(rect, .{ .id = widget });
+                try ui.panel(hscroll, .{ .id = widget });
+                try ui.panel(vscroll, .{ .id = widget });
+            },
+
             // The spacer is only some empty space
             .spacer => {},
 
@@ -1226,10 +1233,17 @@ pub const WidgetTree = struct {
     }
 };
 
+const ErasedWidget = opaque {};
+
 pub const Widget = struct {
     const Self = @This();
 
-    usingnamespace PropertyGetSetMixin(Self, getBindingSource);
+    usingnamespace PropertyGetSetMixin(Self, getIdentity);
+    fn getIdentity(self: *const Self) *const ErasedWidget {
+        return @ptrCast(*const ErasedWidget, self);
+    }
+
+    user_interface: *DunstblickUI,
 
     /// The list of all children of this widget.
     children: std.ArrayList(Self),
@@ -1305,8 +1319,9 @@ pub const Widget = struct {
         unreachable;
     }
 
-    pub fn init(allocator: *std.mem.Allocator, control_type: protocol.WidgetType) Widget {
+    pub fn init(ui: *DunstblickUI, allocator: *std.mem.Allocator, control_type: protocol.WidgetType) Widget {
         var widget = Widget{
+            .user_interface = ui,
             .children = std.ArrayList(Widget).init(allocator),
             .control = initControl(control_type, allocator),
             .binding_source = null,
@@ -1351,10 +1366,6 @@ pub const Widget = struct {
         self.* = undefined;
     }
 
-    fn getBindingSource(self: *const Self) ?*Object {
-        return self.binding_source;
-    }
-
     pub fn getWantedSizeWithMargins(self: Self) zero_graphics.Size {
         return addMargin(self.wanted_size, self.get(.margins));
     }
@@ -1367,8 +1378,16 @@ pub const Widget = struct {
     }
 };
 
-fn PropertyGetSetMixin(comptime Self: type, getBindingSource: fn (*const Self) ?*Object) type {
+fn PropertyGetSetMixin(comptime Self: type, getErasedWidget: fn (*const Self) *const ErasedWidget) type {
     return struct {
+        fn getWidget(self: *Self) *Widget {
+            return @intToPtr(*Widget, @ptrToInt(getErasedWidget(self)));
+        }
+
+        fn getConstWidget(self: *const Self) *const Widget {
+            return @ptrCast(*const Widget, @alignCast(@alignOf(Widget), getErasedWidget(self)));
+        }
+
         fn PropertyType(comptime property_name: protocol.Property) type {
             const name = @tagName(property_name);
             if (@hasField(Self, name))
@@ -1381,7 +1400,24 @@ fn PropertyGetSetMixin(comptime Self: type, getBindingSource: fn (*const Self) ?
         pub fn get(self: *const Self, comptime property_name: protocol.Property) PropertyType(property_name) {
             const name = @tagName(property_name);
             if (@hasField(Self, name)) {
-                return @field(self, name).get(getBindingSource(self));
+                const property = &@field(self, name);
+                const binding_context = getConstWidget(self).binding_source;
+
+                if (property.binding != null and binding_context != null) {
+                    if (binding_context.?.getProperty(property.binding.?)) |value| {
+                        if (value.convertTo(PropertyType(property_name))) |val| {
+                            return val;
+                        } else |err| {
+                            logger.warn("binding error: converting {}) of type {s} to {s} failed: {}", .{
+                                property.binding.?,
+                                @tagName(std.meta.activeTag(value.*)),
+                                @typeName(PropertyType(property_name)),
+                                err,
+                            });
+                        }
+                    }
+                }
+                return property.value;
             } else {
                 @compileError("The property " ++ name ++ "does not exist on " ++ @typeName(Self));
             }
@@ -1391,7 +1427,46 @@ fn PropertyGetSetMixin(comptime Self: type, getBindingSource: fn (*const Self) ?
         pub fn set(self: *Self, comptime property_name: protocol.Property, value: PropertyType(property_name)) void {
             const name = @tagName(property_name);
             if (@hasField(Self, name)) {
-                @field(self, name).set(getBindingSource(self), value);
+                const property = &@field(self, name);
+                const binding_context = getWidget(self).binding_source;
+
+                if (property.binding) |object_property| {
+                    if (binding_context) |bc| {
+                        if (bc.getProperty(object_property)) |prop| {
+                            // logger.err("Setting a property into the binding is not supported yet!", .{});
+
+                            if (Value.tryCreate(std.meta.activeTag(prop.*), value)) |new_val| {
+                                std.debug.assert(std.meta.activeTag(new_val) == std.meta.activeTag(prop.*));
+
+                                prop.deinit();
+                                prop.* = new_val;
+
+                                getWidget(self).user_interface.triggerPropertyChanged(bc.id, object_property, new_val) catch |err| {
+                                    logger.err("Failed to trigger the property changed event for for property {} on object {}: {s}!", .{
+                                        object_property,
+                                        bc.id,
+                                        @errorName(err),
+                                    });
+                                };
+                            } else |err| {
+                                logger.err("Failed to convert {s} to {s} for property {}!", .{
+                                    @typeName(PropertyType(property_name)),
+                                    std.meta.activeTag(prop.*),
+                                    object_property,
+                                });
+                            }
+                        } else {
+                            logger.warn("Property {} is not found on the bound object!", .{object_property});
+                        }
+                    }
+                }
+                switch (PropertyType(property_name)) {
+                    ObjectList, SizeList, String => property.value.deinit(),
+
+                    // trivial cases don't need deinit()
+                    else => {},
+                }
+                property.value = value;
             } else {
                 @compileError("The property " ++ name ++ "does not exist on " ++ @typeName(Self));
             }
@@ -1401,7 +1476,11 @@ fn PropertyGetSetMixin(comptime Self: type, getBindingSource: fn (*const Self) ?
 
 fn ControlMixin(comptime Self: type) type {
     return struct {
-        pub usingnamespace PropertyGetSetMixin(Self, getBindingSource);
+        pub usingnamespace PropertyGetSetMixin(Self, erasedWidget);
+
+        fn erasedWidget(self: *const Self) *const ErasedWidget {
+            return @ptrCast(*const ErasedWidget, widgetConst(self));
+        }
 
         pub fn widget(self: *Self) *Widget {
 
@@ -1425,10 +1504,6 @@ fn ControlMixin(comptime Self: type) type {
         pub fn widgetConst(self: *const Self) *const Widget {
             // This is safe as we only compute some offsets
             return widget(@intToPtr(*Self, @ptrToInt(self)));
-        }
-
-        fn getBindingSource(self: *const Self) ?*Object {
-            return widgetConst(self).binding_source;
         }
     };
 }

@@ -38,6 +38,88 @@ pub const Value = union(protocol.Type) {
         self.* = undefined;
     }
 
+    fn convertIdentity(comptime value_type: protocol.Type, src: anytype) !Value {
+        return switch (value_type) {
+            value_type => @unionInit(Value, @tagName(value_type), src),
+            else => return error.UnsupportedConversion,
+        };
+    }
+
+    pub fn tryCreate(value_type: protocol.Type, src: anytype) !Value {
+        const T = @TypeOf(src);
+        if (comptime protocol.enums.isEnumeration(T)) {
+            return switch (value_type) {
+                .enumeration => Value{ .enumeration = @enumToInt(src) },
+                else => return error.UnsupportedConversion,
+            };
+        }
+
+        if (@typeInfo(T) == .Int) {
+            return switch (value_type) {
+                .boolean => Value{ .boolean = (src != 0) },
+                .integer => Value{ .integer = src },
+                .number => Value{ .number = @intToFloat(f32, src) },
+                else => return error.UnsupportedConversion,
+            };
+        }
+
+        return switch (T) {
+            bool => switch (value_type) {
+                .boolean => Value{ .boolean = src },
+                .integer => Value{ .integer = @boolToInt(src) },
+                .number => Value{ .number = @intToFloat(f32, @boolToInt(src)) },
+                else => return error.UnsupportedConversion,
+            },
+
+            f16, f32, f64 => switch (value_type) {
+                .integer => Value{ .integer = @floatToInt(i32, src) },
+                .number => Value{ .number = @floatCast(f32, src) },
+                else => return error.UnsupportedConversion,
+            },
+
+            // IDs
+            protocol.ObjectID => try convertIdentity(.object, src),
+            protocol.ResourceID => try convertIdentity(.resource, src),
+            protocol.WidgetName => try convertIdentity(.name, src),
+            protocol.EventID => try convertIdentity(.event, src),
+
+            // Structures
+            protocol.Size => try convertIdentity(.size, src),
+            protocol.Point => try convertIdentity(.point, src),
+            protocol.Color => try convertIdentity(.color, src),
+            protocol.Margins => try convertIdentity(.margins, src),
+
+            // complex types
+
+            protocol.String => switch (value_type) {
+                .integer => Value{ .integer = try std.fmt.parseInt(i32, src.get(), 0) },
+                .number => Value{ .number = try std.fmt.parseFloat(f32, src.get()) },
+                .string => Value{ .string = try src.clone() },
+                else => return error.UnsupportedConversion,
+            },
+
+            protocol.ObjectList => switch (value_type) {
+                .objectlist => blk: {
+                    var list = ObjectList.init(src.allocator);
+                    try list.appendSlice(src.items);
+                    break :blk Value{ .objectlist = list };
+                },
+                else => return error.UnsupportedConversion,
+            },
+
+            protocol.SizeList => switch (value_type) {
+                .sizelist => blk: {
+                    var list = SizeList.init(src.allocator);
+                    try list.appendSlice(src.items);
+                    break :blk Value{ .sizelist = list };
+                },
+                else => return error.UnsupportedConversion,
+            },
+
+            else => @compileError("No possible conversion from " ++ @typeName(T)),
+        };
+    }
+
     pub fn convertTo(self: Value, comptime T: type) !T {
         if (self.get(T)) |v| {
             return v;
@@ -83,7 +165,7 @@ pub const Value = union(protocol.Type) {
     }
 
     pub fn get(self: Value, comptime T: type) !T {
-        if (@typeInfo(T) == .Enum and std.meta.Tag(T) == u8) {
+        if (comptime protocol.enums.isEnumeration(T)) {
             if (self != .enumeration) {
                 logger.debug("invalid value: {} is not a enum (when querying {s})", .{
                     std.meta.activeTag(self),

@@ -269,6 +269,13 @@ pub const String = union(enum) {
         return String{ .dynamic = list };
     }
 
+    pub fn clone(self: String) !String {
+        return switch (self) {
+            .constant => self,
+            .dynamic => |d| try String.init(d.allocator, d.items),
+        };
+    }
+
     pub fn get(self: String) []const u8 {
         return switch (self) {
             .constant => |c| c,

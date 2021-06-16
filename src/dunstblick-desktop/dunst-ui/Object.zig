@@ -11,10 +11,12 @@ const ObjectList = types.ObjectList;
 const Object = @This();
 
 allocator: *std.mem.Allocator,
+id: protocol.ObjectID,
 properties: std.AutoArrayHashMapUnmanaged(protocol.PropertyName, Value),
 
-pub fn init(allocator: *std.mem.Allocator) Object {
+pub fn init(allocator: *std.mem.Allocator, id: protocol.ObjectID) Object {
     return Object{
+        .id = id,
         .allocator = allocator,
         .properties = .{},
     };

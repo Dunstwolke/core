@@ -330,7 +330,7 @@ fn decodeAndExecuteMessage(self: *Self, packet: []const u8) !void {
         .addOrUpdateObject => { // (obj)
             const oid = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
 
-            var obj = DunstblickUI.Object.init(self.allocator);
+            var obj = DunstblickUI.Object.init(self.allocator, oid);
             errdefer obj.deinit();
 
             while (true) {
@@ -347,7 +347,7 @@ fn decodeAndExecuteMessage(self: *Self, packet: []const u8) !void {
                 try obj.addProperty(prop, value);
             }
 
-            try self.user_interface.addOrUpdateObject(oid, obj);
+            try self.user_interface.addOrUpdateObject( obj);
         },
 
         .removeObject => { // (oid)
