@@ -403,13 +403,22 @@ pub fn ClientStateMachine(comptime Writer: type) type {
             self.state = .authenticate_result;
         }
 
-        pub fn sendConnectHeader(self: *Self, screen_width: u16, screen_height: u16, capabilities: protocol.ClientCapabilities) SendError!void {
+        pub fn sendConnectHeader(self: *Self, screen_width: u16, screen_height: u16, capabilities: std.EnumSet(types.ClientCapabilities)) SendError!void {
             std.debug.assert(self.state == .connect_header);
+
+            var caps: u32 = 0;
+            {
+                var mut_cap = capabilities;
+                var it = mut_cap.iterator();
+                while (it.next()) |item| {
+                    caps |= @as(u32, 1) << @enumToInt(item);
+                }
+            }
 
             var header = protocol.ConnectHeader{
                 .screen_width = screen_width,
                 .screen_height = screen_height,
-                .capabilities = capabilities,
+                .capabilities = caps,
             };
             try self.send(std.mem.asBytes(&header));
 

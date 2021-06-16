@@ -53,7 +53,7 @@ pub const ReceiveEvent = union(enum) {
         requires_key: bool,
     };
     const ConnectHeader = struct {
-        capabilities: protocol.ClientCapabilities,
+        capabilities: std.EnumSet(types.ClientCapabilities),
         screen_width: u16,
         screen_height: u16,
     };
@@ -266,11 +266,19 @@ pub fn ServerStateMachine(comptime Writer: type) type {
 
                             self.state = .connect_response;
 
+                            var set = std.EnumSet(types.ClientCapabilities){};
+                            inline for (std.meta.fields(types.ClientCapabilities)) |fld| {
+                                const cap = @field(types.ClientCapabilities, fld.name);
+                                const mask = @as(u32, 1) << @enumToInt(cap);
+                                if ((value.capabilities & mask) != 0)
+                                    set.insert(cap);
+                            }
+
                             return ReceiveData.createEvent(
                                 info.consumed,
                                 ReceiveEvent{
                                     .connect_header = .{
-                                        .capabilities = value.capabilities,
+                                        .capabilities = set,
                                         .screen_width = value.screen_width,
                                         .screen_height = value.screen_height,
                                     },

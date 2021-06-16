@@ -1,30 +1,32 @@
 const std = @import("std");
-const protocol = @import("dunstblick-protocol");
+const protocol = @import("protocol.zig");
 
 const logger = std.log.scoped(.dunstblick_value);
 
-const types = @import("types.zig");
+const types = @import("data-types.zig");
+
+const Decoder = @import("decoder.zig").Decoder;
 
 const String = types.String;
 const ObjectList = types.ObjectList;
 const SizeList = types.SizeList;
 
-pub const Value = union(enum) {
+pub const Value = union(protocol.Type) {
     integer: i32,
     number: f32,
     string: String,
     enumeration: u8,
-    margins: protocol.Margins,
-    color: protocol.Color,
-    size: protocol.Size,
-    point: protocol.Point,
-    resource: protocol.ResourceID,
+    margins: types.Margins,
+    color: types.Color,
+    size: types.Size,
+    point: types.Point,
+    resource: types.ResourceID,
     boolean: bool,
-    object: protocol.ObjectID,
+    object: types.ObjectID,
     objectlist: ObjectList,
     sizelist: SizeList,
-    event: protocol.EventID,
-    name: protocol.WidgetName,
+    event: types.EventID,
+    name: types.WidgetName,
 
     pub fn deinit(self: *Value) void {
         switch (self.*) {
@@ -111,23 +113,23 @@ pub const Value = union(enum) {
                 if (self != .string) return error.InvalidValue;
                 return self.string;
             },
-            protocol.Margins => {
+            types.Margins => {
                 if (self != .margins) return error.InvalidValue;
                 return self.margins;
             },
-            protocol.Color => {
+            types.Color => {
                 if (self != .color) return error.InvalidValue;
                 return self.color;
             },
-            protocol.Size => {
+            types.Size => {
                 if (self != .size) return error.InvalidValue;
                 return self.size;
             },
-            protocol.Point => {
+            types.Point => {
                 if (self != .point) return error.InvalidValue;
                 return self.point;
             },
-            protocol.ResourceID => {
+            types.ResourceID => {
                 if (self != .resource) return error.InvalidValue;
                 return self.resource;
             },
@@ -135,7 +137,7 @@ pub const Value = union(enum) {
                 if (self != .boolean) return error.InvalidValue;
                 return self.boolean;
             },
-            protocol.ObjectID => {
+            types.ObjectID => {
                 if (self != .object) return error.InvalidValue;
                 return self.object;
             },
@@ -147,11 +149,11 @@ pub const Value = union(enum) {
                 if (self != .sizelist) return error.InvalidValue;
                 return self.sizelist;
             },
-            protocol.EventID => {
+            types.EventID => {
                 if (self != .event) return error.InvalidValue;
                 return self.event;
             },
-            protocol.WidgetName => {
+            types.WidgetName => {
                 if (self != .name) return error.InvalidValue;
                 return self.name;
             },
@@ -160,10 +162,101 @@ pub const Value = union(enum) {
     }
 
     pub fn serialize(self: Value, serializer: anytype, encode_type: bool) !void {
-        @panic("not implemented yet!");
+        if (encode_type) {
+            try serializer.writeByte(@enumToInt(std.meta.activeTag(self)));
+        }
+
+        return switch (self) {
+            .enumeration => |val| try serializer.writeByte(val),
+
+            .number => |val| try serializer.writeNumber(val),
+
+            .boolean => |val| try serializer.writeByte(@boolToInt(val)),
+
+            .integer => |val| try serializer.writeVarSInt(val),
+
+            .resource => |val| try serializer.writeVarUInt(@enumToInt(val)),
+
+            .object => |val| try serializer.writeVarUInt(@enumToInt(val)),
+
+            .event => |val| try serializer.writeVarUInt(@enumToInt(val)),
+
+            .name => |val| try serializer.writeVarUInt(@enumToInt(val)),
+
+            .color => |val| {
+                try serializer.writeByte(val.red);
+                try serializer.writeByte(val.green);
+                try serializer.writeByte(val.blue);
+                try serializer.writeByte(val.alpha);
+            },
+
+            .size => |val| {
+                try serializer.writeVarUInt(val.width);
+                try serializer.writeVarUInt(val.height);
+            },
+
+            .point => |val| {
+                try serializer.writeVarSInt(val.x);
+                try serializer.writeVarSInt(val.y);
+            },
+
+            .margins => |val| {
+                try serializer.writeVarUInt(val.left);
+                try serializer.writeVarUInt(val.top);
+                try serializer.writeVarUInt(val.right);
+                try serializer.writeVarUInt(val.bottom);
+            },
+
+            .string => |val| {
+                const slice = val.get();
+
+                try serializer.writeVarUInt(@intCast(u32, slice.len));
+                try serializer.writeRaw(slice);
+            },
+
+            .objectlist => |val| {
+                const slice = val.items;
+                try serializer.writeVarUInt(@intCast(u32, slice.len));
+                for (slice) |id| {
+                    try serializer.writeVarUInt(@enumToInt(id));
+                }
+            },
+
+            .sizelist => |val| {
+                const slice = val.items;
+
+                try serializer.writeVarUInt(@intCast(u32, slice.len));
+
+                {
+                    var i: usize = 0;
+                    while (i < slice.len) : (i += 4) {
+                        var value: u8 = 0;
+
+                        var j: usize = 0;
+                        while (j < std.math.min(4, slice.len - i)) : (j += 1) {
+                            const bits = @enumToInt(slice[i + j]);
+                            value |= (@as(u8, bits) << @intCast(u3, 2 * j));
+                        }
+
+                        try serializer.writeByte(value);
+                    }
+                }
+
+                for (slice) |item| {
+                    switch (item) {
+                        .absolute => |v| try serializer.writeVarUInt(v),
+                        .percentage => |v| {
+                            std.debug.assert(v >= 0.0 and v <= 1.0);
+                            try serializer.writeByte(@floatToInt(u8, 100.0 * v));
+                        },
+                        else => {},
+                    }
+                }
+            },
+        };
     }
 
-    pub fn deserialize(allocator: *std.mem.Allocator, value_type: protocol.Type, decoder: *protocol.Decoder) !Value {
+    pub fn deserialize(allocator: *std.mem.Allocator, value_type: types.Type, decoder: *Decoder) !Value {
         return switch (value_type) {
             .enumeration => Value{
                 .enumeration = try decoder.readByte(),
@@ -174,11 +267,11 @@ pub const Value = union(enum) {
             },
 
             .resource => Value{
-                .resource = @intToEnum(protocol.ResourceID, try decoder.readVarUInt()),
+                .resource = @intToEnum(types.ResourceID, try decoder.readVarUInt()),
             },
 
             .object => Value{
-                .object = @intToEnum(protocol.ObjectID, try decoder.readVarUInt()),
+                .object = @intToEnum(types.ObjectID, try decoder.readVarUInt()),
             },
 
             .number => Value{
@@ -220,12 +313,12 @@ pub const Value = union(enum) {
 
                         var j: usize = 0;
                         while (j < std.math.min(4, list.items.len - i)) : (j += 1) {
-                            const size_type = @intToEnum(protocol.ColumnSizeType, @truncate(u2, (value >> @intCast(u3, 2 * j))));
+                            const size_type = @intToEnum(types.ColumnSizeType, @truncate(u2, (value >> @intCast(u3, 2 * j))));
                             list.items[i + j] = switch (size_type) {
-                                .auto => protocol.ColumnSizeDefinition{ .auto = {} },
-                                .expand => protocol.ColumnSizeDefinition{ .expand = {} },
-                                .absolute => protocol.ColumnSizeDefinition{ .absolute = undefined },
-                                .percentage => protocol.ColumnSizeDefinition{ .percentage = undefined },
+                                .auto => types.ColumnSizeDefinition{ .auto = {} },
+                                .expand => types.ColumnSizeDefinition{ .expand = {} },
+                                .absolute => types.ColumnSizeDefinition{ .absolute = undefined },
+                                .percentage => types.ColumnSizeDefinition{ .percentage = undefined },
                             };
                         }
                     }
@@ -259,7 +352,7 @@ pub const Value = union(enum) {
                 std.mem.copy(u8, string.items, try decoder.readRaw(strlen));
 
                 break :blk Value{
-                    .string = string,
+                    .string = .{ .dynamic = string },
                 };
             },
 
@@ -275,13 +368,13 @@ pub const Value = union(enum) {
             .objectlist => blk: {
                 const strlen = try decoder.readVarUInt();
 
-                var list = std.ArrayList(protocol.ObjectID).init(allocator);
+                var list = std.ArrayList(types.ObjectID).init(allocator);
                 errdefer list.deinit();
 
                 try list.resize(strlen);
 
                 for (list.items) |*id| {
-                    id.* = @intToEnum(protocol.ObjectID, try decoder.readVarUInt());
+                    id.* = @intToEnum(types.ObjectID, try decoder.readVarUInt());
                 }
 
                 break :blk Value{
@@ -290,11 +383,11 @@ pub const Value = union(enum) {
             },
 
             .event => Value{
-                .event = @intToEnum(protocol.EventID, try decoder.readVarUInt()),
+                .event = @intToEnum(types.EventID, try decoder.readVarUInt()),
             },
 
             .name => Value{
-                .name = @intToEnum(protocol.WidgetName, try decoder.readVarUInt()),
+                .name = @intToEnum(types.WidgetName, try decoder.readVarUInt()),
             },
         };
     }

@@ -18,257 +18,10 @@ pub const PropertyName = protocol.PropertyName;
 pub const ResourceKind = protocol.ResourceKind;
 pub const WidgetName = protocol.WidgetName;
 pub const Type = protocol.Type;
-
-// only required for the API
-pub const ValueStorage = extern union {
-    integer: i32,
-    enumeration: u8,
-    number: f32,
-    string: [*:0]const u8,
-    resource: protocol.ResourceID,
-    object: protocol.ObjectID,
-    color: protocol.Color,
-    size: protocol.Size,
-    point: protocol.Point,
-    margins: protocol.Margins,
-    boolean: bool,
-    event: protocol.EventID,
-    name: protocol.WidgetName,
-};
-
-pub const Value = struct {
-    type: Type,
-    value: ValueStorage,
-
-    pub fn format(self: @This(), comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-        try writer.print("{s}(", .{@tagName(self.type)});
-        switch (self.type) {
-            .integer => try writer.print("{d}", .{self.value.integer}),
-            .enumeration => try writer.print("{d}", .{self.value.enumeration}),
-            .number => try writer.print("{d}", .{self.value.number}),
-            .string => try writer.writeAll(std.mem.span(self.value.string)),
-            .resource => try writer.print("{}", .{@enumToInt(self.value.resource)}),
-            .object => try writer.print("{}", .{@enumToInt(self.value.object)}),
-            .color => try writer.print("{},{},{},{}", .{
-                self.value.color.red,
-                self.value.color.green,
-                self.value.color.blue,
-                self.value.color.alpha,
-            }),
-            .size => try writer.print("{}x{}", .{
-                self.value.size.width,
-                self.value.size.height,
-            }),
-            .point => try writer.print("{},{}", .{
-                self.value.point.x,
-                self.value.point.y,
-            }),
-            .margins => try writer.print("{},{},{},{}", .{
-                self.value.margins.left,
-                self.value.margins.top,
-                self.value.margins.right,
-                self.value.margins.bottom,
-            }),
-            .boolean => try writer.print("{}", .{self.value.boolean}),
-            .event => try writer.print("{}", .{@enumToInt(self.value.event)}),
-            .name => try writer.print("{}", .{@enumToInt(self.value.name)}),
-
-            else => try writer.writeAll("???"),
-        }
-        try writer.writeAll(")");
-    }
-
-    pub fn serialize(value: Value, self: anytype, prefixType: bool) !void {
-        if (prefixType) {
-            try self.writeEnum(@intCast(u8, @enumToInt(value.type)));
-        }
-        const val = &value.value;
-        switch (value.type) {
-            .integer => try self.writeVarSInt(val.integer),
-
-            .number => try self.writeNumber(val.number),
-
-            .string => try self.writeString(std.mem.span(val.string)),
-
-            .enumeration => try self.writeEnum(val.enumeration),
-
-            .margins => {
-                try self.writeVarUInt(val.margins.left);
-                try self.writeVarUInt(val.margins.top);
-                try self.writeVarUInt(val.margins.right);
-                try self.writeVarUInt(val.margins.bottom);
-            },
-
-            .color => {
-                try self.writeByte(val.color.red);
-                try self.writeByte(val.color.green);
-                try self.writeByte(val.color.blue);
-                try self.writeByte(val.color.alpha);
-            },
-
-            .size => {
-                try self.writeVarUInt(val.size.width);
-                try self.writeVarUInt(val.size.height);
-            },
-
-            .point => {
-                try self.writeVarSInt(val.point.x);
-                try self.writeVarSInt(val.point.y);
-            },
-
-            .boolean => try self.writeByte(if (val.boolean) 1 else 0),
-
-            .resource => try self.writeVarUInt(@enumToInt(val.resource)),
-            .object => try self.writeVarUInt(@enumToInt(val.object)),
-            .event => try self.writeVarUInt(@enumToInt(val.event)),
-            .name => try self.writeVarUInt(@enumToInt(val.name)),
-
-            .objectlist => std.debug.panic("Writing objectlist property not possible yet.", .{}), // not implemented yet
-
-            else => unreachable, // api violation
-        }
-    }
-
-    pub fn deserialize(self: *protocol.Decoder, value_type: Type, allocator: ?*std.mem.Allocator) !Value {
-        var value = Value{
-            .type = value_type,
-            .value = undefined,
-        };
-        const val = &value.value;
-        switch (value_type) {
-            .enumeration => val.enumeration = try self.readByte(),
-
-            .integer => val.integer = try self.readVarSInt(),
-
-            .resource => val.resource = @intToEnum(ResourceID, try self.readVarUInt()),
-
-            .object => val.object = @intToEnum(ObjectID, try self.readVarUInt()),
-
-            .number => val.number = try self.readNumber(),
-
-            .boolean => val.boolean = ((try self.readByte()) != 0),
-
-            .color => {
-                val.color.red = try self.readByte();
-                val.color.green = try self.readByte();
-                val.color.blue = try self.readByte();
-                val.color.alpha = try self.readByte();
-            },
-
-            .size => {
-                val.size.width = try self.readVarUInt();
-                val.size.height = try self.readVarUInt();
-            },
-
-            .point => {
-                val.point.x = try self.readVarSInt();
-                val.point.y = try self.readVarSInt();
-            },
-
-            // HOW?
-            .string => {
-                if (allocator) |allo| {
-                    const strlen = try self.readVarUInt();
-
-                    const str = try allo.allocWithOptions(u8, strlen, null, 0);
-                    errdefer allo.free(str);
-
-                    std.mem.copy(
-                        u8,
-                        str[0..],
-                        try self.readRaw(strlen),
-                    );
-
-                    val.string = str.ptr;
-                } else {
-                    return error.NotSupported; // not implemented yet
-                }
-            },
-
-            .margins => {
-                val.margins.left = try self.readVarUInt();
-                val.margins.top = try self.readVarUInt();
-                val.margins.right = try self.readVarUInt();
-                val.margins.bottom = try self.readVarUInt();
-            },
-
-            .objectlist => std.log.err("Reading objectlist property not possible yet.", .{}),
-
-            .event => val.event = @intToEnum(EventID, try self.readVarUInt()),
-
-            .name => val.name = @intToEnum(WidgetName, try self.readVarUInt()),
-
-            .sizelist => return error.NotSupported,
-        }
-        return value;
-    }
-
-    pub fn deinitValue(value: Value, allocator: *std.mem.Allocator) void {
-        if (value.type == .string) {
-            allocator.free(std.mem.spanZ(value.value.string));
-        }
-    }
-};
-
-/// A callback that is called whenever a new display client has successfully
-/// connected to the display provider.
-/// It's possible to disconnect the client in this callback, the @ref dunstblick_DisconnectedCallback
-/// will be called as soon as this function returns.
-pub const ConnectedCallback = fn (
-    ///< The application to which the connection was established.
-    application: *Application,
-    ///< The newly created connection.
-    connection: *Connection,
-    ///< Current screen size of the display client.
-    screenSize: Size,
-    ///< Bitmask containing all available capabilities of the display client.
-    capabilities: ClientCapabilities,
-    ///< The user data pointer that was passed to @ref dunstblick_SetConnectedCallback.
-    userData: ?*c_void,
-) callconv(.C) void;
-
-/// A callback that is called whenever a display client has disconnected
-/// from the provider.
-/// This callback is called for every disconnected client, even when the client is closed
-/// in the @ref dunstblick_ConnectedCallback.
-/// @remarks It is possible to query information about `connection`, but it's not possible
-///          anymore to send any data to it.
-pub const DisconnectedCallback = fn (
-    ///< The application from which the connection was discnnected.
-    application: *Application,
-    /// The connection that is about to be closed.
-    connection: *Connection,
-    ///< The reason why the  display client is disconnected
-    reason: DisconnectReason,
-    ///< The user data pointer that was passed to @ref dunstblick_SetDisconnectedCallback.
-    userData: ?*c_void,
-) callconv(.C) void;
-
-/// @brief A callback that is called whenever a display client triggers a event.
-pub const EventCallback = fn (
-    ///< the display client that triggered the event.
-    connection: *Connection,
-    ///< The id of the event that was triggered. This ID is specified in the UI layout.
-    event: protocol.EventID,
-    ///< The name of the widget that triggered the event.
-    caller: protocol.WidgetName,
-    ///< The user data pointer that was passed to @ref dunstblick_SetEventCallback.
-    userData: ?*c_void,
-) callconv(.C) void;
-
-/// A callback that is called whenever a display client changed the property of an object.
-pub const PropertyChangedCallback = fn (
-    ///< the display client that changed the event.
-    connection: *Connection,
-    ///< The object handle where the property was changed
-    object: protocol.ObjectID,
-    ///< The name of the property that was changed
-    property: protocol.PropertyName,
-    ///< The value of the property
-    value: *const Value,
-    ///< The user data pointer that was passed to @ref dunstblick_SetPropertyChangedCallback.
-    userData: ?*c_void,
-) callconv(.C) void;
+pub const Value = protocol.Value;
+pub const String = protocol.String;
+pub const ObjectList = protocol.ObjectList;
+pub const SizeList = protocol.SizeList;
 
 pub const DunstblickError = error{
     OutOfMemory,
@@ -355,6 +108,7 @@ fn mapDecodeError(value: DecodeError) DunstblickError {
         error.NotSupported => error.ProtocolViolation,
         error.UnknownPacket => error.ProtocolViolation,
         error.EndOfStream => error.ProtocolViolation,
+        error.Overflow => error.ProtocolViolation,
     };
 }
 
@@ -363,6 +117,7 @@ const DecodeError = error{
     NotSupported,
     UnknownPacket,
     EndOfStream,
+    Overflow,
 };
 
 fn extractString(str: []const u8) []const u8 {
@@ -394,7 +149,7 @@ pub const ConnectedEvent = struct {
     screenSize: Size,
 
     /// Bitmask containing all available capabilities of the display client.
-    capabilities: ClientCapabilities,
+    capabilities: std.EnumSet(ClientCapabilities),
 };
 
 pub const DisconnectedEvent = struct {
@@ -455,7 +210,7 @@ pub const Connection = struct {
 
     disconnect_reason: ?DisconnectReason = null,
 
-    client_capabilities: ClientCapabilities,
+    client_capabilities: std.EnumSet(ClientCapabilities),
     screen_resolution: Size,
 
     provider: *Application,
@@ -463,38 +218,6 @@ pub const Connection = struct {
     server: protocol.tcp.ServerStateMachine(xnet.Socket.Writer),
 
     user_data_pointer: ?*c_void,
-
-    // FIX: #5920
-    // Lock access to event in multithreaded scenarios!
-    /// This callback is invoked when the display client triggers a widget event.
-    on_event: struct {
-        function: ?EventCallback,
-        user_data: ?*c_void,
-
-        fn invoke(self: @This(), args: anytype) void {
-            if (self.function) |function| {
-                @call(.{}, function, args ++ .{self.user_data});
-            } else {
-                log.debug("callback does not exist!", .{});
-            }
-        }
-    },
-
-    // FIX: #5920
-    // Lock access to event in multithreaded scenarios!
-    /// This callback is invoked when the display client changes a property value.
-    on_property_changed: struct {
-        function: ?PropertyChangedCallback,
-        user_data: ?*c_void,
-
-        fn invoke(self: @This(), args: anytype) void {
-            if (self.function) |function| {
-                @call(.{}, function, args ++ .{self.user_data});
-            } else {
-                log.debug("callback does not exist!", .{});
-            }
-        }
-    },
 
     fn init(provider: *Application, sock: xnet.Socket, endpoint: xnet.EndPoint) Connection {
         log.debug("connection from {}", .{endpoint});
@@ -506,8 +229,6 @@ pub const Connection = struct {
             .client_capabilities = undefined,
             .screen_resolution = undefined,
             .user_data_pointer = null,
-            .on_event = .{ .function = null, .user_data = null },
-            .on_property_changed = .{ .function = null, .user_data = null },
             .server = protocol.tcp.ServerStateMachine(xnet.Socket.Writer).init(provider.allocator, sock.writer()),
         };
     }
@@ -554,7 +275,7 @@ pub const Connection = struct {
                     },
 
                     .connect_header => |info| {
-                        self.client_capabilities = @intToEnum(ClientCapabilities, @bitCast(u32, info.capabilities));
+                        self.client_capabilities = info.capabilities;
                         self.screen_resolution.width = info.screen_width;
                         self.screen_resolution.height = info.screen_height;
 
@@ -632,21 +353,17 @@ pub const Connection = struct {
                     },
                 };
                 self.provider.enqueueEvent(event);
-
-                self.on_event.invoke(.{
-                    self,
-                    id,
-                    widget,
-                });
             },
             .propertyChanged => {
                 const obj_id = @intToEnum(protocol.ObjectID, try reader.readVarUInt());
                 const property = @intToEnum(protocol.PropertyName, try reader.readVarUInt());
                 const value_type = @intToEnum(protocol.Type, try reader.readByte());
 
-                const value = try Value.deserialize(&reader, value_type, null);
-
                 const event = try self.provider.createEvent();
+                errdefer self.provider.freeEvent(event);
+
+                const value = try Value.deserialize(&event.memory.allocator, value_type, &reader);
+
                 event.event = Event{
                     .property_changed = PropertyChangedEvent{
                         .connection = self,
@@ -656,13 +373,6 @@ pub const Connection = struct {
                     },
                 };
                 self.provider.enqueueEvent(event);
-
-                self.on_property_changed.invoke(.{
-                    self,
-                    obj_id,
-                    property,
-                    &value,
-                });
             },
             _ => {
                 log.err("Received {} bytes of an unknown message type {}", .{ packet.len, msgtype });
@@ -679,7 +389,7 @@ pub const Connection = struct {
 
         self.pushData(buffer[0..len]) catch |err| return switch (err) {
             error.UnexpectedData, error.InvalidData, error.UnsupportedVersion, error.ProtocolViolation => |e| mapReceiveError(e),
-            error.NotSupported, error.UnknownPacket, error.EndOfStream => |e| mapDecodeError(e),
+            error.NotSupported, error.UnknownPacket, error.EndOfStream, error.Overflow => |e| mapDecodeError(e),
             else => |e| mapSendError(e),
         };
     }
@@ -884,32 +594,6 @@ pub const Application = struct {
     pending_connections: ConnectionList,
     established_connections: ConnectionList,
 
-    on_connected: struct {
-        function: ?ConnectedCallback,
-        user_data: ?*c_void,
-
-        fn invoke(self: @This(), args: anytype) void {
-            if (self.function) |function| {
-                @call(.{}, function, args ++ .{self.user_data});
-            } else {
-                log.debug("callback does not exist!", .{});
-            }
-        }
-    },
-
-    on_disconnected: struct {
-        function: ?DisconnectedCallback,
-        user_data: ?*c_void,
-
-        fn invoke(self: @This(), args: anytype) void {
-            if (self.function) |function| {
-                @call(.{}, function, args ++ .{self.user_data});
-            } else {
-                log.debug("callback does not exist!", .{});
-            }
-        }
-    },
-
     socket_set: xnet.SocketSet,
 
     // TODO: Implement event queue stuff here
@@ -950,9 +634,6 @@ pub const Application = struct {
 
             .pending_connections = .{},
             .established_connections = .{},
-
-            .on_connected = .{ .function = null, .user_data = null },
-            .on_disconnected = .{ .function = null, .user_data = null },
 
             .socket_set = try xnet.SocketSet.init(allocator),
 
@@ -1022,11 +703,6 @@ pub const Application = struct {
                 var next = item.next;
                 defer iter = next;
 
-                self.on_disconnected.invoke(.{
-                    self,
-                    &item.data,
-                    .shutdown,
-                });
                 item.data.close("The provider has been shut down.");
                 item.data.deinit();
                 self.allocator.destroy(item);
@@ -1277,13 +953,6 @@ pub const Application = struct {
 
                     self.enqueueEvent(event);
 
-                    self.on_connected.invoke(.{
-                        self,
-                        &item.data,
-                        item.data.screen_resolution,
-                        item.data.client_capabilities,
-                    });
-
                     self.established_connections.append(item);
                 }
             }
@@ -1461,7 +1130,7 @@ pub const Object = struct {
     pub fn setProperty(self: *Self, name: protocol.PropertyName, value: Value) DunstblickError!void {
         var enc = protocol.makeEncoder(self.commandbuffer.writer());
 
-        try enc.writeEnum(@intCast(u8, @enumToInt(value.type)));
+        try enc.writeEnum(@intCast(u8, @enumToInt(std.meta.activeTag(value))));
         try enc.writeID(@enumToInt(name));
         try value.serialize(&enc, false);
     }

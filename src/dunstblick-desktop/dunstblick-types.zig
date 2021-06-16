@@ -1,3 +1,5 @@
+const std = @import("std");
+
 /// The name of a property that can be bound.
 pub const PropertyId = enum(u32) { invalid = 0, _ };
 pub const ResourceId = enum(u32) { invalid = 0, _ };

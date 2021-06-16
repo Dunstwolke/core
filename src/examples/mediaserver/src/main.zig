@@ -72,24 +72,15 @@ pub fn main() anyerror!u8 {
                     errdefer root_obj.cancel();
 
                     try root_obj.setProperty(data.properties.@"current-song", .{
-                        .type = .string,
-                        .value = .{
-                            .string = "Current Song",
-                        },
+                        .string = dunstblick.String.readOnly("Current Song"),
                     });
 
                     try root_obj.setProperty(data.properties.@"current-artist", .{
-                        .type = .string,
-                        .value = .{
-                            .string = "Current Artist",
-                        },
+                        .string = dunstblick.String.readOnly("Current Artist"),
                     });
 
                     try root_obj.setProperty(data.properties.@"current-albumart", .{
-                        .type = .resource,
-                        .value = .{
-                            .resource = data.resources.album_placeholder.id,
-                        },
+                        .resource = data.resources.album_placeholder.id,
                     });
 
                     try root_obj.commit();

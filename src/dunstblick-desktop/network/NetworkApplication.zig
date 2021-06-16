@@ -204,7 +204,7 @@ pub fn notifyReadable(self: *Self) !void {
                                 try self.client.sendConnectHeader(
                                     self.screen_size.width,
                                     self.screen_size.height,
-                                    .{
+                                    std.EnumSet(protocol.ClientCapabilities).init(.{
                                         .mouse = true,
                                         .keyboard = true,
                                         .touch = true,
@@ -212,7 +212,7 @@ pub fn notifyReadable(self: *Self) !void {
                                         .tiltable = false,
                                         .resizable = true,
                                         .req_accessibility = false,
-                                    },
+                                    }),
                                 );
                             }
                         },
@@ -490,7 +490,7 @@ fn triggerPropertyChanged(erased_self: *DunstblickUI.FeedbackInterface.ErasedSel
     var buffer = protocol.beginApplicationCommandEncoding(stream.writer(), .propertyChanged) catch |err| return mapEncodeError(err);
     buffer.writeID(@enumToInt(oid)) catch |err| return mapEncodeError(err);
     buffer.writeID(@enumToInt(name)) catch |err| return mapEncodeError(err);
-    value.serialize(value, true) catch |err| return mapEncodeError(err);
+    value.serialize(&buffer, true) catch |err| return mapEncodeError(err);
 
     self.client.sendMessage(stream.getWritten()) catch |err| return mapSendError(err);
 }

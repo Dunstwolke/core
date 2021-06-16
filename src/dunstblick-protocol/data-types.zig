@@ -6,6 +6,10 @@ pub const PropertyName = extern enum(u32) { invalid, _ };
 pub const EventID = extern enum(u32) { invalid, _ };
 pub const WidgetName = extern enum(u32) { none, _ };
 
+pub const ObjectList = std.ArrayList(ObjectID);
+pub const SizeList = std.ArrayList(ColumnSizeDefinition);
+// pub const String = std.ArrayList(u8);
+
 pub const ResourceHash = [8]u8;
 
 pub const ResourceKind = enum(u8) {
@@ -20,11 +24,9 @@ pub const ResourceKind = enum(u8) {
     /// A TVG vector graphic.
     /// See: https://github.com/MasterQ32/tvg
     drawing = 2,
-    _,
 };
 
-pub const Type = enum(u32) {
-    // none = 0,
+pub const Type = enum(u8) {
     integer = 1,
     number = 2,
     string = 3,
@@ -43,7 +45,7 @@ pub const Type = enum(u32) {
 };
 
 /// Possible properties a client can expose.
-pub const ClientCapabilities = enum(u32) {
+pub const ClientCapabilities = enum(u5) {
     /// The client does not have any capabilities. Provide the bare minimum GUI.
     none = 0,
     /// The client has a mouse with at least one button available.
@@ -51,18 +53,17 @@ pub const ClientCapabilities = enum(u32) {
     /// The client has a keyboard available.
     keyboard = 2,
     /// The client has a touchscreen available.
-    touch = 4,
+    touch = 3,
     /// The client has a high-density screen. You might want to send larger bitmaps for
     /// improved display.
-    highdpi = 8,
+    highdpi = 4,
     /// The client screen allows to tilt the screen from landscape to portrait and back.
     /// You may provide a layout that can serve both.
-    tiltable = 16,
+    tiltable = 5,
     /// The client screen allows to be resized. You may provide a layout that can respect this.
-    resizable = 32,
+    resizable = 6,
     /// The client requests to be screen-reader compatible. Serve simpler layouts when possible.
-    req_accessibility = 64,
-    _,
+    req_accessibility = 7,
 };
 
 pub const DisconnectReason = enum(u32) {
@@ -83,7 +84,6 @@ pub const DisconnectReason = enum(u32) {
 
     /// The protocol used by the display client is not compatible to this library.
     protocol_mismatch = 5,
-    _,
 };
 
 pub const Color = extern struct {
@@ -249,4 +249,48 @@ pub const ColumnSizeDefinition = union(ColumnSizeType) {
     expand,
     absolute: u15,
     percentage: f32,
+};
+
+pub const String = union(enum) {
+    constant: []const u8,
+    dynamic: std.ArrayList(u8),
+
+    pub fn readOnly(text: []const u8) String {
+        return .{ .constant = text };
+    }
+
+    pub fn new(allocator: *std.mem.Allocator) String {
+        return String{ .dynamic = std.ArrayList(u8).init(allocator) };
+    }
+
+    pub fn init(allocator: *std.mem.Allocator, text: []const u8) !String {
+        var list = std.ArrayList(u8).init(allocator);
+        try list.appendSlice(text);
+        return String{ .dynamic = list };
+    }
+
+    pub fn get(self: String) []const u8 {
+        return switch (self) {
+            .constant => |c| c,
+            .dynamic => |d| d.items,
+        };
+    }
+
+    pub fn set(self: *String, text: []const u8) !void {
+        switch (self.*) {
+            .constant => return error.ReadOnly,
+            .dynamic => |*d| {
+                try d.resize(text.len);
+                std.mem.copy(u8, d.items, text);
+            },
+        }
+    }
+
+    pub fn deinit(self: *String) void {
+        switch (self.*) {
+            .constant => {},
+            .dynamic => |*d| d.deinit(),
+        }
+        self.* = undefined;
+    }
 };

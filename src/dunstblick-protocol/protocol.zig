@@ -20,6 +20,8 @@ pub const enums = @import("enums.zig");
 
 pub usingnamespace @import("data-types.zig");
 
+pub const Value = @import("value.zig").Value;
+
 pub const Decoder = @import("decoder.zig").Decoder;
 
 pub const ZigZagInt = @import("zigzagint.zig");

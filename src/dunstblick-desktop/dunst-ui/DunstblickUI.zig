@@ -246,7 +246,16 @@ pub fn Property(comptime T: type) type {
         }
 
         pub fn set(self: *Self, binding_context: ?*Object, value: T) void {
-            std.debug.assert(binding_context == null); // TODO: Implement the pass-through
+            if (self.binding) |property_name| {
+                if (binding_context) |bc| {
+                    if (bc.getProperty(property_name)) |prop| {
+                        logger.err("Setting a property into the binding is not supported yet!", .{});
+                        //prop.
+                    } else {
+                        logger.warn("Property {} is not found on the bound object!", .{property_name});
+                    }
+                }
+            }
             switch (T) {
                 ObjectList, SizeList, String => self.value.deinit(),
 
@@ -569,8 +578,8 @@ pub const WidgetTree = struct {
                 const str = label.get(.text);
 
                 // this prevents the collapse of a label when it's empty.
-                const reference_text = if (str.items.len > 0)
-                    str.items
+                const reference_text = if (str.get().len > 0)
+                    str.get()
                 else
                     "I";
 
@@ -1121,7 +1130,7 @@ pub const WidgetTree = struct {
 
             .label => |*label| {
                 const str = label.get(.text);
-                try ui.label(rect, str.items, .{
+                try ui.label(rect, str.get(), .{
                     .id = widget,
                     .horizontal_alignment = .left,
                     .vertical_alignment = .top,
@@ -1169,8 +1178,9 @@ pub const WidgetTree = struct {
                     .hit_test_visible = hit_test_visible,
                 });
                 // TODO: Process button clicks!
-                if (clicked)
-                    logger.err("checkbox click not implemented yet!", .{});
+                if (clicked) {
+                    button.set(.is_checked, !is_checked);
+                }
             },
 
             .radiobutton => |*button| {
@@ -1317,7 +1327,7 @@ pub const Widget = struct {
             .child_source = .{ .value = ObjectList.init(allocator) },
             .child_template = .{ .value = .invalid },
             .widget_name = .{ .value = .none },
-            .tab_title = .{ .value = String.init(allocator) },
+            .tab_title = .{ .value = String.new(allocator) },
             .size_hint = .{ .value = protocol.Size{ .width = 0, .height = 0 } },
             .left = .{ .value = 0 },
             .top = .{ .value = 0 },
@@ -1533,7 +1543,7 @@ pub const Control = union(protocol.WidgetType) {
 
         pub fn init(allocator: *std.mem.Allocator) Self {
             return Self{
-                .text = .{ .value = String.init(allocator) },
+                .text = .{ .value = String.new(allocator) },
                 .font_family = .{ .value = .sans },
             };
         }
@@ -1590,6 +1600,8 @@ pub const Control = union(protocol.WidgetType) {
         pub fn setUp(self: *Self) void {
             self.widget().set(.horizontal_alignment, .left);
             self.widget().set(.vertical_alignment, .middle);
+            self.widget().set(.margins, protocol.Margins.all(8));
+            self.widget().set(.paddings, protocol.Margins.all(8));
         }
 
         pub fn deinit(self: *Self) void {
@@ -1613,6 +1625,8 @@ pub const Control = union(protocol.WidgetType) {
         pub fn setUp(self: *Self) void {
             self.widget().set(.horizontal_alignment, .left);
             self.widget().set(.vertical_alignment, .middle);
+            self.widget().set(.margins, protocol.Margins.all(8));
+            self.widget().set(.paddings, protocol.Margins.all(8));
         }
 
         pub fn deinit(self: *Self) void {

@@ -15,21 +15,9 @@ const types = @import("../data-types.zig");
 pub const magic = [4]u8{ 0x21, 0x06, 0xc1, 0x62 };
 pub const protocol_version: u16 = 1;
 
-pub const ClientCapabilities = packed struct {
-    mouse: bool = false,
-    keyboard: bool = false,
-    touch: bool = false,
-    highdpi: bool = false,
-    tiltable: bool = false,
-    resizable: bool = false,
-    req_accessibility: bool = false,
-    padding: u25 = 0,
-};
-
 comptime {
     const assert = @import("std").debug.assert;
 
-    assert(@bitSizeOf(ClientCapabilities) == 32);
     assert(@sizeOf(InitiateHandshake.Flags) == 2);
     assert(@sizeOf(AcknowledgeHandshake.Response) == 2);
     assert(@sizeOf(AuthenticationResult.Result) == 2);
@@ -142,7 +130,7 @@ pub const AuthenticationResult = extern struct {
 /// Sent after a successful `AuthenticationResult`. Will inform the server about
 /// the client geometry and capabilities.
 pub const ConnectHeader = extern struct {
-    capabilities: ClientCapabilities,
+    capabilities: u32,
     screen_width: u16,
     screen_height: u16,
 
