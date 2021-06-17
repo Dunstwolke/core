@@ -209,6 +209,7 @@ pub const Application = struct {
 
         pub fn spawn(desc: *ApplicationDescription, allocator: *std.mem.Allocator) ApplicationDescription.Interface.SpawnError!*ApplicationInstance {
             const settings = @fieldParentPtr(Settings, "description", desc);
+            settings.instance.status = .running;
             return &settings.instance;
         }
         pub fn destroy(desc: *ApplicationDescription) ApplicationDescription.Interface.DestroyError!void {}
@@ -216,36 +217,81 @@ pub const Application = struct {
         pub fn processUserInterface(instance: *ApplicationInstance, rectangle: zero_graphics.Rectangle, ui: zero_graphics.UserInterface.Builder) zero_graphics.UserInterface.Builder.Error!void {
             const settings = @fieldParentPtr(Settings, "instance", instance);
 
-            const root_rect = rectangle.centered(250, rectangle.height);
+            const app = @fieldParentPtr(Application, "settings", settings);
+
+            const root_rect = rectangle.centered(300, rectangle.height);
 
             var stack = zero_graphics.UserInterface.VerticalStackLayout.init(root_rect);
 
-            try ui.label(stack.get(32), "Settings", .{});
+            const header = stack.get(32);
+            try ui.panel(header, .{});
+            try ui.label(header, "Settings", .{ .horizontal_alignment = .center });
+
+            stack.advance(16);
 
             {
-                var blub = stack.get(32);
-                blub.width -= 64;
+                var dock = zero_graphics.UserInterface.DockLayout.init(stack.get(32));
 
-                var btn = blub;
-                btn.x += blub.width;
-                btn.width = 32;
-
-                if (try ui.button(btn, "-", null, .{})) {
-                    settings.ui_scale -= 0.1;
-                    try @fieldParentPtr(Application, "settings", settings).updateDpiScale();
-                }
-                btn.x += 32;
-                if (try ui.button(btn, "+", null, .{})) {
+                if (try ui.button(dock.get(.right, 32).shrink(1), "+", null, .{})) {
                     settings.ui_scale += 0.1;
-                    try @fieldParentPtr(Application, "settings", settings).updateDpiScale();
+                    try app.updateDpiScale();
+                }
+
+                if (try ui.button(dock.get(.right, 32).shrink(1), "-", null, .{})) {
+                    settings.ui_scale -= 0.1;
+                    try app.updateDpiScale();
                 }
 
                 var buf = std.mem.zeroes([64]u8);
                 try ui.label(
-                    blub,
+                    dock.getRest(),
                     std.fmt.bufPrint(&buf, "DPI Scale: {d:.2}", .{settings.ui_scale}) catch unreachable,
                     .{},
                 );
+            }
+
+            stack.advance(16);
+
+            {
+                const location = &app.home_screen.config.workspace_bar.location;
+
+                var dock = zero_graphics.UserInterface.DockLayout.init(stack.get(32));
+                try ui.label(dock.get(.right, 80), "Bottom", .{ .horizontal_alignment = .right });
+                if (try ui.radioButton(dock.get(.right, 32), (location.* == .bottom), .{})) {
+                    location.* = .bottom;
+                }
+
+                try ui.label(dock.getRest(), "Workspace Bar:", .{});
+
+                dock = zero_graphics.UserInterface.DockLayout.init(stack.get(32));
+                try ui.label(dock.get(.right, 80), "Left", .{ .horizontal_alignment = .right });
+                if (try ui.radioButton(dock.get(.right, 32), (location.* == .left), .{})) {
+                    location.* = .left;
+                }
+
+                dock = zero_graphics.UserInterface.DockLayout.init(stack.get(32));
+                try ui.label(dock.get(.right, 80), "Top", .{ .horizontal_alignment = .right });
+                if (try ui.radioButton(dock.get(.right, 32), (location.* == .top), .{})) {
+                    location.* = .top;
+                }
+
+                dock = zero_graphics.UserInterface.DockLayout.init(stack.get(32));
+                try ui.label(dock.get(.right, 80), "Right", .{ .horizontal_alignment = .right });
+                if (try ui.radioButton(dock.get(.right, 32), (location.* == .right), .{})) {
+                    location.* = .right;
+                }
+            }
+            stack.advance(16);
+            {
+                var dock = zero_graphics.UserInterface.DockLayout.init(stack.get(32));
+
+                if (try ui.button(dock.get(.left, 100), "Cancel", null, .{})) {
+                    settings.instance.status = .{ .exited = "" };
+                }
+
+                if (try ui.button(dock.get(.right, 100), "Save", null, .{})) {
+                    settings.instance.status = .{ .exited = "" };
+                }
             }
         }
         pub fn deinit(instance: *ApplicationInstance) void {}

@@ -634,17 +634,6 @@ var rng = std.rand.DefaultPrng.init(0);
 pub fn mouseDown(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
     std.debug.assert(self.input_processor != null);
 
-    if (mouse_button != .primary) {
-        self.config.workspace_bar.location = switch (self.config.workspace_bar.location) {
-            .top => RectangleSide.right,
-            .right => RectangleSide.bottom,
-            .bottom => RectangleSide.left,
-            .left => RectangleSide.top,
-        };
-
-        return;
-    }
-
     self.mouse_down_timestamp = std.time.nanoTimestamp();
     self.mouse_down_pos = self.mouse_pos;
 
