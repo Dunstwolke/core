@@ -444,6 +444,13 @@ fn decodeAndExecuteMessage(self: *Self, packet: []const u8) !void {
             }
         },
 
+        .disconnect => {
+            const reason = try decoder.readString(&self.arena.allocator);
+            self.disconnect(null);
+
+            self.instance.status = .{ .exited = reason };
+        },
+
         else => {
             logger.warn("received message of unknown type: {}", .{
                 message_type,
