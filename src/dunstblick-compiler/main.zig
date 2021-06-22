@@ -6,6 +6,21 @@ const Database = @import("Database.zig");
 
 const FileType = enum { binary, header };
 
+fn usage(stream: anytype, exe_name: []const u8) !void {
+    const name = std.fs.path.basename(exe_name);
+
+    try stream.print("usage: {s} layoutfile\n", .{name});
+    try stream.writeAll(
+        \\Compiles a dunstblick layout file into the binary representation.
+        \\  -h, --help              Shows this text.
+        \\  -o, --output [file]     Renders the output into [file].
+        \\  -c, --config [file]     Uses [file] as the json config file.
+        \\  -u, --update-config     Updates the config file when a unknown identifier is found
+        \\  -f, --file-type [type]  Sets the file type to 'binary' or 'header'. 
+        \\
+    );
+}
+
 pub fn main() !u8 {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -18,6 +33,7 @@ pub fn main() !u8 {
         config: ?[]const u8 = null,
         @"file-type": FileType = .binary,
         @"update-config": bool = false,
+        help: bool = false,
 
         // This declares short-hand options for single hyphen
         pub const shorthands = .{
@@ -25,22 +41,19 @@ pub fn main() !u8 {
             .f = "file-type",
             .c = "config",
             .o = "output",
+            .h = "help",
         };
     }, allocator);
     defer args.deinit();
 
-    switch (args.positionals.len) {
-        0 => {
-            try std.io.getStdOut().writer().print("usage: {s} [-c config] [-u] [-o output] layoutfile\n", .{
-                args.executable_name,
-            });
-            return 1;
-        },
-        2 => {
-            try std.io.getStdOut().writer().writeAll("invalid number of args!\n");
-            return 1;
-        },
-        else => {},
+    if (args.options.help) {
+        try usage(std.io.getStdOut().writer(), args.executable_name orelse return 1);
+        return 0;
+    }
+
+    if (args.positionals.len != 1) {
+        try usage(std.io.getStdErr().writer(), args.executable_name orelse return 1);
+        return 1;
     }
 
     var database: Database = if (args.options.config) |cfgfile| blk: {
@@ -110,7 +123,7 @@ pub fn main() !u8 {
                 .binary => try stream.writeAll(data),
 
                 .header => {
-                    for (data) |c, i| {
+                    for (data) |c| {
                         try stream.print("0x{X}, ", .{c});
                     }
                 },
@@ -130,4 +143,8 @@ pub fn main() !u8 {
     } else {
         return 1;
     }
+}
+
+test {
+    _ = @import("tests.zig");
 }

@@ -87,7 +87,7 @@ pub fn main() anyerror!u8 {
 
                     try con.setRoot(data.objects.root);
                 },
-                .disconnected => |event_args| {
+                .disconnected => {
                     //
                 },
                 .widget_event => |event_args| {
@@ -112,7 +112,7 @@ pub fn main() anyerror!u8 {
                         else => {}, // ignore
                     }
                 },
-                .property_changed => |event_args| {
+                .property_changed => {
                     //
                 },
             }
@@ -159,15 +159,29 @@ fn openFile(url: [*:0]const u8) !void {
 }
 
 fn endSync(handle: c.HSYNC, channel: c.DWORD, bits: c.DWORD, user: ?*c_void) callconv(.C) void {
-    std.io.getStdErr().writer().writeAll("end sync\n") catch |err| {};
+    _ = handle;
+    _ = channel;
+    _ = bits;
+    _ = user;
+    std.io.getStdErr().writer().writeAll("end sync\n") catch {};
 }
 
 fn stallSync(handle: c.HSYNC, channel: c.DWORD, bits: c.DWORD, user: ?*c_void) callconv(.C) void {
-    std.io.getStdErr().writer().writeAll("stall sync\n") catch |err| {};
+    _ = handle;
+    _ = channel;
+    _ = bits;
+    _ = user;
+    std.io.getStdErr().writer().writeAll("stall sync\n") catch {};
 }
 
 // update stream title from metadata
 fn doMeta(handle: c.HSYNC, channel: c.DWORD, bits: c.DWORD, user: ?*c_void) callconv(.C) void {
+    _ = handle;
+    _ = channel;
+    _ = bits;
+    _ = user;
+
+    _ = user;
     if (c.BASS_ChannelGetTags(channel, c.BASS_TAG_ID3)) |raw| {
         const id3 = @ptrCast(*const c.TAG_ID3, raw);
         std.debug.warn("got id3: {s}\n", .{id3});

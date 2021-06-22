@@ -119,7 +119,6 @@ pub fn peekNextWhitespace(self: *Self) !?Token {
 
 fn nextSkipWhitespace(self: *Self) !?Token {
     if (self.peekedToken) |tok| {
-        const copy = tok;
         self.peekedToken = null;
         return tok;
     }
@@ -272,7 +271,7 @@ test "Tokenizer single chars" {
         const text = t.@"0";
         const result = t.@"1";
 
-        std.testing.expectEqual(Token{
+        try std.testing.expectEqual(Token{
             .type = result,
             .text = text[0..1],
             .location = Location{ .line = 1, .column = 1 },
@@ -292,7 +291,7 @@ test "Tokenizer identifier" {
     };
 
     inline for (tests_good) |t| {
-        std.testing.expectEqual(Token{
+        try std.testing.expectEqual(Token{
             .type = .identifier,
             .text = t,
             .location = Location{ .line = 1, .column = 1 },
@@ -316,7 +315,7 @@ test "Tokenizer numbers" {
         const text = t.@"0";
         const result = t.@"1";
 
-        std.testing.expectEqual(Token{
+        try std.testing.expectEqual(Token{
             .type = result,
             .text = text,
             .location = Location{ .line = 1, .column = 1 },
@@ -336,7 +335,7 @@ test "Tokenizer strings" {
     };
 
     inline for (tests_good) |t| {
-        std.testing.expectEqual(Token{
+        try std.testing.expectEqual(Token{
             .type = .string,
             .text = t,
             .location = Location{ .line = 1, .column = 1 },

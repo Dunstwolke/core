@@ -1,5 +1,6 @@
 const std = @import("std");
 const meta = @import("zig-meta");
+const known_folders = @import("known-folders");
 
 const logger = std.log.scoped(.application);
 
@@ -30,6 +31,7 @@ pub const zerog_enable_window_mode = (std.builtin.mode == .Debug) and (std.built
 
 pub const Application = struct {
     allocator: *std.mem.Allocator,
+    arena: std.heap.ArenaAllocator,
     input: *zero_graphics.Input,
 
     frame_timer: std.time.Timer,
@@ -49,6 +51,9 @@ pub const Application = struct {
     available_apps: std.ArrayList(*ApplicationDescription),
 
     settings: Settings,
+    settings_editor: SettingsEditor,
+
+    settings_root_path: ?[]const u8,
 
     pub fn init(app: *Application, allocator: *std.mem.Allocator, input: *zero_graphics.Input) !void {
         try gl.load({}, loadOpenGlFunction);
@@ -57,6 +62,7 @@ pub const Application = struct {
 
         app.* = .{
             .allocator = allocator,
+            .arena = std.heap.ArenaAllocator.init(allocator),
             .input = input,
             .frame_timer = frame_timer,
             .demo_app_desc = DemoAppDescription{},
@@ -68,13 +74,47 @@ pub const Application = struct {
             .available_apps = std.ArrayList(*ApplicationDescription).init(allocator),
             .app_discovery = undefined,
             .settings = Settings{
-                .ui_scale = if (std.builtin.abi == .android)
-                    @as(f32, 2.0)
-                else
-                    @as(f32, 1.0),
+                .ui = .{
+                    .scale = if (std.builtin.abi == .android)
+                        @as(f32, 2.0)
+                    else
+                        @as(f32, 1.0),
+                    .padding = .{
+                        .left = 0,
+                        .top = 0,
+                        .right = 0,
+                        .bottom = 0,
+                    },
+                },
+                .home_screen = .{},
             },
+            .settings_editor = .{
+                .settings = &app.settings,
+            },
+            .settings_root_path = null,
         };
+        errdefer app.arena.deinit();
         errdefer app.available_apps.deinit();
+
+        if (std.builtin.abi != .android) {
+            app.settings_root_path = if (try known_folders.getPath(&app.arena.allocator, .local_configuration)) |folder|
+                try std.fs.path.join(&app.arena.allocator, &[_][]const u8{ folder, "dunstblick" })
+            else
+                null;
+        } else {
+            const android = @import("android");
+
+            // Go deep into zero-graphics.AndroidApp:
+            // we know we're embedded into the AndroidApp
+            const android_app = @fieldParentPtr(AndroidApp, "application", app);
+
+            var jni = android.JNI.init(android_app.activity);
+            defer jni.deinit();
+
+            app.settings_root_path = try jni.getFilesDir(&app.arena.allocator);
+        }
+
+        _ = try app.loadSettings();
 
         app.app_discovery = try AppDiscovery.init(allocator);
         errdefer app.app_discovery.deinit();
@@ -84,7 +124,7 @@ pub const Application = struct {
 
         app.debug_font = try app.renderer.createFont(@embedFile("gui/fonts/firasans-regular.ttf"), 24);
 
-        app.home_screen = try HomeScreen.init(allocator, &app.renderer);
+        app.home_screen = try HomeScreen.init(allocator, &app.renderer, &app.settings.home_screen);
         errdefer app.home_screen.deinit();
     }
 
@@ -93,6 +133,74 @@ pub const Application = struct {
         app.app_discovery.deinit();
         app.available_apps.deinit();
         app.* = undefined;
+    }
+
+    fn loadSettings(app: *Application) !bool {
+        const settings_root_path = app.settings_root_path orelse {
+            logger.warn("no configuration folder could be found!", .{});
+            return false;
+        };
+
+        logger.info("load configuration from {s}", .{settings_root_path});
+
+        if (std.fs.cwd().openDir(settings_root_path, .{})) |c_dir| {
+            var dir = c_dir;
+            defer dir.close();
+
+            // std.log.info("gmmm {}", .{dir});
+            // std.log.info("gmmm {}", .{std.c.open("/data/user/0/net.random_projects.dunstblick/files/settings.json", std.os.O_RDONLY)});
+            // std.log.info("gmmm {}", .{std.os.linux.open("/data/user/0/net.random_projects.dunstblick/files/settings.json", std.os.O_RDONLY, 0)});
+            // std.log.info("gmmm {}", .{std.os.open("/data/user/0/net.random_projects.dunstblick/files/settings.json", std.os.O_RDONLY, 0)});
+
+            const data = dir.readFileAlloc(app.allocator, "settings.json", 1 << 20) catch |err| switch (err) {
+                error.FileNotFound => return false,
+                else => |e| return e,
+            };
+            defer app.allocator.free(data);
+
+            std.log.info("ok???", .{});
+
+            // we got the app source
+
+            var stream = std.json.TokenStream.init(data);
+            var new_settings = try std.json.parse(Settings, &stream, .{});
+
+            // prevent RLS to do partial writes
+            app.settings = new_settings;
+
+            return true;
+        } else |err| {
+            logger.err("could not open condig folder: {s}", .{@errorName(err)});
+            return false;
+        }
+    }
+
+    fn saveSettings(app: *Application) !bool {
+        const settings_root_path = app.settings_root_path orelse {
+            logger.warn("no configuration folder could be found!", .{});
+            return false;
+        };
+
+        logger.info("save configuration to {s}", .{settings_root_path});
+
+        if (std.fs.cwd().makeOpenPath(settings_root_path, .{})) |*dir| {
+            defer dir.close();
+
+            var atomic_file = try dir.atomicFile("settings.json", .{});
+
+            try std.json.stringify(app.settings, .{
+                .whitespace = .{
+                    .indent = .{ .Space = 2 },
+                },
+            }, atomic_file.file.writer());
+
+            try atomic_file.finish();
+
+            return true;
+        } else |err| {
+            logger.err("could not open condig folder: {s}", .{@errorName(err)});
+            return false;
+        }
     }
 
     pub fn resize(app: *Application, width: u15, height: u15) !void {
@@ -107,23 +215,23 @@ pub const Application = struct {
 
     fn updateDpiScale(app: *Application) !void {
         app.virtual_size = Size{
-            .width = @floatToInt(u15, @intToFloat(f32, app.screen_size.width) / app.settings.ui_scale),
-            .height = @floatToInt(u15, @intToFloat(f32, app.screen_size.height) / app.settings.ui_scale),
+            .width = @floatToInt(u15, @intToFloat(f32, app.screen_size.width - app.settings.ui.padding.left - app.settings.ui.padding.right) / app.settings.ui.scale),
+            .height = @floatToInt(u15, @intToFloat(f32, app.screen_size.height - app.settings.ui.padding.top - app.settings.ui.padding.bottom) / app.settings.ui.scale),
         };
         try app.home_screen.resize(app.virtual_size);
     }
 
     fn physToVirtual(app: Application, pt: zero_graphics.Point) zero_graphics.Point {
         return .{
-            .x = @floatToInt(i16, @intToFloat(f32, pt.x) / app.settings.ui_scale),
-            .y = @floatToInt(i16, @intToFloat(f32, pt.y) / app.settings.ui_scale),
+            .x = @floatToInt(i16, @intToFloat(f32, pt.x - app.settings.ui.padding.left) / app.settings.ui.scale),
+            .y = @floatToInt(i16, @intToFloat(f32, pt.y - app.settings.ui.padding.top) / app.settings.ui.scale),
         };
     }
 
     fn virtToPhysical(app: Application, pt: zero_graphics.Point) zero_graphics.Point {
         return .{
-            .x = @floatToInt(i16, app.settings.ui_scale * @intToFloat(f32, pt.x)),
-            .y = @floatToInt(i16, app.settings.ui_scale * @intToFloat(f32, pt.y)),
+            .x = @floatToInt(i16, app.settings.ui.scale * @intToFloat(f32, pt.x)) + app.settings.ui.padding.left,
+            .y = @floatToInt(i16, app.settings.ui.scale * @intToFloat(f32, pt.y)) + app.settings.ui.padding.top,
         };
     }
 
@@ -146,7 +254,7 @@ pub const Application = struct {
 
         {
             app.available_apps.shrinkRetainingCapacity(0);
-            try app.available_apps.append(&app.settings.description);
+            try app.available_apps.append(&app.settings_editor.description);
             try app.available_apps.append(&app.demo_app_desc.desc);
             {
                 var iter = app.app_discovery.iterator();
@@ -177,10 +285,15 @@ pub const Application = struct {
 
         // OpenGL rendering
         {
-            gl.viewport(0, 0, app.screen_size.width, app.screen_size.height);
-
             gl.clearColor(0.3, 0.3, 0.3, 1.0);
             gl.clear(gl.COLOR_BUFFER_BIT);
+
+            gl.viewport(
+                app.settings.ui.padding.left,
+                app.settings.ui.padding.bottom,
+                app.screen_size.width - app.settings.ui.padding.left - app.settings.ui.padding.right,
+                app.screen_size.height - app.settings.ui.padding.top - app.settings.ui.padding.bottom,
+            );
 
             gl.frontFace(gl.CCW);
             gl.cullFace(gl.BACK);
@@ -192,70 +305,143 @@ pub const Application = struct {
     }
 
     const Settings = struct {
+        ui: UserInterface,
+        home_screen: HomeScreen.Config,
+
+        const UserInterface = struct {
+            scale: f32,
+            padding: Padding,
+        };
+
+        const Padding = struct {
+            left: u15,
+            top: u15,
+            right: u15,
+            bottom: u15,
+        };
+    };
+
+    const SettingsEditor = struct {
         const description = ApplicationDescription{
             .display_name = "Settings",
             .icon = @embedFile("gui/icons/settings.tvg"),
-            .vtable = ApplicationDescription.Interface.get(Settings),
+            .vtable = ApplicationDescription.Interface.get(@This()),
             .state = .ready,
         };
         description: ApplicationDescription = description,
         instance: ApplicationInstance = ApplicationInstance{
             .description = description,
-            .vtable = ApplicationInstance.Interface.get(Settings),
+            .vtable = ApplicationInstance.Interface.get(@This()),
             .status = .running,
         },
 
-        ui_scale: f32,
+        settings: *Settings,
 
         pub fn spawn(desc: *ApplicationDescription, allocator: *std.mem.Allocator) ApplicationDescription.Interface.SpawnError!*ApplicationInstance {
-            const settings = @fieldParentPtr(Settings, "description", desc);
+            _ = allocator;
+
+            const settings = @fieldParentPtr(@This(), "description", desc);
             settings.instance.status = .running;
             return &settings.instance;
         }
-        pub fn destroy(desc: *ApplicationDescription) ApplicationDescription.Interface.DestroyError!void {}
 
-        pub fn processUserInterface(instance: *ApplicationInstance, rectangle: zero_graphics.Rectangle, ui: zero_graphics.UserInterface.Builder) zero_graphics.UserInterface.Builder.Error!void {
-            const settings = @fieldParentPtr(Settings, "instance", instance);
+        pub fn destroy(desc: *ApplicationDescription) ApplicationDescription.Interface.DestroyError!void {
+            _ = desc;
+        }
 
-            const app = @fieldParentPtr(Application, "settings", settings);
+        const UiBuilder = struct {
+            ui: zero_graphics.UserInterface.Builder,
+            stack: zero_graphics.UserInterface.VerticalStackLayout,
 
-            const root_rect = rectangle.centered(300, rectangle.height);
+            pub fn header(self: *UiBuilder, title: []const u8) !void {
+                const rect = self.stack.get(32);
+                try self.ui.panel(rect, .{ .id = title.ptr });
+                try self.ui.label(rect, title, .{ .horizontal_alignment = .center, .id = title.ptr });
+            }
 
-            var stack = zero_graphics.UserInterface.VerticalStackLayout.init(root_rect);
+            pub fn advance(self: *UiBuilder, spacing: u15) !void {
+                self.stack.advance(spacing);
+            }
 
-            const header = stack.get(32);
-            try ui.panel(header, .{});
-            try ui.label(header, "Settings", .{ .horizontal_alignment = .center });
+            pub fn number(self: *UiBuilder, comptime T: type, value: *T, comptime fmt: []const u8, increment: T, min: ?T, max: ?T) !bool {
+                var dock = zero_graphics.UserInterface.DockLayout.init(self.stack.get(32));
 
-            stack.advance(16);
+                var changed = false;
 
-            {
-                var dock = zero_graphics.UserInterface.DockLayout.init(stack.get(32));
-
-                if (try ui.button(dock.get(.right, 32).shrink(1), "+", null, .{})) {
-                    settings.ui_scale += 0.1;
-                    try app.updateDpiScale();
+                if (try self.ui.button(dock.get(.right, 32).shrink(1), "+", null, .{
+                    .id = value,
+                    .enabled = if (max) |m| (value.* < m) else true,
+                })) {
+                    if (max) |m| {
+                        value.* = std.math.min(m, value.* + increment);
+                    } else {
+                        value.* += increment;
+                    }
+                    changed = true;
                 }
 
-                if (try ui.button(dock.get(.right, 32).shrink(1), "-", null, .{})) {
-                    settings.ui_scale -= 0.1;
-                    try app.updateDpiScale();
+                if (try self.ui.button(dock.get(.right, 32).shrink(1), "-", null, .{
+                    .id = value,
+                    .enabled = if (min) |m| (value.* > m) else true,
+                })) {
+                    if (min) |m| {
+                        value.* = std.math.max(m, value.* - increment);
+                    } else {
+                        value.* += increment;
+                    }
+                    changed = true;
                 }
 
                 var buf = std.mem.zeroes([64]u8);
-                try ui.label(
+                try self.ui.label(
                     dock.getRest(),
-                    std.fmt.bufPrint(&buf, "DPI Scale: {d:.2}", .{settings.ui_scale}) catch unreachable,
-                    .{},
+                    std.fmt.bufPrint(&buf, fmt, .{value.*}) catch unreachable,
+                    .{ .id = value },
                 );
+
+                return changed;
+            }
+        };
+
+        pub fn processUserInterface(instance: *ApplicationInstance, rectangle: zero_graphics.Rectangle, ui: zero_graphics.UserInterface.Builder) ApplicationInstance.Interface.UiError!void {
+            const self = @fieldParentPtr(@This(), "instance", instance);
+
+            const app = @fieldParentPtr(Application, "settings_editor", self);
+
+            const root_rect = rectangle.centered(300, rectangle.height);
+
+            var builder = UiBuilder{
+                .stack = zero_graphics.UserInterface.VerticalStackLayout.init(root_rect),
+                .ui = ui,
+            };
+            try builder.header("Settings");
+            try builder.advance(16);
+
+            if (try builder.number(f32, &self.settings.ui.scale, "DPI Scale: {d:.2}", 0.1, 0.1, null)) {
+                try app.updateDpiScale();
             }
 
-            stack.advance(16);
+            try builder.advance(16);
+
+            if (try builder.number(u15, &self.settings.ui.padding.left, "Padding left: {d}", 1, 0, null)) {
+                try app.updateDpiScale();
+            }
+            if (try builder.number(u15, &self.settings.ui.padding.right, "Padding right: {d}", 1, 0, null)) {
+                try app.updateDpiScale();
+            }
+            if (try builder.number(u15, &self.settings.ui.padding.top, "Padding top: {d}", 1, 0, null)) {
+                try app.updateDpiScale();
+            }
+            if (try builder.number(u15, &self.settings.ui.padding.bottom, "Padding bottom: {d}", 1, 0, null)) {
+                try app.updateDpiScale();
+            }
+
+            try builder.advance(16);
 
             {
-                const location = &app.home_screen.config.workspace_bar.location;
+                const location = &self.settings.home_screen.workspace_bar.location;
 
-                var dock = zero_graphics.UserInterface.DockLayout.init(stack.get(32));
+                var dock = zero_graphics.UserInterface.DockLayout.init(builder.stack.get(32));
                 try ui.label(dock.get(.right, 80), "Bottom", .{ .horizontal_alignment = .right });
                 if (try ui.radioButton(dock.get(.right, 32), (location.* == .bottom), .{})) {
                     location.* = .bottom;
@@ -263,38 +449,46 @@ pub const Application = struct {
 
                 try ui.label(dock.getRest(), "Workspace Bar:", .{});
 
-                dock = zero_graphics.UserInterface.DockLayout.init(stack.get(32));
+                dock = zero_graphics.UserInterface.DockLayout.init(builder.stack.get(32));
                 try ui.label(dock.get(.right, 80), "Left", .{ .horizontal_alignment = .right });
                 if (try ui.radioButton(dock.get(.right, 32), (location.* == .left), .{})) {
                     location.* = .left;
                 }
 
-                dock = zero_graphics.UserInterface.DockLayout.init(stack.get(32));
+                dock = zero_graphics.UserInterface.DockLayout.init(builder.stack.get(32));
                 try ui.label(dock.get(.right, 80), "Top", .{ .horizontal_alignment = .right });
                 if (try ui.radioButton(dock.get(.right, 32), (location.* == .top), .{})) {
                     location.* = .top;
                 }
 
-                dock = zero_graphics.UserInterface.DockLayout.init(stack.get(32));
+                dock = zero_graphics.UserInterface.DockLayout.init(builder.stack.get(32));
                 try ui.label(dock.get(.right, 80), "Right", .{ .horizontal_alignment = .right });
                 if (try ui.radioButton(dock.get(.right, 32), (location.* == .right), .{})) {
                     location.* = .right;
                 }
             }
-            stack.advance(16);
+            try builder.advance(16);
             {
-                var dock = zero_graphics.UserInterface.DockLayout.init(stack.get(32));
+                var dock = zero_graphics.UserInterface.DockLayout.init(builder.stack.get(32));
 
-                if (try ui.button(dock.get(.left, 100), "Cancel", null, .{})) {
-                    settings.instance.status = .{ .exited = "" };
+                if (try builder.ui.button(dock.get(.left, 100), "Cancel", null, .{})) {
+                    _ = app.loadSettings() catch return error.IoError;
+
+                    self.instance.status = .{ .exited = "" };
                 }
 
-                if (try ui.button(dock.get(.right, 100), "Save", null, .{})) {
-                    settings.instance.status = .{ .exited = "" };
+                if (try builder.ui.button(dock.get(.right, 100), "Save", null, .{
+                    .enabled = (app.settings_root_path != null),
+                })) {
+                    if (app.saveSettings() catch return error.IoError) {
+                        self.instance.status = .{ .exited = "" };
+                    }
                 }
             }
         }
-        pub fn deinit(instance: *ApplicationInstance) void {}
+        pub fn deinit(instance: *ApplicationInstance) void {
+            _ = instance;
+        }
     };
 };
 
@@ -338,10 +532,11 @@ const DemoApp = struct {
         self.updateStatus();
     }
 
-    pub fn resize(instance: *ApplicationInstance, size: Size) !void {
-        const self = @fieldParentPtr(DemoApp, "instance", instance);
-        @panic("DemoApp.resize not implemented yet!");
-    }
+    // pub fn resize(instance: *ApplicationInstance, size: Size) !void {
+    //     const self = @fieldParentPtr(DemoApp, "instance", instance);
+    //     _ = self;
+    //     @panic("DemoApp.resize not implemented yet!");
+    // }
 
     pub fn processUserInterface(instance: *ApplicationInstance, rectangle: zero_graphics.Rectangle, builder: zero_graphics.UserInterface.Builder) zero_graphics.UserInterface.Builder.Error!void {
         const self = @fieldParentPtr(DemoApp, "instance", instance);

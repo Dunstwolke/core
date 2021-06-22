@@ -41,6 +41,16 @@ pub fn getAppPackage(sdk: *const Sdk, name: []const u8) Pkg {
     });
 }
 
+pub fn getCompilerPackage(sdk: *const Sdk, name: []const u8) Pkg {
+    return sdk.builder.dupePkg(Pkg{
+        .name = sdk.builder.dupe(name),
+        .path = FileSource{ .path = sdkRoot() ++ "/src/dunstblick-compiler/package.zig" },
+        .dependencies = &[_]std.build.Pkg{
+            pkgs.dunstblick_protocol,
+        },
+    });
+}
+
 pub fn addCompileLayout(sdk: *const Sdk, file: FileSource, config: ?FileSource, update_config: bool) *CompileLayoutStep {
     const step = sdk.builder.allocator.create(CompileLayoutStep) catch unreachable;
     step.* = CompileLayoutStep{

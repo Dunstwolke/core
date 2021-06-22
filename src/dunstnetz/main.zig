@@ -4,6 +4,8 @@ const network = @import("network");
 pub const DeviceAddress = enum(u48) {
     const Self = @This();
 
+    _,
+
     pub fn fromBytes(value: [6]u8) Self {
         return @bitCast(Self, value);
     }
@@ -15,6 +17,8 @@ pub const DeviceAddress = enum(u48) {
 
 pub const AppAddress = enum(u24) {
     const Self = @This();
+
+    _,
 
     pub fn fromBytes(value: [3]u8) Self {
         return @bitCast(Self, value);
@@ -54,6 +58,7 @@ pub const Device = struct {
     const Self = @This();
 
     pub fn create(device_config: DeviceConfig) !Self {
+        _ = device_config;
         return Self{};
     }
 
@@ -62,6 +67,7 @@ pub const Device = struct {
     }
 
     pub fn update(self: *Self) void {
-        unreachable;
+        _ = self;
+        @panic("not implemented yet");
     }
 };

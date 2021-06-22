@@ -11,6 +11,11 @@ const pkgs = struct {
         .path = .{ .path = "./lib/zig-network/network.zig" },
     };
 
+    const known_folders = std.build.Pkg{
+        .name = "known-folders",
+        .path = .{ .path = "./lib/known-folders/known-folders.zig" },
+    };
+
     const sdl2 = std.build.Pkg{
         .name = "sdl2",
         .path = .{ .path = "./lib/SDL.zig/src/lib.zig" },
@@ -215,8 +220,9 @@ pub fn build(b: *Builder) !void {
         desktop_app.addPackage(pkgs.dunstblick_protocol);
         desktop_app.addPackage(pkgs.network);
         desktop_app.addPackage(pkgs.tvg);
-        desktop_app.addPackage(pkgs.painterz);
+        // desktop_app.addPackage(pkgs.painterz);
         desktop_app.addPackage(pkgs.zerog);
+        desktop_app.addPackage(pkgs.known_folders);
 
         // TTF rendering library:
         desktop_app.addIncludeDir("./lib/stb");
@@ -288,21 +294,21 @@ pub fn build(b: *Builder) !void {
             key_store,
         );
 
+        const android_pkg = app.getAndroidPackage("android");
+
         const zero_graphics_with_android = std.build.Pkg{
             .name = "zero-graphics",
             .path = .{ .path = "./lib/zero-graphics/src/zero-graphics.zig" },
-            .dependencies = &[_]std.build.Pkg{
-                pkgs.zigimg,
-                app.getAndroidPackage("android"),
-            },
+            .dependencies = &[_]std.build.Pkg{ pkgs.zigimg, android_pkg },
         };
 
         for (app.libraries) |app_lib| {
             app_lib.addPackage(pkgs.dunstblick_protocol);
             app_lib.addPackage(pkgs.network);
             app_lib.addPackage(pkgs.tvg);
-            app_lib.addPackage(pkgs.painterz);
             app_lib.addPackage(zero_graphics_with_android);
+            app_lib.addPackage(pkgs.known_folders);
+            app_lib.addPackage(android_pkg);
 
             // TTF rendering library:
             app_lib.addIncludeDir("./lib/stb");

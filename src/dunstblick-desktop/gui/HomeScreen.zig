@@ -58,11 +58,11 @@ const default_colors = struct {
     pub const tinted_gray = rgb("263238");
 };
 
-const HomeScreenConfig = struct {
+pub const Config = struct {
     const WorkspaceBarConfig = struct {
-        background: Color,
-        border: Color,
-        button_theme: ButtonTheme,
+        // background: Color,
+        // border: Color,
+        // button_theme: ButtonTheme,
         button_size: u15,
         margins: u15,
         location: RectangleSide,
@@ -75,9 +75,9 @@ const HomeScreenConfig = struct {
     const AppMenuConfig = struct {
         button_theme: ButtonTheme,
 
-        dimmer: Color,
-        outline: Color,
-        background: Color,
+        // dimmer: Color,
+        // outline: Color,
+        // background: Color,
         button_size: u15,
         scrollbar_width: u15,
         margins: u15,
@@ -85,10 +85,10 @@ const HomeScreenConfig = struct {
 
     const WorkspaceConfig = struct {
         app_icon_size: u15,
-        active_app_border: Color,
-        background_color: Color,
-        insert_highlight_color: Color,
-        insert_highlight_fill_color: Color,
+        // active_app_border: Color,
+        // background_color: Color,
+        // insert_highlight_color: Color,
+        // insert_highlight_fill_color: Color,
     };
 
     const LongClickIndicator = struct {
@@ -97,9 +97,9 @@ const HomeScreenConfig = struct {
     };
 
     app_menu: AppMenuConfig = AppMenuConfig{
-        .dimmer = rgba("292f35", 0.5),
-        .outline = default_colors.bright_green,
-        .background = rgb("255953"),
+        // .dimmer = rgba("292f35", 0.5),
+        // .outline = default_colors.bright_green,
+        // .background = rgb("255953"),
         .scrollbar_width = 8,
         .margins = 8,
 
@@ -128,38 +128,16 @@ const HomeScreenConfig = struct {
 
     workspace_bar: WorkspaceBarConfig = WorkspaceBarConfig{
         .location = .bottom,
-        .background = default_colors.dark_gray,
-        .border = rgb("212529"),
         .button_size = 50,
         .margins = 8,
-        .button_theme = ButtonTheme{
-            .icon_size = 48,
-            .text_color = rgb("ffffff"),
-            .default = .{
-                .outline = default_colors.bright_gray,
-                .background = default_colors.dark_gray,
-            },
-            .hovered = .{
-                .outline = default_colors.bright_green,
-                .background = rgb("255953"),
-            },
-            .clicked = .{
-                .outline = default_colors.bright_green,
-                .background = default_colors.dark_green,
-            },
-            .disabled = .{
-                .outline = rgb("a6a6a6"),
-                .background = rgb("505050"),
-            },
-        },
     },
 
     workspace: WorkspaceConfig = WorkspaceConfig{
         .app_icon_size = 96,
-        .background_color = default_colors.tinted_gray,
-        .active_app_border = rgb("255853"),
-        .insert_highlight_color = rgb("FF00FF"),
-        .insert_highlight_fill_color = rgba("FF00FF", 0.3),
+        // .background_color = default_colors.tinted_gray,
+        // .active_app_border = rgb("255853"),
+        // .insert_highlight_color = rgb("FF00FF"),
+        // .insert_highlight_fill_color = rgba("FF00FF", 0.3),
     },
 
     longclick_indicator: LongClickIndicator = LongClickIndicator{
@@ -390,6 +368,7 @@ const RectangleSide = enum {
     right,
 
     pub fn jsonStringify(value: RectangleSide, options: std.json.StringifyOptions, writer: anytype) !void {
+        _ = options;
         try writer.writeAll("\"");
         try writer.writeAll(std.meta.tagName(value));
         try writer.writeAll("\"");
@@ -486,7 +465,7 @@ const minimal_drag_distance = 16;
 
 allocator: *std.mem.Allocator,
 size: Size,
-config: HomeScreenConfig,
+config: *const Config,
 mouse_pos: Point,
 
 /// Index of the currently selected .workspace menu item
@@ -515,12 +494,12 @@ icon_cache: IconCache,
 
 context_menu: ?ContextMenu = null,
 
-pub fn init(allocator: *std.mem.Allocator, renderer: *Renderer2D) !Self {
+pub fn init(allocator: *std.mem.Allocator, renderer: *Renderer2D, config: *const Config) !Self {
     var self = Self{
         .allocator = allocator,
         .size = Size{ .width = 0, .height = 0 },
         .menu_items = std.ArrayList(MenuItem).init(allocator),
-        .config = HomeScreenConfig{},
+        .config = config,
         .mouse_pos = Point{ .x = 0, .y = 0 },
         .current_workspace = 2, // first workspace after app_menu, separator
         .mode = .default,
@@ -632,6 +611,8 @@ pub fn setMousePos(self: *Self, pos: Point) void {
 var rng = std.rand.DefaultPrng.init(0);
 
 pub fn mouseDown(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
+    _ = mouse_button;
+
     std.debug.assert(self.input_processor != null);
 
     self.mouse_down_timestamp = std.time.nanoTimestamp();
@@ -862,7 +843,7 @@ pub fn update(self: *Self, dt: f32) !void {
 
     // Update all running applications
     {
-        for (self.menu_items.items) |*menu_item, index| {
+        for (self.menu_items.items) |*menu_item| {
             if (menu_item.* != .button)
                 continue;
             if (menu_item.button.data != .workspace)
@@ -1156,7 +1137,7 @@ pub fn update(self: *Self, dt: f32) !void {
     }
 }
 
-fn updateWorkspace(self: *Self, builder: UserInterface.Builder, area: Rectangle, workspace: *Workspace, hovered_rectangle: *?Rectangle) RenderError!void {
+fn updateWorkspace(self: *Self, builder: UserInterface.Builder, area: Rectangle, workspace: *Workspace, hovered_rectangle: *?Rectangle) !void {
     try self.updateTreeNode(builder, area, &workspace.window_tree.root, hovered_rectangle);
 }
 
@@ -1183,13 +1164,15 @@ fn processAppNodeEvent(custom: UserInterface.CustomWidget, event: UserInterface.
                 }
             }
         },
-        .pointer_motion => |data| {},
+        .pointer_motion => {},
     }
 
     return null;
 }
 
 fn renderAppNode(custom: UserInterface.CustomWidget, area: Rectangle, renderer: *Renderer2D, info: UserInterface.CustomWidget.DrawInfo) Renderer2D.DrawError!void {
+    _ = info;
+
     const self = @ptrCast(*Self, @alignCast(@alignOf(Self), custom.config.context orelse unreachable));
     const app = @ptrCast(*AppInstance, @alignCast(@alignOf(AppInstance), custom.user_data orelse unreachable));
 
@@ -1201,6 +1184,7 @@ fn renderAppNode(custom: UserInterface.CustomWidget, area: Rectangle, renderer: 
 }
 
 fn renderStartingAppNode(self: *Self, app: *AppInstance, area: Rectangle, renderer: *Renderer2D) Renderer2D.DrawError!void {
+    _ = renderer;
     const icon_size = std.math.min(area.width - 2, self.config.workspace.app_icon_size);
     if (icon_size > 0) {
         try self.drawIcon(
@@ -1241,7 +1225,9 @@ fn renderStartingAppNode(self: *Self, app: *AppInstance, area: Rectangle, render
 }
 
 fn renderRunningAppNode(self: *Self, app: *AppInstance, area: Rectangle, renderer: *Renderer2D) Renderer2D.DrawError!void {
-    app.application.render(area, self.renderer) catch |err| logger.err("failed to render application '{s}': {s}", .{
+    _ = self;
+    _ = renderer;
+    app.application.render(area, renderer) catch |err| logger.err("failed to render application '{s}': {s}", .{
         app.application.description.display_name,
         @errorName(err),
     });
@@ -1250,7 +1236,7 @@ fn renderRunningAppNode(self: *Self, app: *AppInstance, area: Rectangle, rendere
 fn renderExitedAppNode(self: *Self, app: *AppInstance, area: Rectangle, renderer: *Renderer2D) Renderer2D.DrawError!void {
     const exit_message = app.application.status.exited; // this is safe as the status might only be changed in the update fn
     if (exit_message.len > 0) {
-        const size = self.renderer.measureString(self.app_status_font, exit_message);
+        const size = renderer.measureString(self.app_status_font, exit_message);
         try self.renderer.drawString(
             self.app_status_font,
             exit_message,
@@ -1261,7 +1247,7 @@ fn renderExitedAppNode(self: *Self, app: *AppInstance, area: Rectangle, renderer
     }
 }
 
-fn updateTreeNode(self: *Self, builder: UserInterface.Builder, area: Rectangle, node: *WindowTree.Node, hovered_rectangle: *?Rectangle) RenderError!void {
+fn updateTreeNode(self: *Self, builder: UserInterface.Builder, area: Rectangle, node: *WindowTree.Node, hovered_rectangle: *?Rectangle) ApplicationInstance.Interface.UiError!void {
     const is_hovered = area.contains(self.mouse_pos);
     if (is_hovered and (node.* == .empty or node.* == .starting or node.* == .connected)) {
         hovered_rectangle.* = area;
@@ -1351,12 +1337,6 @@ const SubCanvas = struct {
 
 const RenderError = error{OutOfMemory} || zerog.Renderer2D.DrawError;
 pub fn render(self: *Self) RenderError!void {
-    const bar_width = self.config.workspace_bar.getWidth();
-
-    const workspace_area = self.getWorkspaceRectangle();
-
-    const bar_area = self.getBarRectangle();
-
     const renderer = self.renderer;
 
     try self.ui.render();
@@ -1536,7 +1516,7 @@ fn processApplicationButtonWidgetEvent(custom: UserInterface.CustomWidget, event
                 }
             }
         },
-        .pointer_motion => |data| {
+        .pointer_motion => {
             if (app.mouse_press_location) |loc| {
                 if (app.application.state == .ready and self.isDragDistanceReached(loc)) {
                     return @enumToInt(AppButtonResult.dragged);
@@ -1596,8 +1576,8 @@ fn renderApplicationButtonWidget(
     const icon = app.application.icon orelse icons.app_placeholder;
     const label = app.application.display_name;
 
-    try self.renderer.fillRectangle(rectangle, back_color);
-    try self.renderer.drawRectangle(rectangle, outline_color);
+    try renderer.fillRectangle(rectangle, back_color);
+    try renderer.drawRectangle(rectangle, outline_color);
 
     const icon_size = std.math.min(rectangle.width - 2, self.config.app_menu.button_theme.icon_size);
 
@@ -1611,9 +1591,9 @@ fn renderApplicationButtonWidget(
     {
         const top = ((rectangle.height + icon_size) / 2 + rectangle.height) / 2;
 
-        const size = self.renderer.measureString(self.app_button_font, label);
+        const size = renderer.measureString(self.app_button_font, label);
 
-        try self.renderer.drawString(
+        try renderer.drawString(
             self.app_button_font,
             label,
             rectangle.x + (rectangle.width - size.width) / 2,

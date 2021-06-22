@@ -123,7 +123,7 @@ pub const Value = union(protocol.Type) {
     pub fn convertTo(self: Value, comptime T: type) !T {
         if (self.get(T)) |v| {
             return v;
-        } else |err| {
+        } else |_| {
             // we ignore the conversion error, we just want to short-cut
             // the conversion path when a compatible type is queried.
         }
@@ -131,13 +131,13 @@ pub const Value = union(protocol.Type) {
         const ti = @typeInfo(T);
 
         switch (self) {
-            .integer => |val| return error.UnsupportedConversion,
-            .number => |val| return error.UnsupportedConversion,
-            .string => |val| return error.UnsupportedConversion,
-            .margins => |val| return error.UnsupportedConversion,
-            .color => |val| return error.UnsupportedConversion,
-            .size => |val| return error.UnsupportedConversion,
-            .point => |val| return error.UnsupportedConversion,
+            .integer => return error.UnsupportedConversion,
+            .number => return error.UnsupportedConversion,
+            .string => return error.UnsupportedConversion,
+            .margins => return error.UnsupportedConversion,
+            .color => return error.UnsupportedConversion,
+            .size => return error.UnsupportedConversion,
+            .point => return error.UnsupportedConversion,
 
             .boolean => |val| {
                 if (ti == .Int)

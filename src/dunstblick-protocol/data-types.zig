@@ -1,14 +1,29 @@
 const std = @import("std");
 
-pub const ResourceID = extern enum(u32) { invalid, _ };
-pub const ObjectID = extern enum(u32) { invalid, _ };
-pub const PropertyName = extern enum(u32) { invalid, _ };
-pub const EventID = extern enum(u32) { invalid, _ };
-pub const WidgetName = extern enum(u32) { none, _ };
+fn MakeID(comptime tag: anytype) type {
+    _ = tag;
+    return enum(u32) {
+        invalid,
+        _,
+
+        pub fn init(value: u32) @This() {
+            return @intToEnum(@This(), value);
+        }
+    };
+}
+
+pub const ResourceID = MakeID(.{});
+
+pub const ObjectID = MakeID(.{});
+
+pub const PropertyName = MakeID(.{});
+
+pub const EventID = MakeID(.{});
+
+pub const WidgetName = MakeID(.{});
 
 pub const ObjectList = std.ArrayList(ObjectID);
 pub const SizeList = std.ArrayList(ColumnSizeDefinition);
-// pub const String = std.ArrayList(u8);
 
 pub const ResourceHash = [8]u8;
 
@@ -301,3 +316,26 @@ pub const String = union(enum) {
         self.* = undefined;
     }
 };
+
+test {
+    comptime {
+        const types = [_]type{
+            ResourceID,
+            ObjectID,
+            PropertyName,
+            EventID,
+            WidgetName,
+        };
+        for (types) |a, i| {
+            for (types[i + 1 ..]) |b| {
+                if (a == b)
+                    @compileError(@typeName(a) ++ " is the same type as " ++ @typeName(b) ++ ". This is illegal!");
+            }
+        }
+    }
+}
+
+test "id" {
+    const id = ResourceID.init(1);
+    try std.testing.expectEqual(@intToEnum(ResourceID, 1), id);
+}

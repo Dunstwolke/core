@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const AnnouncementType = extern enum(u16) {
+pub const AnnouncementType = enum(u16) {
     discover = 0,
     respond_discover = 1,
     _,

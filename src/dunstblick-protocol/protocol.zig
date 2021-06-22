@@ -670,7 +670,7 @@ fn testCommonHandshake(
     const resources = all_resources[0..resource_limit];
     const resources_descriptors = all_resources_descriptors[0..resource_limit];
 
-    const dummy_caps = tcp.ClientCapabilities{
+    const dummy_caps = std.EnumSet(ClientCapabilities).init(.{
         .mouse = true,
         .keyboard = true,
         .touch = false,
@@ -678,7 +678,7 @@ fn testCommonHandshake(
         .tiltable = true,
         .resizable = false,
         .req_accessibility = true,
-    };
+    });
 
     {
         stream.reset();
@@ -756,7 +756,7 @@ fn testCommonHandshake(
                 try std.testing.expectEqualSlices(ResourceID, requested_resources, msg.requested_resources);
             }
 
-            for (requested_resources) |id, i| {
+            for (requested_resources) |_, i| {
                 {
                     stream.reset();
                     try server.sendResourceHeader(resources_descriptors[i].id, resources[i]);

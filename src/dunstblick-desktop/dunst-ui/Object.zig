@@ -73,20 +73,33 @@ fn getList(self: *Object, prop_name: protocol.PropertyName) !*ObjectList {
 
 pub fn clear(self: *Object, prop_name: protocol.PropertyName) !void {
     const list = try self.getList(prop_name);
-    @panic("not implemented yet!");
+    list.shrinkRetainingCapacity(0);
 }
 
 pub fn insertRange(self: *Object, prop_name: protocol.PropertyName, index: usize, items: []const protocol.ObjectID) !void {
     const list = try self.getList(prop_name);
+    _ = list;
+    _ = prop_name;
+    _ = index;
+    _ = items;
     @panic("not implemented yet!");
 }
 
 pub fn removeRange(self: *Object, prop_name: protocol.PropertyName, index: usize, count: usize) !void {
     const list = try self.getList(prop_name);
+    _ = list;
+    _ = prop_name;
+    _ = index;
+    _ = count;
     @panic("not implemented yet!");
 }
 
 pub fn moveRange(self: *Object, prop_name: protocol.PropertyName, index_from: usize, index_to: usize, count: usize) !void {
     const list = try self.getList(prop_name);
+    _ = list;
+    _ = prop_name;
+    _ = index_from;
+    _ = index_to;
+    _ = count;
     @panic("not implemented yet!");
 }

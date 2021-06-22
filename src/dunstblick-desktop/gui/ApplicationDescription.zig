@@ -12,6 +12,7 @@ pub const Interface = struct {
     pub fn get(comptime T: type) *const @This() {
         return &struct {
             fn destroyFallback(self: *Self) DestroyError!void {
+                _ = self;
                 return DestroyError.Indestructible;
             }
 

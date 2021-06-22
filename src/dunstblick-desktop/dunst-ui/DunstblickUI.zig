@@ -297,7 +297,7 @@ pub const WidgetTree = struct {
         binding: protocol.PropertyName,
     };
 
-    fn setValue(property: anytype, property_id: protocol.Property, value_from_stream: ValueFromStream) !bool {
+    fn setValue(property: anytype, value_from_stream: ValueFromStream) !bool {
         switch (value_from_stream) {
             .value => |untyped_value| {
                 const typed_value = try untyped_value.get(@TypeOf(property.*).Type);
@@ -318,7 +318,7 @@ pub const WidgetTree = struct {
             if (comptime isProperty(fld.field_type)) {
                 if (property_id == @field(protocol.Property, fld.name)) {
                     const property = &@field(container, fld.name);
-                    return setValue(property, property_id, value_from_stream);
+                    return setValue(property, value_from_stream);
                 }
             }
         }
@@ -440,8 +440,9 @@ pub const WidgetTree = struct {
                 if (binding_value.get(protocol.ObjectID)) |binding_id| {
                     widget.binding_source = self.ui.getObject(binding_id);
                 } else |err| {
-                    logger.warn("failed to convert {} to object id", .{
+                    logger.warn("failed to convert {} to object id: {s}", .{
                         widget.binding_context.binding.?,
+                        @errorName(err),
                     });
                     widget.binding_source = null;
                 }
@@ -532,6 +533,7 @@ pub const WidgetTree = struct {
     }
 
     fn computeDefaultWantedSize(self: *WidgetTree, widget: *Widget) zero_graphics.Size {
+        _ = self;
         var size = widget.get(.size_hint);
         for (widget.children.items) |child| {
             const child_size = child.getWantedSizeWithMargins();
@@ -664,6 +666,7 @@ pub const WidgetTree = struct {
             },
 
             .dock_layout => |*dock_layout| blk: {
+                _ = dock_layout;
                 if (child_count == 0)
                     break :blk zero_graphics.Size.empty;
 
@@ -923,6 +926,7 @@ pub const WidgetTree = struct {
             },
 
             .dock_layout => |*dock_layout| {
+                _ = dock_layout;
                 var child_area = rectangle; // will decrease for each child until last.
                 for (children[0 .. child_count - 1]) |*child| {
                     if (child.getActualVisibility() == .collapsed)
@@ -1057,6 +1061,7 @@ pub const WidgetTree = struct {
             },
 
             .scrollview => |*view| {
+                _ = view;
                 // TODO: This isn't the final logic
 
                 var rect = rectangle;
@@ -1125,6 +1130,7 @@ pub const WidgetTree = struct {
             },
 
             .panel => |*panel| {
+                _ = panel;
                 try ui.panel(rect, .{
                     .id = widget,
                     .hit_test_visible = hit_test_visible,
@@ -1341,7 +1347,7 @@ pub const Widget = struct {
             .binding_context = .{ .value = .invalid },
             .child_source = .{ .value = ObjectList.init(allocator) },
             .child_template = .{ .value = .invalid },
-            .widget_name = .{ .value = .none },
+            .widget_name = .{ .value = .invalid },
             .tab_title = .{ .value = String.new(allocator) },
             .size_hint = .{ .value = protocol.Size{ .width = 0, .height = 0 } },
             .left = .{ .value = 0 },
@@ -1447,10 +1453,11 @@ fn PropertyGetSetMixin(comptime Self: type, getErasedWidget: fn (*const Self) *c
                                     });
                                 };
                             } else |err| {
-                                logger.err("Failed to convert {s} to {s} for property {}!", .{
+                                logger.err("Failed to convert {s} to {s} for property {}: {s}", .{
                                     @typeName(PropertyType(property_name)),
                                     std.meta.activeTag(prop.*),
                                     object_property,
+                                    @errorName(err),
                                 });
                             }
                         } else {
@@ -1548,12 +1555,15 @@ pub const Control = union(protocol.WidgetType) {
         dummy: u32, // prevent zero-sizing
 
         pub fn init(allocator: *std.mem.Allocator) Self {
+            _ = allocator;
             return Self{
                 .dummy = 0,
             };
         }
 
-        pub fn setUp(self: *Self) void {}
+        pub fn setUp(self: *Self) void {
+            _ = self;
+        }
 
         pub fn deinit(self: *Self) void {
             deinitAllProperties(Self, self);
@@ -1568,6 +1578,7 @@ pub const Control = union(protocol.WidgetType) {
         dummy: u32, // prevent zero-sizing
 
         pub fn init(allocator: *std.mem.Allocator) Self {
+            _ = allocator;
             return Self{
                 .dummy = 0,
             };
@@ -1590,6 +1601,7 @@ pub const Control = union(protocol.WidgetType) {
         on_click: Property(protocol.EventID),
 
         pub fn init(allocator: *std.mem.Allocator) Self {
+            _ = allocator;
             return Self{
                 .on_click = .{ .value = .invalid },
             };
@@ -1642,6 +1654,7 @@ pub const Control = union(protocol.WidgetType) {
         image_scaling: Property(protocol.enums.ImageScaling),
 
         pub fn init(allocator: *std.mem.Allocator) Self {
+            _ = allocator;
             return Self{
                 .image = .{ .value = .invalid },
                 .image_scaling = .{ .value = .stretch },
@@ -1665,6 +1678,7 @@ pub const Control = union(protocol.WidgetType) {
         is_checked: Property(bool),
 
         pub fn init(allocator: *std.mem.Allocator) Self {
+            _ = allocator;
             return Self{
                 .is_checked = .{ .value = false },
             };
@@ -1690,6 +1704,7 @@ pub const Control = union(protocol.WidgetType) {
         is_checked: Property(bool),
 
         pub fn init(allocator: *std.mem.Allocator) Self {
+            _ = allocator;
             return Self{
                 .is_checked = .{ .value = false },
             };
@@ -1718,6 +1733,7 @@ pub const Control = union(protocol.WidgetType) {
         orientation: Property(protocol.enums.Orientation),
 
         pub fn init(allocator: *std.mem.Allocator) Self {
+            _ = allocator;
             return Self{
                 .minimum = .{ .value = 0.0 },
                 .maximum = .{ .value = 100.0 },
@@ -1726,7 +1742,9 @@ pub const Control = union(protocol.WidgetType) {
             };
         }
 
-        pub fn setUp(self: *Self) void {}
+        pub fn setUp(self: *Self) void {
+            _ = self;
+        }
 
         pub fn deinit(self: *Self) void {
             deinitAllProperties(Self, self);
@@ -1744,6 +1762,7 @@ pub const Control = union(protocol.WidgetType) {
         orientation: Property(protocol.enums.Orientation),
 
         pub fn init(allocator: *std.mem.Allocator) Self {
+            _ = allocator;
             return Self{
                 .minimum = .{ .value = 0.0 },
                 .maximum = .{ .value = 100.0 },
@@ -1752,7 +1771,9 @@ pub const Control = union(protocol.WidgetType) {
             };
         }
 
-        pub fn setUp(self: *Self) void {}
+        pub fn setUp(self: *Self) void {
+            _ = self;
+        }
 
         pub fn deinit(self: *Self) void {
             deinitAllProperties(Self, self);
@@ -1771,6 +1792,7 @@ pub const Control = union(protocol.WidgetType) {
         display_progress_style: Property(protocol.enums.DisplayProgressStyle),
 
         pub fn init(allocator: *std.mem.Allocator) Self {
+            _ = allocator;
             return Self{
                 .minimum = .{ .value = 0.0 },
                 .maximum = .{ .value = 100.0 },
@@ -1780,7 +1802,9 @@ pub const Control = union(protocol.WidgetType) {
             };
         }
 
-        pub fn setUp(self: *Self) void {}
+        pub fn setUp(self: *Self) void {
+            _ = self;
+        }
 
         pub fn deinit(self: *Self) void {
             deinitAllProperties(Self, self);
@@ -1795,12 +1819,15 @@ pub const Control = union(protocol.WidgetType) {
         orientation: Property(protocol.enums.StackDirection),
 
         pub fn init(allocator: *std.mem.Allocator) Self {
+            _ = allocator;
             return Self{
                 .orientation = .{ .value = .vertical },
             };
         }
 
-        pub fn setUp(self: *Self) void {}
+        pub fn setUp(self: *Self) void {
+            _ = self;
+        }
 
         pub fn deinit(self: *Self) void {
             deinitAllProperties(Self, self);
@@ -1815,12 +1842,15 @@ pub const Control = union(protocol.WidgetType) {
         selected_index: Property(i32),
 
         pub fn init(allocator: *std.mem.Allocator) Self {
+            _ = allocator;
             return Self{
                 .selected_index = .{ .value = 0 },
             };
         }
 
-        pub fn setUp(self: *Self) void {}
+        pub fn setUp(self: *Self) void {
+            _ = self;
+        }
 
         pub fn deinit(self: *Self) void {
             deinitAllProperties(Self, self);
@@ -1847,7 +1877,9 @@ pub const Control = union(protocol.WidgetType) {
             };
         }
 
-        pub fn setUp(self: *Self) void {}
+        pub fn setUp(self: *Self) void {
+            _ = self;
+        }
 
         pub fn deinit(self: *Self) void {
             deinitAllProperties(Self, self);

@@ -114,28 +114,28 @@ pub const Cursor = enum {
     no,
 };
 
-pub const TextAlign = enum {
+pub const TextAlign = enum(u2) {
     left = 0,
     center = 1,
     right = 2,
     block = 3,
 };
 
-pub const ThemeColor = enum {
+pub const ThemeColor = enum(u2) {
     background = 0,
     input_field = 1,
     highlight = 2,
     checkered = 3,
 };
 
-pub const LineStyle = enum {
+pub const LineStyle = enum(u1) {
     /// A small border with a 3D effect, looks like a welding around the object
-    crease,
+    crease = 0,
     /// A small border with a 3D effect, looks like a welding around the object
-    edge,
+    edge = 1,
 };
 
-pub const Bevel = enum {
+pub const Bevel = enum(u3) {
     /// A small border with a 3D effect, looks like a welding around the object
     edge = 0,
     /// A small border with a 3D effect, looks like a crease around the object

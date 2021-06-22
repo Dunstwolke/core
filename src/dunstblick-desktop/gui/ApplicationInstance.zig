@@ -13,9 +13,10 @@ pub const Interface = struct {
     pub const UpdateError = GenericError || error{IoError};
     pub const ResizeError = GenericError;
     pub const RenderError = GenericError || zerog.Renderer2D.DrawError;
+    pub const UiError = GenericError || error{IoError} || zerog.UserInterface.Builder.Error;
 
     update: ?fn (*Self, f32) UpdateError!void,
-    processUserInterface: ?fn (*Self, zerog.Rectangle, zerog.UserInterface.Builder) zerog.UserInterface.Builder.Error!void,
+    processUserInterface: ?fn (*Self, zerog.Rectangle, zerog.UserInterface.Builder) UiError!void,
     resize: ?fn (*Self, size: Size) ResizeError!void,
     render: ?fn (*Self, zerog.Rectangle, *zerog.Renderer2D) RenderError!void,
     close: ?fn (*Self) void,

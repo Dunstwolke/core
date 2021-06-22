@@ -5,6 +5,8 @@ export fn app_init(value: i32) i32 {
 }
 
 pub fn panic(message: []const u8, stack_trace: ?*std.builtin.StackTrace) noreturn {
+    _ = message;
+    _ = stack_trace;
     while (true) {}
 }
 

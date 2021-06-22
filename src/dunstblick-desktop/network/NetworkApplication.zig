@@ -292,7 +292,7 @@ pub fn notifyReadable(self: *Self) !void {
             if (self.socket) |sock| {
                 var backing_buffer: [8192]u8 = undefined;
 
-                const len = try self.socket.?.receive(&backing_buffer);
+                const len = try sock.receive(&backing_buffer);
                 if (len == 0) {
                     self.disconnect(null);
                     self.instance.status = .{ .exited = "Lost connection to application." };
@@ -468,7 +468,7 @@ fn mapEncodeError(err: std.io.FixedBufferStream([]u8).WriteError) DunstblickUI.F
 fn mapSendError(err: protocol.tcp.ClientStateMachine(network.Socket.Writer).SendError) DunstblickUI.FeedbackInterface.Error {
     return switch (err) {
         // error.OutOfMemory => error.OutOfMemory,
-        else => |e| return error.IoError,
+        else => return error.IoError,
     };
 }
 
@@ -505,6 +505,7 @@ fn triggerPropertyChanged(erased_self: *DunstblickUI.FeedbackInterface.ErasedSel
 }
 
 pub fn update(self: *Self, dt: f32) !void {
+    _ = dt;
     switch (self.state) {
         .unconnected => {
             // make socket non-blocking for connect
@@ -527,10 +528,6 @@ pub fn update(self: *Self, dt: f32) !void {
 pub fn resize(self: *Self, size: Size) !void {
     //
     self.screen_size = size;
-}
-
-pub fn render(self: *Self, rectangle: zero_graphics.Rectangle, painter: *zero_graphics.Renderer2D) !void {
-    //
 }
 
 pub fn processUserInterface(self: *Self, rectangle: zero_graphics.Rectangle, ui: zero_graphics.UserInterface.Builder) zero_graphics.UserInterface.Builder.Error!void {
@@ -602,18 +599,13 @@ const Interface = struct {
         const self = @fieldParentPtr(Self, "instance", instance);
         self.update(dt) catch |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
-            else => |e| return error.IoError,
+            else => return error.IoError,
         };
     }
 
     pub fn resize(instance: *ApplicationInstance, size: Size) ApplicationInstance.Interface.ResizeError!void {
         const self = @fieldParentPtr(Self, "instance", instance);
         try self.resize(size);
-    }
-
-    pub fn render(instance: *ApplicationInstance, rectangle: zero_graphics.Rectangle, painter: *zero_graphics.Renderer2D) ApplicationInstance.Interface.RenderError!void {
-        const self = @fieldParentPtr(Self, "instance", instance);
-        try self.render(rectangle, painter);
     }
 
     pub fn processUserInterface(instance: *ApplicationInstance, rectangle: zero_graphics.Rectangle, ui: zero_graphics.UserInterface.Builder) zero_graphics.UserInterface.Builder.Error!void {

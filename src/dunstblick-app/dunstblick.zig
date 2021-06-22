@@ -74,7 +74,7 @@ const NetworkError = error{
 fn mapNetworkError(value: NetworkError) DunstblickError {
     log.debug("network error: {}:", .{value});
     switch (value) {
-        else => |e| return error.NetworkError,
+        else => return error.NetworkError,
     }
 }
 
@@ -83,7 +83,7 @@ fn mapSendError(value: protocol.tcp.ServerStateMachine(xnet.Socket.Writer).SendE
     return switch (value) {
         error.OutOfMemory => error.OutOfMemory,
         error.SliceOutOfRange => error.OutOfRange,
-        else => |e| error.NetworkError,
+        else => error.NetworkError,
     };
 }
 
@@ -271,6 +271,7 @@ pub const Connection = struct {
                     },
 
                     .authenticate_info => |info| {
+                        _ = info;
                         @panic("not implemented yet");
                     },
 
@@ -554,6 +555,8 @@ pub const Connection = struct {
     }
 
     pub fn format(self: Self, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+        _ = options;
         try writer.print("Connection({})", .{self.sock.getLocalEndPoint()});
     }
 };
@@ -763,7 +766,7 @@ pub const Application = struct {
             }
         }
 
-        const result = xnet.waitForSocketEvent(&self.socket_set, timeout);
+        _ = xnet.waitForSocketEvent(&self.socket_set, timeout) catch |err| return mapNetworkError(err);
 
         {
             var iter = self.pending_connections.first;

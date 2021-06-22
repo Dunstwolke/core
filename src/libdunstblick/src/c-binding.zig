@@ -7,7 +7,7 @@ const app = @import("dunstblick-app");
 const DUNSTBLICK_MULTICAST_GROUP = xnet.Address.IPv4.init(224, 0, 0, 1);
 const DUNSTBLICK_MAX_APP_NAME_LENGTH = 64;
 
-const NativeErrorCode = extern enum(c_int) {
+const NativeErrorCode = enum(c_int) {
     /// The operation was successful.
     none = 0,
 
@@ -153,6 +153,7 @@ export fn dunstblick_CloseConnection(connection: *app.Connection, reason: ?[*:0]
 }
 
 export fn dunstblick_GetClientName(connection: *app.Connection) callconv(.C) [*:0]const u8 {
+    _ = connection;
     return "unknown"; // TODO: Reintrocude client names?
 }
 

@@ -7,6 +7,8 @@ pub const CompileError = struct {
     message: []const u8,
 
     pub fn format(value: @This(), fmt: []const u8, options: std.fmt.FormatOptions, stream: anytype) !void {
+        _ = fmt;
+        _ = options;
         try stream.print("{}: {s}", .{
             value.where,
             value.message,

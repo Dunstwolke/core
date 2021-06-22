@@ -454,7 +454,7 @@ fn parseWidget(parser: Parser, writer: anytype, widgetTypeName: []const u8) Pars
                 };
 
                 switch (widgetOrProperty) {
-                    .widget => |widget| {
+                    .widget => {
                         if (!isReadingChildren) {
                             // write end of properties
                             try writer.writeByte(0);
