@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const zerog = @import("zero-graphics");
+const zerog = @import("zero-graphics").common;
 
 const Self = @This();
 const ApplicationDescription = @import("ApplicationDescription.zig");

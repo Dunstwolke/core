@@ -4,7 +4,16 @@ const known_folders = @import("known-folders");
 
 const logger = std.log.scoped(.application);
 
-const zero_graphics = @import("zero-graphics");
+const zero_graphics_builder = @import("zero-graphics");
+
+const zero_graphics = zero_graphics_builder.Api(
+    if (std.builtin.abi == .android)
+        zero_graphics_builder.Backend.android
+    else
+        zero_graphics_builder.Backend.desktop_sdl2,
+);
+
+pub usingnamespace zero_graphics.entry_point;
 
 const AppDiscovery = @import("network/AppDiscovery.zig");
 
@@ -18,11 +27,6 @@ const Size = zero_graphics.Size;
 const HomeScreen = @import("gui/HomeScreen.zig");
 const ApplicationDescription = @import("gui/ApplicationDescription.zig");
 const ApplicationInstance = @import("gui/ApplicationInstance.zig");
-
-pub usingnamespace if (std.builtin.abi == .android)
-    zero_graphics.EntryPoint(.android)
-else
-    zero_graphics.EntryPoint(.desktop_sdl2);
 
 // thread_local is broken on android
 pub const crypto_always_getrandom = (std.builtin.abi == .android);
@@ -39,7 +43,7 @@ pub const Application = struct {
 
     demo_app_desc: DemoAppDescription,
 
-    renderer: zero_graphics.Renderer2D,
+    renderer: ?zero_graphics.Renderer2D,
 
     screen_size: Size,
     virtual_size: Size,
@@ -56,8 +60,6 @@ pub const Application = struct {
     settings_root_path: ?[]const u8,
 
     pub fn init(app: *Application, allocator: *std.mem.Allocator, input: *zero_graphics.Input) !void {
-        try gl.load({}, loadOpenGlFunction);
-
         var frame_timer = try std.time.Timer.start();
 
         app.* = .{
@@ -68,17 +70,14 @@ pub const Application = struct {
             .demo_app_desc = DemoAppDescription{},
             .screen_size = Size{ .width = 0, .height = 0 },
             .virtual_size = Size{ .width = 0, .height = 0 },
-            .renderer = undefined,
+            .renderer = null,
             .home_screen = undefined,
             .debug_font = undefined,
             .available_apps = std.ArrayList(*ApplicationDescription).init(allocator),
             .app_discovery = undefined,
             .settings = Settings{
                 .ui = .{
-                    .scale = if (std.builtin.abi == .android)
-                        @as(f32, 2.0)
-                    else
-                        @as(f32, 1.0),
+                    .scale = @as(f32, 1.0),
                     .padding = .{
                         .left = 0,
                         .top = 0,
@@ -86,7 +85,13 @@ pub const Application = struct {
                         .bottom = 0,
                     },
                 },
-                .home_screen = .{},
+                .home_screen = .{
+                    .workspace_bar = .{
+                        .location = .left,
+                        .button_size = 50,
+                        .margins = 8,
+                    },
+                },
             },
             .settings_editor = .{
                 .settings = &app.settings,
@@ -114,18 +119,18 @@ pub const Application = struct {
             app.settings_root_path = try jni.getFilesDir(&app.arena.allocator);
         }
 
+        logger.info("load settings...", .{});
         _ = try app.loadSettings();
 
+        logger.info("init app discovery...", .{});
         app.app_discovery = try AppDiscovery.init(allocator);
         errdefer app.app_discovery.deinit();
 
-        app.renderer = try zero_graphics.Renderer2D.init(allocator);
-        errdefer app.renderer.deinit();
-
-        app.debug_font = try app.renderer.createFont(@embedFile("gui/fonts/firasans-regular.ttf"), 24);
-
-        app.home_screen = try HomeScreen.init(allocator, &app.renderer, &app.settings.home_screen);
+        logger.info("init home screen...", .{});
+        app.home_screen = try HomeScreen.init(allocator, &app.settings.home_screen);
         errdefer app.home_screen.deinit();
+
+        logger.info("app ready!", .{});
     }
 
     pub fn deinit(app: *Application) void {
@@ -133,9 +138,35 @@ pub const Application = struct {
         app.app_discovery.deinit();
         app.available_apps.deinit();
         app.* = undefined;
+        logger.info("app dead", .{});
+    }
+
+    pub fn setupGraphics(app: *Application) !void {
+        // logger.info("setupGraphics", .{});
+
+        var renderer = try zero_graphics.Renderer2D.init(app.allocator);
+        errdefer renderer.deinit();
+
+        app.debug_font = try renderer.createFont(@embedFile("gui/fonts/firasans-regular.ttf"), 24);
+
+        app.renderer = renderer;
+        try app.home_screen.setRenderer(&app.renderer.?);
+    }
+
+    pub fn teardownGraphics(app: *Application) void {
+        if (app.renderer) |*ren| {
+            app.home_screen.setRenderer(null) catch unreachable;
+            ren.deinit();
+        }
+        app.renderer = null;
     }
 
     fn loadSettings(app: *Application) !bool {
+        if (std.builtin.abi == .android) {
+            logger.emerg("Android file I/O doesn't work properly yet", .{});
+            return false;
+        }
+
         const settings_root_path = app.settings_root_path orelse {
             logger.warn("no configuration folder could be found!", .{});
             return false;
@@ -143,22 +174,14 @@ pub const Application = struct {
 
         logger.info("load configuration from {s}", .{settings_root_path});
 
-        if (std.fs.cwd().openDir(settings_root_path, .{})) |c_dir| {
-            var dir = c_dir;
+        if (std.fs.cwd().openDir(settings_root_path, .{})) |*dir| {
             defer dir.close();
-
-            // std.log.info("gmmm {}", .{dir});
-            // std.log.info("gmmm {}", .{std.c.open("/data/user/0/net.random_projects.dunstblick/files/settings.json", std.os.O_RDONLY)});
-            // std.log.info("gmmm {}", .{std.os.linux.open("/data/user/0/net.random_projects.dunstblick/files/settings.json", std.os.O_RDONLY, 0)});
-            // std.log.info("gmmm {}", .{std.os.open("/data/user/0/net.random_projects.dunstblick/files/settings.json", std.os.O_RDONLY, 0)});
 
             const data = dir.readFileAlloc(app.allocator, "settings.json", 1 << 20) catch |err| switch (err) {
                 error.FileNotFound => return false,
                 else => |e| return e,
             };
             defer app.allocator.free(data);
-
-            std.log.info("ok???", .{});
 
             // we got the app source
 
@@ -176,6 +199,11 @@ pub const Application = struct {
     }
 
     fn saveSettings(app: *Application) !bool {
+        if (std.builtin.abi == .android) {
+            logger.emerg("Android file I/O doesn't work properly yet", .{});
+            return false;
+        }
+
         const settings_root_path = app.settings_root_path orelse {
             logger.warn("no configuration folder could be found!", .{});
             return false;
@@ -236,7 +264,8 @@ pub const Application = struct {
     }
 
     pub fn update(app: *Application) !bool {
-        defer app.renderer.reset();
+        defer if (app.renderer) |*renderer|
+            renderer.reset();
 
         try app.home_screen.beginInput();
         while (app.input.pollEvent()) |event| {
@@ -248,6 +277,7 @@ pub const Application = struct {
                 else => logger.info("unhandled event: {}", .{event}),
             }
         }
+
         try app.home_screen.endInput();
 
         try app.app_discovery.update();
@@ -268,24 +298,32 @@ pub const Application = struct {
 
         const frametime = @floatCast(f32, @intToFloat(f64, app.frame_timer.lap()) / std.time.ns_per_s);
 
-        try app.home_screen.update(frametime);
+        if (!app.home_screen.size.isEmpty()) {
+            try app.home_screen.update(frametime);
+        }
 
+        return true;
+    }
+
+    pub fn render(app: *Application) !void {
         {
-            try app.home_screen.render();
+            if (!app.home_screen.size.isEmpty()) {
+                try app.home_screen.render();
+            }
 
-            var buf: [64]u8 = undefined;
-            try app.renderer.drawString(
-                app.debug_font,
-                try std.fmt.bufPrint(&buf, "{d:.2} ms", .{1000.0 * frametime}),
-                app.virtual_size.width - 100,
-                app.virtual_size.height - app.debug_font.font_size - 10,
-                zero_graphics.Color.red,
-            );
+            // var buf: [64]u8 = undefined;
+            // try app.renderer.drawString(
+            //     app.debug_font,
+            //     try std.fmt.bufPrint(&buf, "{d:.2} ms", .{1000.0 * frametime}),
+            //     app.virtual_size.width - 100,
+            //     app.virtual_size.height - app.debug_font.font_size - 10,
+            //     zero_graphics.Color.red,
+            // );
         }
 
         // OpenGL rendering
         {
-            gl.clearColor(0.3, 0.3, 0.3, 1.0);
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
             gl.clear(gl.COLOR_BUFFER_BIT);
 
             gl.viewport(
@@ -298,10 +336,10 @@ pub const Application = struct {
             gl.frontFace(gl.CCW);
             gl.cullFace(gl.BACK);
 
-            app.renderer.render(app.virtual_size);
+            if (app.renderer) |*renderer| {
+                renderer.render(app.virtual_size);
+            }
         }
-
-        return true;
     }
 
     const Settings = struct {
@@ -359,6 +397,11 @@ pub const Application = struct {
                 try self.ui.label(rect, title, .{ .horizontal_alignment = .center, .id = title.ptr });
             }
 
+            pub fn shrinkHorizontal(self: *UiBuilder, spacing: u15) !void {
+                self.stack.base_rectangle.x += spacing / 2;
+                self.stack.base_rectangle.width -= spacing;
+            }
+
             pub fn advance(self: *UiBuilder, spacing: u15) !void {
                 self.stack.advance(spacing);
             }
@@ -408,7 +451,7 @@ pub const Application = struct {
 
             const app = @fieldParentPtr(Application, "settings_editor", self);
 
-            const root_rect = rectangle.centered(300, rectangle.height);
+            const root_rect = rectangle.centered(std.math.min(300, rectangle.width), rectangle.height);
 
             var builder = UiBuilder{
                 .stack = zero_graphics.UserInterface.VerticalStackLayout.init(root_rect),
@@ -416,6 +459,7 @@ pub const Application = struct {
             };
             try builder.header("Settings");
             try builder.advance(16);
+            try builder.shrinkHorizontal(20);
 
             if (try builder.number(f32, &self.settings.ui.scale, "DPI Scale: {d:.2}", 0.1, 0.1, null)) {
                 try app.updateDpiScale();

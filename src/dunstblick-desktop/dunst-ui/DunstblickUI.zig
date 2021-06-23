@@ -1,5 +1,5 @@
 const std = @import("std");
-const zero_graphics = @import("zero-graphics");
+const zero_graphics = @import("zero-graphics").common;
 
 const protocol = @import("dunstblick-protocol");
 const logger = std.log.scoped(.dunstblick_ui);
@@ -175,24 +175,27 @@ pub const Resource = struct {
     };
 
     fn getBitmap(self: *Resource, ui: *zero_graphics.UserInterface) ?*const zero_graphics.Renderer2D.Texture {
+        // TODO: Overhaul caching logic
+        if (ui.renderer == null)
+            @panic("usage error");
         if (self.kind != .bitmap)
             return null;
         if (self.cache_data == .none) {
             self.cache_data = .{ .bitmap = BitmapCache{
-                .renderer = ui.renderer,
-                .texture = ui.renderer.loadTexture(self.data.items) catch |err| blk: {
+                .renderer = ui.renderer.?,
+                .texture = ui.renderer.?.loadTexture(self.data.items) catch |err| blk: {
                     logger.warn("Could not load resource as a bitmap: {s}", .{@errorName(err)});
                     break :blk null;
                 },
             } };
         } else {
             std.debug.assert(self.cache_data == .bitmap);
-            if (self.cache_data.bitmap.renderer != ui.renderer) {
+            if (self.cache_data.bitmap.renderer != ui.renderer.?) {
                 if (self.cache_data.bitmap.texture) |tex| {
                     self.cache_data.bitmap.renderer.destroyTexture(tex);
                 }
-                self.cache_data.bitmap.renderer = ui.renderer;
-                self.cache_data.bitmap.texture = ui.renderer.loadTexture(self.data.items) catch |err| blk: {
+                self.cache_data.bitmap.renderer = ui.renderer.?;
+                self.cache_data.bitmap.texture = ui.renderer.?.loadTexture(self.data.items) catch |err| blk: {
                     logger.warn("Could not load resource as a bitmap: {s}", .{@errorName(err)});
                     break :blk null;
                 };
@@ -564,7 +567,7 @@ pub const WidgetTree = struct {
                 else
                     "I";
 
-                const rectangle = ui.renderer.measureString(ui.default_font, reference_text);
+                const rectangle = ui.renderer.?.measureString(ui.default_font, reference_text);
 
                 break :blk rectangle.size();
             },

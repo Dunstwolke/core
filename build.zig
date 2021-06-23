@@ -317,18 +317,18 @@ pub fn build(b: *Builder) !void {
             });
         }
 
-        const push_app = android_sdk.installApp(.{ .path = "zig-out/dunstblick.apk" });
+        const push_app = app.install();
 
-        const run_app = android_sdk.startApp(app_config);
+        const run_app = app.run();
         run_app.dependOn(push_app);
 
         const app_step = b.step("app", "Compiles the Android app");
         app_step.dependOn(app.final_step);
 
-        const push_step = b.step("push", "Compiles the Android app");
+        const push_step = b.step("push-app", "Compiles the Android app");
         push_step.dependOn(push_app);
 
-        const run_step = b.step("run", "Compiles the Android app");
+        const run_step = b.step("run-app", "Compiles the Android app");
         run_step.dependOn(run_app);
     }
 

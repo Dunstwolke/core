@@ -2,7 +2,7 @@ const std = @import("std");
 const painterz = @import("painterz");
 const tvg = @import("tvg");
 
-const zerog = @import("zero-graphics");
+const zerog = @import("zero-graphics").common;
 
 const icons = @import("icons/data.zig");
 
@@ -380,10 +380,12 @@ const IconCache = struct {
     const Map = std.StringHashMapUnmanaged(SizedIcons);
 
     allocator: *std.mem.Allocator,
-    renderer: *Renderer2D,
+    renderer: ?*Renderer2D,
     icon_map: Map,
 
     pub fn get(self: *IconCache, icon: []const u8, size: Size) !*const Renderer2D.Texture {
+        const renderer = self.renderer orelse @panic("usage error");
+
         const gop1 = try self.icon_map.getOrPut(self.allocator, icon);
         if (!gop1.found_existing) {
             gop1.value_ptr.* = SizedIcons{};
@@ -437,19 +439,30 @@ const IconCache = struct {
                 icon,
             ) catch {};
 
-            gop2.value_ptr.* = self.renderer.createTexture(size.width, size.height, std.mem.sliceAsBytes(pixels)) catch return error.OutOfMemory;
+            gop2.value_ptr.* = renderer.createTexture(size.width, size.height, std.mem.sliceAsBytes(pixels)) catch return error.OutOfMemory;
         }
         return gop2.value_ptr.*;
     }
 
-    pub fn deinit(self: *IconCache) void {
-        var outer_it = self.icon_map.iterator();
-        while (outer_it.next()) |list| {
-            var inner_it = list.value_ptr.iterator();
-            while (inner_it.next()) |item| {
-                self.renderer.destroyTexture(item.value_ptr.*);
+    pub fn setRenderer(self: *IconCache, new_renderer: ?*Renderer2D) void {
+        if (self.renderer) |renderer| {
+            var outer_it = self.icon_map.iterator();
+            while (outer_it.next()) |list| {
+                var inner_it = list.value_ptr.iterator();
+                while (inner_it.next()) |item| {
+                    renderer.destroyTexture(item.value_ptr.*);
+                }
+                list.value_ptr.deinit(self.allocator);
             }
+            self.icon_map.clearRetainingCapacity();
         }
+        self.renderer = new_renderer;
+    }
+
+    pub fn deinit(self: *IconCache) void {
+        self.setRenderer(null);
+        self.icon_map.deinit(self.allocator);
+        self.* = undefined;
     }
 };
 
@@ -481,7 +494,7 @@ mode: MouseMode,
 mouse_down_timestamp: ?i128 = null,
 mouse_down_pos: ?Point = null,
 
-renderer: *Renderer2D,
+renderer: ?*Renderer2D,
 
 ui: UserInterface,
 input_processor: ?UserInterface.InputProcessor = null,
@@ -494,7 +507,7 @@ icon_cache: IconCache,
 
 context_menu: ?ContextMenu = null,
 
-pub fn init(allocator: *std.mem.Allocator, renderer: *Renderer2D, config: *const Config) !Self {
+pub fn init(allocator: *std.mem.Allocator, config: *const Config) !Self {
     var self = Self{
         .allocator = allocator,
         .size = Size{ .width = 0, .height = 0 },
@@ -507,27 +520,16 @@ pub fn init(allocator: *std.mem.Allocator, renderer: *Renderer2D, config: *const
         .app_title_font = undefined,
         .app_status_font = undefined,
         .app_button_font = undefined,
-        .renderer = renderer,
+        .renderer = null,
         .ui = undefined,
-        .icon_cache = IconCache{
+        .icon_cache = .{
             .allocator = allocator,
-            .renderer = renderer,
             .icon_map = .{},
+            .renderer = null,
         },
     };
 
-    const ttf_font_data = @embedFile("fonts/firasans-regular.ttf");
-
-    self.app_title_font = try self.renderer.createFont(ttf_font_data, 30);
-    errdefer self.renderer.destroyFont(self.app_title_font);
-
-    self.app_status_font = try self.renderer.createFont(ttf_font_data, 20);
-    errdefer self.renderer.destroyFont(self.app_status_font);
-
-    self.app_button_font = try self.renderer.createFont(ttf_font_data, 12);
-    errdefer self.renderer.destroyFont(self.app_button_font);
-
-    self.ui = try UserInterface.init(self.allocator, self.renderer);
+    self.ui = try UserInterface.init(self.allocator, null);
     errdefer self.ui.deinit();
 
     self.ui.theme = &ui_theme;
@@ -554,14 +556,39 @@ pub fn deinit(self: *Self) void {
             else => {},
         }
     }
-    self.icon_cache.deinit();
     self.menu_items.deinit();
     self.available_apps.deinit();
-    self.ui.deinit();
-    self.renderer.destroyFont(self.app_status_font);
-    self.renderer.destroyFont(self.app_title_font);
-    self.renderer.destroyFont(self.app_button_font);
     self.* = undefined;
+}
+
+pub fn setRenderer(self: *Self, new_renderer: ?*Renderer2D) !void {
+    if (self.renderer == new_renderer)
+        return;
+
+    errdefer self.renderer = null;
+    if (self.renderer) |renderer| {
+        renderer.destroyFont(self.app_status_font);
+        renderer.destroyFont(self.app_title_font);
+        renderer.destroyFont(self.app_button_font);
+    }
+    self.renderer = new_renderer;
+
+    self.icon_cache.setRenderer(new_renderer);
+
+    try self.ui.setRenderer(new_renderer);
+
+    if (self.renderer) |renderer| {
+        const ttf_font_data = @embedFile("fonts/firasans-regular.ttf");
+
+        self.app_title_font = try renderer.createFont(ttf_font_data, 30);
+        errdefer renderer.destroyFont(self.app_title_font);
+
+        self.app_status_font = try renderer.createFont(ttf_font_data, 20);
+        errdefer renderer.destroyFont(self.app_status_font);
+
+        self.app_button_font = try renderer.createFont(ttf_font_data, 12);
+        errdefer renderer.destroyFont(self.app_button_font);
+    }
 }
 
 pub fn setAvailableApps(self: *Self, apps: []const *ApplicationDescription) !void {
@@ -1201,8 +1228,8 @@ fn renderStartingAppNode(self: *Self, app: *AppInstance, area: Rectangle, render
 
     const display_name = app.application.description.display_name;
     if (display_name.len > 0) {
-        const size = self.renderer.measureString(self.app_title_font, display_name);
-        try self.renderer.drawString(
+        const size = self.renderer.?.measureString(self.app_title_font, display_name);
+        try self.renderer.?.drawString(
             self.app_title_font,
             display_name,
             area.x + (area.width - size.width) / 2,
@@ -1213,8 +1240,8 @@ fn renderStartingAppNode(self: *Self, app: *AppInstance, area: Rectangle, render
 
     const startup_message = app.application.status.starting; // this is safe as the status might only be changed in the update fn
     if (startup_message.len > 0) {
-        const size = self.renderer.measureString(self.app_status_font, startup_message);
-        try self.renderer.drawString(
+        const size = self.renderer.?.measureString(self.app_status_font, startup_message);
+        try self.renderer.?.drawString(
             self.app_status_font,
             startup_message,
             area.x + (area.width - size.width) / 2,
@@ -1237,7 +1264,7 @@ fn renderExitedAppNode(self: *Self, app: *AppInstance, area: Rectangle, renderer
     const exit_message = app.application.status.exited; // this is safe as the status might only be changed in the update fn
     if (exit_message.len > 0) {
         const size = renderer.measureString(self.app_status_font, exit_message);
-        try self.renderer.drawString(
+        try renderer.drawString(
             self.app_status_font,
             exit_message,
             area.x + (area.width - size.width) / 2,
@@ -1272,7 +1299,8 @@ fn updateTreeNode(self: *Self, builder: UserInterface.Builder, area: Rectangle, 
                 .context = self,
                 .process_event = processAppNodeEvent,
             });
-            if (node.* == .connected) {
+
+            if (node.* == .connected and app.application.status == .running) {
                 try app.application.processUserInterface(area.shrink(1), builder);
             }
         },
@@ -1337,7 +1365,7 @@ const SubCanvas = struct {
 
 const RenderError = error{OutOfMemory} || zerog.Renderer2D.DrawError;
 pub fn render(self: *Self) RenderError!void {
-    const renderer = self.renderer;
+    const renderer = self.renderer orelse @panic("usage error");
 
     try self.ui.render();
 
@@ -1436,7 +1464,7 @@ pub fn render(self: *Self) RenderError!void {
 fn drawIcon(self: *Self, target: Rectangle, icon: []const u8, tint: Color) !void {
     const texture = try self.icon_cache.get(icon, target.size());
 
-    try self.renderer.fillTexturedRectangle(
+    try self.renderer.?.fillTexturedRectangle(
         target,
         texture,
         tint,
