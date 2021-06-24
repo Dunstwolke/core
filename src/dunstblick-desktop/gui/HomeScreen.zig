@@ -957,7 +957,7 @@ pub fn update(self: *Self, dt: f32) !void {
                     .workspace => &icons.workspace,
                 };
 
-                const texture = try self.icon_cache.get(icon, Size{ .width = 48, .height = 48 });
+                const texture = try self.icon_cache.get(icon, self.getPhysicalSize(Size{ .width = 48, .height = 48 }));
 
                 const style = if (button.data == .workspace and button_index == self.current_workspace)
                     ui_workspace_bar_current_button_theme
@@ -979,7 +979,7 @@ pub fn update(self: *Self, dt: f32) !void {
 
         if (dragged_app_index) |_| {
             const button_rect = self.getMenuButtonRectangle(self.menu_items.items.len);
-            const texture = try self.icon_cache.get(&icons.workspace_add, Size{ .width = 48, .height = 48 });
+            const texture = try self.icon_cache.get(&icons.workspace_add, self.getPhysicalSize(Size{ .width = 48, .height = 48 }));
             const style = if (button_rect.contains(self.mouse_pos))
                 ui_workspace_bar_current_button_theme
             else
@@ -1461,8 +1461,18 @@ pub fn render(self: *Self) RenderError!void {
     }
 }
 
+fn getPhysicalSize(self: Self, virtual_size: Size) Size {
+    const ratio = self.renderer.?.unit_to_pixel_ratio;
+    return Size{
+        .width = @floatToInt(u15, ratio * @intToFloat(f32, virtual_size.width)),
+        .height = @floatToInt(u15, ratio * @intToFloat(f32, virtual_size.height)),
+    };
+}
+
 fn drawIcon(self: *Self, target: Rectangle, icon: []const u8, tint: Color) !void {
-    const texture = try self.icon_cache.get(icon, target.size());
+    const physical_size = self.getPhysicalSize(target.size());
+
+    const texture = try self.icon_cache.get(icon, physical_size);
 
     try self.renderer.?.fillTexturedRectangle(
         target,
@@ -1624,11 +1634,18 @@ fn renderApplicationButtonWidget(
         try renderer.drawString(
             self.app_button_font,
             label,
-            rectangle.x + (rectangle.width - size.width) / 2,
-            rectangle.y + @intCast(u15, top - self.app_button_font.font_size / 2),
+            rectangle.x + clampSub(rectangle.width, size.width) / 2,
+            rectangle.y + @intCast(u15, clampSub(top, self.app_button_font.font_size / 2)),
             .{ .r = 0xFF, .g = 0xFF, .b = 0xFF, .a = byte_alpha }, // TODO: Introduce proper config here
         );
     }
+}
+
+fn clampSub(a: u15, b: anytype) u15 {
+    return if (b < a)
+        @intCast(u15, a - b)
+    else
+        0;
 }
 
 fn getBarRectangle(self: Self) Rectangle {

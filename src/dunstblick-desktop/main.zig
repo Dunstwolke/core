@@ -46,6 +46,7 @@ pub const Application = struct {
     renderer: ?zero_graphics.Renderer2D,
 
     screen_size: Size,
+    bounded_size: Size,
     virtual_size: Size,
 
     debug_font: *const zero_graphics.Renderer2D.Font,
@@ -56,6 +57,8 @@ pub const Application = struct {
 
     settings: Settings,
     settings_editor: SettingsEditor,
+
+    dpi_scale: f32 = 1.0,
 
     settings_root_path: ?[]const u8,
 
@@ -69,6 +72,7 @@ pub const Application = struct {
             .frame_timer = frame_timer,
             .demo_app_desc = DemoAppDescription{},
             .screen_size = Size{ .width = 0, .height = 0 },
+            .bounded_size = Size{ .width = 0, .height = 0 },
             .virtual_size = Size{ .width = 0, .height = 0 },
             .renderer = null,
             .home_screen = undefined,
@@ -142,8 +146,6 @@ pub const Application = struct {
     }
 
     pub fn setupGraphics(app: *Application) !void {
-        // logger.info("setupGraphics", .{});
-
         var renderer = try zero_graphics.Renderer2D.init(app.allocator);
         errdefer renderer.deinit();
 
@@ -151,6 +153,8 @@ pub const Application = struct {
 
         app.renderer = renderer;
         try app.home_screen.setRenderer(&app.renderer.?);
+
+        try app.updateDpiScale();
     }
 
     pub fn teardownGraphics(app: *Application) void {
@@ -190,6 +194,8 @@ pub const Application = struct {
 
             // prevent RLS to do partial writes
             app.settings = new_settings;
+
+            try app.updateDpiScale();
 
             return true;
         } else |err| {
@@ -241,25 +247,43 @@ pub const Application = struct {
         }
     }
 
+    fn getTotalScale(app: Application) f32 {
+        // dpi_scale makes renderer work on 1/10mm units,
+        // ui.scale will apply user scaling
+        return app.dpi_scale * app.settings.ui.scale;
+    }
+
     fn updateDpiScale(app: *Application) !void {
-        app.virtual_size = Size{
-            .width = @floatToInt(u15, @intToFloat(f32, app.screen_size.width - app.settings.ui.padding.left - app.settings.ui.padding.right) / app.settings.ui.scale),
-            .height = @floatToInt(u15, @intToFloat(f32, app.screen_size.height - app.settings.ui.padding.top - app.settings.ui.padding.bottom) / app.settings.ui.scale),
+        const dpi = zero_graphics.getDisplayDPI();
+        app.dpi_scale = dpi / 254;
+        logger.info("Display DPI: {d:.3} (scale: {d})", .{ dpi, app.dpi_scale });
+
+        // Compute the inner screen size
+        app.bounded_size = Size{
+            .width = app.screen_size.width - app.settings.ui.padding.left - app.settings.ui.padding.right,
+            .height = app.screen_size.height - app.settings.ui.padding.top - app.settings.ui.padding.bottom,
         };
-        try app.home_screen.resize(app.virtual_size);
+
+        if (app.renderer) |*renderer| {
+            renderer.unit_to_pixel_ratio = app.getTotalScale();
+
+            app.virtual_size = renderer.getVirtualScreenSize(app.bounded_size);
+
+            try app.home_screen.resize(app.virtual_size);
+        }
     }
 
     fn physToVirtual(app: Application, pt: zero_graphics.Point) zero_graphics.Point {
         return .{
-            .x = @floatToInt(i16, @intToFloat(f32, pt.x - app.settings.ui.padding.left) / app.settings.ui.scale),
-            .y = @floatToInt(i16, @intToFloat(f32, pt.y - app.settings.ui.padding.top) / app.settings.ui.scale),
+            .x = @floatToInt(i16, @intToFloat(f32, pt.x - app.settings.ui.padding.left) / app.getTotalScale()),
+            .y = @floatToInt(i16, @intToFloat(f32, pt.y - app.settings.ui.padding.top) / app.getTotalScale()),
         };
     }
 
     fn virtToPhysical(app: Application, pt: zero_graphics.Point) zero_graphics.Point {
         return .{
-            .x = @floatToInt(i16, app.settings.ui.scale * @intToFloat(f32, pt.x)) + app.settings.ui.padding.left,
-            .y = @floatToInt(i16, app.settings.ui.scale * @intToFloat(f32, pt.y)) + app.settings.ui.padding.top,
+            .x = @floatToInt(i16, app.getTotalScale() * @intToFloat(f32, pt.x)) + app.settings.ui.padding.left,
+            .y = @floatToInt(i16, app.getTotalScale() * @intToFloat(f32, pt.y)) + app.settings.ui.padding.top,
         };
     }
 
@@ -319,6 +343,16 @@ pub const Application = struct {
             //     app.virtual_size.height - app.debug_font.font_size - 10,
             //     zero_graphics.Color.red,
             // );
+
+            try app.renderer.?.fillRectangle(
+                .{
+                    .x = 100,
+                    .y = 200,
+                    .width = 300,
+                    .height = 500,
+                },
+                zero_graphics.Color.red,
+            );
         }
 
         // OpenGL rendering
@@ -329,15 +363,15 @@ pub const Application = struct {
             gl.viewport(
                 app.settings.ui.padding.left,
                 app.settings.ui.padding.bottom,
-                app.screen_size.width - app.settings.ui.padding.left - app.settings.ui.padding.right,
-                app.screen_size.height - app.settings.ui.padding.top - app.settings.ui.padding.bottom,
+                app.bounded_size.width,
+                app.bounded_size.height,
             );
 
             gl.frontFace(gl.CCW);
             gl.cullFace(gl.BACK);
 
             if (app.renderer) |*renderer| {
-                renderer.render(app.virtual_size);
+                renderer.render(app.bounded_size);
             }
         }
     }
