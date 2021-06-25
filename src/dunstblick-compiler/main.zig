@@ -27,7 +27,7 @@ pub fn main() !u8 {
 
     const allocator = &gpa.allocator;
 
-    const args = try args_parser.parseForCurrentProcess(struct {
+    const args = args_parser.parseForCurrentProcess(struct {
         // This declares long options for double hyphen
         output: ?[]const u8 = null,
         config: ?[]const u8 = null,
@@ -43,7 +43,7 @@ pub fn main() !u8 {
             .o = "output",
             .h = "help",
         };
-    }, allocator);
+    }, allocator, .print) catch return 1;
     defer args.deinit();
 
     if (args.options.help) {

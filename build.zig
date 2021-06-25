@@ -3,6 +3,7 @@ const Builder = std.build.Builder;
 
 const DunstblickSdk = @import("Sdk.zig");
 
+const SdlSdk = @import("lib/zero-graphics/vendor/SDL.zig/Sdk.zig");
 const AndroidSdk = @import("lib/zero-graphics/vendor/ZigAndroidTemplate/Sdk.zig");
 
 const pkgs = struct {
@@ -14,11 +15,6 @@ const pkgs = struct {
     const known_folders = std.build.Pkg{
         .name = "known-folders",
         .path = .{ .path = "./lib/known-folders/known-folders.zig" },
-    };
-
-    const sdl2 = std.build.Pkg{
-        .name = "sdl2",
-        .path = .{ .path = "./lib/SDL.zig/src/lib.zig" },
     };
 
     const args = std.build.Pkg{
@@ -97,6 +93,8 @@ const pkgs = struct {
 
 pub fn build(b: *Builder) !void {
     const sdk = DunstblickSdk.init(b);
+
+    const sdl_sdk = SdlSdk.init(b);
 
     const mode = b.standardReleaseOptions();
     const target = b.standardTargetOptions(.{});
@@ -214,14 +212,24 @@ pub fn build(b: *Builder) !void {
 
     const desktop_app = b.addExecutable("dunstblick-desktop", "src/dunstblick-desktop/main.zig");
     {
+        const zero_graphics_with_sdl2 = std.build.Pkg{
+            .name = "zero-graphics",
+            .path = .{ .path = "./lib/zero-graphics/src/zero-graphics.zig" },
+            .dependencies = &[_]std.build.Pkg{
+                pkgs.zigimg,
+                sdl_sdk.getNativePackage("sdl2"),
+            },
+        };
+
         desktop_app.setBuildMode(mode);
         desktop_app.setTarget(target);
+
+        sdl_sdk.link(desktop_app, .dynamic);
 
         desktop_app.addPackage(pkgs.dunstblick_protocol);
         desktop_app.addPackage(pkgs.network);
         desktop_app.addPackage(pkgs.tvg);
-        // desktop_app.addPackage(pkgs.painterz);
-        desktop_app.addPackage(pkgs.zerog);
+        desktop_app.addPackage(zero_graphics_with_sdl2);
         desktop_app.addPackage(pkgs.known_folders);
 
         // TTF rendering library:
@@ -230,22 +238,6 @@ pub fn build(b: *Builder) !void {
         desktop_app.addCSourceFile("lib/zero-graphics/src/rendering/stb_truetype.c", &[_][]const u8{
             "-std=c99",
         });
-
-        const RenderBackend = enum { sdl2, dri };
-        const backend = b.option(RenderBackend, "render-backend", "The rendering backend for Dunstblick Desktop") orelse RenderBackend.sdl2;
-
-        desktop_app.addBuildOption(RenderBackend, "render_backend", backend);
-
-        switch (backend) {
-            .sdl2 => {
-                desktop_app.linkLibC();
-                desktop_app.linkSystemLibrary("sdl2");
-                desktop_app.addPackage(pkgs.sdl2);
-            },
-            .dri => {
-                @panic("Unsupported build option!");
-            },
-        }
     }
     desktop_app.install();
 
@@ -343,7 +335,6 @@ pub fn build(b: *Builder) !void {
         dunstblick_desktop_test.addPackage(pkgs.dunstblick_protocol);
         dunstblick_desktop_test.addPackage(pkgs.network);
         dunstblick_desktop_test.addPackage(pkgs.args);
-        dunstblick_desktop_test.addPackage(pkgs.sdl2);
         dunstblick_desktop_test.addPackage(pkgs.uri);
         dunstblick_desktop_test.addPackage(pkgs.painterz);
         dunstblick_desktop_test.addPackage(pkgs.meta);
@@ -386,91 +377,3 @@ pub fn build(b: *Builder) !void {
     test_step.dependOn(&dunstnetz_daemon_test.step);
     test_step.dependOn(&dunstblick_protocol_test.step);
 }
-
-// const run_cmd = display_client.run();
-// run_cmd.step.dependOn(b.getInstallStep());
-// run_cmd.setEnvironmentVariable("LD_LIBRARY_PATH", "./src/examples/mediaserver/bass/x86_64");
-
-// const run_step = b.step("run", "Run the display client");
-// run_step.dependOn(&run_cmd.step);
-
-// const display_client = b.addExecutable("dunstblick-display", "./src/dunstblick-display/main.zig");
-// {
-//     display_client.addPackage(pkgs.dunstblick_protocol);
-//     display_client.addPackage(pkgs.network);
-//     display_client.addPackage(pkgs.args);
-//     display_client.addPackage(pkgs.sdl2);
-//     display_client.addPackage(pkgs.uri);
-//     display_client.addPackage(pkgs.painterz);
-
-//     display_client.linkLibC();
-//     display_client.linkSystemLibrary("c++");
-//     display_client.linkSystemLibrary("sdl2");
-//     display_client.addIncludeDir("./lib/stb");
-
-//     display_client.addIncludeDir("./src/libdunstblick/include");
-//     display_client.addIncludeDir("./lib/xqlib-stripped/include");
-//     display_client.addIncludeDir("./lib/optional/include/tl");
-//     display_client.defineCMacro("DUNSTBLICK_SERVER");
-//     display_client.setBuildMode(mode);
-//     display_client.setTarget(target);
-//     display_client.install();
-
-//     display_client.addCSourceFile("./src/dunstblick-display/cpp/stb-instantiating.c", &[_][]const u8{
-//         "-std=c99",
-//         "-fno-sanitize=undefined",
-//     });
-
-//     for (display_client_sources) |src| {
-//         display_client.addCSourceFile(src, &[_][]const u8{
-//             "-std=c++17",
-//             "-fno-sanitize=undefined",
-//         });
-//     }
-
-//     for (xqlib_sources) |src| {
-//         display_client.addCSourceFile(src, &[_][]const u8{
-//             "-std=c++17",
-//             "-fno-sanitize=undefined",
-//         });
-//     }
-
-//     const layout_files = [_][]const u8{
-//         "./src/dunstblick-display/layouts/discovery-menu.dui",
-//         "./src/dunstblick-display/layouts/discovery-list-item.dui",
-//     };
-//     inline for (layout_files) |infile| {
-//         const outfile = try std.mem.dupe(b.allocator, u8, infile);
-//         outfile[outfile.len - 3] = 'c';
-
-//         const step = compiler.run();
-//         step.addArgs(&[_][]const u8{
-//             infile,
-//             "-o",
-//             outfile,
-//             "-c",
-//             "./src/dunstblick-display/layouts/resources.json",
-//         });
-//         display_client.step.dependOn(&step.step);
-//     }
-// }
-
-// const display_client_sources = [_][]const u8{
-//     "./src/dunstblick-display/cpp/enums.cpp",
-//     "./src/dunstblick-display/cpp/inputstream.cpp",
-//     "./src/dunstblick-display/cpp/layouts.cpp",
-//     "./src/dunstblick-display/cpp/main.cpp",
-//     "./src/dunstblick-display/cpp/object.cpp",
-//     "./src/dunstblick-display/cpp/rendercontext.cpp",
-//     "./src/dunstblick-display/cpp/resources.cpp",
-//     "./src/dunstblick-display/cpp/session.cpp",
-//     "./src/dunstblick-display/cpp/types.cpp",
-//     "./src/dunstblick-display/cpp/widget.cpp",
-//     "./src/dunstblick-display/cpp/widget.create.cpp",
-//     "./src/dunstblick-display/cpp/widgets.cpp",
-//     "./src/dunstblick-display/cpp/zigsession.cpp",
-// };
-
-// const xqlib_sources = [_][]const u8{
-//     "./lib/xqlib-stripped/src/xlog.cpp",
-// };

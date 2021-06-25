@@ -95,7 +95,7 @@ pub const CompileLayoutStep = struct {
         const exe = self.sdk.compiler.getOutputSource().getPath(self.sdk.builder);
         const input_file = self.input_file.getPath(self.sdk.builder);
 
-        var cache_hash = CacheBuilder.init(self.sdk.builder);
+        var cache_hash = CacheBuilder.init(self.sdk.builder, "dunstblick");
         try cache_hash.addFile(self.input_file);
 
         const root = try cache_hash.createAndGetPath();
@@ -165,8 +165,6 @@ pub const CompileImageStep = struct {
 
     fn make(step: *Step) anyerror!void {
         const self = @fieldParentPtr(Self, "step", step);
-
-        const allocator = self.sdk.builder.allocator;
 
         const src_path = self.input_file.getPath(self.sdk.builder);
 
@@ -279,7 +277,7 @@ const PrepareConfigFile = struct {
 
         try db.toJson(json.writer());
 
-        var cache = CacheBuilder.init(self.resource_step.sdk.builder);
+        var cache = CacheBuilder.init(self.resource_step.sdk.builder, "dunstblick");
         cache.addBytes(json.items);
 
         self.config_json.path = try std.fs.path.join(allocator, &[_][]const u8{
@@ -477,7 +475,7 @@ pub const BundleResourcesStep = struct {
             );
         }
 
-        var cache = CacheBuilder.init(self.sdk.builder);
+        var cache = CacheBuilder.init(self.sdk.builder, "dunstblick");
         cache.addBytes(output_file.items);
 
         var root_path = try cache.createAndGetPath();
@@ -525,11 +523,16 @@ const CacheBuilder = struct {
 
     builder: *std.build.Builder,
     hasher: std.crypto.hash.Sha1,
+    subdir: ?[]const u8,
 
-    pub fn init(builder: *std.build.Builder) Self {
+    pub fn init(builder: *std.build.Builder, subdir: ?[]const u8) Self {
         return Self{
             .builder = builder,
             .hasher = std.crypto.hash.Sha1.init(.{}),
+            .subdir = if (subdir) |s|
+                builder.dupe(s)
+            else
+                null,
         };
     }
 
@@ -537,7 +540,7 @@ const CacheBuilder = struct {
         self.hasher.update(bytes);
     }
 
-    pub fn addFile(self: *Self, file: FileSource) !void {
+    pub fn addFile(self: *Self, file: std.build.FileSource) !void {
         const path = file.getPath(self.builder);
 
         const data = try std.fs.cwd().readFileAlloc(self.builder.allocator, path, 1 << 32); // 4 GB
@@ -550,20 +553,39 @@ const CacheBuilder = struct {
         var hash: [20]u8 = undefined;
         self.hasher.final(&hash);
 
-        const path = try std.fmt.allocPrint(
-            self.builder.allocator,
-            "{s}/dunstblick/o/{}",
-            .{
-                self.builder.cache_root,
-                std.fmt.fmtSliceHexLower(&hash),
-            },
-        );
+        const path = if (self.subdir) |subdir|
+            try std.fmt.allocPrint(
+                self.builder.allocator,
+                "{s}/{s}/o/{}",
+                .{
+                    self.builder.cache_root,
+                    subdir,
+                    std.fmt.fmtSliceHexLower(&hash),
+                },
+            )
+        else
+            try std.fmt.allocPrint(
+                self.builder.allocator,
+                "{s}/o/{}",
+                .{
+                    self.builder.cache_root,
+                    std.fmt.fmtSliceHexLower(&hash),
+                },
+            );
+
         return path;
     }
 
-    pub fn createAndGetDir(self: *Self) !std.fs.Dir {
+    pub const DirAndPath = struct {
+        dir: std.fs.Dir,
+        path: []const u8,
+    };
+    pub fn createAndGetDir(self: *Self) !DirAndPath {
         const path = try self.createPath();
-        return try std.fs.cwd().makeOpenPath(path, .{});
+        return DirAndPath{
+            .path = path,
+            .dir = try std.fs.cwd().makeOpenPath(path, .{}),
+        };
     }
 
     pub fn createAndGetPath(self: *Self) ![]const u8 {

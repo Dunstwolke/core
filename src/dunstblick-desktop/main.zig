@@ -344,15 +344,15 @@ pub const Application = struct {
             //     zero_graphics.Color.red,
             // );
 
-            try app.renderer.?.fillRectangle(
-                .{
-                    .x = 100,
-                    .y = 200,
-                    .width = 300,
-                    .height = 500,
-                },
-                zero_graphics.Color.red,
-            );
+            // try app.renderer.?.fillRectangle(
+            //     .{
+            //         .x = 100,
+            //         .y = 200,
+            //         .width = 300,
+            //         .height = 500,
+            //     },
+            //     zero_graphics.Color.red,
+            // );
         }
 
         // OpenGL rendering

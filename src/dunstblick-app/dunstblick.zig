@@ -69,13 +69,15 @@ const NetworkError = error{
     AddressFamilyNotSupported,
     SocketNotListening,
     OperationNotSupported,
+    OutOfMemory,
 };
 
 fn mapNetworkError(value: NetworkError) DunstblickError {
     log.debug("network error: {}:", .{value});
-    switch (value) {
-        else => return error.NetworkError,
-    }
+    return switch (value) {
+        error.OutOfMemory => error.OutOfMemory,
+        else => error.NetworkError,
+    };
 }
 
 fn mapSendError(value: protocol.tcp.ServerStateMachine(xnet.Socket.Writer).SendError) DunstblickError {

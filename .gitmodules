@@ -4,9 +4,6 @@
 [submodule "lib/zig-network"]
 	path = lib/zig-network
 	url = https://github.com/MasterQ32/zig-network
-[submodule "lib/SDL.zig"]
-	path = lib/SDL.zig
-	url = https://github.com/MasterQ32/SDL.zig
 [submodule "lib/zig-uri"]
 	path = lib/zig-uri
 	url = https://github.com/MasterQ32/zig-uri
