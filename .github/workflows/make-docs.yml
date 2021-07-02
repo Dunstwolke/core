@@ -12,16 +12,23 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-
-      - name: Generate documentation
-        uses: mattnotmitt/doxygen-action@v1
+#          submodules: "recursive" 
+        
+      - name: Setup Python
+        uses: actions/setup-python@v1
         with:
-          doxyfile-path: ./docs/Doxyfile
-          
-      - name: Display directory contents
+          python-version: '3.7'
+          architecture: 'x64'
+        
+      - name: Install dependencies
         run: |
-          pwd
-          ls ./docs/html
+          python3 -m pip install --upgrade pip     # install pip
+          python3 -m pip install mkdocs            # install mkdocs 
+          python3 -m pip install mkdocs-material   # install material theme
+        
+      - name: Build site
+        working-directory: docs
+        run: mkdocs build
 
       - name: Deploy files to dunstwolke.org
         uses: appleboy/scp-action@master
@@ -31,6 +38,6 @@ jobs:
           PORT: ${{ secrets.PORT }}
           KEY: ${{ secrets.KEY }}
         with:
-          source: "./docs/html/*"
-          target: "/home/dunstblick-ci/website/html"
+          source: "./docs/site/*"
+          target: "/home/dunstblick-ci/website"
           strip_components: 2

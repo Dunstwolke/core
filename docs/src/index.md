@@ -1,4 +1,4 @@
-@mainpage The Dunstwolke Project
+# The Dunstwolke Project
 
 ## Introduction
 
@@ -26,13 +26,9 @@ interfaces and *floating* applications.
 Right now most of the Dunstwolke Project is in early prototype stage or only exists
 as a concept:
 
-- @ref dunstblick
-- @ref dunstnetz
-- @ref dunstfile
-
-## API Documentation
-
-- @ref dunstblick.h
+- [Dunstblick](dunstblick.md)
+- [Dunstnetz](dunstnetz.md)
+- [DunstFS](dunstfs.md)
 
 ## Source Code
 

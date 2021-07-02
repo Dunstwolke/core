@@ -112,7 +112,7 @@ pub fn build(b: *Builder) !void {
     const mediaserver = b.addExecutable("mediaserver", "./src/examples/mediaserver/src/main.zig");
     {
         mediaserver.setBuildMode(mode);
-        mediaserver.setTarget(target);
+        mediaserver.setTarget(.{}); // compile native
 
         mediaserver.addPackage(sdk.getAppPackage("dunstblick"));
 

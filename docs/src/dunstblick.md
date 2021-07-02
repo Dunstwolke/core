@@ -1,5 +1,6 @@
-@page dunstblick Dunstblick
-@brief A graphical user interface with remote display capabilities.
+# Dunstblick
+
+A graphical user interface with remote display capabilities.
 
 ## Concept
 
@@ -23,8 +24,7 @@ The path must be either empty or `/`.
 
 ## Further Reading
 
-- @ref dunstblick-proto
-- @ref dunstblick-layout-engine
-- @ref dunstblick-layout-language
-- @ref dunstblick-widgets
-- @ref dunstblick.h
+- [Protocol](dunstblick/protocol.md)
+- [Layout Engine](dunstblick/layout-engine.md)
+- [Layout Language](dunstblick/layout-language.md)
+- [Widgets](dunstblick/widgets.md)

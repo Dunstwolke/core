@@ -1,5 +1,4 @@
-@page dunstblick-types Dunstblick Data Types
-@brief Type definitions for the @ref dunstblick project.
+# Dunstblick Data Types
 
 This document contains descriptions of all data types used in the
 dunstblick project. It explains the encoding and data structures in

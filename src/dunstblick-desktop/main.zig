@@ -258,18 +258,24 @@ pub const Application = struct {
         app.dpi_scale = dpi / 254;
         logger.info("Display DPI: {d:.3} (scale: {d})", .{ dpi, app.dpi_scale });
 
-        // Compute the inner screen size
-        app.bounded_size = Size{
-            .width = app.screen_size.width - app.settings.ui.padding.left - app.settings.ui.padding.right,
-            .height = app.screen_size.height - app.settings.ui.padding.top - app.settings.ui.padding.bottom,
-        };
+        if (!app.screen_size.isEmpty()) {
 
-        if (app.renderer) |*renderer| {
-            renderer.unit_to_pixel_ratio = app.getTotalScale();
+            // Compute the inner screen size
+            app.bounded_size = Size{
+                .width = app.screen_size.width - app.settings.ui.padding.left - app.settings.ui.padding.right,
+                .height = app.screen_size.height - app.settings.ui.padding.top - app.settings.ui.padding.bottom,
+            };
 
-            app.virtual_size = renderer.getVirtualScreenSize(app.bounded_size);
+            if (app.renderer) |*renderer| {
+                renderer.unit_to_pixel_ratio = app.getTotalScale();
 
-            try app.home_screen.resize(app.virtual_size);
+                app.virtual_size = renderer.getVirtualScreenSize(app.bounded_size);
+
+                try app.home_screen.resize(app.virtual_size);
+            }
+        } else {
+            app.bounded_size = Size.empty;
+            app.virtual_size = Size.empty;
         }
     }
 

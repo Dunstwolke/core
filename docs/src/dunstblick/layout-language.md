@@ -1,7 +1,8 @@
-@page dunstblick-layout-language Dunstblick Layout Language
-@brief Description of the @ref dunstblick Layout Language
+# Dunstblick Layout Language
 
-@todo Write this page
+Description of the [Dunstblick](../dunstblick.md) Layout Language
+
+> TODO: Write this page
 
 ## Example
 

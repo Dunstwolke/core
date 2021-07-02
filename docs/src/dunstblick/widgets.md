@@ -1,9 +1,10 @@
-@page dunstblick-widgets Dunstblick Widgets
-@brief Description of the Widgets available in @ref dunstblick
+# Dunstblick Widgets
+
+Description of the Widgets available in [Dunstblick](../dunstblick.md)
 
 ## Overview
 
-The following widgets are available in @ref dunstblick:
+The following widgets are available in [Dunstblick](../dunstblick.md):
 - [Button](#widget:button)
 - [Label](#widget:label)
 - [ComboBox](#widget:combobox)
