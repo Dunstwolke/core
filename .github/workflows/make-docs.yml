@@ -30,14 +30,25 @@ jobs:
         working-directory: docs
         run: mkdocs build
 
-      - name: Deploy files to dunstwolke.org
-        uses: appleboy/scp-action@master
+      - name: Deploy to Server
+        uses: easingthemes/ssh-deploy@v2.1.1
         env:
-          HOST: ${{ secrets.HOST }}
-          USERNAME: ${{ secrets.USERNAME }}
-          PORT: ${{ secrets.PORT }}
-          KEY: ${{ secrets.KEY }}
-        with:
-          source: "./docs/site/*"
-          target: "/home/dunstblick-ci/website"
-          strip_components: 2
+            SSH_PRIVATE_KEY: ${{ secrets.KEY }}
+            ARGS: "-rltgoDzvO --delete"
+            SOURCE: "docs/site/"
+            REMOTE_HOST: ${{ secrets.HOST }}
+            REMOTE_USER: ${{ secrets.USERNAME }}
+            TARGET: "/home/dunstblick-ci/website"
+
+
+      ##- name: Deploy files to dunstwolke.org
+      ##  uses: appleboy/scp-action@master
+      ##  env:
+      ##    HOST: ${{ secrets.HOST }}
+      ##    USERNAME: ${{ secrets.USERNAME }}
+      ##    PORT: ${{ secrets.PORT }}
+      ##    KEY: ${{ secrets.KEY }}
+      ##  with:
+      ##    source: "./docs/site/*"
+      ##    target: "/home/dunstblick-ci/website"
+      ##    strip_components: 2
