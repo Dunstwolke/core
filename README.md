@@ -15,7 +15,7 @@ and only communicate with state changes in "object values" (bindings), not widge
 
 ### Examples
 
-- [Calculator](https://github.com/MasterQ32/Dunstwolke/tree/master/dunstwolke/examples/calculactor)
+- [Calculator](https://github.com/Dunstwolke/core/tree/master/src/examples/calculator)
 - Address Book
 - Text Editor
 - Media Player
