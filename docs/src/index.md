@@ -32,9 +32,9 @@ as a concept:
 
 ## Source Code
 
-The project is currently written in C++ and is available on GitHub:
+The project is written in Zig and is available on GitHub:
 
-https://github.com/MasterQ32/Dunstwolke
+https://github.com/Dunstwolke/core
 
 ## The Name
 
