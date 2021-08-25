@@ -29,3 +29,9 @@ and only communicate with state changes in "object values" (bindings), not widge
 - Serialization / Binary Formats
 - 
 - 
+
+### Configuration
+
+For the desktop variant, the following environment variables are available for configuration:
+- `DUNSTBLICK_DPI` might be used to set a fallback display density when the display one could not be determined
+- `DUNSTBLICK_FULLSCREEN` might be used to enforce fullscreen or window mode. Use `yes` or `no`

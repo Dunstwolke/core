@@ -37,3 +37,6 @@
 [submodule "lib/known-folders"]
 	path = lib/known-folders
 	url = https://github.com/ziglibs/known-folders
+[submodule "lib/zig-sqlite"]
+	path = lib/zig-sqlite
+	url = https://github.com/vrischmann/zig-sqlite

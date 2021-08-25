@@ -1,5 +1,5 @@
 const std = @import("std");
-const zero_graphics = @import("zero-graphics").common;
+const zero_graphics = @import("zero-graphics");
 const network = @import("network");
 const protocol = @import("dunstblick-protocol");
 const logger = std.log.scoped(.network_application);

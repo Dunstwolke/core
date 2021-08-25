@@ -3,6 +3,7 @@ const Builder = std.build.Builder;
 
 const DunstblickSdk = @import("Sdk.zig");
 
+const ZeroGraphicsSdk = @import("lib/zero-graphics/Sdk.zig");
 const SdlSdk = @import("lib/zero-graphics/vendor/SDL.zig/Sdk.zig");
 const AndroidSdk = @import("lib/zero-graphics/vendor/ZigAndroidTemplate/Sdk.zig");
 
@@ -89,15 +90,36 @@ const pkgs = struct {
         .name = "charm",
         .path = .{ .path = "./lib/zig-charm/src/main.zig" },
     };
+
+    const sqlite3 = std.build.Pkg{
+        .name = "sqlite3",
+        .path = .{ .path = "./lib/zig-sqlite/sqlite.zig" },
+    };
 };
 
 pub fn build(b: *Builder) !void {
+    const enable_android = b.option(bool, "enable-android", "Enables the Android build options as they have additional system dependencies") orelse false;
+
     const sdk = DunstblickSdk.init(b);
 
-    const sdl_sdk = SdlSdk.init(b);
+    const z3d_sdk = ZeroGraphicsSdk.init(b, enable_android);
 
     const mode = b.standardReleaseOptions();
     const target = b.standardTargetOptions(.{});
+
+    const libsqlite3 = b.addStaticLibrary("sqlite3", null);
+    libsqlite3.addCSourceFile("./lib/zig-sqlite/c/sqlite3.c", &[_][]const u8{"-std=c99"});
+    libsqlite3.setBuildMode(mode);
+    libsqlite3.setTarget(target);
+    libsqlite3.linkLibC();
+
+    const dunstfs = b.addExecutable("dfs", "./src/dunstfs/main.zig");
+    dunstfs.setBuildMode(mode);
+    dunstfs.setTarget(target);
+    dunstfs.addPackage(pkgs.sqlite3);
+    dunstfs.addPackage(pkgs.args);
+    dunstfs.linkLibrary(libsqlite3);
+    dunstfs.install();
 
     const compiler = b.addExecutable("dunstblick-compiler", "./src/dunstblick-compiler/main.zig");
     compiler.addPackage(pkgs.args);
@@ -210,112 +232,41 @@ pub fn build(b: *Builder) !void {
     dummy_application.setBuildMode(mode);
     dummy_application.install();
 
-    const desktop_app = b.addExecutable("dunstblick-desktop", "src/dunstblick-desktop/main.zig");
-    {
-        const zero_graphics_with_sdl2 = std.build.Pkg{
-            .name = "zero-graphics",
-            .path = .{ .path = "./lib/zero-graphics/src/zero-graphics.zig" },
-            .dependencies = &[_]std.build.Pkg{
-                pkgs.zigimg,
-                sdl_sdk.getNativePackage("sdl2"),
-            },
-        };
+    const dunstblick_desktop = z3d_sdk.createApplication("dunstblick_desktop", "src/dunstblick-desktop/main.zig");
+    dunstblick_desktop.setDisplayName("Dunstblick Desktop");
+    dunstblick_desktop.setPackageName("org.dunstwolke.dunstblick.desktop");
 
-        desktop_app.setBuildMode(mode);
-        desktop_app.setTarget(target);
+    dunstblick_desktop.addPackage(pkgs.dunstblick_protocol);
+    dunstblick_desktop.addPackage(pkgs.network);
+    dunstblick_desktop.addPackage(pkgs.tvg);
+    dunstblick_desktop.addPackage(pkgs.known_folders);
+    dunstblick_desktop.setBuildMode(mode);
 
-        sdl_sdk.link(desktop_app, .dynamic);
-
-        desktop_app.addPackage(pkgs.dunstblick_protocol);
-        desktop_app.addPackage(pkgs.network);
-        desktop_app.addPackage(pkgs.tvg);
-        desktop_app.addPackage(zero_graphics_with_sdl2);
-        desktop_app.addPackage(pkgs.known_folders);
-
-        // TTF rendering library:
-        desktop_app.addIncludeDir("./lib/stb");
-
-        desktop_app.addCSourceFile("lib/zero-graphics/src/rendering/stb_truetype.c", &[_][]const u8{
-            "-std=c99",
-        });
-    }
+    const desktop_app = dunstblick_desktop.compileFor(.{ .desktop = target });
     desktop_app.install();
 
+    //     // TTF rendering library:
+    //     desktop_app.addIncludeDir("./lib/stb");
+
+    //     desktop_app.addCSourceFile("lib/zero-graphics/src/rendering/stb_truetype.c", &[_][]const u8{
+    //         "-std=c99",
+    //     });
+
     // Create App:
-    if (b.option(bool, "enable-android", "Enables the Android build options as they have additional system dependencies") orelse false) {
-        const key_store = AndroidSdk.KeyStore{
-            .file = "zig-cache/key.store",
-            .password = "123456",
-            .alias = "development_key",
-        };
+    if (enable_android) {
+        const keystore_step = b.step("init-keystore", "Initializes a new development key store.");
+        keystore_step.dependOn(z3d_sdk.initializeKeystore());
 
-        const sdk_version = AndroidSdk.ToolchainVersions{};
+        const app = dunstblick_desktop.compileFor(.android);
+        app.install();
 
-        const android_sdk = AndroidSdk.init(b, null, sdk_version);
+        const push_app = app.android.app.install();
 
-        const init_keystore = android_sdk.initKeystore(key_store, .{});
-
-        const keystore_step = b.step("init-keystore", "Initializes a new keystore for development");
-        keystore_step.dependOn(init_keystore);
-
-        const app_config = AndroidSdk.AppConfig{
-            .display_name = "Dunstblick",
-            .app_name = "dunstblick",
-            .package_name = "net.random_projects.dunstblick",
-            .resources = &[_]AndroidSdk.Resource{
-                .{ .path = "mipmap/icon.png", .content = .{ .path = "design/square-logo.png" } },
-            },
-            .fullscreen = true,
-            .permissions = &[_][]const u8{
-                "android.permission.INTERNET",
-                "android.permission.ACCESS_NETWORK_STATE",
-            },
-        };
-
-        const app = android_sdk.createApp(
-            "zig-out/dunstblick.apk",
-            "src/dunstblick-desktop/main.zig",
-            app_config,
-            mode,
-            .{
-                .aarch64 = true,
-                .x86_64 = true,
-                .arm = false,
-                .x86 = false,
-            },
-            key_store,
-        );
-
-        const android_pkg = app.getAndroidPackage("android");
-
-        const zero_graphics_with_android = std.build.Pkg{
-            .name = "zero-graphics",
-            .path = .{ .path = "./lib/zero-graphics/src/zero-graphics.zig" },
-            .dependencies = &[_]std.build.Pkg{ pkgs.zigimg, android_pkg },
-        };
-
-        for (app.libraries) |app_lib| {
-            app_lib.addPackage(pkgs.dunstblick_protocol);
-            app_lib.addPackage(pkgs.network);
-            app_lib.addPackage(pkgs.tvg);
-            app_lib.addPackage(zero_graphics_with_android);
-            app_lib.addPackage(pkgs.known_folders);
-            app_lib.addPackage(android_pkg);
-
-            // TTF rendering library:
-            app_lib.addIncludeDir("./lib/stb");
-            app_lib.addCSourceFile("lib/zero-graphics/src/rendering/stb_truetype.c", &[_][]const u8{
-                "-std=c99",
-            });
-        }
-
-        const push_app = app.install();
-
-        const run_app = app.run();
+        const run_app = app.android.app.run();
         run_app.dependOn(push_app);
 
         const app_step = b.step("app", "Compiles the Android app");
-        app_step.dependOn(app.final_step);
+        app_step.dependOn(app.getStep());
 
         const push_step = b.step("push-app", "Compiles the Android app");
         push_step.dependOn(push_app);
@@ -362,7 +313,7 @@ pub fn build(b: *Builder) !void {
     install2_step.dependOn(&dunstnetz_daemon.step);
 
     const desktop_cmd = desktop_app.run();
-    desktop_cmd.step.dependOn(&desktop_app.install_step.?.step);
+    desktop_cmd.step.dependOn(&desktop_app.single_step.exe.install_step.?.step);
 
     const run_desktop_step = b.step("run-desktop", "Run the Dunstblick Desktop");
     run_desktop_step.dependOn(&desktop_cmd.step);

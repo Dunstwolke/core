@@ -2,7 +2,7 @@ const std = @import("std");
 const painterz = @import("painterz");
 const tvg = @import("tvg");
 
-const zerog = @import("zero-graphics").common;
+const zerog = @import("zero-graphics");
 
 const icons = @import("icons/data.zig");
 
