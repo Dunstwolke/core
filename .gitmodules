@@ -40,3 +40,6 @@
 [submodule "lib/zig-sqlite"]
 	path = lib/zig-sqlite
 	url = https://github.com/vrischmann/zig-sqlite
+[submodule "lib/uuid6-zig"]
+	path = lib/uuid6-zig
+	url = https://github.com/jdknezek/uuid6-zig

@@ -95,6 +95,11 @@ const pkgs = struct {
         .name = "sqlite3",
         .path = .{ .path = "./lib/zig-sqlite/sqlite.zig" },
     };
+
+    const uuid6 = std.build.Pkg{
+        .name = "uuid6",
+        .path = .{ .path = "./lib/uuid6-zig/src/Uuid.zig" },
+    };
 };
 
 pub fn build(b: *Builder) !void {
@@ -107,18 +112,28 @@ pub fn build(b: *Builder) !void {
     const mode = b.standardReleaseOptions();
     const target = b.standardTargetOptions(.{});
 
+    const musl_target = blk: {
+        var copy = target;
+        copy.abi = .musl;
+        break :blk copy;
+    };
+
     const libsqlite3 = b.addStaticLibrary("sqlite3", null);
     libsqlite3.addCSourceFile("./lib/zig-sqlite/c/sqlite3.c", &[_][]const u8{"-std=c99"});
     libsqlite3.setBuildMode(mode);
-    libsqlite3.setTarget(target);
+    libsqlite3.setTarget(musl_target);
     libsqlite3.linkLibC();
 
     const dunstfs = b.addExecutable("dfs", "./src/dunstfs/main.zig");
     dunstfs.setBuildMode(mode);
-    dunstfs.setTarget(target);
+    dunstfs.setTarget(musl_target);
     dunstfs.addPackage(pkgs.sqlite3);
     dunstfs.addPackage(pkgs.args);
+    dunstfs.addPackage(pkgs.known_folders);
+    dunstfs.addPackage(pkgs.uuid6);
+    dunstfs.addIncludeDir("./lib/zig-sqlite/c");
     dunstfs.linkLibrary(libsqlite3);
+    dunstfs.linkLibC();
     dunstfs.install();
 
     const compiler = b.addExecutable("dunstblick-compiler", "./src/dunstblick-compiler/main.zig");
@@ -244,13 +259,6 @@ pub fn build(b: *Builder) !void {
 
     const desktop_app = dunstblick_desktop.compileFor(.{ .desktop = target });
     desktop_app.install();
-
-    //     // TTF rendering library:
-    //     desktop_app.addIncludeDir("./lib/stb");
-
-    //     desktop_app.addCSourceFile("lib/zero-graphics/src/rendering/stb_truetype.c", &[_][]const u8{
-    //         "-std=c99",
-    //     });
 
     // Create App:
     if (enable_android) {
