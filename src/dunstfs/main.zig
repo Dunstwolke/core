@@ -221,7 +221,7 @@ pub fn main() !u8 {
     // meh. sqlite needs this (still), though
     try root_dir.setAsCwd();
 
-    if (current_log_level == .debug) {
+    if (cli.options.verbose) {
         var buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
         var path = try std.fs.realpath(".", &buffer);
         logger.info("Data directory is '{s}'", .{path});
@@ -295,17 +295,25 @@ const prepared_statement_sources = struct {
         \\);
         ,
         \\CREATE TABLE IF NOT EXISTS DataSets (
-        \\  uuid TEXT NOT NULL,             -- The key of the file
-        \\  revision INT NOT NULL,          -- Ever-increasing revision number of the file. The biggest number is the latest revision.
-        \\  checksum TEXT NOT NULL,         -- SHA1 of the file contents
-        \\  mime_type TEXT NOT NULL,        -- The mime type
-        \\  creation_date TEXT NOT NULL     -- ISO timestamp of when the file was created
+        \\  checksum TEXT PRIMARY KEY NOT NULL,  -- Hash of the file contents (Blake3, 256 bit, no initial key)
+        \\  mime_type TEXT NOT NULL,             -- The mime type
+        \\  creation_date TEXT NOT NULL          -- ISO timestamp of when the data set was created
+        \\);
+        ,
+        \\CREATE TABLE IF NOT EXISTS Revisions(
+        \\  file TEXT PRIMARY KEY NOT NULL,  -- the file for which this revision was created
+        \\  revision INT NOT NULL,           -- Ever-increasing revision number of the file. The biggest number is the latest revision.
+        \\  dataset TEXT NOT NULL,            -- Key into the dataset table for which file to reference
+        \\  UNIQUE (file, revision),
+        \\  FOREIGN KEY (file) REFERENCES Files (uuid),
+        \\  FOREIGN KEY (dataset) REFERENCES DataSets (checksum) 
         \\);
         ,
         \\CREATE TABLE IF NOT EXISTS FileTags (
-        \\  file TEXT NOT NULL,             -- The key of the file
-        \\  tag TEXT NOT NULL,              -- The tag name
-        \\  UNIQUE(file,tag)
+        \\  file TEXT NOT NULL,  -- The key of the file
+        \\  tag TEXT NOT NULL,   -- The tag name
+        \\  UNIQUE(file,tag),
+        \\  FOREIGN KEY (file) REFERENCES Files(uuid)
         \\);
         ,
         \\CREATE VIEW IF NOT EXISTS Tags AS SELECT tag, COUNT(file) AS count FROM FileTags GROUP BY tag
