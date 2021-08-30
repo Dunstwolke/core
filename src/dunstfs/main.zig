@@ -71,6 +71,10 @@ fn printUsage(writer: anytype) !void {
         \\    filtered by the [pattern].
         \\    When [--count n] is present, only the n most important tags will be printed.
         \\
+        \\  gc [--dry-run]
+        \\    Collects all data sets that are currently not in use and deletes them.
+        \\    When --dry-run is set, it will only list the files deleted, but won't actually delete them.
+        \\
         \\Tags & Tag Wildcards:
         \\  DunstFS uses a hierarchical tag architecture that allows quick selection of fitting tags.
         \\  Each tag can have several sub-components which are separated by /:
@@ -143,6 +147,7 @@ const Verb = union(enum) {
     name: NameOptions,
     find: FindOptions,
     tags: TagsOptions,
+    gc: GcOptions,
 
     const EmptyOptions = struct {};
 
@@ -170,7 +175,9 @@ const Verb = union(enum) {
         mime: ?[]const u8 = null,
     };
     const InfoOptions = EmptyOptions;
-    const NameOptions = EmptyOptions;
+    const NameOptions = struct {
+        delete: bool = false,
+    };
     const FindOptions = struct {
         count: ?u32 = null,
         exact: bool = false,
@@ -186,6 +193,9 @@ const Verb = union(enum) {
         pub const shorthands = .{
             .c = "count",
         };
+    };
+    const GcOptions = struct {
+        @"dry-run": bool = false,
     };
 };
 
@@ -309,7 +319,7 @@ pub fn main() !u8 {
                     \\    Files.user_name,
                     \\    Files.last_change 
                     \\  FROM Files
-                    \\  INNER JOIN FileTags ON Files.uuid = FileTags.file 
+                    \\  LEFT JOIN FileTags ON Files.uuid = FileTags.file 
                 );
                 if (cli.positionals.len > 0) {
                     try writer.writeAll(
@@ -342,9 +352,8 @@ pub fn main() !u8 {
 
                 break :blk builder.toOwnedSlice();
             };
-            _ = verb;
 
-            std.debug.print("query:\n{s}\n", .{query_text});
+            std.debug.print("{s}\n", .{query_text});
 
             var query = try db.prepareDynamic(query_text);
             defer query.deinit();
@@ -357,6 +366,11 @@ pub fn main() !u8 {
             logger.err("'tag' not implemented yet. verb data: {}", .{verb});
         },
         .rm => |verb| {
+            // rough process:
+            // 1. find file
+            // 2. unlink all datasets
+            // 3. remove all tags
+            // 4. delete file
             logger.err("'rm' not implemented yet. verb data: {}", .{verb});
         },
         .get => |verb| {
@@ -369,7 +383,96 @@ pub fn main() !u8 {
             logger.err("'info' not implemented yet. verb data: {}", .{verb});
         },
         .name => |verb| {
-            logger.err("'name' not implemented yet. verb data: {}", .{verb});
+            if (cli.positionals.len == 0) {
+                logger.err("name requires a file id", .{});
+                return 1;
+            }
+
+            if (cli.positionals.len > 2) {
+                logger.err("name only takes a file id and a name.", .{});
+                return 1;
+            }
+
+            if (verb.delete and cli.positionals.len > 1) {
+                logger.err("deleting a name must only have the file id.", .{});
+                return 1;
+            }
+
+            const uuid_str = cli.positionals[0];
+
+            const uuid = Uuid.parse(uuid_str) catch |err| {
+                logger.err("'{s}' is not a valid uuid: {s}", .{ uuid_str, @errorName(err) });
+                return 1;
+            };
+
+            var canonical_format: [36]u8 = undefined;
+            uuid.formatBuf(&canonical_format) catch unreachable; // we provide enough space
+
+            var stmt_query = try db.prepare(
+                \\SELECT user_name FROM Files WHERE uuid = ?{text}
+            );
+            defer stmt_query.deinit();
+
+            const text = sqlite3.Text{ .data = &canonical_format };
+
+            const Tag = struct {
+                user_name: ?[]const u8,
+            };
+
+            const tag_or_null = try stmt_query.oneAlloc(Tag, &arena.allocator, .{}, .{text});
+
+            const tag = tag_or_null orelse {
+                logger.err("The file {s} does not exist!", .{&canonical_format});
+                return 1;
+            };
+
+            const uuid_text = sqlite3.Text{ .data = &canonical_format };
+
+            if (verb.delete) {
+                var stmt_update = try db.prepare(
+                    \\UPDATE Files SET user_name = NULL WHERE uuid = ?{text}
+                );
+                defer stmt_update.deinit();
+
+                try stmt_update.exec(.{}, .{
+                    uuid_text,
+                });
+                return 0;
+            }
+
+            switch (cli.positionals.len) {
+                1 => { // query
+                    if (cli.options.json) {
+                        try std.json.stringify(.{
+                            .file = uuid_text,
+                            .name = tag.user_name,
+                        }, .{}, stdout);
+                        try stdout.writeAll("\n");
+                    } else {
+                        if (tag.user_name) |user_name| {
+                            try stdout.writeAll(user_name);
+                            try stdout.writeAll("\n");
+                        } else {
+                            logger.warn("The file {s} does not have a name assigned yet!", .{&canonical_format});
+                            return 1;
+                        }
+                    }
+                },
+                2 => { // update
+                    var stmt_update = try db.prepare(
+                        \\UPDATE Files SET user_name = ?{text} WHERE uuid = ?{text}
+                    );
+                    defer stmt_update.deinit();
+
+                    const name_text = sqlite3.Text{ .data = cli.positionals[1] };
+
+                    try stmt_update.exec(.{}, .{
+                        name_text,
+                        uuid_text,
+                    });
+                },
+                else => unreachable,
+            }
         },
         .find => |verb| {
             if (cli.positionals.len != 1) {
@@ -435,7 +538,7 @@ pub fn main() !u8 {
             // _Count_.______________Tag______________
             //     1 | text/plain
             //     1 | image/png
-            while (try iter.next(.{ .diags = null, .allocator = &arena.allocator })) |item| {
+            while (try iter.nextAlloc(&arena.allocator, .{ .diags = null })) |item| {
                 if (cli.options.json) {
                     defer first = false;
                     if (!first)
@@ -451,6 +554,10 @@ pub fn main() !u8 {
             if (cli.options.json) {
                 try stdout.writeAll("]\n");
             }
+        },
+
+        .gc => |verb| {
+            logger.err("'gc' not implemented yet. verb data: {}", .{verb});
         },
 
         .help => unreachable, // we already checked for this at the start
@@ -485,7 +592,7 @@ fn renderFileList(allocator: *std.mem.Allocator, iter: anytype, json: bool) !voi
     //________________UUID_________________._____Last Change_____.__________________________File Name_________________________
     //17f2bde8-9d71-4ceb-93f9-1cb63cc4633e | 2021-08-29 15:50:21 | Das kleine Handbuch für angehende Raumfahrer
     //f055ec50-5570-4f9b-9b88-671b81cd62cf | 2021-08-29 15:50:21 | Donnerwetter
-    while (try iter.next(.{ .diags = null, .allocator = allocator })) |item| {
+    while (try iter.nextAlloc(allocator, .{ .diags = null })) |item| {
         if (json) {
             defer first = false;
             if (!first)
