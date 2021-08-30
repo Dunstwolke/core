@@ -30,10 +30,10 @@
 -- 
 -- CREATE VIEW IF NOT EXISTS Tags AS SELECT tag, COUNT(file) AS count FROM FileTags GROUP BY tag
 
-INSERT INTO Files (uuid, user_name) VALUES 
-  ('0656707d-bf7a-45ef-ad08-aab956bcbb5e ', NULL),
-  ('17f2bde8-9d71-4ceb-93f9-1cb63cc4633e', 'Das kleine Handbuch für angehende Raumfahrer'),
-  ('f055ec50-5570-4f9b-9b88-671b81cd62cf', 'Donnerwetter');
+INSERT INTO Files (uuid, user_name, last_change) VALUES 
+  ('0656707d-bf7a-45ef-ad08-aab956bcbb5e ', NULL, CURRENT_TIMESTAMP),
+  ('17f2bde8-9d71-4ceb-93f9-1cb63cc4633e', 'Das kleine Handbuch für angehende Raumfahrer', CURRENT_TIMESTAMP),
+  ('f055ec50-5570-4f9b-9b88-671b81cd62cf', 'Donnerwetter', CURRENT_TIMESTAMP);
 
 INSERT INTO DataSets(checksum, mime_type, creation_date) VALUES
   ('59ad4c00ede9148cfe756f2d3595b4e53169f9d8cc609f99b0e5ec117995f024', 'application/octet-stream', '2021-08-28 13:53:59'),

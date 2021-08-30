@@ -7,6 +7,9 @@
 //!
 //!
 
+// TODO:
+// - Implement actual tag gobbling instead of SQL filters
+
 fn printUsage(writer: anytype) !void {
     try writer.writeAll(
         \\dfs [options] <verb> [verb options]
@@ -25,11 +28,12 @@ fn printUsage(writer: anytype) !void {
         \\    Will output the file guid to stdout.
         \\    This action fails when the file is already existent (determined by its hash)
         \\
-        \\  ls [tag] [-tag] [tag] ...
+        \\  ls [--count n] [tag] [-tag] [tag] ...
         \\    Lists the last 25 files that matches the tag filters. Tags can use wildcards here
         \\    to filter out files that are not of interest. Tags prefixed with - will be excluded
         \\    the result set.
         \\    Files will be listed newest-to-oldest so it's easier to find actively used files again.
+        \\    If --count is provided, the 25 is replaced by the requested number of files.
         \\
         \\  tag <guid> [+tag] [-tag] ...
         \\    Modify tags of the file with <guid>.
@@ -57,8 +61,15 @@ fn printUsage(writer: anytype) !void {
         \\    but is not required to follow any rules. Anything can be set here.
         \\    If <hname> is not given
         \\
-        \\  find <hname>
+        \\  find [--count n] [--exact] <hname>
         \\    Finds files based on their human readable name. Allows globbing on <hname>.
+        \\    If --count n is given, will limit the number of files returned to n.
+        \\    If --exact is given, the match must fully fit. Otherwise, any prefix and postfix might be allowed.
+        \\
+        \\  tags [--count n] [pattern]
+        \\    Prints out all tags and the number of files that match those. If [pattern] is given, the tags will be
+        \\    filtered by the [pattern].
+        \\    When [--count n] is present, only the n most important tags will be printed.
         \\
         \\Tags & Tag Wildcards:
         \\  DunstFS uses a hierarchical tag architecture that allows quick selection of fitting tags.
@@ -131,6 +142,7 @@ const Verb = union(enum) {
     info: InfoOptions,
     name: NameOptions,
     find: FindOptions,
+    tags: TagsOptions,
 
     const EmptyOptions = struct {};
 
@@ -138,7 +150,13 @@ const Verb = union(enum) {
     const AddOptions = struct {
         mime: ?[]const u8 = null,
     };
-    const LsOptions = EmptyOptions;
+    const LsOptions = struct {
+        count: u32 = 25,
+
+        pub const shorthands = .{
+            .c = "count",
+        };
+    };
     const TagOptions = EmptyOptions;
     const RmOptions = EmptyOptions;
     const GetOptions = struct {
@@ -153,7 +171,22 @@ const Verb = union(enum) {
     };
     const InfoOptions = EmptyOptions;
     const NameOptions = EmptyOptions;
-    const FindOptions = EmptyOptions;
+    const FindOptions = struct {
+        count: ?u32 = null,
+        exact: bool = false,
+
+        pub const shorthands = .{
+            .c = "count",
+            .x = "exact",
+        };
+    };
+    const TagsOptions = struct {
+        count: ?u32 = null,
+
+        pub const shorthands = .{
+            .c = "count",
+        };
+    };
 };
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -171,14 +204,15 @@ pub fn main() !u8 {
     var cli = args_parser.parseWithVerbForCurrentProcess(CommonOptions, Verb, global_allocator, .print) catch return 1;
     defer cli.deinit();
 
+    var stdout = std.io.getStdOut().writer();
+
     // Do opt early out when invoking help command, as we don't need to initialize anything here.
     if (cli.options.help or (cli.verb == null) or (cli.verb.? == .help)) {
-        try printUsage(std.io.getStdOut().writer());
+        try printUsage(stdout);
         return 0;
     }
 
     if (cli.options.version) {
-        var stdout = std.io.getStdOut().writer();
         if (cli.options.json) {
             try stdout.print(
                 \\{{ "major": {d}, "minor": {d}, "patch": {d} }}
@@ -252,12 +286,72 @@ pub fn main() !u8 {
 
     _ = source;
 
+    var arena = std.heap.ArenaAllocator.init(global_allocator);
+    defer arena.deinit();
+
     switch (cli.verb.?) {
         .add => |verb| {
             logger.err("'add' not implemented yet. verb data: {}", .{verb});
         },
         .ls => |verb| {
-            logger.err("'ls' not implemented yet. verb data: {}", .{verb});
+            var diag = sqlite3.Diagnostics{};
+            errdefer std.log.err("sqlite failed: {}", .{diag});
+
+            const query_text = blk: {
+                var builder = std.ArrayList(u8).init(&arena.allocator);
+                defer builder.deinit();
+
+                const writer = builder.writer();
+
+                try writer.writeAll(
+                    \\SELECT
+                    \\    Files.uuid,
+                    \\    Files.user_name,
+                    \\    Files.last_change 
+                    \\  FROM Files
+                    \\  INNER JOIN FileTags ON Files.uuid = FileTags.file 
+                );
+                if (cli.positionals.len > 0) {
+                    try writer.writeAll(
+                        \\
+                        \\  WHERE
+                    );
+
+                    for (cli.positionals) |tag_filter, i| {
+                        if (i > 0) {
+                            try writer.writeAll("\n   AND ");
+                        } else {
+                            try writer.writeAll("\n       ");
+                        }
+                        var tag = tag_filter;
+                        if (std.mem.startsWith(u8, tag_filter, "-")) {
+                            try writer.writeAll("NOT ");
+                            tag = tag_filter[1..];
+                        }
+                        // TODO: Transform tag filter here
+                        try writer.print("(FileTags.tag LIKE '{s}')", .{tag});
+                    }
+                }
+
+                try writer.writeAll(
+                    \\
+                    \\  GROUP BY Files.uuid, Files.user_name, Files.last_change
+                    \\  ORDER BY last_change DESC 
+                    \\  LIMIT :count
+                );
+
+                break :blk builder.toOwnedSlice();
+            };
+            _ = verb;
+
+            std.debug.print("query:\n{s}\n", .{query_text});
+
+            var query = try db.prepareDynamic(query_text);
+            defer query.deinit();
+
+            var iter = try query.iterator(FileEntry, .{ .count = verb.count });
+
+            try renderFileList(&arena.allocator, &iter, cli.options.json);
         },
         .tag => |verb| {
             logger.err("'tag' not implemented yet. verb data: {}", .{verb});
@@ -278,20 +372,144 @@ pub fn main() !u8 {
             logger.err("'name' not implemented yet. verb data: {}", .{verb});
         },
         .find => |verb| {
-            logger.err("'find' not implemented yet. verb data: {}", .{verb});
+            if (cli.positionals.len != 1) {
+                logger.err("find requires a search option!", .{});
+                return 1;
+            }
+
+            var diag = sqlite3.Diagnostics{};
+            errdefer std.log.err("sqlite failed: {}", .{diag});
+
+            var query = try db.prepare(
+                \\SELECT * FROM Files WHERE user_name LIKE ?{text} ORDER BY user_name LIMIT ?{u32}
+            );
+            defer query.deinit();
+
+            const real_limit: u32 = verb.count orelse std.math.maxInt(u32);
+
+            var real_filter = sqlite3.Text{ .data = cli.positionals[0] };
+            if (!verb.exact) {
+                real_filter.data = try std.fmt.allocPrint(&arena.allocator, "%{s}%", .{real_filter.data});
+            }
+
+            var iter = try query.iterator(FileEntry, .{ .filter = real_filter, .limit = real_limit });
+
+            try renderFileList(&arena.allocator, &iter, cli.options.json);
+        },
+        .tags => |verb| {
+            if (cli.positionals.len > 1) {
+                logger.err("tags only accepts a single filter option!", .{});
+                return 1;
+            }
+
+            var diag = sqlite3.Diagnostics{};
+            errdefer std.log.err("sqlite failed: {}", .{diag});
+
+            var query = try db.prepare(
+                \\SELECT * FROM Tags WHERE tag LIKE ?{text} ORDER BY count LIMIT ?{u32}
+            );
+            defer query.deinit();
+
+            const Entry = struct {
+                tag: []const u8,
+                count: u32,
+            };
+
+            const column_header = "{s:_>6}_._{s:_^30}\n";
+            const column_format = "{d: >6} | {s: <30}\n";
+
+            const real_limit: u32 = verb.count orelse std.math.maxInt(u32);
+            const real_filter = sqlite3.Text{ .data = if (cli.positionals.len > 0) cli.positionals[0] else "%" };
+
+            var iter = try query.iterator(Entry, .{ .filter = real_filter, .limit = real_limit });
+            var first = true;
+            if (cli.options.json) {
+                try stdout.writeAll("[");
+            } else {
+                try stdout.print(column_header, .{
+                    "Count",
+                    "Tag",
+                });
+            }
+
+            // _Count_.______________Tag______________
+            //     1 | text/plain
+            //     1 | image/png
+            while (try iter.next(.{ .diags = null, .allocator = &arena.allocator })) |item| {
+                if (cli.options.json) {
+                    defer first = false;
+                    if (!first)
+                        try stdout.writeAll(",");
+                    try std.json.stringify(item, .{}, stdout);
+                } else {
+                    try stdout.print(column_format, .{
+                        item.count,
+                        item.tag,
+                    });
+                }
+            }
+            if (cli.options.json) {
+                try stdout.writeAll("]\n");
+            }
         },
 
         .help => unreachable, // we already checked for this at the start
     }
 
-    return 1;
+    return 0;
+}
+
+const FileEntry = struct {
+    uuid: []const u8,
+    user_name: ?[]const u8,
+    last_change: []const u8,
+};
+fn renderFileList(allocator: *std.mem.Allocator, iter: anytype, json: bool) !void {
+    if (@typeInfo(@TypeOf(iter)) != .Pointer) @compileError("iter must be a pointer!");
+
+    const column_header = "{s:_^36}_._{s:_^19}_._{s:_^59}\n";
+    const column_format = "{s: <36} | {s: <19} | {s: <59}\n";
+
+    var stdout = std.io.getStdOut().writer();
+
+    var first = true;
+    if (json) {
+        try stdout.writeAll("[");
+    } else {
+        try stdout.print(column_header, .{
+            "UUID",
+            "Last Change",
+            "File Name",
+        });
+    }
+    //________________UUID_________________._____Last Change_____.__________________________File Name_________________________
+    //17f2bde8-9d71-4ceb-93f9-1cb63cc4633e | 2021-08-29 15:50:21 | Das kleine Handbuch für angehende Raumfahrer
+    //f055ec50-5570-4f9b-9b88-671b81cd62cf | 2021-08-29 15:50:21 | Donnerwetter
+    while (try iter.next(.{ .diags = null, .allocator = allocator })) |item| {
+        if (json) {
+            defer first = false;
+            if (!first)
+                try stdout.writeAll(",");
+            try std.json.stringify(item, .{}, stdout);
+        } else {
+            try stdout.print(column_format, .{
+                item.uuid,
+                item.last_change,
+                item.user_name,
+            });
+        }
+    }
+    if (json) {
+        try stdout.writeAll("]\n");
+    }
 }
 
 const prepared_statement_sources = struct {
     const init_statements = [_][]const u8{
         \\CREATE TABLE IF NOT EXISTS Files (
         \\  uuid TEXT PRIMARY KEY NOT NULL, -- a UUIDv4 that is used as a unique identifier
-        \\  user_name TEXT NULL             -- A text that was given by the user as a human-readable name
+        \\  user_name TEXT NULL,            -- A text that was given by the user as a human-readable name
+        \\  last_change TEXT NOT NULL       -- ISO timestamp when the file was lastly changed.
         \\);
         ,
         \\CREATE TABLE IF NOT EXISTS DataSets (
