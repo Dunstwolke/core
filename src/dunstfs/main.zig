@@ -305,9 +305,6 @@ pub fn main() !u8 {
     defer arena.deinit();
 
     switch (cli.verb.?) {
-        .add => |verb| {
-            logger.err("'add' not implemented yet. verb data: {}", .{verb});
-        },
         .ls => |verb| {
             var diag = sqlite3.Diagnostics{};
             errdefer std.log.err("sqlite failed: {}", .{diag});
@@ -367,45 +364,20 @@ pub fn main() !u8 {
 
             try renderFileList(&arena.allocator, &iter, cli.options.json);
         },
-        .tag => |verb| {
-            logger.err("'tag' not implemented yet. verb data: {}", .{verb});
-        },
-        .rm => |verb| {
-            // rough process:
-            // 1. find file
-            // 2. unlink all datasets
-            // 3. remove all tags
-            // 4. delete file
-            logger.err("'rm' not implemented yet. verb data: {}", .{verb});
-        },
-        .get => |verb| {
-            logger.err("'get' not implemented yet. verb data: {}", .{verb});
-        },
-        .update => |verb| {
-            logger.err("'update' not implemented yet. verb data: {}", .{verb});
-        },
+
         .info => {
             if (cli.positionals.len != 1) {
                 logger.err("info requires a file id", .{});
                 return 1;
             }
 
-            const uuid_str = cli.positionals[0];
-
-            const uuid = Uuid.parse(uuid_str) catch |err| {
-                logger.err("'{s}' is not a valid uuid: {s}", .{ uuid_str, @errorName(err) });
-                return 1;
-            };
-
-            var canonical_format: [36]u8 = undefined;
-            uuid.formatBuf(&canonical_format) catch unreachable; // we provide enough space
+            var canonical_format = makeCanonicalUuid(cli.positionals[0]) catch return 1;
+            const uuid_text = sqlite3.Text{ .data = &canonical_format };
 
             var stmt_query = try db.prepare(
                 \\SELECT uuid, user_name, last_change FROM Files WHERE uuid = ?{text}
             );
             defer stmt_query.deinit();
-
-            const uuid_text = sqlite3.Text{ .data = &canonical_format };
 
             const Tag = struct {
                 uuid: []const u8,
@@ -493,7 +465,7 @@ pub fn main() !u8 {
 
                 try stdout.writeAll("\n");
             } else {
-                try stdout.print("UUID:        {s}\n", .{uuid});
+                try stdout.print("UUID:        {s}\n", .{uuid_text.data});
                 try stdout.print("Name:        {s}\n", .{tag.user_name});
                 try stdout.print("Last Change: {s}\n", .{tag.last_change});
 
@@ -522,6 +494,59 @@ pub fn main() !u8 {
                 }
             }
         },
+
+        .tag => {
+            if (cli.positionals.len == 0) {
+                logger.err("name requires a file id", .{});
+                return 1;
+            }
+
+            var canonical_format = makeCanonicalUuid(cli.positionals[0]) catch return 1;
+            const uuid_text = sqlite3.Text{ .data = &canonical_format };
+
+            var stmt_exists = try db.prepare(
+                \\SELECT 1 FROM Files WHERE uuid = ?{text}
+            );
+            defer stmt_exists.deinit();
+
+            if ((try stmt_exists.one(u32, .{}, .{uuid_text})) == null) {
+                logger.err("The file {s} does not exist!", .{&canonical_format});
+                return 1;
+            }
+
+            var add_stmt = try db.prepare("INSERT INTO FileTags (file, tag) VALUES (?{text}, ?{text}) ON CONFLICT DO NOTHING;");
+            var del_stmt = try db.prepare("DELETE FROM FileTags WHERE file = ?{text} AND tag = ?{text}");
+
+            // TODO: Implement tag processing here
+            for (cli.positionals[1..]) |file_tag| {
+                if (std.mem.startsWith(u8, file_tag, "-")) {
+                    const tag = sqlite3.Text{ .data = file_tag[1..] };
+                    del_stmt.reset();
+                    try del_stmt.exec(.{}, .{ uuid_text, tag });
+                } else {
+                    const tag = sqlite3.Text{ .data = file_tag };
+                    add_stmt.reset();
+                    try add_stmt.exec(.{}, .{ uuid_text, tag });
+                }
+            }
+
+            var stmt_fetch_tags = try db.prepare(
+                \\SELECT tag FROM FileTags WHERE file = ?{text}
+            );
+            defer stmt_fetch_tags.deinit();
+
+            const all_tags = try stmt_fetch_tags.all([]const u8, &arena.allocator, .{}, .{uuid_text});
+
+            if (cli.options.json) {
+                try std.json.stringify(all_tags, .{}, stdout);
+            } else {
+                for (all_tags) |tag| {
+                    try stdout.writeAll(tag);
+                    try stdout.writeAll("\n");
+                }
+            }
+        },
+
         .name => |verb| {
             if (cli.positionals.len == 0) {
                 logger.err("name requires a file id", .{});
@@ -538,15 +563,7 @@ pub fn main() !u8 {
                 return 1;
             }
 
-            const uuid_str = cli.positionals[0];
-
-            const uuid = Uuid.parse(uuid_str) catch |err| {
-                logger.err("'{s}' is not a valid uuid: {s}", .{ uuid_str, @errorName(err) });
-                return 1;
-            };
-
-            var canonical_format: [36]u8 = undefined;
-            uuid.formatBuf(&canonical_format) catch unreachable; // we provide enough space
+            var canonical_format = makeCanonicalUuid(cli.positionals[0]) catch return 1;
 
             var stmt_query = try db.prepare(
                 \\SELECT user_name FROM Files WHERE uuid = ?{text}
@@ -612,6 +629,7 @@ pub fn main() !u8 {
                 else => unreachable,
             }
         },
+
         .find => |verb| {
             if (cli.positionals.len != 1) {
                 logger.err("find requires a search option!", .{});
@@ -637,6 +655,7 @@ pub fn main() !u8 {
 
             try renderFileList(&arena.allocator, &iter, cli.options.json);
         },
+
         .tags => |verb| {
             if (cli.positionals.len > 1) {
                 logger.err("tags only accepts a single filter option!", .{});
@@ -694,6 +713,25 @@ pub fn main() !u8 {
             }
         },
 
+        // Currently unimplemented verbs:
+
+        .add => |verb| {
+            logger.err("'add' not implemented yet. verb data: {}", .{verb});
+        },
+        .rm => |verb| {
+            // rough process:
+            // 1. find file
+            // 2. unlink all datasets
+            // 3. remove all tags
+            // 4. delete file
+            logger.err("'rm' not implemented yet. verb data: {}", .{verb});
+        },
+        .get => |verb| {
+            logger.err("'get' not implemented yet. verb data: {}", .{verb});
+        },
+        .update => |verb| {
+            logger.err("'update' not implemented yet. verb data: {}", .{verb});
+        },
         .gc => |verb| {
             logger.err("'gc' not implemented yet. verb data: {}", .{verb});
         },
@@ -747,6 +785,17 @@ fn renderFileList(allocator: *std.mem.Allocator, iter: anytype, json: bool) !voi
     if (json) {
         try stdout.writeAll("]\n");
     }
+}
+
+fn makeCanonicalUuid(uuid_str: []const u8) ![36]u8 {
+    const uuid = Uuid.parse(uuid_str) catch |err| {
+        logger.err("'{s}' is not a valid uuid: {s}", .{ uuid_str, @errorName(err) });
+        return err;
+    };
+
+    var canonical_format: [36]u8 = undefined;
+    uuid.formatBuf(&canonical_format) catch unreachable; // we provide enough space
+    return canonical_format;
 }
 
 const prepared_statement_sources = struct {
