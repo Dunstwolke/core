@@ -214,7 +214,12 @@ pub fn main() !u8 {
     var cli = args_parser.parseWithVerbForCurrentProcess(CommonOptions, Verb, global_allocator, .print) catch return 1;
     defer cli.deinit();
 
-    var stdout = std.io.getStdOut().writer();
+    var stdout_raw = std.io.getStdOut().writer();
+
+    var buffered_stdout = std.io.bufferedWriter(stdout_raw);
+    defer buffered_stdout.flush() catch {}; // well, we can't do anything anymore here anyways
+
+    var stdout = buffered_stdout.writer();
 
     // Do opt early out when invoking help command, as we don't need to initialize anything here.
     if (cli.options.help or (cli.verb == null) or (cli.verb.? == .help)) {
@@ -379,8 +384,143 @@ pub fn main() !u8 {
         .update => |verb| {
             logger.err("'update' not implemented yet. verb data: {}", .{verb});
         },
-        .info => |verb| {
-            logger.err("'info' not implemented yet. verb data: {}", .{verb});
+        .info => {
+            if (cli.positionals.len != 1) {
+                logger.err("info requires a file id", .{});
+                return 1;
+            }
+
+            const uuid_str = cli.positionals[0];
+
+            const uuid = Uuid.parse(uuid_str) catch |err| {
+                logger.err("'{s}' is not a valid uuid: {s}", .{ uuid_str, @errorName(err) });
+                return 1;
+            };
+
+            var canonical_format: [36]u8 = undefined;
+            uuid.formatBuf(&canonical_format) catch unreachable; // we provide enough space
+
+            var stmt_query = try db.prepare(
+                \\SELECT uuid, user_name, last_change FROM Files WHERE uuid = ?{text}
+            );
+            defer stmt_query.deinit();
+
+            const uuid_text = sqlite3.Text{ .data = &canonical_format };
+
+            const Tag = struct {
+                uuid: []const u8,
+                user_name: ?[]const u8,
+                last_change: []const u8,
+            };
+
+            const tag_or_null = try stmt_query.oneAlloc(Tag, &arena.allocator, .{}, .{uuid_text});
+
+            const tag: Tag = tag_or_null orelse {
+                logger.err("The file {s} does not exist!", .{&canonical_format});
+                return 1;
+            };
+
+            var query_file_tags = try db.prepare(
+                \\SELECT tag FROM FileTags WHERE file = ?{text} ORDER BY tag
+            );
+            defer query_file_tags.deinit();
+
+            var query_file_revs = try db.prepare(
+                \\SELECT Revisions.revision, Revisions.dataset, DataSets.mime_type, DataSets.creation_date FROM Revisions
+                \\  LEFT JOIN DataSets ON Revisions.dataset = DataSets.checksum
+                \\  WHERE file = ?{text}
+                \\  ORDER BY Revisions.revision desc
+            );
+            defer query_file_revs.deinit();
+
+            const Revision = struct {
+                revision: u32,
+                dataset: []const u8,
+                mime_type: []const u8,
+                creation_date: []const u8,
+            };
+
+            const tags: [][]const u8 = try query_file_tags.all([]const u8, &arena.allocator, .{}, .{uuid_text});
+
+            const revisions: []Revision = try query_file_revs.all(Revision, &arena.allocator, .{}, .{uuid_text});
+
+            if (cli.options.json) {
+                var json = std.json.writeStream(stdout, 5);
+
+                try json.beginObject();
+
+                try json.objectField("uuid");
+                try json.emitString(uuid_text.data);
+
+                try json.objectField("name");
+                if (tag.user_name) |user_name| {
+                    try json.emitString(user_name);
+                } else {
+                    try json.emitNull();
+                }
+
+                try json.objectField("uuid");
+                try json.emitString(tag.last_change);
+
+                try json.objectField("tags");
+                try json.beginArray();
+                for (tags) |file_tag| {
+                    try json.arrayElem();
+                    try json.emitString(file_tag);
+                }
+                try json.endArray();
+
+                try json.objectField("revisions");
+                try json.beginArray();
+                for (revisions) |rev| {
+                    try json.arrayElem();
+                    try json.beginObject();
+
+                    try json.objectField("revision");
+                    try json.emitNumber(rev.revision);
+                    try json.objectField("creation_date");
+                    try json.emitString(rev.creation_date);
+                    try json.objectField("mime_type");
+                    try json.emitString(rev.mime_type);
+                    try json.objectField("dataset");
+                    try json.emitString(rev.dataset);
+
+                    try json.endObject();
+                }
+                try json.endArray();
+
+                try json.endObject();
+
+                try stdout.writeAll("\n");
+            } else {
+                try stdout.print("UUID:        {s}\n", .{uuid});
+                try stdout.print("Name:        {s}\n", .{tag.user_name});
+                try stdout.print("Last Change: {s}\n", .{tag.last_change});
+
+                try stdout.writeAll("Tags:        ");
+                for (tags) |file_tag, i| {
+                    if ((i % 10) == 9) {
+                        try stdout.writeAll(",\n             ");
+                    } else if (i > 0) {
+                        try stdout.writeAll(", ");
+                    }
+                    try stdout.writeAll(file_tag);
+                }
+
+                try stdout.writeAll("\n");
+
+                try stdout.writeAll("Revisions:\n");
+                for (revisions) |rev| {
+                    // mimes are typically not longer than "application/vnd.uplanet.bearer-choice-wbxml", so 45 is a reasonable choice here.
+                    // there are longer mime types, but those are very special
+                    try stdout.print("- Revision {d:0>3} ({s}):\n  Mime = {s: <45}\n  Data Set = {s}\n", .{
+                        rev.revision,
+                        rev.creation_date,
+                        rev.mime_type,
+                        rev.dataset,
+                    });
+                }
+            }
         },
         .name => |verb| {
             if (cli.positionals.len == 0) {
@@ -413,20 +553,18 @@ pub fn main() !u8 {
             );
             defer stmt_query.deinit();
 
-            const text = sqlite3.Text{ .data = &canonical_format };
+            const uuid_text = sqlite3.Text{ .data = &canonical_format };
 
             const Tag = struct {
                 user_name: ?[]const u8,
             };
 
-            const tag_or_null = try stmt_query.oneAlloc(Tag, &arena.allocator, .{}, .{text});
+            const tag_or_null = try stmt_query.oneAlloc(Tag, &arena.allocator, .{}, .{uuid_text});
 
             const tag = tag_or_null orelse {
                 logger.err("The file {s} does not exist!", .{&canonical_format});
                 return 1;
             };
-
-            const uuid_text = sqlite3.Text{ .data = &canonical_format };
 
             if (verb.delete) {
                 var stmt_update = try db.prepare(
