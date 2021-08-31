@@ -41,7 +41,7 @@ fn printUsage(writer: anytype) !void {
         \\    Allows the use of tag wildcards for removal.
         \\    After that, all tags for this file will be printed.
         \\
-        \\  rm <guid>
+        \\  rm <guid> <guid> <guid> ...
         \\    Removes the file with <guid> from DunstFS.
         \\
         \\  get <guid> [-o <path>]
@@ -163,7 +163,13 @@ const Verb = union(enum) {
         };
     };
     const TagOptions = EmptyOptions;
-    const RmOptions = EmptyOptions;
+    const RmOptions = struct {
+        force: bool = false,
+
+        pub const shorthands = .{
+            .f = "force",
+        };
+    };
     const GetOptions = struct {
         output: ?[]const u8 = null,
 
@@ -289,7 +295,7 @@ pub fn main() !u8 {
     logger.info("Initialize database...", .{});
     inline for (prepared_statement_sources.init_statements) |code| {
         var init_db_stmt = db.prepare(code) catch |err| {
-            std.debug.print("error while executing sql:\n{s}\n", .{code});
+            logger.err("error while executing sql:\n{s}", .{code});
             return err;
         };
         defer init_db_stmt.deinit();
@@ -355,7 +361,7 @@ pub fn main() !u8 {
                 break :blk builder.toOwnedSlice();
             };
 
-            std.debug.print("{s}\n", .{query_text});
+            //            std.debug.print("{s}\n", .{query_text});
 
             var query = try db.prepareDynamic(query_text);
             defer query.deinit();
@@ -713,18 +719,66 @@ pub fn main() !u8 {
             }
         },
 
-        // Currently unimplemented verbs:
-
-        .add => |verb| {
-            logger.err("'add' not implemented yet. verb data: {}", .{verb});
-        },
         .rm => |verb| {
             // rough process:
             // 1. find file
             // 2. unlink all datasets
             // 3. remove all tags
             // 4. delete file
-            logger.err("'rm' not implemented yet. verb data: {}", .{verb});
+
+            var stmt_check_exists = try db.prepare(
+                \\SELECT 1 FROM Files WHERE uuid  = ?{text}
+            );
+            defer stmt_check_exists.deinit();
+
+            var stmt_clear_revisions = try db.prepare(
+                \\DELETE FROM Revisions WHERE file  = ?{text}
+            );
+            defer stmt_clear_revisions.deinit();
+
+            var stmt_clear_tags = try db.prepare(
+                \\DELETE FROM FileTags WHERE file  = ?{text}
+            );
+            defer stmt_clear_tags.deinit();
+
+            var stmt_clear_file = try db.prepare(
+                \\DELETE FROM Files WHERE uuid  = ?{text}
+            );
+            defer stmt_clear_file.deinit();
+
+            var all_exist = true;
+            if (!verb.force) {
+                for (cli.positionals) |file_id| {
+                    var canonical_format = makeCanonicalUuid(file_id) catch return 1;
+                    const uuid_text = sqlite3.Text{ .data = &canonical_format };
+
+                    stmt_check_exists.reset();
+                    if ((try stmt_check_exists.one(u32, .{}, .{uuid_text})) == null) {
+                        logger.err("The file {s} does not exist!", .{&canonical_format});
+                        all_exist = false;
+                    }
+                }
+            }
+            if (!all_exist)
+                return 1;
+
+            for (cli.positionals) |file_id| {
+                var canonical_format = makeCanonicalUuid(file_id) catch unreachable;
+                const uuid_text = sqlite3.Text{ .data = &canonical_format };
+
+                stmt_clear_revisions.reset();
+                try stmt_clear_revisions.exec(.{}, .{uuid_text});
+                stmt_clear_tags.reset();
+                try stmt_clear_tags.exec(.{}, .{uuid_text});
+                stmt_clear_file.reset();
+                try stmt_clear_file.exec(.{}, .{uuid_text});
+            }
+        },
+
+        // Currently unimplemented verbs:
+
+        .add => |verb| {
+            logger.err("'add' not implemented yet. verb data: {}", .{verb});
         },
         .get => |verb| {
             logger.err("'get' not implemented yet. verb data: {}", .{verb});
