@@ -202,6 +202,7 @@ const Verb = union(enum) {
     };
     const GcOptions = struct {
         @"dry-run": bool = false,
+        verify: bool = false,
     };
 };
 
@@ -216,6 +217,9 @@ const version = struct {
 
 pub fn main() !u8 {
     defer _ = gpa.deinit();
+
+    var arena = std.heap.ArenaAllocator.init(global_allocator);
+    defer arena.deinit();
 
     var cli = args_parser.parseWithVerbForCurrentProcess(CommonOptions, Verb, global_allocator, .print) catch return 1;
     defer cli.deinit();
@@ -248,6 +252,29 @@ pub fn main() !u8 {
     if (cli.options.verbose)
         current_log_level = .info;
 
+    // var magic_file: [:0]const u8 = std.mem.span(MagicSet.getpath(null, 0) orelse {
+    //     logger.err("Cannot find default magic database!", .{});
+    //     return 1;
+    // });
+
+    const magic_file: [:0]const u8 = "lib/file-5.40/magic/magic.mgc"; // this is a very very bad path /o\ we should probably embed this DB
+
+    logger.info("Open magic database...", .{});
+    const magic = MagicSet.open(MagicSet.MIME_TYPE) orelse {
+        logger.err("Cannot create magic database!", .{});
+        return 1;
+    };
+    defer magic.close();
+
+    logger.info("Load magic database {s}...", .{magic_file});
+    if (magic.load(magic_file.ptr) == -1) {
+        logger.err("{s}", .{magic.getError()});
+        return 1;
+    }
+    if (magic.getError()) |err| {
+        logger.warn("{s}", .{std.mem.span(err)});
+    }
+
     logger.info("Initialize PRNG...", .{});
     var rng = std.rand.DefaultPrng.init(@bitCast(u64, std.time.milliTimestamp()));
 
@@ -272,6 +299,16 @@ pub fn main() !u8 {
         };
     };
     defer root_dir.close();
+
+    logger.info("Create dataset folder...", .{});
+    root_dir.makeDir("datasets") catch |err| switch (err) {
+        error.PathAlreadyExists => {}, // nice!
+        else => |e| return e,
+    };
+
+    logger.info("Open dataset folder...", .{});
+    var dataset_dir = try root_dir.openDir("datasets", .{});
+    defer dataset_dir.close();
 
     // meh. sqlite needs this (still), though
     try root_dir.setAsCwd();
@@ -306,9 +343,6 @@ pub fn main() !u8 {
     logger.info("Begin processing verb '{s}'...", .{std.meta.tagName(cli.verb.?)});
 
     _ = source;
-
-    var arena = std.heap.ArenaAllocator.init(global_allocator);
-    defer arena.deinit();
 
     switch (cli.verb.?) {
         .ls => |verb| {
@@ -361,7 +395,7 @@ pub fn main() !u8 {
                 break :blk builder.toOwnedSlice();
             };
 
-            //            std.debug.print("{s}\n", .{query_text});
+            // std.debug.print("{s}\n", .{query_text});
 
             var query = try db.prepareDynamic(query_text);
             defer query.deinit();
@@ -778,6 +812,11 @@ pub fn main() !u8 {
         // Currently unimplemented verbs:
 
         .add => |verb| {
+            const test_file = "/usr/bin/file";
+            const file_type = @as(?[*:0]const u8, magic.file(test_file)) orelse "undetectable";
+
+            logger.warn("{s} => {s}", .{ test_file, std.mem.sliceTo(file_type, 0) });
+
             logger.err("'add' not implemented yet. verb data: {}", .{verb});
         },
         .get => |verb| {
@@ -884,4 +923,102 @@ const prepared_statement_sources = struct {
         ,
         \\CREATE VIEW IF NOT EXISTS Tags AS SELECT tag, COUNT(file) AS count FROM FileTags GROUP BY tag
     };
+};
+
+const MagicSet = opaque {
+    pub const open = magic_open;
+    pub const close = magic_close;
+    pub const getpath = magic_getpath;
+    pub const file = magic_file;
+    pub const descriptor = magic_descriptor;
+    pub const buffer = magic_buffer;
+    pub fn getError(set: *MagicSet) ?[:0]const u8 {
+        return if (magic_error(set)) |err|
+            std.mem.span(err)
+        else
+            null;
+    }
+    pub const getflags = magic_getflags;
+    pub const setflags = magic_setflags;
+    pub const version = magic_version;
+    pub const load = magic_load;
+    pub const load_buffers = magic_load_buffers;
+    pub const compile = magic_compile;
+    pub const check = magic_check;
+    pub const list = magic_list;
+    pub const errno = magic_errno;
+    pub const setparam = magic_setparam;
+    pub const getparam = magic_getparam;
+
+    extern fn magic_open(c_int) ?*MagicSet;
+    extern fn magic_close(*MagicSet) void;
+    extern fn magic_getpath(?[*:0]const u8, c_int) ?[*:0]const u8;
+    extern fn magic_file(*MagicSet, [*:0]const u8) ?[*:0]const u8;
+    extern fn magic_descriptor(*MagicSet, c_int) ?[*:0]const u8;
+    extern fn magic_buffer(*MagicSet, ?*const c_void, usize) ?[*:0]const u8;
+    extern fn magic_error(*MagicSet) ?[*:0]const u8;
+    extern fn magic_getflags(*MagicSet) c_int;
+    extern fn magic_setflags(*MagicSet, c_int) c_int;
+    extern fn magic_version() c_int;
+    extern fn magic_load(*MagicSet, [*:0]const u8) c_int;
+    extern fn magic_load_buffers(*MagicSet, [*]*c_void, [*]usize, usize) c_int;
+    extern fn magic_compile(*MagicSet, [*:0]const u8) c_int;
+    extern fn magic_check(*MagicSet, [*:0]const u8) c_int;
+    extern fn magic_list(*MagicSet, [*:0]const u8) c_int;
+    extern fn magic_errno(*MagicSet) c_int;
+    extern fn magic_setparam(*MagicSet, Parameter, ?*const c_void) c_int;
+    extern fn magic_getparam(*MagicSet, Parameter, ?*c_void) c_int;
+
+    const Parameter = enum(c_int) {
+        indir_max = PARAM_INDIR_MAX,
+        name_max = PARAM_NAME_MAX,
+        elf_phnum_max = PARAM_ELF_PHNUM_MAX,
+        elf_shnum_max = PARAM_ELF_SHNUM_MAX,
+        elf_notes_max = PARAM_ELF_NOTES_MAX,
+        regex_max = PARAM_REGEX_MAX,
+        bytes_max = PARAM_BYTES_MAX,
+        encoding_max = PARAM_ENCODING_MAX,
+    };
+
+    pub const NONE = @as(c_int, 0x0000000);
+    pub const DEBUG = @as(c_int, 0x0000001);
+    pub const SYMLINK = @as(c_int, 0x0000002);
+    pub const COMPRESS = @as(c_int, 0x0000004);
+    pub const DEVICES = @as(c_int, 0x0000008);
+    pub const MIME_TYPE = @as(c_int, 0x0000010);
+    pub const CONTINUE = @as(c_int, 0x0000020);
+    pub const CHECK = @as(c_int, 0x0000040);
+    pub const PRESERVE_ATIME = @as(c_int, 0x0000080);
+    pub const RAW = @as(c_int, 0x0000100);
+    pub const ERROR = @as(c_int, 0x0000200);
+    pub const MIME_ENCODING = @as(c_int, 0x0000400);
+    pub const MIME = MIME_TYPE | MIME_ENCODING;
+    pub const APPLE = @as(c_int, 0x0000800);
+    pub const EXTENSION = @import("std").zig.c_translation.promoteIntLiteral(c_int, 0x1000000, .hexadecimal);
+    pub const COMPRESS_TRANSP = @import("std").zig.c_translation.promoteIntLiteral(c_int, 0x2000000, .hexadecimal);
+    pub const NODESC = EXTENSION | MIME | APPLE;
+    pub const NO_CHECK_COMPRESS = @as(c_int, 0x0001000);
+    pub const NO_CHECK_TAR = @as(c_int, 0x0002000);
+    pub const NO_CHECK_SOFT = @as(c_int, 0x0004000);
+    pub const NO_CHECK_APPTYPE = @import("std").zig.c_translation.promoteIntLiteral(c_int, 0x0008000, .hexadecimal);
+    pub const NO_CHECK_ELF = @import("std").zig.c_translation.promoteIntLiteral(c_int, 0x0010000, .hexadecimal);
+    pub const NO_CHECK_TEXT = @import("std").zig.c_translation.promoteIntLiteral(c_int, 0x0020000, .hexadecimal);
+    pub const NO_CHECK_CDF = @import("std").zig.c_translation.promoteIntLiteral(c_int, 0x0040000, .hexadecimal);
+    pub const NO_CHECK_CSV = @import("std").zig.c_translation.promoteIntLiteral(c_int, 0x0080000, .hexadecimal);
+    pub const NO_CHECK_TOKENS = @import("std").zig.c_translation.promoteIntLiteral(c_int, 0x0100000, .hexadecimal);
+    pub const NO_CHECK_ENCODING = @import("std").zig.c_translation.promoteIntLiteral(c_int, 0x0200000, .hexadecimal);
+    pub const NO_CHECK_JSON = @import("std").zig.c_translation.promoteIntLiteral(c_int, 0x0400000, .hexadecimal);
+    pub const NO_CHECK_BUILTIN = (((((((((MAGIC_NO_CHECK_COMPRESS | MAGIC_NO_CHECK_TAR) | MAGIC_NO_CHECK_APPTYPE) | MAGIC_NO_CHECK_ELF) | MAGIC_NO_CHECK_TEXT) | MAGIC_NO_CHECK_CSV) | MAGIC_NO_CHECK_CDF) | MAGIC_NO_CHECK_TOKENS) | MAGIC_NO_CHECK_ENCODING) | MAGIC_NO_CHECK_JSON) | @as(c_int, 0);
+    pub const NO_CHECK_ASCII = MAGIC_NO_CHECK_TEXT;
+    pub const NO_CHECK_FORTRAN = @as(c_int, 0x000000);
+    pub const NO_CHECK_TROFF = @as(c_int, 0x000000);
+    pub const VERSION = 5.40;
+    pub const PARAM_INDIR_MAX = @as(c_int, 0);
+    pub const PARAM_NAME_MAX = @as(c_int, 1);
+    pub const PARAM_ELF_PHNUM_MAX = @as(c_int, 2);
+    pub const PARAM_ELF_SHNUM_MAX = @as(c_int, 3);
+    pub const PARAM_ELF_NOTES_MAX = @as(c_int, 4);
+    pub const PARAM_REGEX_MAX = @as(c_int, 5);
+    pub const PARAM_BYTES_MAX = @as(c_int, 6);
+    pub const PARAM_ENCODING_MAX = @as(c_int, 7);
 };

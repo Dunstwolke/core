@@ -124,6 +124,21 @@ pub fn build(b: *Builder) !void {
     libsqlite3.setTarget(musl_target);
     libsqlite3.linkLibC();
 
+    const libmagic = b.addStaticLibrary("magic", null);
+    libmagic.addCSourceFiles(&libmagic_sources, &[_][]const u8{ "-std=c99", "-fno-sanitize=undefined" });
+    libmagic.setBuildMode(mode);
+    libmagic.setTarget(musl_target);
+    libmagic.defineCMacro("HAVE_STDINT_H", null);
+    libmagic.defineCMacro("HAVE_INTTYPES_H", null);
+    libmagic.defineCMacro("HAVE_WCHAR_H", null);
+    libmagic.defineCMacro("HAVE_WCTYPE_H", null);
+    libmagic.defineCMacro("HAVE_CONFIG_H", null);
+    if (!musl_target.isWindows()) {
+        libmagic.defineCMacro("HAVE_UNISTD_H", null);
+    }
+    libmagic.addIncludeDir("lib/file-5.40");
+    libmagic.linkLibC();
+
     const dunstfs = b.addExecutable("dfs", "./src/dunstfs/main.zig");
     dunstfs.setBuildMode(mode);
     dunstfs.setTarget(musl_target);
@@ -133,6 +148,7 @@ pub fn build(b: *Builder) !void {
     dunstfs.addPackage(pkgs.uuid6);
     dunstfs.addIncludeDir("./lib/zig-sqlite/c");
     dunstfs.linkLibrary(libsqlite3);
+    dunstfs.linkLibrary(libmagic);
     dunstfs.linkLibC();
     dunstfs.install();
 
@@ -336,3 +352,26 @@ pub fn build(b: *Builder) !void {
     test_step.dependOn(&dunstnetz_daemon_test.step);
     test_step.dependOn(&dunstblick_protocol_test.step);
 }
+
+const libmagic_sources = [_][]const u8{
+    "lib/file-5.40/src/buffer.c",
+    "lib/file-5.40/src/apprentice.c",
+    "lib/file-5.40/src/magic.c",
+    "lib/file-5.40/src/softmagic.c",
+    "lib/file-5.40/src/ascmagic.c",
+    "lib/file-5.40/src/encoding.c",
+    "lib/file-5.40/src/compress.c",
+    "lib/file-5.40/src/is_csv.c",
+    "lib/file-5.40/src/is_json.c",
+    "lib/file-5.40/src/is_tar.c",
+    "lib/file-5.40/src/readelf.c",
+    "lib/file-5.40/src/print.c",
+    "lib/file-5.40/src/fsmagic.c",
+    "lib/file-5.40/src/funcs.c",
+    "lib/file-5.40/src/apptype.c",
+    "lib/file-5.40/src/der.c",
+    "lib/file-5.40/src/cdf.c",
+    "lib/file-5.40/src/cdf_time.c",
+    "lib/file-5.40/src/readcdf.c",
+    "lib/file-5.40/src/fmtcheck.c",
+};
