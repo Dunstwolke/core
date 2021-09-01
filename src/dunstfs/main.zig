@@ -21,12 +21,14 @@ fn printUsage(writer: anytype) !void {
         \\  -y, --yes      Will auto-confirm user questions with "y".
         \\
         \\Verbs:
-        \\  add <path> [--mime <type>] [tag] [tag] [tag] ...
+        \\  add <path> [--mime <type>] [--name <name>] [tag] [tag] [tag] ...
         \\    Adds a new file at <path> to the DunstFS and adds all additional tags to it.
         \\    Will automatically add a mime type tag if it can be detected via `file --brief --mime-type` as
         \\    well as a date tag for the creation date.
         \\    Will output the file guid to stdout.
         \\    This action fails when the file is already existent (determined by its hash)
+        \\    When --name <name> is given, the name of the file will be set to this, otherwise a name will be
+        \\    guessed from the file contents or the file name.
         \\
         \\  ls [--count n] [tag] [-tag] [tag] ...
         \\    Lists the last 25 files that matches the tag filters. Tags can use wildcards here
@@ -154,6 +156,7 @@ const Verb = union(enum) {
     const HelpOptions = EmptyOptions;
     const AddOptions = struct {
         mime: ?[]const u8 = null,
+        name: ?[]const u8 = null,
     };
     const LsOptions = struct {
         count: u32 = 25,
@@ -329,6 +332,8 @@ pub fn main() !u8 {
     });
     defer db.deinit();
 
+    try working_directory.setAsCwd();
+
     logger.info("Initialize database...", .{});
     inline for (prepared_statement_sources.init_statements) |code| {
         var init_db_stmt = db.prepare(code) catch |err| {
@@ -341,8 +346,6 @@ pub fn main() !u8 {
     }
 
     logger.info("Begin processing verb '{s}'...", .{std.meta.tagName(cli.verb.?)});
-
-    _ = source;
 
     switch (cli.verb.?) {
         .ls => |verb| {
@@ -697,13 +700,13 @@ pub fn main() !u8 {
         },
 
         .tags => |verb| {
+            var diag = sqlite3.Diagnostics{};
+            errdefer std.log.err("sqlite failed: {}", .{diag});
+
             if (cli.positionals.len > 1) {
                 logger.err("tags only accepts a single filter option!", .{});
                 return 1;
             }
-
-            var diag = sqlite3.Diagnostics{};
-            errdefer std.log.err("sqlite failed: {}", .{diag});
 
             var query = try db.prepare(
                 \\SELECT * FROM Tags WHERE tag LIKE ?{text} ORDER BY count LIMIT ?{u32}
@@ -809,16 +812,88 @@ pub fn main() !u8 {
             }
         },
 
+        .add => |verb| {
+            var diag = sqlite3.Diagnostics{};
+            errdefer std.log.err("sqlite failed: {}", .{diag});
+
+            var stmt_any_exists = try db.prepareWithDiags(
+                \\SELECT file, revision FROM Revisions WHERE dataset = :dataset
+            , .{ .diags = &diag });
+            defer stmt_any_exists.deinit();
+
+            var stmt_create_file = try db.prepareWithDiags(
+                \\INSERT INTO Files (uuid, user_name, last_change) VALUES (:file, :name, CURRENT_TIMESTAMP);
+            , .{ .diags = &diag });
+            defer stmt_create_file.deinit();
+
+            var stmt_add_revision = try db.prepareWithDiags(
+                \\INSERT INTO Revisions (file, dataset, revision) VALUES (:file, :dataset, (SELECT IFNULL(MAX(revision),0)+1 FROM Revisions WHERE file = :file LIMIT 1));
+            , .{ .diags = &diag });
+            defer stmt_add_revision.deinit();
+
+            var stmt_add_tag = try db.prepareWithDiags(
+                \\INSERT INTO FileTags (file, tag) VALUES (:file, :tag);
+            , .{ .diags = &diag });
+            defer stmt_add_tag.deinit();
+
+            if (cli.positionals.len < 1) {
+                logger.err("add requires at least a file name!", .{});
+                return 1;
+            }
+
+            const src_file = cli.positionals[0];
+            const initial_tags = cli.positionals[1..];
+
+            const dataset = addDataset(&db, magic, &arena.allocator, dataset_dir, working_directory, src_file, verb.mime) catch |err| switch (err) {
+                error.CouldNotDetectMimeType => {
+                    logger.err("Mime type could not be autodetected. Please provide a mime type with --mime <type>!", .{});
+                    return 1;
+                },
+                else => |e| return e,
+            };
+            const file_dataset = sqlite3.Text{ .data = &dataset.checksum };
+
+            const ExistingFile = struct {
+                file: []const u8,
+                revision: u32,
+            };
+
+            if (try stmt_any_exists.oneAlloc(ExistingFile, &arena.allocator, .{}, .{ .dataset = file_dataset })) |existing| {
+                std.log.err("The contents of this file are already available in file {s}, revision {d}!", .{
+                    existing.file,
+                    existing.revision,
+                });
+                return 1;
+            }
+
+            const file_uuid_str = uuidToString(source.create());
+            const file_uuid = sqlite3.Text{ .data = &file_uuid_str };
+
+            const file_title = verb.name orelse try determineFileTitle(&arena.allocator, working_directory, MimeType.parse(dataset.mime_type), src_file);
+
+            try stmt_create_file.exec(.{}, .{
+                .file = file_uuid,
+                .name = file_title,
+            });
+            try stmt_add_revision.exec(.{}, .{
+                .file = file_uuid,
+                .dataset = file_dataset,
+            });
+
+            logger.warn("{s}, {s}, {s}, {s}", .{ file_title, dataset.mime_type, &dataset.checksum, dataset.creation_date });
+
+            for (initial_tags) |tag_string| {
+                const tag = sqlite3.Text{ .data = tag_string };
+                stmt_add_tag.reset();
+                try stmt_add_tag.exec(.{}, .{
+                    .file = file_uuid,
+                    .tag = tag,
+                });
+            }
+        },
+
         // Currently unimplemented verbs:
 
-        .add => |verb| {
-            const test_file = "/usr/bin/file";
-            const file_type = @as(?[*:0]const u8, magic.file(test_file)) orelse "undetectable";
-
-            logger.warn("{s} => {s}", .{ test_file, std.mem.sliceTo(file_type, 0) });
-
-            logger.err("'add' not implemented yet. verb data: {}", .{verb});
-        },
         .get => |verb| {
             logger.err("'get' not implemented yet. verb data: {}", .{verb});
         },
@@ -833,6 +908,100 @@ pub fn main() !u8 {
     }
 
     return 0;
+}
+
+const Dataset = struct {
+    checksum: [64]u8,
+    mime_type: []const u8,
+    creation_date: []const u8,
+};
+
+fn addDataset(database: *sqlite3.Db, magic: *MagicSet, allocator: *std.mem.Allocator, dst_dir: std.fs.Dir, src_dir: std.fs.Dir, src_path: [:0]const u8, mime_hint: ?[]const u8) !Dataset {
+    var diagnostics = sqlite3.Diagnostics{};
+    errdefer std.log.err("sqlite failed: {}", .{diagnostics});
+
+    const file_hash = blk: {
+        var file_stream = src_dir.openFile(src_path, .{}) catch |err| switch (err) {
+            // TODO: implement nicer error messages here!
+            else => |e| return e,
+        };
+        defer file_stream.close();
+
+        var blake_hash = std.crypto.hash.Blake3.init(.{ .key = null });
+        while (true) {
+            var buffer: [8192]u8 = undefined;
+            const len = try file_stream.read(&buffer);
+            if (len == 0)
+                break;
+            blake_hash.update(buffer[0..len]);
+        }
+
+        var final: [32]u8 = undefined;
+        blake_hash.final(&final);
+        break :blk final;
+    };
+
+    const mime_string = mime_hint orelse if (@as(?[*:0]const u8, magic.file(src_path))) |mime_str| std.mem.span(mime_str) else {
+        return error.CouldNotDetectMimeType;
+    };
+
+    var insert_stmt = try database.prepareWithDiags(
+        \\INSERT INTO DataSets (checksum, mime_type, creation_date) VALUES (?{text}, ?{text}, CURRENT_TIMESTAMP) 
+    , .{ .diags = &diagnostics });
+    defer insert_stmt.deinit();
+
+    var fetch_stmt = try database.prepareWithDiags(
+        \\SELECT checksum, mime_type, creation_date FROM DataSets WHERE checksum = ?{text}
+    , .{ .diags = &diagnostics });
+    defer fetch_stmt.deinit();
+
+    var hash_str: [64]u8 = undefined;
+    _ = std.fmt.bufPrint(&hash_str, "{}", .{std.fmt.fmtSliceHexLower(&file_hash)}) catch unreachable;
+
+    const hash_text = sqlite3.Text{ .data = &hash_str };
+    const mime_text = sqlite3.Text{ .data = mime_string };
+
+    if (try fetch_stmt.oneAlloc(Dataset, allocator, .{}, .{hash_text})) |dataset_desc| {
+        // we already have this dataset, be happy :)
+        return dataset_desc;
+    }
+
+    try insert_stmt.exec(.{}, .{
+        hash_text,
+        mime_text,
+    });
+
+    fetch_stmt.reset();
+    const dataset_desc = (try fetch_stmt.oneAlloc(Dataset, allocator, .{}, .{hash_text})) orelse {
+        unreachable; // race condition, someone deleted the file very tightly between insert_stmt and this.
+    };
+
+    try std.fs.Dir.copyFile(
+        src_dir,
+        src_path,
+        dst_dir,
+        &hash_str, // just store the file under its hash
+        .{},
+    );
+
+    return dataset_desc;
+}
+
+fn determineFileTitle(allocator: *std.mem.Allocator, dir: std.fs.Dir, mime: MimeType, file_path: []const u8) ![]const u8 {
+
+    // TODO: Implement improved guessing of file titles.
+    // Possible sources:
+    // - IDv3
+    // - PDF Title
+    // - Markdown first
+
+    _ = allocator;
+    _ = dir;
+    _ = mime;
+
+    const basename = std.fs.path.basename(file_path);
+    const ext = std.fs.path.extension(basename);
+    return basename[0 .. basename.len - ext.len];
 }
 
 const FileEntry = struct {
@@ -885,7 +1054,10 @@ fn makeCanonicalUuid(uuid_str: []const u8) ![36]u8 {
         logger.err("'{s}' is not a valid uuid: {s}", .{ uuid_str, @errorName(err) });
         return err;
     };
+    return uuidToString(uuid);
+}
 
+fn uuidToString(uuid: Uuid) [36]u8 {
     var canonical_format: [36]u8 = undefined;
     uuid.formatBuf(&canonical_format) catch unreachable; // we provide enough space
     return canonical_format;
@@ -923,6 +1095,21 @@ const prepared_statement_sources = struct {
         ,
         \\CREATE VIEW IF NOT EXISTS Tags AS SELECT tag, COUNT(file) AS count FROM FileTags GROUP BY tag
     };
+};
+
+const MimeType = struct {
+    group: []const u8,
+    subtype: ?[]const u8,
+
+    fn parse(str: []const u8) MimeType {
+        return if (std.mem.indexOfScalar(u8, str, '/')) |i|
+            MimeType{
+                .group = str[0..i],
+                .subtype = str[i + 1 ..],
+            }
+        else
+            MimeType{ .group = str, .subtype = null };
+    }
 };
 
 const MagicSet = opaque {
