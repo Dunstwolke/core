@@ -897,9 +897,11 @@ pub fn main() !u8 {
         .get => |verb| {
             logger.err("'get' not implemented yet. verb data: {}", .{verb});
         },
+
         .update => |verb| {
             logger.err("'update' not implemented yet. verb data: {}", .{verb});
         },
+
         .gc => |verb| {
             logger.err("'gc' not implemented yet. verb data: {}", .{verb});
         },
