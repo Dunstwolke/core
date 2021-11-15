@@ -12,6 +12,7 @@ const Self = @This();
 
 const UserInterface = zerog.UserInterface;
 const Renderer2D = zerog.Renderer2D;
+const ResourceManager = zerog.ResourceManager;
 const Point = zerog.Point;
 const Size = zerog.Size;
 const Rectangle = zerog.Rectangle;
@@ -376,15 +377,15 @@ const RectangleSide = enum {
 };
 
 const IconCache = struct {
-    const SizedIcons = std.AutoHashMapUnmanaged(u30, *const Renderer2D.Texture);
+    const SizedIcons = std.AutoHashMapUnmanaged(u30, *ResourceManager.Texture);
     const Map = std.StringHashMapUnmanaged(SizedIcons);
 
     allocator: *std.mem.Allocator,
-    renderer: ?*Renderer2D,
+    resource_manager: ?*ResourceManager,
     icon_map: Map,
 
-    pub fn get(self: *IconCache, icon: []const u8, size: Size) !*const Renderer2D.Texture {
-        const renderer = self.renderer orelse @panic("usage error");
+    pub fn get(self: *IconCache, icon: []const u8, size: Size) !*ResourceManager.Texture {
+        const resource_manager = self.resource_manager orelse @panic("usage error");
 
         const gop1 = try self.icon_map.getOrPut(self.allocator, icon);
         if (!gop1.found_existing) {
@@ -439,28 +440,26 @@ const IconCache = struct {
                 icon,
             ) catch {};
 
-            gop2.value_ptr.* = renderer.createTexture(size.width, size.height, std.mem.sliceAsBytes(pixels)) catch return error.OutOfMemory;
+            gop2.value_ptr.* = resource_manager.createTexture(.ui, ResourceManager.RawRgbaTexture{
+                .width = size.width,
+                .height = size.height,
+                .pixels = std.mem.sliceAsBytes(pixels),
+            }) catch return error.OutOfMemory;
         }
         return gop2.value_ptr.*;
     }
 
-    pub fn setRenderer(self: *IconCache, new_renderer: ?*Renderer2D) void {
-        if (self.renderer) |renderer| {
-            var outer_it = self.icon_map.iterator();
-            while (outer_it.next()) |list| {
-                var inner_it = list.value_ptr.iterator();
-                while (inner_it.next()) |item| {
-                    renderer.destroyTexture(item.value_ptr.*);
-                }
-                list.value_ptr.deinit(self.allocator);
-            }
-            self.icon_map.clearRetainingCapacity();
-        }
-        self.renderer = new_renderer;
-    }
-
     pub fn deinit(self: *IconCache) void {
-        self.setRenderer(null);
+        var outer_it = self.icon_map.iterator();
+        while (outer_it.next()) |list| {
+            var inner_it = list.value_ptr.iterator();
+            while (inner_it.next()) |item| {
+                self.resource_manager.destroyTexture(item.value_ptr.*);
+            }
+            list.value_ptr.deinit(self.allocator);
+        }
+        self.icon_map.clearRetainingCapacity();
+
         self.icon_map.deinit(self.allocator);
         self.* = undefined;
     }
@@ -494,7 +493,8 @@ mode: MouseMode,
 mouse_down_timestamp: ?i128 = null,
 mouse_down_pos: ?Point = null,
 
-renderer: ?*Renderer2D,
+resource_manager: *ResourceManager,
+renderer: *Renderer2D,
 
 ui: UserInterface,
 input_processor: ?UserInterface.InputProcessor = null,
@@ -507,7 +507,7 @@ icon_cache: IconCache,
 
 context_menu: ?ContextMenu = null,
 
-pub fn init(allocator: *std.mem.Allocator, config: *const Config) !Self {
+pub fn init(allocator: *std.mem.Allocator, resource_manager: *ResourceManager, renderer: *Renderer2D, config: *const Config) !Self {
     var self = Self{
         .allocator = allocator,
         .size = Size{ .width = 0, .height = 0 },
@@ -520,16 +520,28 @@ pub fn init(allocator: *std.mem.Allocator, config: *const Config) !Self {
         .app_title_font = undefined,
         .app_status_font = undefined,
         .app_button_font = undefined,
-        .renderer = null,
         .ui = undefined,
+        .resource_manager = resource_manager,
+        .renderer = renderer,
         .icon_cache = .{
+            .resource_manager = resource_manager,
             .allocator = allocator,
             .icon_map = .{},
-            .renderer = null,
         },
     };
 
-    self.ui = try UserInterface.init(self.allocator, null);
+    const ttf_font_data = @embedFile("fonts/firasans-regular.ttf");
+
+    self.app_title_font = try renderer.createFont(ttf_font_data, 30);
+    errdefer renderer.destroyFont(self.app_title_font);
+
+    self.app_status_font = try renderer.createFont(ttf_font_data, 20);
+    errdefer renderer.destroyFont(self.app_status_font);
+
+    self.app_button_font = try renderer.createFont(ttf_font_data, 12);
+    errdefer renderer.destroyFont(self.app_button_font);
+
+    self.ui = try UserInterface.init(self.allocator, renderer);
     errdefer self.ui.deinit();
 
     self.ui.theme = &ui_theme;
@@ -559,36 +571,6 @@ pub fn deinit(self: *Self) void {
     self.menu_items.deinit();
     self.available_apps.deinit();
     self.* = undefined;
-}
-
-pub fn setRenderer(self: *Self, new_renderer: ?*Renderer2D) !void {
-    if (self.renderer == new_renderer)
-        return;
-
-    errdefer self.renderer = null;
-    if (self.renderer) |renderer| {
-        renderer.destroyFont(self.app_status_font);
-        renderer.destroyFont(self.app_title_font);
-        renderer.destroyFont(self.app_button_font);
-    }
-    self.renderer = new_renderer;
-
-    self.icon_cache.setRenderer(new_renderer);
-
-    try self.ui.setRenderer(new_renderer);
-
-    if (self.renderer) |renderer| {
-        const ttf_font_data = @embedFile("fonts/firasans-regular.ttf");
-
-        self.app_title_font = try renderer.createFont(ttf_font_data, 30);
-        errdefer renderer.destroyFont(self.app_title_font);
-
-        self.app_status_font = try renderer.createFont(ttf_font_data, 20);
-        errdefer renderer.destroyFont(self.app_status_font);
-
-        self.app_button_font = try renderer.createFont(ttf_font_data, 12);
-        errdefer renderer.destroyFont(self.app_button_font);
-    }
 }
 
 pub fn setAvailableApps(self: *Self, apps: []const *ApplicationDescription) !void {
@@ -1228,8 +1210,8 @@ fn renderStartingAppNode(self: *Self, app: *AppInstance, area: Rectangle, render
 
     const display_name = app.application.description.display_name;
     if (display_name.len > 0) {
-        const size = self.renderer.?.measureString(self.app_title_font, display_name);
-        try self.renderer.?.drawString(
+        const size = self.renderer.measureString(self.app_title_font, display_name);
+        try self.renderer.drawString(
             self.app_title_font,
             display_name,
             area.x + (area.width - size.width) / 2,
@@ -1240,8 +1222,8 @@ fn renderStartingAppNode(self: *Self, app: *AppInstance, area: Rectangle, render
 
     const startup_message = app.application.status.starting; // this is safe as the status might only be changed in the update fn
     if (startup_message.len > 0) {
-        const size = self.renderer.?.measureString(self.app_status_font, startup_message);
-        try self.renderer.?.drawString(
+        const size = self.renderer.measureString(self.app_status_font, startup_message);
+        try self.renderer.drawString(
             self.app_status_font,
             startup_message,
             area.x + (area.width - size.width) / 2,
@@ -1340,32 +1322,32 @@ fn updateTreeNode(self: *Self, builder: UserInterface.Builder, area: Rectangle, 
     }
 }
 
-const SubCanvas = struct {
-    canvas: *Canvas,
+// const SubCanvas = struct {
+//     canvas: *Canvas,
 
-    alpha: f32 = 1.0,
-    x: isize,
-    y: isize,
-    width: usize,
-    height: usize,
+//     alpha: f32 = 1.0,
+//     x: isize,
+//     y: isize,
+//     width: usize,
+//     height: usize,
 
-    pub fn setPixel(section: @This(), x: isize, y: isize, color: [4]u8) void {
-        if (x < 0 or y < 0)
-            return;
-        if (x >= section.width or y >= section.height)
-            return;
-        section.canvas.setPixel(section.x + x, section.y + y, Color{
-            .r = color[0],
-            .g = color[1],
-            .b = color[2],
-            .a = @floatToInt(u8, section.alpha * @intToFloat(f32, color[3])),
-        });
-    }
-};
+//     pub fn setPixel(section: @This(), x: isize, y: isize, color: [4]u8) void {
+//         if (x < 0 or y < 0)
+//             return;
+//         if (x >= section.width or y >= section.height)
+//             return;
+//         section.canvas.setPixel(section.x + x, section.y + y, Color{
+//             .r = color[0],
+//             .g = color[1],
+//             .b = color[2],
+//             .a = @floatToInt(u8, section.alpha * @intToFloat(f32, color[3])),
+//         });
+//     }
+// };
 
 const RenderError = error{OutOfMemory} || zerog.Renderer2D.DrawError;
 pub fn render(self: *Self) RenderError!void {
-    const renderer = self.renderer orelse @panic("usage error");
+    const renderer = self.renderer;
 
     try self.ui.render();
 
@@ -1462,7 +1444,7 @@ pub fn render(self: *Self) RenderError!void {
 }
 
 fn getPhysicalSize(self: Self, virtual_size: Size) Size {
-    const ratio = self.renderer.?.unit_to_pixel_ratio;
+    const ratio = self.renderer.unit_to_pixel_ratio;
     return Size{
         .width = @floatToInt(u15, ratio * @intToFloat(f32, virtual_size.width)),
         .height = @floatToInt(u15, ratio * @intToFloat(f32, virtual_size.height)),
@@ -1474,7 +1456,7 @@ fn drawIcon(self: *Self, target: Rectangle, icon: []const u8, tint: Color) !void
 
     const texture = try self.icon_cache.get(icon, physical_size);
 
-    try self.renderer.?.fillTexturedRectangle(
+    try self.renderer.fillTexturedRectangle(
         target,
         texture,
         tint,

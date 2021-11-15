@@ -8,6 +8,7 @@
 //! allocator.
 
 const std = @import("std");
+const builtin = @import("builtin");
 const protocol = @import("v1.zig");
 const types = @import("../data-types.zig");
 const shared_types = @import("shared_types.zig");
@@ -359,7 +360,7 @@ pub fn ClientStateMachine(comptime Writer: type) type {
                     return error.SliceOutOfRange;
                 var buf: [32]u8 = [1]u8{0} ** 32;
                 std.mem.copy(u8, &buf, name);
-                if (std.builtin.mode == .Debug) {
+                if (builtin.mode == .Debug) {
                     for (buf[name.len..]) |c| {
                         std.debug.assert(c == 0);
                     }

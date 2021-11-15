@@ -118,6 +118,8 @@ pub fn build(b: *Builder) !void {
         break :blk copy;
     };
 
+    const dunstblick_step = b.step("dunstblick", "Makes everything related to dunstblick.");
+
     const libsqlite3 = b.addStaticLibrary("sqlite3", null);
     libsqlite3.addCSourceFile("./lib/zig-sqlite/c/sqlite3.c", &[_][]const u8{"-std=c99"});
     libsqlite3.setBuildMode(mode);
@@ -158,6 +160,8 @@ pub fn build(b: *Builder) !void {
     compiler.setTarget(target);
     compiler.setBuildMode(mode);
     compiler.install();
+
+    dunstblick_step.dependOn(&compiler.install_step.?.step);
 
     const compiler_test = b.addTest("./src/dunstblick-compiler/main.zig");
 
@@ -263,6 +267,8 @@ pub fn build(b: *Builder) !void {
     dummy_application.setBuildMode(mode);
     dummy_application.install();
 
+    dunstblick_step.dependOn(&dummy_application.install_step.?.step);
+
     const dunstblick_desktop = z3d_sdk.createApplication("dunstblick_desktop", "src/dunstblick-desktop/main.zig");
     dunstblick_desktop.setDisplayName("Dunstblick Desktop");
     dunstblick_desktop.setPackageName("org.dunstwolke.dunstblick.desktop");
@@ -276,6 +282,8 @@ pub fn build(b: *Builder) !void {
     const desktop_app = dunstblick_desktop.compileFor(.{ .desktop = target });
     desktop_app.install();
 
+    dunstblick_step.dependOn(&desktop_app.data.desktop.install_step.?.step);
+
     // Create App:
     if (enable_android) {
         const keystore_step = b.step("init-keystore", "Initializes a new development key store.");
@@ -284,9 +292,9 @@ pub fn build(b: *Builder) !void {
         const app = dunstblick_desktop.compileFor(.android);
         app.install();
 
-        const push_app = app.android.app.install();
+        const push_app = app.data.android.install();
 
-        const run_app = app.android.app.run();
+        const run_app = app.data.android.run();
         run_app.dependOn(push_app);
 
         const app_step = b.step("app", "Compiles the Android app");
@@ -297,6 +305,8 @@ pub fn build(b: *Builder) !void {
 
         const run_step = b.step("run-app", "Compiles the Android app");
         run_step.dependOn(run_app);
+
+        dunstblick_step.dependOn(app.data.android.final_step);
     }
 
     const dunstnetz_daemon = b.addExecutable("dunstnetz-daemon", "src/dunstnetz-daemon/main.zig");
@@ -337,7 +347,7 @@ pub fn build(b: *Builder) !void {
     install2_step.dependOn(&dunstnetz_daemon.step);
 
     const desktop_cmd = desktop_app.run();
-    desktop_cmd.step.dependOn(&desktop_app.single_step.exe.install_step.?.step);
+    desktop_cmd.step.dependOn(&desktop_app.data.desktop.install_step.?.step);
 
     const run_desktop_step = b.step("run-desktop", "Run the Dunstblick Desktop");
     run_desktop_step.dependOn(&desktop_cmd.step);

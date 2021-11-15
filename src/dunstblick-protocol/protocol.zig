@@ -1,5 +1,8 @@
 const std = @import("std");
 
+// re-export the data types
+pub usingnamespace @import("data-types.zig");
+
 pub const udp = @import("udp.zig");
 
 pub const tcp = struct {
@@ -18,7 +21,7 @@ pub const layout_format = @import("layout.zig");
 
 pub const enums = @import("enums.zig");
 
-pub usingnamespace @import("data-types.zig");
+pub const data_types = @import("data-types.zig");
 
 pub const Value = @import("value.zig").Value;
 
@@ -83,8 +86,8 @@ test {
 const TestStream = std.io.FixedBufferStream([]u8);
 
 /// Computes the hash for a resource file
-pub fn computeResourceHash(data: []const u8) ResourceHash {
-    var hash: ResourceHash = undefined;
+pub fn computeResourceHash(data: []const u8) data_types.ResourceHash {
+    var hash: data_types.ResourceHash = undefined;
     std.mem.writeIntLittle(u64, &hash, std.hash.Fnv1a_64.hash(data));
     return hash;
 }
@@ -652,8 +655,8 @@ fn testCommonHandshake(
         var descriptors: [all_resources.len]tcp.ConnectResponseItem = undefined;
         for (descriptors) |*desc, i| {
             desc.* = .{
-                .id = @intToEnum(ResourceID, @truncate(u32, i)),
-                .type = @intToEnum(ResourceKind, @truncate(u8, i % 3)),
+                .id = @intToEnum(data_types.ResourceID, @truncate(u32, i)),
+                .type = @intToEnum(data_types.ResourceKind, @truncate(u8, i % 3)),
                 .size = @truncate(u32, all_resources[i].len),
                 .hash = computeResourceHash(all_resources[i]),
             };
@@ -670,7 +673,7 @@ fn testCommonHandshake(
     const resources = all_resources[0..resource_limit];
     const resources_descriptors = all_resources_descriptors[0..resource_limit];
 
-    const dummy_caps = std.EnumSet(ClientCapabilities).init(.{
+    const dummy_caps = std.EnumSet(data_types.ClientCapabilities).init(.{
         .mouse = true,
         .keyboard = true,
         .touch = false,
@@ -732,7 +735,7 @@ fn testCommonHandshake(
         try std.testing.expectEqual(stream.getPos(), stream_offset);
 
         if (resources_descriptors.len > 0) {
-            const all_requested_resources = [_]ResourceID{
+            const all_requested_resources = [_]data_types.ResourceID{
                 all_resources_descriptors[0].id,
                 all_resources_descriptors[1].id,
             };
@@ -753,7 +756,7 @@ fn testCommonHandshake(
 
             {
                 const msg = try expectServerEvent(stream, server, .resource_request);
-                try std.testing.expectEqualSlices(ResourceID, requested_resources, msg.requested_resources);
+                try std.testing.expectEqualSlices(data_types.ResourceID, requested_resources, msg.requested_resources);
             }
 
             for (requested_resources) |_, i| {

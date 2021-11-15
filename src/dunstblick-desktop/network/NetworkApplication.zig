@@ -3,6 +3,7 @@ const zero_graphics = @import("zero-graphics");
 const network = @import("network");
 const protocol = @import("dunstblick-protocol");
 const logger = std.log.scoped(.network_application);
+const builtin = @import("builtin");
 
 const AppDiscovery = @import("AppDiscovery.zig");
 const ApplicationInstance = @import("../gui/ApplicationInstance.zig");
@@ -48,7 +49,7 @@ discovery: *AppDiscovery,
 
 user_interface: DunstblickUI,
 
-const support_non_block = (std.builtin.os.tag == .linux and std.builtin.abi != .android);
+const support_non_block = (builtin.os.tag == .linux and builtin.abi != .android);
 
 pub fn init(self: *Self, allocator: *std.mem.Allocator, app_desc: *const AppDiscovery.Application) !void {
     self.* = Self{
@@ -88,9 +89,9 @@ pub fn init(self: *Self, allocator: *std.mem.Allocator, app_desc: *const AppDisc
     self.instance.status = .{ .starting = "Connecting..." };
 
     if (support_non_block) {
-        var flags = try std.os.fcntl(self.socket.?.internal, std.os.F_GETFL, 0);
-        flags |= @as(usize, std.os.O_NONBLOCK);
-        _ = try std.os.fcntl(self.socket.?.internal, std.os.F_SETFL, flags);
+        var flags = try std.os.fcntl(self.socket.?.internal, std.os.F.GETFL, 0);
+        flags |= @as(usize, std.os.O.NONBLOCK);
+        _ = try std.os.fcntl(self.socket.?.internal, std.os.F.SETFL, flags);
     }
 
     try self.discovery.socket_set.add(self.socket.?, .{ .read = true, .write = support_non_block });
@@ -120,9 +121,9 @@ fn tryConnect(self: *Self) !void {
     if (self.socket.?.connect(self.remote_end_point)) {
         // remove blocking from socket
         if (support_non_block) {
-            var flags = try std.os.fcntl(self.socket.?.internal, std.os.F_GETFL, 0);
-            flags &= ~@as(usize, std.os.O_NONBLOCK);
-            _ = try std.os.fcntl(self.socket.?.internal, std.os.F_SETFL, flags);
+            var flags = try std.os.fcntl(self.socket.?.internal, std.os.F.GETFL, 0);
+            flags &= ~@as(usize, std.os.O.NONBLOCK);
+            _ = try std.os.fcntl(self.socket.?.internal, std.os.F.SETFL, flags);
         }
 
         // start handshaking

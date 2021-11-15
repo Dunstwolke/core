@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 usingnamespace @import("data-types.zig");
 
@@ -38,7 +39,7 @@ pub fn Encoder(comptime Stream: type) type {
         }
 
         pub fn writeNumber(self: *Self, number: f32) !void {
-            std.debug.assert(std.Target.current.cpu.arch.endian() == .Little);
+            std.debug.assert(builtin.target.cpu.arch.endian() == .Little);
             try self.writeRaw(std.mem.asBytes(&number));
         }
 

@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const meta = @import("zig-meta");
 const known_folders = @import("known-folders");
 
@@ -20,9 +21,9 @@ const ApplicationDescription = @import("gui/ApplicationDescription.zig");
 const ApplicationInstance = @import("gui/ApplicationInstance.zig");
 
 // thread_local is broken on android
-pub const crypto_always_getrandom = (std.builtin.abi == .android);
+pub const crypto_always_getrandom = (builtin.abi == .android);
 
-pub const zerog_enable_window_mode = (std.builtin.mode == .Debug) and (std.builtin.cpu.arch == .x86_64);
+pub const zerog_enable_window_mode = (builtin.mode == .Debug) and (builtin.cpu.arch == .x86_64);
 
 pub const Application = @This();
 
@@ -35,7 +36,8 @@ home_screen: HomeScreen,
 
 demo_app_desc: DemoAppDescription,
 
-renderer: ?zero_graphics.Renderer2D,
+resource_manager: zero_graphics.ResourceManager,
+renderer: zero_graphics.Renderer2D,
 
 screen_size: Size,
 bounded_size: Size,
@@ -66,7 +68,7 @@ pub fn init(app: *Application, allocator: *std.mem.Allocator, input: *zero_graph
         .screen_size = Size{ .width = 0, .height = 0 },
         .bounded_size = Size{ .width = 0, .height = 0 },
         .virtual_size = Size{ .width = 0, .height = 0 },
-        .renderer = null,
+        .renderer = undefined,
         .home_screen = undefined,
         .debug_font = undefined,
         .available_apps = std.ArrayList(*ApplicationDescription).init(allocator),
@@ -93,11 +95,12 @@ pub fn init(app: *Application, allocator: *std.mem.Allocator, input: *zero_graph
             .settings = &app.settings,
         },
         .settings_root_path = null,
+        .resource_manager = undefined,
     };
     errdefer app.arena.deinit();
     errdefer app.available_apps.deinit();
 
-    if (std.builtin.abi != .android) {
+    if (zero_graphics.backend != .android) {
         app.settings_root_path = if (try known_folders.getPath(&app.arena.allocator, .local_configuration)) |folder|
             try std.fs.path.join(&app.arena.allocator, &[_][]const u8{ folder, "dunstblick" })
         else
@@ -118,12 +121,23 @@ pub fn init(app: *Application, allocator: *std.mem.Allocator, input: *zero_graph
     logger.info("load settings...", .{});
     _ = try app.loadSettings();
 
+    logger.info("init resource manager...", .{});
+    app.resource_manager = zero_graphics.ResourceManager.init(app.allocator);
+    errdefer app.resource_manager.deinit();
+
+    logger.info("init 2d renderer...", .{});
+    app.renderer = try app.resource_manager.createRenderer2D();
+    errdefer app.renderer.deinit();
+
+    logger.info("load resources...", .{});
+    app.debug_font = try app.renderer.createFont(@embedFile("gui/fonts/firasans-regular.ttf"), 24);
+
     logger.info("init app discovery...", .{});
     app.app_discovery = try AppDiscovery.init(allocator);
     errdefer app.app_discovery.deinit();
 
     logger.info("init home screen...", .{});
-    app.home_screen = try HomeScreen.init(allocator, &app.settings.home_screen);
+    app.home_screen = try HomeScreen.init(allocator, &app.resource_manager, &app.renderer, &app.settings.home_screen);
     errdefer app.home_screen.deinit();
 
     logger.info("app ready!", .{});
@@ -133,32 +147,24 @@ pub fn deinit(app: *Application) void {
     app.home_screen.deinit();
     app.app_discovery.deinit();
     app.available_apps.deinit();
+    app.renderer.deinit();
+    app.resource_manager.deinit();
     app.* = undefined;
     logger.info("app dead", .{});
 }
 
 pub fn setupGraphics(app: *Application) !void {
-    var renderer = try zero_graphics.Renderer2D.init(app.allocator);
-    errdefer renderer.deinit();
-
-    app.debug_font = try renderer.createFont(@embedFile("gui/fonts/firasans-regular.ttf"), 24);
-
-    app.renderer = renderer;
-    try app.home_screen.setRenderer(&app.renderer.?);
+    try app.resource_manager.initializeGpuData();
 
     try app.updateDpiScale();
 }
 
 pub fn teardownGraphics(app: *Application) void {
-    if (app.renderer) |*ren| {
-        app.home_screen.setRenderer(null) catch unreachable;
-        ren.deinit();
-    }
-    app.renderer = null;
+    app.resource_manager.destroyGpuData();
 }
 
 fn loadSettings(app: *Application) !bool {
-    if (std.builtin.abi == .android) {
+    if (zero_graphics.backend == .android) {
         logger.emerg("Android file I/O doesn't work properly yet", .{});
         return false;
     }
@@ -197,7 +203,7 @@ fn loadSettings(app: *Application) !bool {
 }
 
 fn saveSettings(app: *Application) !bool {
-    if (std.builtin.abi == .android) {
+    if (zero_graphics.backend == .android) {
         logger.emerg("Android file I/O doesn't work properly yet", .{});
         return false;
     }
@@ -258,13 +264,11 @@ fn updateDpiScale(app: *Application) !void {
             .height = app.screen_size.height - app.settings.ui.padding.top - app.settings.ui.padding.bottom,
         };
 
-        if (app.renderer) |*renderer| {
-            renderer.unit_to_pixel_ratio = app.getTotalScale();
+        app.renderer.unit_to_pixel_ratio = app.getTotalScale();
 
-            app.virtual_size = renderer.getVirtualScreenSize(app.bounded_size);
+        app.virtual_size = app.renderer.getVirtualScreenSize(app.bounded_size);
 
-            try app.home_screen.resize(app.virtual_size);
-        }
+        try app.home_screen.resize(app.virtual_size);
     } else {
         app.bounded_size = Size.empty;
         app.virtual_size = Size.empty;
@@ -286,8 +290,7 @@ fn virtToPhysical(app: Application, pt: zero_graphics.Point) zero_graphics.Point
 }
 
 pub fn update(app: *Application) !bool {
-    defer if (app.renderer) |*renderer|
-        renderer.reset();
+    defer app.renderer.reset();
 
     try app.home_screen.beginInput();
     while (app.input.pollEvent()) |event| {
@@ -368,9 +371,7 @@ pub fn render(app: *Application) !void {
         gl.frontFace(gl.CCW);
         gl.cullFace(gl.BACK);
 
-        if (app.renderer) |*renderer| {
-            renderer.render(app.bounded_size);
-        }
+        app.renderer.render(app.bounded_size);
     }
 }
 

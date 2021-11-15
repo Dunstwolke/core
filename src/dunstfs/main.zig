@@ -282,7 +282,7 @@ pub fn main() !u8 {
     var rng = std.rand.DefaultPrng.init(@bitCast(u64, std.time.milliTimestamp()));
 
     logger.info("Initialize UUID source...", .{});
-    const source = Uuid.v4.Source.init(&rng.random);
+    const source = Uuid.v4.Source.init(&rng.random());
 
     logger.info("Clone working directory...", .{});
     var working_directory = try std.fs.cwd().openDir(".", .{});
@@ -1197,8 +1197,8 @@ const MagicSet = opaque {
     pub const NO_CHECK_TOKENS = @import("std").zig.c_translation.promoteIntLiteral(c_int, 0x0100000, .hexadecimal);
     pub const NO_CHECK_ENCODING = @import("std").zig.c_translation.promoteIntLiteral(c_int, 0x0200000, .hexadecimal);
     pub const NO_CHECK_JSON = @import("std").zig.c_translation.promoteIntLiteral(c_int, 0x0400000, .hexadecimal);
-    pub const NO_CHECK_BUILTIN = (((((((((MAGIC_NO_CHECK_COMPRESS | MAGIC_NO_CHECK_TAR) | MAGIC_NO_CHECK_APPTYPE) | MAGIC_NO_CHECK_ELF) | MAGIC_NO_CHECK_TEXT) | MAGIC_NO_CHECK_CSV) | MAGIC_NO_CHECK_CDF) | MAGIC_NO_CHECK_TOKENS) | MAGIC_NO_CHECK_ENCODING) | MAGIC_NO_CHECK_JSON) | @as(c_int, 0);
-    pub const NO_CHECK_ASCII = MAGIC_NO_CHECK_TEXT;
+    //pub const NO_CHECK_BUILTIN = (((((((((MAGIC_NO_CHECK_COMPRESS | MAGIC_NO_CHECK_TAR) | MAGIC_NO_CHECK_APPTYPE) | MAGIC_NO_CHECK_ELF) | MAGIC_NO_CHECK_TEXT) | MAGIC_NO_CHECK_CSV) | MAGIC_NO_CHECK_CDF) | MAGIC_NO_CHECK_TOKENS) | MAGIC_NO_CHECK_ENCODING) | MAGIC_NO_CHECK_JSON) | @as(c_int, 0);
+    //pub const NO_CHECK_ASCII = MAGIC_NO_CHECK_TEXT;
     pub const NO_CHECK_FORTRAN = @as(c_int, 0x000000);
     pub const NO_CHECK_TROFF = @as(c_int, 0x000000);
     pub const VERSION = 5.40;

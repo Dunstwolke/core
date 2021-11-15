@@ -1,12 +1,17 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const zero_graphics = @import("zero-graphics");
 
 const protocol = @import("dunstblick-protocol");
 const logger = std.log.scoped(.dunstblick_ui);
 
-usingnamespace @import("types.zig");
+pub usingnamespace @import("types.zig");
+
+const types = @import("types.zig");
 
 const DunstblickUI = @This();
+
+const ResourceManager = zero_graphics.ResourceManager;
 
 pub const FeedbackInterface = struct {
     pub const ErasedSelf = opaque {};
@@ -14,20 +19,20 @@ pub const FeedbackInterface = struct {
 
     erased_self: *ErasedSelf,
     trigger_event: fn (self: *ErasedSelf, event: protocol.EventID, widget: protocol.WidgetName) Error!void,
-    trigger_property_changed: fn (self: *ErasedSelf, oid: protocol.ObjectID, name: protocol.PropertyName, value: Value) Error!void,
+    trigger_property_changed: fn (self: *ErasedSelf, oid: protocol.ObjectID, name: protocol.PropertyName, value: types.Value) Error!void,
 
     pub fn triggerEvent(self: @This(), event: protocol.EventID, widget: protocol.WidgetName) Error!void {
         return self.trigger_event(self.erased_self, event, widget);
     }
 
-    pub fn triggerPropertyChanged(self: @This(), oid: protocol.ObjectID, name: protocol.PropertyName, value: Value) Error!void {
+    pub fn triggerPropertyChanged(self: @This(), oid: protocol.ObjectID, name: protocol.PropertyName, value: types.Value) Error!void {
         return self.trigger_property_changed(self.erased_self, oid, name, value);
     }
 };
 
 allocator: *std.mem.Allocator,
 
-objects: std.AutoArrayHashMapUnmanaged(protocol.ObjectID, Object),
+objects: std.AutoArrayHashMapUnmanaged(protocol.ObjectID, types.Object),
 resources: std.AutoArrayHashMapUnmanaged(protocol.ResourceID, Resource),
 
 current_view: ?WidgetTree,
@@ -76,10 +81,10 @@ pub fn processUserInterface(self: *DunstblickUI, rectangle: zero_graphics.Rectan
             null;
 
         try view.updateBindings(root_object);
-        try view.updateWantedSize(ui.ui);
+        try view.updateWantedSize(ui.ui.renderer.?.resources, ui.ui);
         view.layout(rectangle);
 
-        try view.processUserInterface(ui);
+        try view.processUserInterface(ui.ui.renderer.?.resources, ui);
     }
 }
 
@@ -98,7 +103,7 @@ pub fn addOrReplaceResource(self: *DunstblickUI, id: protocol.ResourceID, kind: 
     std.mem.copy(u8, gop.value_ptr.data.items, data);
 }
 
-pub fn addOrUpdateObject(self: *DunstblickUI, obj: Object) !void {
+pub fn addOrUpdateObject(self: *DunstblickUI, obj: types.Object) !void {
     const gop = try self.objects.getOrPut(self.allocator, obj.id);
     if (gop.found_existing) {
         gop.value_ptr.deinit();
@@ -135,7 +140,7 @@ pub fn setRoot(self: *DunstblickUI, object: protocol.ObjectID) !void {
         null;
 }
 
-pub fn getObject(self: *DunstblickUI, id: protocol.ObjectID) ?*Object {
+pub fn getObject(self: *DunstblickUI, id: protocol.ObjectID) ?*types.Object {
     return if (self.objects.getEntry(id)) |entry|
         entry.value_ptr
     else
@@ -149,7 +154,7 @@ fn triggerEvent(self: *DunstblickUI, event: protocol.EventID, widget: protocol.W
     };
 }
 
-fn triggerPropertyChanged(self: *DunstblickUI, oid: protocol.ObjectID, name: protocol.PropertyName, value: Value) zero_graphics.UserInterface.Builder.Error!void {
+fn triggerPropertyChanged(self: *DunstblickUI, oid: protocol.ObjectID, name: protocol.PropertyName, value: types.Value) zero_graphics.UserInterface.Builder.Error!void {
     self.interface.triggerPropertyChanged(oid, name, value) catch |err| switch (err) {
         error.IoError => logger.err("{} while property {}.{} was changed to {}", .{ err, oid, name, value }),
         else => |e| return e,
@@ -170,11 +175,11 @@ pub const Resource = struct {
     };
 
     const BitmapCache = struct {
-        renderer: *zero_graphics.Renderer2D,
-        texture: ?*const zero_graphics.Renderer2D.Texture,
+        resource_manager: *ResourceManager,
+        texture: ?*ResourceManager.Texture,
     };
 
-    fn getBitmap(self: *Resource, ui: *zero_graphics.UserInterface) ?*const zero_graphics.Renderer2D.Texture {
+    fn getBitmap(self: *Resource, resource_manager: *zero_graphics.ResourceManager, ui: *zero_graphics.UserInterface) ?*ResourceManager.Texture {
         // TODO: Overhaul caching logic
         if (ui.renderer == null)
             @panic("usage error");
@@ -182,24 +187,14 @@ pub const Resource = struct {
             return null;
         if (self.cache_data == .none) {
             self.cache_data = .{ .bitmap = BitmapCache{
-                .renderer = ui.renderer.?,
-                .texture = ui.renderer.?.loadTexture(self.data.items) catch |err| blk: {
+                .resource_manager = resource_manager,
+                .texture = resource_manager.createTexture(.ui, ResourceManager.DecodePng{ .data = self.data.items }) catch |err| blk: {
                     logger.warn("Could not load resource as a bitmap: {s}", .{@errorName(err)});
                     break :blk null;
                 },
             } };
         } else {
             std.debug.assert(self.cache_data == .bitmap);
-            if (self.cache_data.bitmap.renderer != ui.renderer.?) {
-                if (self.cache_data.bitmap.texture) |tex| {
-                    self.cache_data.bitmap.renderer.destroyTexture(tex);
-                }
-                self.cache_data.bitmap.renderer = ui.renderer.?;
-                self.cache_data.bitmap.texture = ui.renderer.?.loadTexture(self.data.items) catch |err| blk: {
-                    logger.warn("Could not load resource as a bitmap: {s}", .{@errorName(err)});
-                    break :blk null;
-                };
-            }
         }
         return self.cache_data.bitmap.texture;
     }
@@ -212,7 +207,7 @@ fn isProperty(comptime T: type) bool {
 pub fn Property(comptime T: type) type {
     comptime {
         if (@typeInfo(T) != .Enum) {
-            for (std.meta.fields(Value)) |field| {
+            for (std.meta.fields(types.Value)) |field| {
                 if (field.field_type == T)
                     break;
             } else @compileError(@typeName(T) ++ " is not a supported property type");
@@ -234,7 +229,7 @@ pub fn Property(comptime T: type) type {
             std.debug.assert(self.binding == null);
 
             switch (T) {
-                ObjectList, SizeList, String => self.value.deinit(),
+                types.ObjectList, types.SizeList, types.String => self.value.deinit(),
 
                 // trivial cases don't need deinit()
                 else => {},
@@ -244,7 +239,7 @@ pub fn Property(comptime T: type) type {
 
         pub fn deinit(self: *Self) void {
             switch (T) {
-                ObjectList, SizeList, String => self.value.deinit(),
+                types.ObjectList, types.SizeList, types.String => self.value.deinit(),
 
                 // trivial cases can be made with this
                 else => {},
@@ -296,7 +291,7 @@ pub const WidgetTree = struct {
     };
 
     const ValueFromStream = union(enum) {
-        value: Value,
+        value: types.Value,
         binding: protocol.PropertyName,
     };
 
@@ -371,7 +366,7 @@ pub const WidgetTree = struct {
 
                 // logger.debug("read {} of type {}", .{ property_id, property_type });
 
-                var value = try Value.deserialize(self.allocator, property_type, decoder);
+                var value = try types.Value.deserialize(self.allocator, property_type, decoder);
                 break :blk ValueFromStream{ .value = value };
             };
 
@@ -395,7 +390,7 @@ pub const WidgetTree = struct {
                 // TODO : Think about this:
                 // Is it required that a layout format is properly compiled?
                 // Related: format versions, future properties, …
-                if (std.builtin.mode != .Debug) {
+                if (builtin.mode != .Debug) {
                     return error.InvalidProperty;
                 }
             }
@@ -420,7 +415,7 @@ pub const WidgetTree = struct {
         self.* = undefined;
     }
 
-    pub fn updateBindings(self: *WidgetTree, root_object: ?*Object) !void {
+    pub fn updateBindings(self: *WidgetTree, root_object: ?*types.Object) !void {
         return self.updateBindingsForWidget(&self.root, root_object);
     }
 
@@ -430,7 +425,7 @@ pub const WidgetTree = struct {
         OutOfMemory,
     };
 
-    fn updateBindingsForWidget(self: *WidgetTree, widget: *Widget, parent_binding_source: ?*Object) UpdateBindingsForWidgetError!void {
+    fn updateBindingsForWidget(self: *WidgetTree, widget: *Widget, parent_binding_source: ?*types.Object) UpdateBindingsForWidgetError!void {
         // STAGE 1: Update the current binding source
 
         // if we have a bindingSource of the parent available:
@@ -524,15 +519,15 @@ pub const WidgetTree = struct {
         }
     }
 
-    pub fn updateWantedSize(self: *WidgetTree, ui: *zero_graphics.UserInterface) ComputeWantedSizeError!void {
-        try self.updateWantedSizeForWidget(&self.root, ui);
+    pub fn updateWantedSize(self: *WidgetTree, resource_manager: *ResourceManager, ui: *zero_graphics.UserInterface) ComputeWantedSizeError!void {
+        try self.updateWantedSizeForWidget(&self.root, resource_manager, ui);
     }
 
-    fn updateWantedSizeForWidget(self: *WidgetTree, widget: *Widget, ui: *zero_graphics.UserInterface) ComputeWantedSizeError!void {
+    fn updateWantedSizeForWidget(self: *WidgetTree, widget: *Widget, resource_manager: *ResourceManager, ui: *zero_graphics.UserInterface) ComputeWantedSizeError!void {
         for (widget.children.items) |*child| {
-            try self.updateWantedSizeForWidget(child, ui);
+            try self.updateWantedSizeForWidget(child, resource_manager, ui);
         }
-        try self.computeWantedSize(widget, ui);
+        try self.computeWantedSize(widget, resource_manager, ui);
     }
 
     fn computeDefaultWantedSize(self: *WidgetTree, widget: *Widget) zero_graphics.Size {
@@ -550,7 +545,7 @@ pub const WidgetTree = struct {
     }
 
     const ComputeWantedSizeError = error{OutOfMemory};
-    fn computeWantedSize(self: *WidgetTree, widget: *Widget, ui: *zero_graphics.UserInterface) ComputeWantedSizeError!void {
+    fn computeWantedSize(self: *WidgetTree, widget: *Widget, resource_manager: *ResourceManager, ui: *zero_graphics.UserInterface) ComputeWantedSizeError!void {
         const children = widget.children.items;
         const child_count = children.len;
 
@@ -608,7 +603,7 @@ pub const WidgetTree = struct {
                 const resource_id = picture.get(.image);
 
                 if (self.ui.resources.getPtr(resource_id)) |resource| {
-                    if (resource.getBitmap(ui)) |bmp| {
+                    if (resource.getBitmap(resource_manager, ui)) |bmp| {
                         break :blk zero_graphics.Size{
                             .width = bmp.width,
                             .height = bmp.height,
@@ -1100,19 +1095,19 @@ pub const WidgetTree = struct {
         }
     }
 
-    pub fn processUserInterface(self: *WidgetTree, ui: zero_graphics.UserInterface.Builder) !void {
-        try self.processUserInterfaceForWidget(&self.root, ui);
+    pub fn processUserInterface(self: *WidgetTree, resource_manager: *ResourceManager, ui: zero_graphics.UserInterface.Builder) !void {
+        try self.processUserInterfaceForWidget(&self.root, resource_manager, ui);
     }
 
-    fn processUserInterfaceForWidget(self: *WidgetTree, widget: *Widget, ui: zero_graphics.UserInterface.Builder) zero_graphics.UserInterface.Builder.Error!void {
-        try self.doWidgetLogic(widget, ui);
+    fn processUserInterfaceForWidget(self: *WidgetTree, widget: *Widget, resource_manager: *ResourceManager, ui: zero_graphics.UserInterface.Builder) zero_graphics.UserInterface.Builder.Error!void {
+        try self.doWidgetLogic(widget, resource_manager, ui);
 
         for (widget.children.items) |*child| {
-            try self.processUserInterfaceForWidget(child, ui);
+            try self.processUserInterfaceForWidget(child, resource_manager, ui);
         }
     }
 
-    fn doWidgetLogic(self: *WidgetTree, widget: *Widget, ui: zero_graphics.UserInterface.Builder) !void {
+    fn doWidgetLogic(self: *WidgetTree, widget: *Widget, resource_manager: *ResourceManager, ui: zero_graphics.UserInterface.Builder) !void {
         const rect = widget.actual_bounds;
         const hit_test_visible = widget.get(.hit_test_visible);
         // WARNING: MUST CAPTURE BY POINTER AS WE USE @fieldParentPtr!
@@ -1144,7 +1139,7 @@ pub const WidgetTree = struct {
                 const resource_id = picture.get(.image);
 
                 if (self.ui.resources.getPtr(resource_id)) |resource| {
-                    if (resource.getBitmap(ui.ui)) |bmp| {
+                    if (resource.getBitmap(resource_manager, ui.ui)) |bmp| {
                         try ui.image(rect, bmp, .{
                             .hit_test_visible = hit_test_visible,
                         });
@@ -1264,7 +1259,7 @@ pub const Widget = struct {
     /// of all bound properties.
     /// It is only valid *after* `updateBindings` was invoked and will be invalidated
     /// as soon as any change to the object hierarchy is done (insertion/deletion).
-    binding_source: ?*Object,
+    binding_source: ?*types.Object,
 
     /// If this is not `null`, this widget was created from a certain template 
     /// and will be used to keep the widget alive after a resize of the parent 
@@ -1299,11 +1294,11 @@ pub const Widget = struct {
     enabled: Property(bool),
     hit_test_visible: Property(bool),
     binding_context: Property(protocol.ObjectID),
-    child_source: Property(ObjectList),
+    child_source: Property(types.ObjectList),
     child_template: Property(protocol.ResourceID),
 
     widget_name: Property(protocol.WidgetName),
-    tab_title: Property(String),
+    tab_title: Property(types.String),
     size_hint: Property(protocol.Size),
 
     left: Property(i32),
@@ -1348,10 +1343,10 @@ pub const Widget = struct {
             .enabled = .{ .value = true },
             .hit_test_visible = .{ .value = true },
             .binding_context = .{ .value = .invalid },
-            .child_source = .{ .value = ObjectList.init(allocator) },
+            .child_source = .{ .value = types.ObjectList.init(allocator) },
             .child_template = .{ .value = .invalid },
             .widget_name = .{ .value = .invalid },
-            .tab_title = .{ .value = String.new(allocator) },
+            .tab_title = .{ .value = types.String.new(allocator) },
             .size_hint = .{ .value = protocol.Size{ .width = 0, .height = 0 } },
             .left = .{ .value = 0 },
             .top = .{ .value = 0 },
@@ -1442,7 +1437,7 @@ fn PropertyGetSetMixin(comptime Self: type, getErasedWidget: fn (*const Self) *c
                 if (property.binding) |object_property| {
                     if (binding_context) |bc| {
                         if (bc.getProperty(object_property)) |prop| {
-                            if (Value.tryCreate(std.meta.activeTag(prop.*), value)) |new_val| {
+                            if (types.Value.tryCreate(std.meta.activeTag(prop.*), value)) |new_val| {
                                 std.debug.assert(std.meta.activeTag(new_val) == std.meta.activeTag(prop.*));
 
                                 prop.deinit();
@@ -1469,7 +1464,7 @@ fn PropertyGetSetMixin(comptime Self: type, getErasedWidget: fn (*const Self) *c
                     }
                 }
                 switch (PropertyType(property_name)) {
-                    ObjectList, SizeList, String => property.value.deinit(),
+                    types.ObjectList, types.SizeList, types.String => property.value.deinit(),
 
                     // trivial cases don't need deinit()
                     else => {},
@@ -1626,12 +1621,12 @@ pub const Control = union(protocol.WidgetType) {
         const Self = @This();
         usingnamespace ControlMixin(Self);
 
-        text: Property(String),
+        text: Property(types.String),
         font_family: Property(protocol.enums.Font),
 
         pub fn init(allocator: *std.mem.Allocator) Self {
             return Self{
-                .text = .{ .value = String.new(allocator) },
+                .text = .{ .value = types.String.new(allocator) },
                 .font_family = .{ .value = .sans },
             };
         }
@@ -1865,16 +1860,16 @@ pub const Control = union(protocol.WidgetType) {
         const Self = @This();
         usingnamespace ControlMixin(Self);
 
-        rows: Property(SizeList),
-        columns: Property(SizeList),
+        rows: Property(types.SizeList),
+        columns: Property(types.SizeList),
 
         row_heights: std.ArrayList(u15),
         column_widths: std.ArrayList(u15),
 
         pub fn init(allocator: *std.mem.Allocator) Self {
             return Self{
-                .rows = .{ .value = SizeList.init(allocator) },
-                .columns = .{ .value = SizeList.init(allocator) },
+                .rows = .{ .value = types.SizeList.init(allocator) },
+                .columns = .{ .value = types.SizeList.init(allocator) },
                 .row_heights = std.ArrayList(u15).init(allocator),
                 .column_widths = std.ArrayList(u15).init(allocator),
             };
