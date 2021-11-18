@@ -164,11 +164,6 @@ pub fn teardownGraphics(app: *Application) void {
 }
 
 fn loadSettings(app: *Application) !bool {
-    if (zero_graphics.backend == .android) {
-        logger.emerg("Android file I/O doesn't work properly yet", .{});
-        return false;
-    }
-
     const settings_root_path = app.settings_root_path orelse {
         logger.warn("no configuration folder could be found!", .{});
         return false;
