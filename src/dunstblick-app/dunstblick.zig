@@ -7,10 +7,7 @@ const log = std.log.scoped(.dunstblick);
 /// Enumeration of reasons why a connection to an application could have closed.
 pub const DisconnectReason = protocol.DisconnectReason;
 pub const ClientCapabilities = protocol.ClientCapabilities;
-pub const Size = extern struct {
-    width: u32,
-    height: u32,
-};
+pub const Size = protocol.Size;
 pub const ResourceID = protocol.ResourceID;
 pub const ObjectID = protocol.ObjectID;
 pub const EventID = protocol.EventID;
@@ -22,6 +19,9 @@ pub const Value = protocol.Value;
 pub const String = protocol.String;
 pub const ObjectList = protocol.ObjectList;
 pub const SizeList = protocol.SizeList;
+pub const Margins = protocol.Margins;
+pub const Color = protocol.Color;
+pub const Point = protocol.Point;
 
 pub const DunstblickError = error{
     OutOfMemory,
@@ -1054,16 +1054,19 @@ pub const Application = struct {
             return &event.data.event;
         }
 
-        // event queue is empty, poll for more events from the network
-        try self.pumpEvents(timeout);
+        while (true) {
 
-        if (self.event_queue.popFirst()) |event| {
-            std.debug.assert(self.current_user_event == null);
-            self.current_user_event = event;
-            return &event.data.event;
+            // event queue is empty, poll for more events from the network
+            try self.pumpEvents(timeout);
+
+            if (self.event_queue.popFirst()) |event| {
+                std.debug.assert(self.current_user_event == null);
+                self.current_user_event = event;
+                return &event.data.event;
+            }
+            if (timeout != null)
+                return null;
         }
-
-        return null;
     }
 
     // Public API

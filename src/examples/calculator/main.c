@@ -117,143 +117,6 @@ static void execute_command(struct AppState * app)
     app->shows_result = true;
 }
 
-static void cb_onUiEvent(dunstblick_Connection * con, dunstblick_EventID cid, dunstblick_WidgetName obj, void * context)
-{
-    struct AppState * app = getAppState(con);
-
-    switch (cid) {
-        case 1:
-        case 2:
-        case 3:
-        case 4:
-        case 5:
-        case 6:
-        case 7:
-        case 8:
-        case 9:
-        case 10: {
-            int number = cid % 10;
-            enter_char(app, (char)('0' + number));
-            break;
-        }
-
-        case 11: // "+"
-            execute_command(app);
-            app->next_command = ADD;
-            break;
-
-        case 12: // "-"
-            execute_command(app);
-            app->next_command = SUBTRACT;
-            break;
-
-        case 13: // "*"
-            execute_command(app);
-            app->next_command = MULTIPLY;
-            break;
-
-        case 14: // "/"
-            execute_command(app);
-            app->next_command = DIVIDE;
-            break;
-
-        case 15: // "C"
-            strcpy(app->current_input, "0");
-            app->current_value = 0.0f;
-            app->shows_result = false;
-            app->next_command = COPY;
-            break;
-
-        case 16: // "CE"
-            strcpy(app->current_input, "");
-            app->shows_result = false;
-            break;
-
-        case 17: // ','
-        {
-            if (strchr(app->current_input, '.') == NULL)
-                enter_char(app, '.');
-            break;
-        }
-
-        case 18: // "="
-        {
-            execute_command(app);
-            app->next_command = COPY;
-            break;
-        }
-
-        default:
-            printf("got handled callback: %d\n", cid);
-            fflush(stdout);
-            break;
-    }
-
-    if (app->shows_result)
-        sprintf(app->current_input, "%f", (double)app->current_value);
-
-    refresh_screen(con);
-}
-
-static void cb_onConnected(dunstblick_Provider * provider,
-                           dunstblick_Connection * connection,
-                           char const * clientName,
-                           char const * password,
-                           dunstblick_Size screenSize,
-                           dunstblick_ClientCapabilities capabilities,
-                           void * userData)
-{
-    struct AppState * app = createAppState();
-
-    dunstblick_SetUserData(connection, app);
-
-    // Create our root object
-    // that allows us to display changing values.
-    // As dunstblick does not allow you to mutate widgets directly,
-    // you require to create objects and bind widget properties to
-    // object properties in order to mutate state.
-    {
-        dunstblick_Object * root_obj = dunstblick_BeginChangeObject(connection, OBJ_ROOT);
-        if (root_obj == NULL) {
-            printf("failed to create object!\n");
-            dunstblick_CloseConnection(connection, "Could not change object!");
-            return;
-        }
-
-        // Create a string property named PROP_RESULT
-        // with an empty string as initial value.
-        dunstblick_Value result = {
-            .type = DUNSTBLICK_TYPE_STRING,
-            .value =
-                {
-                    .string = "",
-                },
-        };
-        DBCHECKED(dunstblick_SetObjectProperty(root_obj, PROP_RESULT, &result));
-
-        // CommitObject commits the object change to the ui server.
-        DBCHECKED(dunstblick_CommitObject(root_obj));
-    }
-
-    dunstblick_SetEventCallback(connection, cb_onUiEvent, NULL);
-
-    // After base is set up,
-    // both set the current view (UI layout) and root object.
-    // the root object is used for all bindings in the layouts
-    // except for widgets with a changed 'binding-context'.
-    DBCHECKED(dunstblick_SetView(connection, ROOT_LAYOUT));
-    DBCHECKED(dunstblick_SetRoot(connection, OBJ_ROOT));
-}
-
-static void cb_onDisconnected(dunstblick_Provider * provider,
-                              dunstblick_Connection * connection,
-                              dunstblick_DisconnectReason reason,
-                              void * userData)
-{
-    // Clean up our data
-    free(dunstblick_GetUserData(connection));
-}
-
 uint8_t const layout_src[] = {
 #include "layout.h"
 };
@@ -294,18 +157,156 @@ int main()
     if (!provider)
         return 1;
 
-    DBCHECKED_MAIN(dunstblick_SetConnectedCallback(provider, cb_onConnected, NULL));
-    DBCHECKED_MAIN(dunstblick_SetDisconnectedCallback(provider, cb_onDisconnected, NULL));
-
     // Upload the compiled layout to the server,
     // so we can use dunstblick_SetView to display
     // the UI layout.
-    DBCHECKED_MAIN(
-        dunstblick_AddResource(provider, ROOT_LAYOUT, DUNSTBLICK_RESOURCE_LAYOUT, layout_src, sizeof(layout_src)));
+    DBCHECKED_MAIN(dunstblick_AddResource(provider, ROOT_LAYOUT, DUNSTBLICK_RESOURCE_LAYOUT, layout_src, sizeof(layout_src)));
 
     bool app_running = true;
     while (app_running) {
-        DBCHECKED_MAIN(dunstblick_WaitEvents(provider));
+        dunstblick_Event event;
+        if(dunstblick_WaitEvent(provider, &event) != DUNSTBLICK_ERROR_GOT_EVENT)
+            abort();
+        switch(event.type)
+        {
+            case DUNSTBLICK_EVENT_CONNECTED:
+            {
+                dunstblick_Connection * const connection = event.connected.connection;
+
+                struct AppState * app = createAppState();
+
+                dunstblick_SetUserData(connection, app);
+
+                // Create our root object
+                // that allows us to display changing values.
+                // As dunstblick does not allow you to mutate widgets directly,
+                // you require to create objects and bind widget properties to
+                // object properties in order to mutate state.
+                {
+                    dunstblick_Object * root_obj = dunstblick_BeginChangeObject(connection, OBJ_ROOT);
+                    if (root_obj == NULL) {
+                        printf("failed to create object!\n");
+                        dunstblick_CloseConnection(connection, "Could not change object!");
+                        return 1;
+                    }
+
+                    // Create a string property named PROP_RESULT
+                    // with an empty string as initial value.
+                    dunstblick_Value result = {
+                        .type = DUNSTBLICK_TYPE_STRING,
+                        .value =
+                            {
+                                .string = "",
+                            },
+                    };
+                    DBCHECKED_MAIN(dunstblick_SetObjectProperty(root_obj, PROP_RESULT, &result));
+
+                    // CommitObject commits the object change to the ui server.
+                    DBCHECKED_MAIN(dunstblick_CommitObject(root_obj));
+                }
+
+                // After base is set up,
+                // both set the current view (UI layout) and root object.
+                // the root object is used for all bindings in the layouts
+                // except for widgets with a changed 'binding-context'.
+                DBCHECKED_MAIN(dunstblick_SetView(connection, ROOT_LAYOUT));
+                DBCHECKED_MAIN(dunstblick_SetRoot(connection, OBJ_ROOT));
+                
+                break;
+            }
+            case DUNSTBLICK_EVENT_DISCONNECTED:
+            {
+                // Clean up our data
+                free(dunstblick_GetUserData(event.disconnected.connection));
+                break;
+            }
+            case DUNSTBLICK_EVENT_WIDGET:
+            {
+                dunstblick_Connection * const con = event.widget_event.connection;
+
+                struct AppState * app = getAppState(con);
+
+                switch (event.widget_event.event) {
+                    case 1:
+                    case 2:
+                    case 3:
+                    case 4:
+                    case 5:
+                    case 6:
+                    case 7:
+                    case 8:
+                    case 9:
+                    case 10: {
+                        int number = event.widget_event.event % 10;
+                        enter_char(app, (char)('0' + number));
+                        break;
+                    }
+
+                    case 11: // "+"
+                        execute_command(app);
+                        app->next_command = ADD;
+                        break;
+
+                    case 12: // "-"
+                        execute_command(app);
+                        app->next_command = SUBTRACT;
+                        break;
+
+                    case 13: // "*"
+                        execute_command(app);
+                        app->next_command = MULTIPLY;
+                        break;
+
+                    case 14: // "/"
+                        execute_command(app);
+                        app->next_command = DIVIDE;
+                        break;
+
+                    case 15: // "C"
+                        strcpy(app->current_input, "0");
+                        app->current_value = 0.0f;
+                        app->shows_result = false;
+                        app->next_command = COPY;
+                        break;
+
+                    case 16: // "CE"
+                        strcpy(app->current_input, "");
+                        app->shows_result = false;
+                        break;
+
+                    case 17: // ','
+                    {
+                        if (strchr(app->current_input, '.') == NULL)
+                            enter_char(app, '.');
+                        break;
+                    }
+
+                    case 18: // "="
+                    {
+                        execute_command(app);
+                        app->next_command = COPY;
+                        break;
+                    }
+
+                    default:
+                        printf("got handled callback: %d\n", event.widget_event.event);
+                        fflush(stdout);
+                        break;
+                }
+
+                if (app->shows_result)
+                    sprintf(app->current_input, "%f", (double)app->current_value);
+
+                refresh_screen(con);
+                break;
+            }
+            case DUNSTBLICK_EVENT_PROPERTY_CHANGED:
+            {
+                printf("Property changed!\n");
+
+                break;
+            }
+        }
     }
 
     dunstblick_CloseProvider(provider);

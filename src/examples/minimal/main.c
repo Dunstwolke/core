@@ -16,29 +16,7 @@ static bool app_running = true;
  *   }
  * }
  */
-static uint8_t const compiled_layout[] = {
-    0x01, 0x1e, 0x2a, 0x00, 0x02, 0x0a, 0x09, 0x43, 0x6c, 0x69, 0x63, 0x6b, 0x20, 0x6d, 0x65, 0x21, 0x00, 0x00, 0x00};
-
-static void on_event(dunstblick_Connection * connection,
-                     dunstblick_EventID event,
-                     dunstblick_WidgetName widget,
-                     void * userData)
-{
-    assert(event == 42);
-    app_running = false;
-}
-
-static void on_connection(dunstblick_Provider * provider,
-                          dunstblick_Connection * connection,
-                          char const * clientName,
-                          char const * password,
-                          dunstblick_Size screenSize,
-                          dunstblick_ClientCapabilities capabilities,
-                          void * userData)
-{
-    dunstblick_SetEventCallback(connection, on_event, NULL);
-    dunstblick_SetView(connection, 1);
-}
+static uint8_t const compiled_layout[] = { 0x01, 0x1e, 0x2a, 0x00, 0x02, 0x0a, 0x09, 0x43, 0x6c, 0x69, 0x63, 0x6b, 0x20, 0x6d, 0x65, 0x21, 0x00, 0x00, 0x00};
 
 int main()
 {
@@ -49,12 +27,25 @@ int main()
     if (!provider)
         return 1;
 
-    dunstblick_SetConnectedCallback(provider, on_connection, NULL);
-
     dunstblick_AddResource(provider, 1, DUNSTBLICK_RESOURCE_LAYOUT, compiled_layout, sizeof compiled_layout);
 
+    bool app_running = true;
     while (app_running) {
-        dunstblick_PumpEvents(provider);
+        dunstblick_Event event;
+        if(dunstblick_WaitEvent(provider, &event) != DUNSTBLICK_ERROR_GOT_EVENT)
+            abort();
+        switch(event.type)
+        {
+            case DUNSTBLICK_EVENT_CONNECTED:
+                dunstblick_SetView(event.connected.connection, 1);
+                printf("Device connected!\n");
+                break;
+                
+            case DUNSTBLICK_EVENT_WIDGET:
+                assert(event.widget_event.event == 42);
+                app_running = false;
+                break;
+        }
     }
 
     dunstblick_CloseProvider(provider);

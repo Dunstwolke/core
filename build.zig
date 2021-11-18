@@ -223,9 +223,11 @@ pub fn build(b: *Builder) !void {
         lib.emit_docs = true;
         lib.addPackage(pkgs.dunstblick_app);
         lib.addPackage(pkgs.dunstblick_protocol);
+        lib.addIncludeDir("./src/libdunstblick/include");
         lib.linkLibC();
         lib.setTarget(target);
         lib.setBuildMode(mode);
+        lib.install();
 
         // calculator example
         const calculator = b.addExecutable("calculator", null);
@@ -234,6 +236,7 @@ pub fn build(b: *Builder) !void {
         calculator.linkLibrary(lib);
         calculator.setTarget(target);
         calculator.setBuildMode(mode);
+        calculator.install();
 
         const calculator_headerGen = compiler.run();
         calculator_headerGen.addArgs(&[_][]const u8{
@@ -254,6 +257,7 @@ pub fn build(b: *Builder) !void {
         minimal.linkLibrary(lib);
         minimal.setTarget(target);
         minimal.setBuildMode(mode);
+        minimal.install();
 
         step.dependOn(&b.addInstallArtifact(lib).step);
         step.dependOn(&b.addInstallArtifact(calculator).step);

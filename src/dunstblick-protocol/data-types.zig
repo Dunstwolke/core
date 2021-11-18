@@ -56,7 +56,7 @@ pub const Type = enum(u8) {
     object = 12,
     objectlist = 13,
     event = 14,
-    name = 15,
+    widget = 15,
 };
 
 /// Possible properties a client can expose.

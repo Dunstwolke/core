@@ -402,7 +402,7 @@ fn parseProperty(parser: Parser, writer: anytype, property: enums.Property, prop
 
         .event => try parseID(parser, writer, "callback", .event),
 
-        .name => try parseID(parser, writer, "widget", .widget),
+        .widget => try parseID(parser, writer, "widget", .widget),
     }
 }
 

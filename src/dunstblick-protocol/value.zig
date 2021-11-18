@@ -26,7 +26,7 @@ pub const Value = union(protocol.Type) {
     objectlist: ObjectList,
     sizelist: SizeList,
     event: types.EventID,
-    name: types.WidgetName,
+    widget: types.WidgetName,
 
     pub fn deinit(self: *Value) void {
         switch (self.*) {
@@ -157,7 +157,7 @@ pub const Value = union(protocol.Type) {
             .resource,
             .object,
             .event,
-            .name,
+            .widget,
             .objectlist,
             .sizelist,
             => return error.UnsupportedConversion,
@@ -236,8 +236,8 @@ pub const Value = union(protocol.Type) {
                 return self.event;
             },
             types.WidgetName => {
-                if (self != .name) return error.InvalidValue;
-                return self.name;
+                if (self != .widget) return error.InvalidValue;
+                return self.widget;
             },
             else => @compileError(@typeName(T) ++ " is not a dunstblick primitive type"),
         }
@@ -263,7 +263,7 @@ pub const Value = union(protocol.Type) {
 
             .event => |val| try serializer.writeVarUInt(@enumToInt(val)),
 
-            .name => |val| try serializer.writeVarUInt(@enumToInt(val)),
+            .widget => |val| try serializer.writeVarUInt(@enumToInt(val)),
 
             .color => |val| {
                 try serializer.writeByte(val.red);
@@ -468,8 +468,8 @@ pub const Value = union(protocol.Type) {
                 .event = @intToEnum(types.EventID, try decoder.readVarUInt()),
             },
 
-            .name => Value{
-                .name = @intToEnum(types.WidgetName, try decoder.readVarUInt()),
+            .widget => Value{
+                .widget = @intToEnum(types.WidgetName, try decoder.readVarUInt()),
             },
         };
     }
