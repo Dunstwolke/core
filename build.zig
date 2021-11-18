@@ -141,18 +141,18 @@ pub fn build(b: *Builder) !void {
     libmagic.addIncludeDir("lib/file-5.40");
     libmagic.linkLibC();
 
-    const dunstfs = b.addExecutable("dfs", "./src/dunstfs/main.zig");
-    dunstfs.setBuildMode(mode);
-    dunstfs.setTarget(musl_target);
-    dunstfs.addPackage(pkgs.sqlite3);
-    dunstfs.addPackage(pkgs.args);
-    dunstfs.addPackage(pkgs.known_folders);
-    dunstfs.addPackage(pkgs.uuid6);
-    dunstfs.addIncludeDir("./lib/zig-sqlite/c");
-    dunstfs.linkLibrary(libsqlite3);
-    dunstfs.linkLibrary(libmagic);
-    dunstfs.linkLibC();
-    dunstfs.install();
+    // const dunstfs = b.addExecutable("dfs", "./src/dunstfs/main.zig");
+    // dunstfs.setBuildMode(mode);
+    // dunstfs.setTarget(musl_target);
+    // dunstfs.addPackage(pkgs.sqlite3);
+    // dunstfs.addPackage(pkgs.args);
+    // dunstfs.addPackage(pkgs.known_folders);
+    // dunstfs.addPackage(pkgs.uuid6);
+    // dunstfs.addIncludeDir("./lib/zig-sqlite/c");
+    // dunstfs.linkLibrary(libsqlite3);
+    // dunstfs.linkLibrary(libmagic);
+    // dunstfs.linkLibC();
+    // dunstfs.install();
 
     const compiler = b.addExecutable("dunstblick-compiler", "./src/dunstblick-compiler/main.zig");
     compiler.addPackage(pkgs.args);
@@ -260,18 +260,23 @@ pub fn build(b: *Builder) !void {
         step.dependOn(&b.addInstallArtifact(minimal).step);
     }
 
-    const dummy_application = b.addExecutable("dummy-application", "src/test/dummy-application.zig");
-    dummy_application.addPackage(pkgs.dunstblick_protocol);
-    dummy_application.addPackage(pkgs.network);
-    dummy_application.setTarget(target);
-    dummy_application.setBuildMode(mode);
-    dummy_application.install();
+    // const dummy_application = b.addExecutable("dummy-application", "src/test/dummy-application.zig");
+    // dummy_application.addPackage(pkgs.dunstblick_protocol);
+    // dummy_application.addPackage(pkgs.network);
+    // dummy_application.setTarget(target);
+    // dummy_application.setBuildMode(mode);
+    // dummy_application.install();
 
-    dunstblick_step.dependOn(&dummy_application.install_step.?.step);
+    // dunstblick_step.dependOn(&dummy_application.install_step.?.step);
 
     const dunstblick_desktop = z3d_sdk.createApplication("dunstblick_desktop", "src/dunstblick-desktop/main.zig");
     dunstblick_desktop.setDisplayName("Dunstblick Desktop");
     dunstblick_desktop.setPackageName("org.dunstwolke.dunstblick.desktop");
+    dunstblick_desktop.setIcon("design/square-logo.png");
+    dunstblick_desktop.addPermission(.internet);
+    dunstblick_desktop.addPermission(.access_network_state);
+    dunstblick_desktop.addPermission(.write_external_storage);
+    dunstblick_desktop.addPermission(.read_external_storage);
 
     dunstblick_desktop.addPackage(pkgs.dunstblick_protocol);
     dunstblick_desktop.addPackage(pkgs.network);

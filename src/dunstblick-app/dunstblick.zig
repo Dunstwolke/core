@@ -283,8 +283,8 @@ pub const Connection = struct {
                         self.screen_resolution.height = info.screen_height;
 
                         {
-                            const lock = self.provider.resource_lock.acquire();
-                            defer lock.release();
+                            self.provider.resource_lock.lock();
+                            defer self.provider.resource_lock.unlock();
 
                             var resource_headers = std.ArrayList(protocol.tcp.ConnectResponseItem).init(self.provider.allocator);
                             defer resource_headers.deinit();
@@ -306,8 +306,8 @@ pub const Connection = struct {
                         }
                     },
                     .resource_request => |info| {
-                        const lock = self.provider.resource_lock.acquire();
-                        defer lock.release();
+                        self.provider.resource_lock.lock();
+                        defer self.provider.resource_lock.unlock();
 
                         for (info.requested_resources) |res_id| {
                             if (self.provider.resources.getEntry(res_id)) |entry| {
@@ -331,8 +331,8 @@ pub const Connection = struct {
     fn send(self: *Self, packet: []const u8) DunstblickError!void {
         errdefer self.drop(.network_error);
 
-        const lock = self.mutex.acquire();
-        defer lock.release();
+        self.mutex.lock();
+        defer self.mutex.unlock();
 
         self.server.sendMessage(packet) catch |err| return mapSendError(err);
     }
@@ -402,8 +402,8 @@ pub const Connection = struct {
     /// Closes the connection to the client. `actual_reason` will be displayed to the user if possible.
     pub fn close(self: *Self, actual_reason: []const u8) void {
         {
-            const lock = self.mutex.acquire();
-            defer lock.release();
+            self.mutex.lock();
+            defer self.mutex.unlock();
 
             if (self.disconnect_reason != null)
                 return;
@@ -863,6 +863,10 @@ pub const Application = struct {
                                     // log.debug("response to {}", .{msg.sender});
 
                                     const length = response.getTotalPacketLength();
+                                    // log.debug("sendTo({}, '{}')", .{
+                                    //     msg.sender,
+                                    //     std.fmt.fmtSliceHexLower(buffer[0..length]),
+                                    // });
                                     if (self.multicast_sock.sendTo(msg.sender, buffer[0..length])) |sendlen| {
                                         if (sendlen < length) {
                                             log.err("expected to send {} bytes, got {}", .{
@@ -1071,8 +1075,8 @@ pub const Application = struct {
     /// and newly added resources will also be sent to all currently connected display
     /// clients.
     pub fn addResource(self: *Self, id: protocol.ResourceID, kind: protocol.ResourceKind, data: []const u8) DunstblickError!void {
-        const lock = self.mutex.acquire();
-        defer lock.release();
+        self.mutex.lock();
+        defer self.mutex.unlock();
 
         var cloned_data = try std.mem.dupe(self.allocator, u8, data);
         errdefer self.allocator.free(cloned_data);
@@ -1098,8 +1102,8 @@ pub const Application = struct {
     /// used again, but newly connected display clients will not receive the
     /// resource anymore.
     pub fn removeResource(self: *Self, id: protocol.ResourceID) DunstblickError!void {
-        const lock = self.mutex.acquire();
-        defer lock.release();
+        self.mutex.lock();
+        defer self.mutex.unlock();
 
         if (self.resources.fetchRemove(id)) |item| {
             self.allocator.free(item.value.data);

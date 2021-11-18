@@ -288,6 +288,7 @@ pub const WidgetTree = struct {
         InvalidEnumTag,
         Overflow,
         InvalidValue,
+        InvalidProperty,
     };
 
     const ValueFromStream = union(enum) {
@@ -390,9 +391,9 @@ pub const WidgetTree = struct {
                 // TODO : Think about this:
                 // Is it required that a layout format is properly compiled?
                 // Related: format versions, future properties, …
-                if (builtin.mode != .Debug) {
-                    return error.InvalidProperty;
-                }
+                // if (builtin.mode != .Debug) {
+                //     return error.InvalidProperty;
+                // }
             }
         }
 

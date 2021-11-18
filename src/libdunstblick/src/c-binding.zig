@@ -4,7 +4,6 @@ const protocol = @import("dunstblick-protocol");
 
 const app = @import("dunstblick-app");
 
-const DUNSTBLICK_MULTICAST_GROUP = xnet.Address.IPv4.init(224, 0, 0, 1);
 const DUNSTBLICK_MAX_APP_NAME_LENGTH = 64;
 
 const NativeErrorCode = enum(c_int) {
@@ -101,33 +100,17 @@ export fn dunstblick_CloseProvider(provider: *app.Application) callconv(.C) void
 }
 
 export fn dunstblick_PumpEvents(provider: *app.Application) callconv(.C) NativeErrorCode {
-    const lock = provider.mutex.acquire();
-    defer lock.release();
+    provider.mutex.lock();
+    defer provider.mutex.unlock();
 
     return mapDunstblickErrorVoid(provider.pumpEvents(10 * std.time.ms_per_s));
 }
 
 export fn dunstblick_WaitEvents(provider: *app.Application) callconv(.C) NativeErrorCode {
-    const lock = provider.mutex.acquire();
-    defer lock.release();
+    provider.mutex.lock();
+    defer provider.mutex.unlock();
 
     return mapDunstblickErrorVoid(provider.pumpEvents(null));
-}
-
-export fn dunstblick_SetConnectedCallback(provider: *app.Application, callback: ?app.ConnectedCallback, userData: ?*c_void) callconv(.C) NativeErrorCode {
-    const lock = provider.mutex.acquire();
-    defer lock.release();
-
-    provider.on_connected = .{ .function = callback, .user_data = userData };
-    return .none;
-}
-
-export fn dunstblick_SetDisconnectedCallback(provider: *app.Application, callback: ?app.DisconnectedCallback, userData: ?*c_void) callconv(.C) NativeErrorCode {
-    const lock = provider.mutex.acquire();
-    defer lock.release();
-
-    provider.on_disconnected = .{ .function = callback, .user_data = userData };
-    return .none;
 }
 
 export fn dunstblick_AddResource(provider: *app.Application, resourceID: protocol.ResourceID, kind: protocol.ResourceKind, data: *const c_void, length: usize) callconv(.C) NativeErrorCode {
@@ -158,21 +141,9 @@ export fn dunstblick_GetClientName(connection: *app.Connection) callconv(.C) [*:
 }
 
 export fn dunstblick_GetDisplaySize(connection: *app.Connection) callconv(.C) app.Size {
-    const lock = connection.mutex.acquire();
-    defer lock.release();
+    connection.mutex.lock();
+    defer connection.mutex.unlock();
     return connection.screen_resolution;
-}
-
-export fn dunstblick_SetEventCallback(connection: *app.Connection, callback: app.EventCallback, userData: ?*c_void) callconv(.C) void {
-    const lock = connection.mutex.acquire();
-    defer lock.release();
-    connection.on_event = .{ .function = callback, .user_data = userData };
-}
-
-export fn dunstblick_SetPropertyChangedCallback(connection: *app.Connection, callback: app.PropertyChangedCallback, userData: ?*c_void) callconv(.C) void {
-    const lock = connection.mutex.acquire();
-    defer lock.release();
-    connection.on_property_changed = .{ .function = callback, .user_data = userData };
 }
 
 export fn dunstblick_GetUserData(connection: *app.Connection) callconv(.C) ?*c_void {

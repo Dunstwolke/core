@@ -59,7 +59,9 @@ pub fn main() anyerror!u8 {
     }
 
     //try openURL("http://sentinel.scenesat.com:8000/scenesatmax");
-    try openFile("/dunstwolke/music/albums/Morgan Willis/Supernova/Morgan Willis - Supernova - 01 Opening (Vocal Marko Maric).mp3");
+    openFile("/dunstwolke/music/albums/Morgan Willis/Supernova/Morgan Willis - Supernova - 01 Opening (Vocal Marko Maric).mp3") catch |err| {
+        std.log.info("could not open file: {s}", .{@errorName(err)});
+    };
 
     while (true) {
         if (try app.pollEvent(null)) |event| {

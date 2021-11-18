@@ -383,6 +383,7 @@ const IconCache = struct {
     allocator: *std.mem.Allocator,
     resource_manager: ?*ResourceManager,
     icon_map: Map,
+    arena: std.heap.ArenaAllocator,
 
     pub fn get(self: *IconCache, icon: []const u8, size: Size) !*ResourceManager.Texture {
         const resource_manager = self.resource_manager orelse @panic("usage error");
@@ -402,7 +403,9 @@ const IconCache = struct {
             const swidth = @as(usize, size.width);
             const sheight = @as(usize, size.height);
 
-            const pixels = try arena.allocator.alloc(Color, swidth * sheight);
+            const pixels = try self.arena.allocator.alloc(Color, swidth * sheight);
+            errdefer self.arena.allocator.free(pixels);
+
             std.mem.set(Color, pixels, Color.transparent);
 
             const TvgCanvas = struct {
@@ -459,8 +462,8 @@ const IconCache = struct {
             list.value_ptr.deinit(self.allocator);
         }
         self.icon_map.clearRetainingCapacity();
-
         self.icon_map.deinit(self.allocator);
+        self.arena.deinit();
         self.* = undefined;
     }
 };
@@ -527,6 +530,7 @@ pub fn init(allocator: *std.mem.Allocator, resource_manager: *ResourceManager, r
             .resource_manager = resource_manager,
             .allocator = allocator,
             .icon_map = .{},
+            .arena = std.heap.ArenaAllocator.init(allocator),
         },
     };
 
