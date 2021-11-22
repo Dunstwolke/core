@@ -141,18 +141,18 @@ pub fn build(b: *Builder) !void {
     libmagic.addIncludeDir("lib/file-5.40");
     libmagic.linkLibC();
 
-    // const dunstfs = b.addExecutable("dfs", "./src/dunstfs/main.zig");
-    // dunstfs.setBuildMode(mode);
-    // dunstfs.setTarget(musl_target);
-    // dunstfs.addPackage(pkgs.sqlite3);
-    // dunstfs.addPackage(pkgs.args);
-    // dunstfs.addPackage(pkgs.known_folders);
-    // dunstfs.addPackage(pkgs.uuid6);
-    // dunstfs.addIncludeDir("./lib/zig-sqlite/c");
-    // dunstfs.linkLibrary(libsqlite3);
-    // dunstfs.linkLibrary(libmagic);
-    // dunstfs.linkLibC();
-    // dunstfs.install();
+    const dunstfs = b.addExecutable("dfs", "./src/dunstfs/main.zig");
+    dunstfs.setBuildMode(mode);
+    dunstfs.setTarget(musl_target);
+    dunstfs.addPackage(pkgs.sqlite3);
+    dunstfs.addPackage(pkgs.args);
+    dunstfs.addPackage(pkgs.known_folders);
+    dunstfs.addPackage(pkgs.uuid6);
+    dunstfs.addIncludeDir("./lib/zig-sqlite/c");
+    dunstfs.linkLibrary(libsqlite3);
+    dunstfs.linkLibrary(libmagic);
+    dunstfs.linkLibC();
+    dunstfs.install();
 
     const compiler = b.addExecutable("dunstblick-compiler", "./src/dunstblick-compiler/main.zig");
     compiler.addPackage(pkgs.args);
@@ -183,6 +183,8 @@ pub fn build(b: *Builder) !void {
 
         {
             const resources = sdk.addBundleResources();
+
+            resources.addDrawing("app_icon", .{ .path = "src/examples/mediaserver/resources/disc-player.tvg" });
 
             resources.addLayout("main", .{ .path = "./src/examples/mediaserver/layouts/main.ui" });
             resources.addLayout("menu", .{ .path = "./src/examples/mediaserver/layouts/menu.ui" });

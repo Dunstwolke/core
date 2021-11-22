@@ -98,6 +98,7 @@ fn printUsage(writer: anytype) !void {
 }
 
 const std = @import("std");
+const builtin = @import("builtin");
 const args_parser = @import("args");
 const sqlite3 = @import("sqlite3");
 const known_folders = @import("known-folders");
@@ -106,7 +107,7 @@ const Uuid = @import("uuid6");
 const logger = std.log.scoped(.dfs);
 
 // Set the log level to warning
-pub const log_level: std.log.Level = if (std.builtin.mode == .Debug) std.log.Level.debug else std.log.Level.info;
+pub const log_level: std.log.Level = if (builtin.mode == .Debug) std.log.Level.debug else std.log.Level.info;
 
 // Define root.log to override the std implementation
 pub fn log(
@@ -336,7 +337,7 @@ pub fn main() !u8 {
 
     logger.info("Initialize database...", .{});
     inline for (prepared_statement_sources.init_statements) |code| {
-        var init_db_stmt = db.prepare(code) catch |err| {
+        var init_db_stmt = db.prepareDynamic(code) catch |err| {
             logger.err("error while executing sql:\n{s}", .{code});
             return err;
         };
@@ -816,22 +817,22 @@ pub fn main() !u8 {
             var diag = sqlite3.Diagnostics{};
             errdefer std.log.err("sqlite failed: {}", .{diag});
 
-            var stmt_any_exists = try db.prepareWithDiags(
+            var stmt_any_exists = try db.prepareDynamicWithDiags(
                 \\SELECT file, revision FROM Revisions WHERE dataset = :dataset
             , .{ .diags = &diag });
             defer stmt_any_exists.deinit();
 
-            var stmt_create_file = try db.prepareWithDiags(
+            var stmt_create_file = try db.prepareDynamicWithDiags(
                 \\INSERT INTO Files (uuid, user_name, last_change) VALUES (:file, :name, CURRENT_TIMESTAMP);
             , .{ .diags = &diag });
             defer stmt_create_file.deinit();
 
-            var stmt_add_revision = try db.prepareWithDiags(
+            var stmt_add_revision = try db.prepareDynamicWithDiags(
                 \\INSERT INTO Revisions (file, dataset, revision) VALUES (:file, :dataset, (SELECT IFNULL(MAX(revision),0)+1 FROM Revisions WHERE file = :file LIMIT 1));
             , .{ .diags = &diag });
             defer stmt_add_revision.deinit();
 
-            var stmt_add_tag = try db.prepareWithDiags(
+            var stmt_add_tag = try db.prepareDynamicWithDiags(
                 \\INSERT INTO FileTags (file, tag) VALUES (:file, :tag);
             , .{ .diags = &diag });
             defer stmt_add_tag.deinit();

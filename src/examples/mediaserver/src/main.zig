@@ -40,13 +40,11 @@ pub fn main() anyerror!u8 {
     _ = c.BASS_PluginLoad("libbassflac.so", 0); // load BASSFLAC (if present) for FLAC support
     _ = c.BASS_PluginLoad("libbasshls.so", 0); // load BASSHLS (if present) for HLS support
 
-    const icon = @embedFile("../resources/disc-player.tvg");
-
     var app = try dunstblick.Application.open(
         std.heap.c_allocator,
         "MediaPlayer",
         "A small media player with a music library.",
-        icon,
+        data.resources.app_icon.data,
     );
     defer app.close();
 

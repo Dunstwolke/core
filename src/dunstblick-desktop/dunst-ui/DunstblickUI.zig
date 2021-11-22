@@ -1410,7 +1410,7 @@ fn PropertyGetSetMixin(comptime Self: type, getErasedWidget: fn (*const Self) *c
 
                 if (property.binding != null and binding_context != null) {
                     if (binding_context.?.getProperty(property.binding.?)) |value| {
-                        if (value.convertTo(PropertyType(property_name))) |val| {
+                        if (value.convertTo(PropertyType(property_name), binding_context.?.allocator)) |val| {
                             return val;
                         } else |err| {
                             logger.warn("binding error: converting {}) of type {s} to {s} failed: {}", .{

@@ -120,7 +120,8 @@ pub const Value = union(protocol.Type) {
         };
     }
 
-    pub fn convertTo(self: Value, comptime T: type) !T {
+    pub const ConvertError = error{ OutOfMemory, UnsupportedConversion };
+    pub fn convertTo(self: Value, comptime T: type, opt_allocator: ?*std.mem.Allocator) ConvertError!T {
         if (self.get(T)) |v| {
             return v;
         } else |_| {
@@ -131,8 +132,26 @@ pub const Value = union(protocol.Type) {
         const ti = @typeInfo(T);
 
         switch (self) {
-            .integer => return error.UnsupportedConversion,
-            .number => return error.UnsupportedConversion,
+            .integer => |val| {
+                if (opt_allocator) |allocator| {
+                    if (T == String) {
+                        var buf: [64]u8 = undefined;
+                        const str = std.fmt.bufPrint(&buf, "{d:.3}", .{val}) catch unreachable;
+                        return try String.init(allocator, str);
+                    }
+                }
+                return error.UnsupportedConversion;
+            },
+            .number => |val| {
+                if (opt_allocator) |allocator| {
+                    if (T == String) {
+                        var buf: [64]u8 = undefined;
+                        const str = std.fmt.bufPrint(&buf, "{d:.3}", .{val}) catch unreachable;
+                        return try String.init(allocator, str);
+                    }
+                }
+                return error.UnsupportedConversion;
+            },
             .string => return error.UnsupportedConversion,
             .margins => return error.UnsupportedConversion,
             .color => return error.UnsupportedConversion,

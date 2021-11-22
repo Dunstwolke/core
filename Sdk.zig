@@ -1,5 +1,6 @@
 const std = @import("std");
 const logger = std.log.scoped(.dunstblick_sdk);
+const tvg = @import("lib/tvg/src/lib/tvg.zig");
 
 const Pkg = std.build.Pkg;
 const Step = std.build.Step;
@@ -184,6 +185,58 @@ pub const CompileImageStep = struct {
     }
 };
 
+pub fn addCompileDrawing(sdk: *const Sdk, input_file: FileSource) *CompileDrawingStep {
+    const step = sdk.builder.allocator.create(CompileDrawingStep) catch unreachable;
+    step.* = CompileDrawingStep{
+        .sdk = sdk,
+        .step = Step.init(
+            .custom,
+            "compile bitmap",
+            sdk.builder.allocator,
+            CompileDrawingStep.make,
+        ),
+        .input_file = input_file,
+        .output_file = GeneratedFile{ .step = &step.step },
+    };
+    input_file.addStepDependencies(&step.step); // and we need our input file to be done
+    return step;
+}
+
+pub const CompileDrawingStep = struct {
+    const Self = @This();
+
+    sdk: *const Sdk,
+    step: Step,
+    input_file: FileSource,
+    output_file: GeneratedFile,
+
+    pub fn getOutputFile(self: *Self) FileSource {
+        return FileSource{ .generated = &self.output_file };
+    }
+
+    fn make(step: *Step) anyerror!void {
+        const self = @fieldParentPtr(Self, "step", step);
+
+        const src_path = self.input_file.getPath(self.sdk.builder);
+
+        // Just run the input file through the TVG parser once
+        {
+            const file = try std.fs.cwd().openFile(src_path, .{});
+            defer file.close();
+
+            var parser = try tvg.parse(self.sdk.builder.allocator, file.reader());
+            defer parser.deinit();
+
+            while (try parser.next()) |cmd| {
+                _ = cmd;
+            }
+        }
+
+        // No need to cache it, we just verbatim pass the file through
+        self.output_file.path = src_path;
+    }
+};
+
 pub fn addBundleResources(sdk: *const Sdk) *BundleResourcesStep {
     const prepare_step = sdk.builder.allocator.create(PrepareConfigFile) catch unreachable;
 
@@ -328,6 +381,17 @@ pub const BundleResourcesStep = struct {
         self.resources.putNoClobber(
             self.sdk.builder.dupe(name),
             Resource{ .kind = .bitmap, .data = step.getOutputFile() },
+        ) catch unreachable;
+
+        self.step.dependOn(&step.step);
+    }
+
+    pub fn addDrawing(self: *Self, name: []const u8, file: FileSource) void {
+        const step = self.sdk.addCompileDrawing(file);
+
+        self.resources.putNoClobber(
+            self.sdk.builder.dupe(name),
+            Resource{ .kind = .bitmap, .data = file },
         ) catch unreachable;
 
         self.step.dependOn(&step.step);

@@ -9,18 +9,31 @@ fn MakeID(comptime tag: anytype) type {
         pub fn init(value: u32) @This() {
             return @intToEnum(@This(), value);
         }
+
+        pub fn format(self: @This(), comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+            _ = fmt;
+            _ = options;
+            if (self != .invalid) {
+                try writer.print("{s}({})", .{
+                    tag[0],
+                    @enumToInt(self),
+                });
+            } else {
+                try writer.print("{s}(invalid)", .{tag[0]});
+            }
+        }
     };
 }
 
-pub const ResourceID = MakeID(.{});
+pub const ResourceID = MakeID(.{"ResourceID"});
 
-pub const ObjectID = MakeID(.{});
+pub const ObjectID = MakeID(.{"ObjectID"});
 
-pub const PropertyName = MakeID(.{});
+pub const PropertyName = MakeID(.{"PropertyName"});
 
-pub const EventID = MakeID(.{});
+pub const EventID = MakeID(.{"EventID"});
 
-pub const WidgetName = MakeID(.{});
+pub const WidgetName = MakeID(.{"WidgetName"});
 
 pub const ObjectList = std.ArrayList(ObjectID);
 pub const SizeList = std.ArrayList(ColumnSizeDefinition);
