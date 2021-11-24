@@ -378,6 +378,12 @@ pub fn build(b: *Builder) !void {
         }
     }
 
+    const widget_doc_render = b.addExecutable("render-widget-docs", "src/tools/render-widget-docs.zig");
+    widget_doc_render.addPackage(pkgs.dunstblick_protocol);
+    widget_doc_render.setBuildMode(mode);
+    widget_doc_render.setTarget(target);
+    widget_doc_render.install();
+
     const install2_step = b.step("build-experimental", "Builds the highly experimental software parts");
     install2_step.dependOn(&dunstnetz_daemon.step);
 

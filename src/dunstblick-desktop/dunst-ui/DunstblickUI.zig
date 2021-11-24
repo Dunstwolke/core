@@ -1229,14 +1229,15 @@ pub const WidgetTree = struct {
             },
 
             .radiobutton => |*button| {
-                const is_checked = button.get(.is_checked);
-                const clicked = try ui.radioButton(rect, is_checked, .{
+                const group = button.get(.group);
+                const selected_index = button.get(.selected_index);
+                const clicked = try ui.radioButton(rect, (group == selected_index), .{
                     .id = widget,
                     .hit_test_visible = hit_test_visible,
                 });
-                // TODO: Process button clicks!
-                if (clicked)
-                    logger.err("radiobutton click not implemented yet!", .{});
+                if (clicked) {
+                    button.set(.group, selected_index);
+                }
             },
 
             .scrollview => {
@@ -1784,12 +1785,14 @@ pub const Control = union(protocol.WidgetType) {
         const Self = @This();
         usingnamespace ControlMixin(Self);
 
-        is_checked: Property(bool),
+        group: Property(i32),
+        selected_index: Property(i32),
 
         pub fn init(allocator: *std.mem.Allocator) Self {
             _ = allocator;
             return Self{
-                .is_checked = .{ .value = false },
+                .group = .{ .value = -1 },
+                .selected_index = .{ .value = 0 },
             };
         }
 

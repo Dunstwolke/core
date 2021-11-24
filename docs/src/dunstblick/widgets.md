@@ -5,11 +5,9 @@ Description of the Widgets available in [Dunstblick](../dunstblick.md)
 ## Overview
 
 The following widgets are available in [Dunstblick](../dunstblick.md):
+
 - [Button](#widget:button)
 - [Label](#widget:label)
-- [ComboBox](#widget:combobox)
-- [TreeView](#widget:treeview)
-- [ListBox](#widget:listbox)
 - [Picture](#widget:picture)
 - [TextBox](#widget:textbox)
 - [CheckBox](#widget:checkbox)
@@ -29,213 +27,372 @@ The following widgets are available in [Dunstblick](../dunstblick.md):
 - [GridLayout](#widget:grid_layout)
 - [DockLayout](#widget:dock_layout)
 - [StackLayout](#widget:stack_layout)
+- [ComboBox](#widget:combobox)
+- [TreeView](#widget:treeview)
+- [ListBox](#widget:listbox)
 
 ## Widgets
 
 <h3 id="widget:button">Button</h3>
-A simple button the user can click.
+The button provides the user the ability to trigger a single-shot action like *Save* or *Load*. It provides a event callback when the user clicks it.
 
 **Properties:**
 
-[`on-click`](#property:on-click), [`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top), [`on-click`](#property:on_click)
+
 <h3 id="widget:label">Label</h3>
-A widget that displays a piece of text.
+This widget is used for text rendering. It will display its `text`, which can also be a multiline string.
 
 **Properties:**
 
-[`text`](#property:text), [`font-family`](#property:font-family), [`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
-<h3 id="widget:combobox">ComboBox</h3>
-An input field where the user can select one of several options.
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top), [`text`](#property:text), [`font-family`](#property:font_family)
 
-**Properties:**
-
-[`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
-<h3 id="widget:treeview">TreeView</h3>
-No description for TreeView available.
-
-**Properties:**
-
-[`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
-<h3 id="widget:listbox">ListBox</h3>
-A list of items where the user can select one.
-
-**Properties:**
-
-[`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
 <h3 id="widget:picture">Picture</h3>
-Displays an image.
+This widget renders a bitmap or drawing. The image will be set using a certain size mode:
+
+- `none`: The image will be displayed unscaled on the top-left of the Picture and will be cut off the edges of the Picture.
+- `center`: The image will be centered inside the Picture without scaling. All excess will be cut off.
+- `stretch`: The image will be stretched so it will fill the full Picture. This is a very nice option for background images.
+- `zoom`: The image will be scaled in such a way that it will always touch at least two sides of the Picture. It will always be fully visible and no part of the image will be cut off. This mode is respecting the aspect of the image.
+- `cover`: The image will be scaled in such a way that it will fully cover the Picture. This mode is respecting the aspect of the image, thus excess is cut off.
+- `contain`: This is a combined mode which will behave like `zoom` if the image is larger than the Picture, otherwise it will behave like `center`.
 
 **Properties:**
 
-[`image-scaling`](#property:image-scaling), [`image`](#property:image), [`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top), [`image`](#property:image), [`image-scaling`](#property:image_scaling)
+
 <h3 id="widget:textbox">TextBox</h3>
-An input field where the user can enter freeform text.
+The text box is a single line text input field. The user can enter any text that has a single line.
 
 **Properties:**
 
-[`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top), [`text`](#property:text)
+
 <h3 id="widget:checkbox">CheckBox</h3>
-A button that can either be checked or unchecked. It toggles its checked state when the user clicks it.
+The combobox provides the user with a yes/no option that can be toggled when clicked. Each combobox is separate from each other, and the property `is-checked` will be toggled.
 
 **Properties:**
 
-[`is-checked`](#property:is-checked), [`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top), [`is-checked`](#property:is_checked)
+
 <h3 id="widget:radiobutton">RadioButton</h3>
-Similar to the checkbox, a radio button can be checked or unchecked. But for each radio group, only one radio button can be checked at once. If the user clicks on a radio button, all other radio buttons in the same group will uncheck.
+Radio buttons are grouped together by an integer value and will show active when that value matches their `index`. If the user clicks the radio button, the `group` value is set to the `selected-index`.
 
 **Properties:**
 
-[`is-checked`](#property:is-checked), [`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top), [`group`](#property:group), [`selected-index`](#property:selected_index)
+
 <h3 id="widget:scrollview">ScrollView</h3>
-A container with two scroll bars on the right and the bottom. Will allow the user to view all of the contained widgets by using the scroll bars to pan the view. If the contained widgets fit inside the widget body, the scroll bars get disabled.
+This widget doesn't have any documentation at this moment.
 
 **Properties:**
 
-[`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top)
+
 <h3 id="widget:scrollbar">ScrollBar</h3>
-A widget that allows the user to scroll or pan certain elements. It has a button on the start and the end of the bar to scroll by a little bit and a knob that can be grabbed by the user to scroll to an absolute value.
+This widget doesn't have any documentation at this moment.
 
 **Properties:**
 
-[`orientation`](#property:orientation), [`minimum`](#property:minimum), [`maximum`](#property:maximum), [`value`](#property:value), [`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top), [`orientation`](#property:orientation), [`minimum`](#property:minimum), [`value`](#property:value), [`maximum`](#property:maximum)
+
 <h3 id="widget:slider">Slider</h3>
-A knob the user can grab and drag to dial a certain value.
+This widget doesn't have any documentation at this moment.
 
 **Properties:**
 
-[`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top), [`orientation`](#property:orientation), [`minimum`](#property:minimum), [`value`](#property:value), [`maximum`](#property:maximum)
+
 <h3 id="widget:progressbar">ProgressBar</h3>
-A widget that can display a progress of an action. Allows an optional numeric display of the current progress in percent or with absolute values.
+This widget doesn't have any documentation at this moment.
 
 **Properties:**
 
-[`minimum`](#property:minimum), [`maximum`](#property:maximum), [`value`](#property:value), [`display-progress-style`](#property:display-progress-style), [`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top), [`orientation`](#property:orientation), [`minimum`](#property:minimum), [`value`](#property:value), [`maximum`](#property:maximum), [`display-progress-style`](#property:display_progress_style)
+
 <h3 id="widget:spinedit">SpinEdit</h3>
-No description for SpinEdit available.
+This widget doesn't have any documentation at this moment.
 
 **Properties:**
 
-[`minimum`](#property:minimum), [`maximum`](#property:maximum), [`value`](#property:value), [`orientation`](#property:orientation), [`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top), [`orientation`](#property:orientation), [`minimum`](#property:minimum), [`value`](#property:value), [`maximum`](#property:maximum)
+
 <h3 id="widget:separator">Separator</h3>
-A simple vertical or horizontal line that separates two widgets. The orientation of the line is choosen automatically by the width and height of the separator.
+This widget doesn't have any documentation at this moment.
 
 **Properties:**
 
-[`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top)
+
 <h3 id="widget:spacer">Spacer</h3>
-An invisible and non-interactible widget that can be used to fill areas.
+This widget doesn't have any documentation at this moment.
 
 **Properties:**
 
-[`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top)
+
 <h3 id="widget:panel">Panel</h3>
-A container that has a simple border and can put widgets into a visual group.
+This widget doesn't have any documentation at this moment.
 
 **Properties:**
 
-[`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top)
+
 <h3 id="widget:container">Container</h3>
-An invisible widget that can be used to group other widgets or insert invisible margins.
+This widget doesn't have any documentation at this moment.
 
 **Properties:**
 
-[`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top)
+
 <h3 id="widget:tab_layout">TabLayout</h3>
-A special layout that groups widgets into separate pages. Only a single child can be visible, but all childs are presented to the user in a list of tabs. The name displayed on a tab is defined by the [`tab-title`](#property:tab-title) property.
+This widget doesn't have any documentation at this moment.
 
 **Properties:**
 
-[`selected-index`](#property:selected-index), [`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top), [`selected-index`](#property:selected_index)
+
 <h3 id="widget:canvas_layout">CanvasLayout</h3>
-The canvas layout allows to put widgets in certain spots and does not enforce an automatic layout. The position for each widget is defined by its [`top`](#property:top) and [`left`](#property:left) property.
+This widget doesn't have any documentation at this moment.
 
 **Properties:**
 
-[`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top)
+
 <h3 id="widget:flow_layout">FlowLayout</h3>
-The flow layout will try to fit as many widgets as possible in a single row/column and will reflow overlapping widgets into the next column/row. This allows creating dynamic layouts that behave similar to flowing text.
+This widget doesn't have any documentation at this moment.
 
 **Properties:**
 
-[`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top)
+
 <h3 id="widget:grid_layout">GridLayout</h3>
-A layout that aligns widgets into a tabular style. The rows and columns are sizeable by the user and can either be sized automatically or in absolute/percentage values.
+This widget doesn't have any documentation at this moment.
 
 **Properties:**
 
-[`columns`](#property:columns), [`rows`](#property:rows), [`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top), [`columns`](#property:columns), [`rows`](#property:rows)
+
 <h3 id="widget:dock_layout">DockLayout</h3>
-A layout that uses a docking mechanism to position widgets. Docking means that the widget is put at the top, left, bottom or right side of the layout, then the obstructed space is removed from the layouting area. This process is repeated until the last widget, which will then take up the available space.
+This widget doesn't have any documentation at this moment.
 
 **Properties:**
 
-[`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top)
+
 <h3 id="widget:stack_layout">StackLayout</h3>
-A simple layout that will stack widgets either horizontally or vertically.
+This widget doesn't have any documentation at this moment.
 
 **Properties:**
 
-[`orientation`](#property:orientation), [`horizontal-alignment`](#property:horizontal-alignment), [`vertical-alignment`](#property:vertical-alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock-site), [`visibility`](#property:visibility), [`widget-name`](#property:widget-name), [`left`](#property:left), [`top`](#property:top), [`tab-title`](#property:tab-title), [`enabled`](#property:enabled), [`size-hint`](#property:size-hint), [`binding-context`](#property:binding-context), [`hit-test-visible`](#property:hit-test-visible), [`child-source`](#property:child-source), [`child-template`](#property:child-template)
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top), [`orientation`](#property:orientation)
+
+<h3 id="widget:combobox">ComboBox</h3>
+This widget doesn't have any documentation at this moment.
+
+**Properties:**
+
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top)
+
+<h3 id="widget:treeview">TreeView</h3>
+This widget doesn't have any documentation at this moment.
+
+**Properties:**
+
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top)
+
+<h3 id="widget:listbox">ListBox</h3>
+This widget doesn't have any documentation at this moment.
+
+**Properties:**
+
+[`horizontal-alignment`](#property:horizontal_alignment), [`vertical-alignment`](#property:vertical_alignment), [`margins`](#property:margins), [`paddings`](#property:paddings), [`dock-site`](#property:dock_site), [`visibility`](#property:visibility), [`enabled`](#property:enabled), [`hit-test-visible`](#property:hit_test_visible), [`binding-context`](#property:binding_context), [`child-source`](#property:child_source), [`child-template`](#property:child_template), [`widget-name`](#property:widget_name), [`tab-title`](#property:tab_title), [`size-hint`](#property:size_hint), [`left`](#property:left), [`top`](#property:top)
 
 ## Properties
 
-<h3 id="property:horizontal-alignment">horizontal-alignment</h3>
-No description for horizontal-alignment available.
-<h3 id="property:vertical-alignment">vertical-alignment</h3>
-No description for vertical-alignment available.
+<h3 id="property:horizontal_alignment">horizontal-alignment</h3>
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `enumeration`
+
+**Possible Values:** `left`, `center`, `right`, `stretch`
+<h3 id="property:vertical_alignment">vertical-alignment</h3>
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `enumeration`
+
+**Possible Values:** `top`, `middle`, `bottom`, `stretch`
 <h3 id="property:margins">margins</h3>
-No description for margins available.
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `margins`
+
+
 <h3 id="property:paddings">paddings</h3>
-No description for paddings available.
-<h3 id="property:dock-site">dock-site</h3>
-No description for dock-site available.
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `margins`
+
+
+<h3 id="property:dock_site">dock-site</h3>
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `enumeration`
+
+**Possible Values:** `left`, `right`, `top`, `bottom`
 <h3 id="property:visibility">visibility</h3>
-No description for visibility available.
-<h3 id="property:size-hint">size-hint</h3>
-No description for size-hint available.
-<h3 id="property:font-family">font-family</h3>
-No description for font-family available.
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `enumeration`
+
+**Possible Values:** `visible`, `hidden`, `collapsed`
+<h3 id="property:size_hint">size-hint</h3>
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `size`
+
+
+<h3 id="property:font_family">font-family</h3>
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `enumeration`
+
+**Possible Values:** `sans`, `serif`, `monospace`
 <h3 id="property:text">text</h3>
-No description for text available.
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `string`
+
+
 <h3 id="property:minimum">minimum</h3>
-No description for minimum available.
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `number`
+
+
 <h3 id="property:maximum">maximum</h3>
-No description for maximum available.
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `number`
+
+
 <h3 id="property:value">value</h3>
-No description for value available.
-<h3 id="property:display-progress-style">display-progress-style</h3>
-No description for display-progress-style available.
-<h3 id="property:is-checked">is-checked</h3>
-No description for is-checked available.
-<h3 id="property:tab-title">tab-title</h3>
-No description for tab-title available.
-<h3 id="property:selected-index">selected-index</h3>
-No description for selected-index available.
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `number`
+
+
+<h3 id="property:display_progress_style">display-progress-style</h3>
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `enumeration`
+
+**Possible Values:** `none`, `percent`, `absolute`
+<h3 id="property:is_checked">is-checked</h3>
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `boolean`
+
+
+<h3 id="property:tab_title">tab-title</h3>
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `string`
+
+
+<h3 id="property:selected_index">selected-index</h3>
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `integer`
+
+
+<h3 id="property:group">group</h3>
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `integer`
+
+
 <h3 id="property:columns">columns</h3>
-No description for columns available.
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `sizelist`
+
+
 <h3 id="property:rows">rows</h3>
-No description for rows available.
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `sizelist`
+
+
 <h3 id="property:left">left</h3>
-No description for left available.
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `integer`
+
+
 <h3 id="property:top">top</h3>
-No description for top available.
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `integer`
+
+
 <h3 id="property:enabled">enabled</h3>
-No description for enabled available.
-<h3 id="property:image-scaling">image-scaling</h3>
-No description for image-scaling available.
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `boolean`
+
+
+<h3 id="property:image_scaling">image-scaling</h3>
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `enumeration`
+
+**Possible Values:** `none`, `center`, `stretch`, `zoom`, `contain`, `cover`
 <h3 id="property:image">image</h3>
-No description for image available.
-<h3 id="property:binding-context">binding-context</h3>
-No description for binding-context available.
-<h3 id="property:child-source">child-source</h3>
-No description for child-source available.
-<h3 id="property:child-template">child-template</h3>
-No description for child-template available.
-<h3 id="property:hit-test-visible">hit-test-visible</h3>
-No description for hit-test-visible available.
-<h3 id="property:on-click">on-click</h3>
-No description for on-click available.
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `resource`
+
+
+<h3 id="property:binding_context">binding-context</h3>
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `object`
+
+
+<h3 id="property:child_source">child-source</h3>
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `objectlist`
+
+
+<h3 id="property:child_template">child-template</h3>
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `resource`
+
+
+<h3 id="property:hit_test_visible">hit-test-visible</h3>
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `boolean`
+
+
+<h3 id="property:on_click">on-click</h3>
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `event`
+
+
 <h3 id="property:orientation">orientation</h3>
-No description for orientation available.
-<h3 id="property:widget-name">widget-name</h3>
-No description for widget-name available.
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `enumeration`
+
+**Possible Values:** `horizontal`, `vertical`
+<h3 id="property:widget_name">widget-name</h3>
+This property doesn't have any documentation at this moment.
+
+**Data Type:** `widget`
+
+

@@ -229,6 +229,7 @@ pub const Property = enum(u7) {
     on_click = 30,
     orientation = 31,
     widget_name = 32,
+    group = 33,
 };
 
 pub const Enum = enum(u8) {
