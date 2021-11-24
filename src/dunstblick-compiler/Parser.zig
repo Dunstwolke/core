@@ -70,9 +70,10 @@ fn tokenToUnsignedInteger(tok: Token) !u32 {
 }
 
 fn tokenToNumber(tok: Token) !f32 {
-    if (tok.type != .number)
-        return error.UnexpectedToken;
-    return try std.fmt.parseFloat(f32, tok.text);
+    return switch (tok.type) {
+        .number, .integer => try std.fmt.parseFloat(f32, tok.text),
+        else => return error.UnexpectedToken,
+    };
 }
 
 fn parseString(parser: Parser) ![]const u8 {
@@ -209,7 +210,7 @@ fn parseProperty(parser: Parser, writer: anytype, property: enums.Property, prop
 
         // number;
         .number => {
-            var f = try tokenToNumber(try parser.tokens.expect(.number));
+            var f = try tokenToNumber(try parser.tokens.expectOneOf(.{ .integer, .number }));
             try writer.writeAll(std.mem.asBytes(&f));
             _ = try parser.tokens.expect(.semiColon);
         },
@@ -281,9 +282,9 @@ fn parseProperty(parser: Parser, writer: anytype, property: enums.Property, prop
 
         // integer, integer;
         .size => {
-            var width = try tokenToUnsignedInteger(try parser.tokens.expect(.identifier));
-            _ = try parser.tokens.expect(.identifier);
-            var height = try tokenToUnsignedInteger(try parser.tokens.expect(.identifier));
+            var width = try tokenToUnsignedInteger(try parser.tokens.expect(.integer));
+            _ = try parser.tokens.expect(.comma);
+            var height = try tokenToUnsignedInteger(try parser.tokens.expect(.integer));
             _ = try parser.tokens.expect(.semiColon);
 
             try writeVarUInt(writer, width);
@@ -292,9 +293,9 @@ fn parseProperty(parser: Parser, writer: anytype, property: enums.Property, prop
 
         // integer, integer;
         .point => {
-            var width = try tokenToInteger(try parser.tokens.expect(.identifier));
-            _ = try parser.tokens.expect(.identifier);
-            var height = try tokenToInteger(try parser.tokens.expect(.identifier));
+            var width = try tokenToInteger(try parser.tokens.expect(.integer));
+            _ = try parser.tokens.expect(.comma);
+            var height = try tokenToInteger(try parser.tokens.expect(.integer));
             _ = try parser.tokens.expect(.semiColon);
 
             try writeVarSInt(writer, width);

@@ -1,0 +1,100 @@
+TabLayout {
+
+  GridLayout {
+    tab-title: "Basic Widgets";
+    rows: expand, expand, expand;
+    columns: expand, expand, expand;
+
+    /* row 0 */
+    Label {
+      text: "Hello, World!";
+    }
+
+    Button {
+      on-click: callback("button-click");
+      Label { text: "I am a button!"; }
+    }
+
+    Picture {
+      image: resource("ziggy");
+    }
+
+    /* row 1 */
+    
+    Slider {
+      size-hint: 250, 25;
+    }
+
+    Slider {
+      size-hint: 25, 250;
+    }
+
+    StackLayout {
+      orientation: vertical;
+      DockLayout {
+        CheckBox { dock-site: left; }
+        Label { text: "Feature 1"; }
+      }
+      DockLayout {
+        CheckBox { dock-site: left; }
+        Label { text: "Feature 2"; }
+      }
+      DockLayout {
+        CheckBox { dock-site: left; }
+        Label { text: "Feature 3"; }
+      }
+      DockLayout {
+        CheckBox { dock-site: left; }
+        Label { text: "Feature 4"; }
+      }
+    }
+
+    /* row 3 */
+
+
+    ProgressBar {
+      size-hint: 250, 25;
+
+      minimum: 0;
+      value: 25;
+      maximum: 100;
+
+      display-progress-style: percent;
+    }
+
+    ProgressBar {
+      size-hint: 25, 250;
+
+      minimum: 0;
+      value: 25;
+      maximum: 100;
+
+      display-progress-style: absolute;
+    }
+
+    StackLayout {
+      orientation: vertical;
+      DockLayout {
+        RadioButton { dock-site: left; }
+        Label { text: "Option 1"; }
+      }
+      DockLayout {
+        RadioButton { dock-site: left; }
+        Label { text: "Option 2"; }
+      }
+      DockLayout {
+        RadioButton { dock-site: left; }
+        Label { text: "Option 3"; }
+      }
+      DockLayout {
+        RadioButton { dock-site: left; }
+        Label { text: "Option 4"; }
+      }
+    }
+  }
+  /*
+  ComboBox - TreeView - ListBox - Picture - TextBox - CheckBox - RadioButton - ScrollView - ScrollBar - Slider - ProgressBar - SpinEdit - Separator - Spacer
+
+  Panel - Container - TabLayout - CanvasLayout - FlowLayout - DockLayout - StackLayout
+  */
+}

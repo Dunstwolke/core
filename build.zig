@@ -354,6 +354,27 @@ pub fn build(b: *Builder) !void {
         dunstblick_protocol_test.addPackage(pkgs.charm);
     }
 
+    const widget_tester = b.addExecutable("widget-tester", "src/test/widget-tester/main.zig");
+    {
+        widget_tester.setBuildMode(mode);
+        widget_tester.setTarget(.{}); // compile native
+        widget_tester.addPackage(sdk.getAppPackage("dunstblick"));
+        widget_tester.install();
+
+        {
+            const resources = sdk.addBundleResources();
+
+            resources.addDrawing("app_icon", .{ .path = "src/test/widget-tester/icon.tvg" });
+            resources.addDrawing("ziggy", .{ .path = "src/test/widget-tester/ziggy.tvg" });
+
+            resources.addLayout("index", .{ .path = "src/test/widget-tester/index.ui" });
+
+            resources.addObject("root");
+
+            widget_tester.addPackage(resources.getPackage("app-data"));
+        }
+    }
+
     const install2_step = b.step("build-experimental", "Builds the highly experimental software parts");
     install2_step.dependOn(&dunstnetz_daemon.step);
 

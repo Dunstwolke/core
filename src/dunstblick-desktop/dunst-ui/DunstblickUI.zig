@@ -1141,7 +1141,41 @@ pub const WidgetTree = struct {
 
                 if (self.ui.resources.getPtr(resource_id)) |resource| {
                     if (resource.getBitmap(resource_manager, ui.ui)) |bmp| {
-                        try ui.image(rect, bmp, .{
+                        const image_scaling: protocol.enums.ImageScaling = picture.get(.image_scaling);
+
+                        var final_rectangle = switch (image_scaling) {
+                            // just place the image top-left and crop
+                            .none => blk: {
+                                logger.debug("implement none scaling", .{});
+                                break :blk rect;
+                            },
+
+                            // just center the image and crop
+                            .center => rect.centered(std.math.min(rect.width, bmp.width), std.math.min(rect.height, bmp.height)),
+
+                            // plainly stretch the image to the full area
+                            .stretch => rect,
+
+                            // Uniformly stretch so the full image is visible and is as big as possible
+                            .zoom => blk: {
+                                logger.debug("implement zoom scaling", .{});
+                                break :blk rect;
+                            },
+
+                            // Uniformly stretch so that the full rect is covered
+                            .cover => blk: {
+                                logger.debug("implement cover scaling", .{});
+                                break :blk rect;
+                            },
+
+                            // Use "zoom" if the image is too big or "center" if it is small enough
+                            .contain => blk: {
+                                logger.debug("implement contain scaling", .{});
+                                break :blk rect;
+                            },
+                        };
+
+                        try ui.image(final_rectangle, bmp, .{
                             .hit_test_visible = hit_test_visible,
                         });
                     }
