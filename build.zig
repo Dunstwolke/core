@@ -369,6 +369,9 @@ pub fn build(b: *Builder) !void {
 
             resources.addLayout("index", .{ .path = "src/test/widget-tester/index.ui" });
 
+            resources.addBitmap("go.png", .{ .path = "src/test/widget-tester/go.png" });
+            resources.addBitmap("4by3.png", .{ .path = "src/test/widget-tester/4by3.png" });
+
             resources.addObject("root");
 
             widget_tester.addPackage(resources.getPackage("app-data"));

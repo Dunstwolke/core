@@ -6,8 +6,20 @@ TabLayout {
     columns: expand, expand, expand;
 
     /* row 0 */
-    Label {
-      text: "Hello, World!";
+    GridLayout {
+      rows: expand, expand, expand;
+      Label {
+        text: "Hello, World!";
+        font-family: sans;
+      }
+      Label {
+        text: "Hello, World!";
+        font-family: serif;
+      }
+      Label {
+        text: "Hello, World!";
+        font-family: monospace;
+      }
     }
 
     Button {
@@ -92,9 +104,410 @@ TabLayout {
       }
     }
   }
-  /*
-  ComboBox - TreeView - ListBox - Picture - TextBox - CheckBox - RadioButton - ScrollView - ScrollBar - Slider - ProgressBar - SpinEdit - Separator - Spacer
 
-  Panel - Container - TabLayout - CanvasLayout - FlowLayout - DockLayout - StackLayout
-  */
+
+  GridLayout {
+    tab-title: "Input";
+
+    rows: expand, expand, expand;
+    columns: expand, expand, expand;
+
+    Panel {
+      StackLayout {
+        orientation: vertical;
+        Label { text: "CheckBox"; }
+        CheckBox { }
+        CheckBox { }
+        CheckBox { }
+      }
+    }
+
+    Panel {
+      StackLayout {
+        orientation: vertical;
+        Label { text: "CheckBox"; }
+        RadioButton { }
+        RadioButton { }
+        RadioButton { }
+      }
+    }
+
+    Panel {
+      StackLayout {
+        orientation: vertical;
+        Label { text: "Button"; }
+        Button { margins: 5; paddings: 2; Picture { horizontal-alignment: left; image: resource("go.png"); } Label { text: "Button"; } }
+        Button { margins: 5; paddings: 2; Picture { horizontal-alignment: left; image: resource("go.png"); } Label { text: "Button"; } }
+        Button { margins: 5; paddings: 2; Picture { horizontal-alignment: left; image: resource("go.png"); } Label { text: "Button"; } }
+      }
+    }
+
+    Panel {
+      StackLayout {
+        orientation: vertical;
+        Label { text: "SpinEdit"; }
+        SpinEdit { }
+        SpinEdit { }
+        SpinEdit { }
+      }
+    }
+
+    Panel {
+      StackLayout {
+        orientation: vertical;
+        Label { text: "TextBox"; }
+        TextBox { text: "Prefilled"; }
+        TextBox { text: "Prefilled"; }
+        TextBox { text: "Prefilled"; }
+      }
+    }
+
+    Panel {
+      StackLayout {
+        orientation: vertical;
+        Label { text: "ComboBox"; }
+        ComboBox { }
+        ComboBox { }
+        ComboBox { }
+      }
+    }
+
+    Panel {
+      DockLayout {
+        Label { dock-site: top; text: "ListBox"; }
+        ListBox { }
+      }
+    }
+
+    Panel {
+      DockLayout {
+        Label { dock-site: top; text: "TreeView"; }
+        TreeView { }
+      }
+    }
+
+    Panel {
+      DockLayout {
+        ScrollBar { dock-site: right; }
+        ScrollBar { dock-site: bottom; }
+        Label { dock-site: top; text: "ScrollBar"; }
+        Spacer { }
+      }
+    }
+  }
+
+  GridLayout {
+    tab-title: "Picture";
+
+    rows: expand, expand;
+    columns: expand, expand, expand;
+
+    Panel {
+      DockLayout {
+        Label { dock-site: top; text: "none"; }
+        Panel {
+          margins: 5;
+          Picture {
+            image: resource("4by3.png");
+            image-scaling: none;
+          }
+        }
+      }
+    }
+    Panel {
+      DockLayout {
+        Label { dock-site: top; text: "center"; }
+        Panel {
+          margins: 5;
+          Picture {
+            image: resource("4by3.png");
+            image-scaling: center;
+          }
+        }
+      }
+    }
+    Panel {
+      DockLayout {
+        Label { dock-site: top; text: "stretch"; }
+        Panel {
+          margins: 5;
+          Picture {
+            image: resource("4by3.png");
+            image-scaling: stretch;
+          }
+        }
+      }
+    }
+    Panel {
+      DockLayout {
+        Label { dock-site: top; text: "zoom"; }
+        Panel {
+          margins: 5;
+          Picture {
+            image: resource("4by3.png");
+            image-scaling: zoom;
+          }
+        }
+      }
+    }
+    Panel {
+      DockLayout {
+        Label { dock-site: top; text: "contain"; }
+        Panel {
+          margins: 5;
+          Picture {
+            image: resource("4by3.png");
+            image-scaling: contain;
+          }
+        }
+      }
+    }
+    Panel {
+      DockLayout {
+        Label { dock-site: top; text: "cover"; }
+        Panel {
+          margins: 5;
+          Picture {
+            image: resource("4by3.png");
+            image-scaling: cover;
+          }
+        }
+      }
+    }
+  }
+
+  GridLayout {
+    tab-title: "Alignments";
+
+    rows: expand, expand, expand;
+    columns: expand, expand, expand;
+
+    Panel {
+      margins: 10;
+      Button {
+        margins: 0;
+        paddings: 2;
+        vertical-alignment: top;
+        horizontal-alignment: left;
+        Label { text: "top left"; }
+      }
+    }
+
+    Panel {
+      margins: 10;
+      Button {
+        margins: 0;
+        paddings: 2;
+        vertical-alignment: middle;
+        horizontal-alignment: center;
+        Label { text: "middle center"; }
+      }
+    }
+
+    Panel {
+      margins: 10;
+      Button {
+        margins: 0;
+        paddings: 2;
+        vertical-alignment: bottom;
+        horizontal-alignment: right;
+        Label { text: "bottom right"; }
+      }
+    }
+
+    Panel {
+      margins: 10;
+      Button {
+        margins: 0;
+        paddings: 2;
+        vertical-alignment: middle;
+        horizontal-alignment: stretch;
+        Label { text: "middle stretch"; }
+      }
+    }
+
+    Panel {
+      margins: 10;
+      Button {
+        margins: 0;
+        paddings: 2;
+        vertical-alignment: stretch;
+        horizontal-alignment: center;
+        Label { text: "stretch center"; }
+      }
+    }
+
+    Panel {
+      margins: 10;
+
+      StackLayout {
+        orientation: vertical;
+        Button {
+          margins: 10;
+          paddings: 2;
+          Label { text: "stretch stretch + margin"; }
+        }
+        Button {
+          margins: 10;
+          paddings: 2;
+          Label { text: "stretch stretch + margin"; }
+        }
+        Button {
+          margins: 10;
+          paddings: 2;
+          Label { text: "stretch stretch + margin"; }
+        }
+      }
+    }
+
+    Panel {
+      margins: 10;
+
+      StackLayout {
+        paddings: 10;
+        orientation: vertical;
+        Button {
+          margins: 0;
+          paddings: 2;
+          Label { text: "stretch stretch + padding"; }
+        }
+        Button {
+          margins: 0;
+          paddings: 2;
+          Label { text: "stretch stretch + padding"; }
+        }
+        Button {
+          margins: 0;
+          paddings: 2;
+          Label { text: "stretch stretch + padding"; }
+        }
+      }
+    }
+  }
+
+
+  GridLayout {
+    tab-title: "Layouts";
+
+    rows: expand, expand, expand;
+    columns: expand, expand, expand;
+
+    Panel {
+      Label { text: "This is a panel"; }  
+    }
+
+    Panel {
+      StackLayout {
+        orientation: vertical;
+
+        Button { margins: 0; paddings: 0; Label { text: "vertical stack 1"; } }
+        Button { margins: 0; paddings: 0; Label { text: "vertical stack 2"; } }
+        Button { margins: 0; paddings: 0; Label { text: "vertical stack 3"; } }
+      }
+    }
+
+    Panel {
+      StackLayout {
+        orientation: horizontal;
+
+        Button { margins: 0; paddings: 0; Label { text: "horiz. stack 1"; } }
+        Button { margins: 0; paddings: 0; Label { text: "horiz. stack 2"; } }
+        Button { margins: 0; paddings: 0; Label { text: "horiz. stack 3"; } }
+      }
+    }
+
+    Panel {
+      DockLayout {
+        Button { margins: 0; paddings: 0; dock-site: top; Label { text: "[0] top"; } }
+        Button { margins: 0; paddings: 0; dock-site: left; Label { text: "[1] left"; } }
+        Button { margins: 0; paddings: 0; dock-site: right; Label { text: "[2] right"; } }
+        Button { margins: 0; paddings: 0; dock-site: top; Label { text: "[3] top"; } }
+        Button { margins: 0; paddings: 0; dock-site: bottom; Label { text: "4] bottom"; } }
+        Button { margins: 0; paddings: 0; Label { text: "[5] dock layout"; } }
+      }
+    }
+
+    Panel {
+      FlowLayout {
+        Button { margins: 0; paddings: 0; Label { text: "flow"; } }
+        Button { margins: 0; paddings: 0; Label { text: "flow"; } }
+        Button { margins: 0; paddings: 0; Label { text: "flow"; } }
+        Button { margins: 0; paddings: 0; Label { text: "flow"; } }
+        Button { margins: 0; paddings: 0; Label { text: "flow"; } }
+        Button { margins: 0; paddings: 0; Label { text: "flow"; } }
+        Button { margins: 0; paddings: 0; Label { text: "flow"; } }
+      }
+    }
+
+    Panel {
+      CanvasLayout {
+        Button { top: 10; left: 30; margins: 0; paddings: 0; Label { text: "canvas(10, 30)"; } }
+        Button { top: 50; left: 100; margins: 0; paddings: 0; Label { text: "canvas(50, 100)"; } }
+      }
+    }
+
+  }
+
+  GridLayout {
+    tab-title: "Containers";
+
+    rows: expand, expand, expand;
+    columns: expand, expand, expand;
+
+    Container {
+      Label { text: "Container"; }
+    }
+
+    Panel {
+      Label { text: "Panel"; }
+    }
+
+    Panel {
+      StackLayout {
+        Label { text: "Spacer"; }
+        Spacer { size-hint: 100, 100; }
+        Label { text: "Spacer"; }
+      }
+    }
+
+    Panel {
+      StackLayout {
+        Label { text: "Separator"; }
+        Separator {}
+        Label { text: "Separator"; }
+        Separator {}
+        Label { text: "Separator"; }
+      }
+    }
+
+    Panel {
+      ScrollView {
+        StackLayout {
+          Label { text: "Item 1"; }
+          Label { text: "Item 2"; }
+          Label { text: "Item 3"; }
+          Label { text: "Item 4"; }
+          Label { text: "Item 5"; }
+          Label { text: "Item 6"; }
+          Label { text: "Item 7"; }
+          Label { text: "Item 8"; }
+          Label { text: "Item 9"; }
+          Label { text: "Item 10"; }
+          Label { text: "Item 11"; }
+          Label { text: "Item 12"; }
+          Label { text: "Item 13"; }
+          Label { text: "Item 14"; }
+          Label { text: "Item 15"; }
+          Label { text: "Item 16"; }
+          Label { text: "Item 17"; }
+          Label { text: "Item 18"; }
+          Label { text: "Item 19"; }
+        }
+      }
+    }
+  }
+
+  Container {
+    tab-title: "Bindings";
+  }
 }

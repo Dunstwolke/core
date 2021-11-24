@@ -552,7 +552,6 @@ pub const WidgetTree = struct {
 
         // WARNING: MUST CAPTURE BY POINTER AS WE USE @fieldParentPtr!
         widget.wanted_size = switch (widget.control) {
-
             // TODO: Implement size computation logic here :)
             .label => |*label| blk: {
                 const str = label.get(.text);
@@ -885,7 +884,7 @@ pub const WidgetTree = struct {
     }
 
     fn layoutChildren(self: *WidgetTree, widget: *Widget, rectangle: zero_graphics.Rectangle) void {
-        const children = widget.children.items;
+        const children: []Widget = widget.children.items;
         const child_count = children.len;
         if (child_count == 0)
             return;
@@ -1079,6 +1078,21 @@ pub const WidgetTree = struct {
                 }
             },
 
+            .tab_layout => |*tab| {
+                const selected_index = tab.get(.selected_index);
+
+                var child_area = rectangle;
+                if (child_area.height >= 32) {
+                    child_area.height -= 32;
+                }
+                child_area.y += 32;
+
+                for (children) |*child, i| {
+                    child.hidden_by_layout = (selected_index != i);
+                    self.layoutWidget(child, child_area);
+                }
+            },
+
             // Catcher for logic
             else => {
                 const T = struct {
@@ -1101,6 +1115,11 @@ pub const WidgetTree = struct {
     }
 
     fn processUserInterfaceForWidget(self: *WidgetTree, widget: *Widget, resource_manager: *ResourceManager, ui: zero_graphics.UserInterface.Builder) zero_graphics.UserInterface.Builder.Error!void {
+        if (widget.getActualVisibility() != .visible) {
+            // we are not visible, don't do anything
+            return;
+        }
+
         try self.doWidgetLogic(widget, resource_manager, ui);
 
         for (widget.children.items) |*child| {
@@ -1111,6 +1130,7 @@ pub const WidgetTree = struct {
     fn doWidgetLogic(self: *WidgetTree, widget: *Widget, resource_manager: *ResourceManager, ui: zero_graphics.UserInterface.Builder) !void {
         const rect = widget.actual_bounds;
         const hit_test_visible = widget.get(.hit_test_visible);
+
         // WARNING: MUST CAPTURE BY POINTER AS WE USE @fieldParentPtr!
         switch (widget.control) {
 
@@ -1245,6 +1265,36 @@ pub const WidgetTree = struct {
 
             // Layouts don't have their own "logic"
             .stack_layout, .dock_layout, .grid_layout, .flow_layout => {},
+
+            .tab_layout => |*tab| {
+                const children = widget.children.items;
+                const current_index = tab.get(.selected_index);
+
+                var tab_area = rect;
+                tab_area.height = std.math.min(32, tab_area.height);
+
+                var tab_button = tab_area;
+                tab_button.width = 100;
+
+                var clicked_style = ui.ui.theme.button;
+                clicked_style.default = clicked_style.clicked;
+
+                // tab layout has several tab pages
+                for (children) |child, i| {
+                    const tab_title: types.String = child.get(.tab_title);
+
+                    var style = if (current_index == i)
+                        clicked_style
+                    else
+                        null;
+
+                    if (try ui.button(tab_button, tab_title.get(), null, .{ .id = i, .style = style })) {
+                        tab.set(.selected_index, @intCast(i32, i));
+                    }
+
+                    tab_button.x += tab_button.width;
+                }
+            },
 
             else => {
                 var fmt: [128]u8 = undefined;
