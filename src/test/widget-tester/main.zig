@@ -26,24 +26,19 @@ pub fn main() !void {
                 const con = event_args.connection;
                 try con.setView(app_data.resources.index.id);
 
-                // var root_obj = try con.beginChangeObject(data.objects.root);
-                // errdefer root_obj.cancel();
+                var root_obj = try con.beginChangeObject(app_data.objects.root);
+                errdefer root_obj.cancel();
 
-                // try root_obj.setProperty(data.properties.@"current-song", .{
-                //     .string = dunstblick.String.readOnly("Current Song"),
-                // });
+                try root_obj.setProperty(app_data.properties.@"main-group", .{
+                    .integer = 0,
+                });
+                try root_obj.setProperty(app_data.properties.@"input-group", .{
+                    .integer = 0,
+                });
 
-                // try root_obj.setProperty(data.properties.@"current-artist", .{
-                //     .string = dunstblick.String.readOnly("Current Artist"),
-                // });
+                try root_obj.commit();
 
-                // try root_obj.setProperty(data.properties.@"current-albumart", .{
-                //     .resource = data.resources.album_placeholder.id,
-                // });
-
-                // try root_obj.commit();
-
-                // try con.setRoot(data.objects.root);
+                try con.setRoot(app_data.objects.root);
             },
             .disconnected => {
                 //

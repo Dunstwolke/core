@@ -87,19 +87,19 @@ TabLayout {
     StackLayout {
       orientation: vertical;
       DockLayout {
-        RadioButton { dock-site: left; }
+        RadioButton { group: bind("main-group"); selected-index: 0; dock-site: left; }
         Label { text: "Option 1"; }
       }
       DockLayout {
-        RadioButton { dock-site: left; }
+        RadioButton { group: bind("main-group"); selected-index: 1; dock-site: left; }
         Label { text: "Option 2"; }
       }
       DockLayout {
-        RadioButton { dock-site: left; }
+        RadioButton { group: bind("main-group"); selected-index: 2; dock-site: left; }
         Label { text: "Option 3"; }
       }
       DockLayout {
-        RadioButton { dock-site: left; }
+        RadioButton { group: bind("main-group"); selected-index: 3; dock-site: left; }
         Label { text: "Option 4"; }
       }
     }
@@ -126,9 +126,9 @@ TabLayout {
       StackLayout {
         orientation: vertical;
         Label { text: "CheckBox"; }
-        RadioButton { }
-        RadioButton { }
-        RadioButton { }
+        RadioButton { group: bind("input-group"); selected-index: 0; }
+        RadioButton { group: bind("input-group"); selected-index: 1; }
+        RadioButton { group: bind("input-group"); selected-index: 2; }
       }
     }
 

@@ -374,6 +374,9 @@ pub fn build(b: *Builder) !void {
 
             resources.addObject("root");
 
+            resources.addProperty("main-group");
+            resources.addProperty("input-group");
+
             widget_tester.addPackage(resources.getPackage("app-data"));
         }
     }
