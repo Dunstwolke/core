@@ -1460,7 +1460,7 @@ fn drawIcon(self: *Self, target: Rectangle, icon: []const u8, tint: Color) !void
 
     const texture = try self.icon_cache.get(icon, physical_size);
 
-    try self.renderer.fillTexturedRectangle(
+    try self.renderer.drawTexture(
         target,
         texture,
         tint,

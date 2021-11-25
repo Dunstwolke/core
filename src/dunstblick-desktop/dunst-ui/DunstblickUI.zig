@@ -1127,7 +1127,7 @@ pub const WidgetTree = struct {
         }
     }
 
-    fn doWidgetLogic(self: *WidgetTree, widget: *Widget, resource_manager: *ResourceManager, ui: zero_graphics.UserInterface.Builder) !void {
+    fn doWidgetLogic(self: *WidgetTree, widget: *Widget, resource_manager: *ResourceManager, ui: zero_graphics.UserInterface.Builder) zero_graphics.UserInterface.Builder.Error!void {
         const rect = widget.actual_bounds;
         const hit_test_visible = widget.get(.hit_test_visible);
 
@@ -1161,42 +1161,125 @@ pub const WidgetTree = struct {
 
                 if (self.ui.resources.getPtr(resource_id)) |resource| {
                     if (resource.getBitmap(resource_manager, ui.ui)) |bmp| {
+                        const bitmap: *ResourceManager.Texture = bmp;
                         const image_scaling: protocol.enums.ImageScaling = picture.get(.image_scaling);
 
-                        var final_rectangle = switch (image_scaling) {
+                        var dest_rectangle = rect;
+                        var source_rectangle = zero_graphics.Rectangle{
+                            .x = 0,
+                            .y = 0,
+                            .width = bitmap.width,
+                            .height = bitmap.height,
+                        };
+
+                        const src_aspect = @intToFloat(f32, source_rectangle.width) / @intToFloat(f32, source_rectangle.height);
+                        const dst_aspect = @intToFloat(f32, dest_rectangle.width) / @intToFloat(f32, dest_rectangle.height);
+
+                        switch (image_scaling) {
                             // just place the image top-left and crop
-                            .none => blk: {
-                                logger.debug("implement none scaling", .{});
-                                break :blk rect;
+                            .none => {
+                                if (source_rectangle.width > dest_rectangle.width) {
+                                    source_rectangle.width = dest_rectangle.width;
+                                } else {
+                                    dest_rectangle.width = source_rectangle.width;
+                                }
+                                if (source_rectangle.height > dest_rectangle.height) {
+                                    source_rectangle.height = dest_rectangle.height;
+                                } else {
+                                    dest_rectangle.height = source_rectangle.height;
+                                }
                             },
 
                             // just center the image and crop
-                            .center => rect.centered(std.math.min(rect.width, bmp.width), std.math.min(rect.height, bmp.height)),
+                            .center => {
+                                if (source_rectangle.width > dest_rectangle.width) {
+                                    source_rectangle.x = (source_rectangle.width - dest_rectangle.width) / 2;
+                                    source_rectangle.width = dest_rectangle.width;
+                                } else {
+                                    dest_rectangle.x += (dest_rectangle.width - source_rectangle.width) / 2;
+                                    dest_rectangle.width = source_rectangle.width;
+                                }
+
+                                if (source_rectangle.height > dest_rectangle.height) {
+                                    source_rectangle.y = (source_rectangle.height - dest_rectangle.height) / 2;
+                                    source_rectangle.height = dest_rectangle.height;
+                                } else {
+                                    dest_rectangle.y += (dest_rectangle.height - source_rectangle.height) / 2;
+                                    dest_rectangle.height = source_rectangle.height;
+                                }
+                            },
 
                             // plainly stretch the image to the full area
-                            .stretch => rect,
+                            .stretch => {},
 
                             // Uniformly stretch so the full image is visible and is as big as possible
-                            .zoom => blk: {
-                                logger.debug("implement zoom scaling", .{});
-                                break :blk rect;
+                            .zoom => {
+                                // Zoom mode will always scale the destination rectangle and will clip that to the right aspect
+
+                                if (dst_aspect < src_aspect) {
+                                    // scale height here
+                                    dest_rectangle.height = @floatToInt(u15, @intToFloat(f32, dest_rectangle.width) / src_aspect);
+                                    dest_rectangle.y += (rect.height - dest_rectangle.height) / 2;
+                                } else {
+                                    // scale width here
+                                    dest_rectangle.width = @floatToInt(u15, @intToFloat(f32, dest_rectangle.height) * src_aspect);
+                                    dest_rectangle.x += (rect.width - dest_rectangle.width) / 2;
+                                }
                             },
 
                             // Uniformly stretch so that the full rect is covered
-                            .cover => blk: {
-                                logger.debug("implement cover scaling", .{});
-                                break :blk rect;
+                            .cover => {
+                                // Cover will always scale the source rectangle on one axis so the source image keeps aspect,
+                                // and the full `rect` is covered
+
+                                if (dst_aspect > src_aspect) {
+                                    // scale height here
+                                    source_rectangle.height = @floatToInt(u15, @intToFloat(f32, source_rectangle.width) / dst_aspect);
+                                    source_rectangle.y = (bitmap.height - source_rectangle.height) / 2;
+                                } else {
+                                    // scale width here
+                                    source_rectangle.width = @floatToInt(u15, @intToFloat(f32, source_rectangle.height) * dst_aspect);
+                                    source_rectangle.x = (bitmap.width - source_rectangle.width) / 2;
+                                }
                             },
 
                             // Use "zoom" if the image is too big or "center" if it is small enough
-                            .contain => blk: {
-                                logger.debug("implement contain scaling", .{});
-                                break :blk rect;
-                            },
-                        };
+                            .contain => {
+                                if (source_rectangle.width > dest_rectangle.width or source_rectangle.height > dest_rectangle.height) {
+                                    // apply zoom
+                                    if (dst_aspect < src_aspect) {
+                                        // scale height here
+                                        dest_rectangle.height = @floatToInt(u15, @intToFloat(f32, dest_rectangle.width) / src_aspect);
+                                    } else {
+                                        // scale width here
+                                        dest_rectangle.width = @floatToInt(u15, @intToFloat(f32, dest_rectangle.height) * src_aspect);
+                                    }
+                                    dest_rectangle.x += (rect.width - dest_rectangle.width) / 2;
+                                    dest_rectangle.y += (rect.height - dest_rectangle.height) / 2;
+                                } else {
+                                    // apply center
+                                    if (source_rectangle.width > dest_rectangle.width) {
+                                        source_rectangle.x = (source_rectangle.width - dest_rectangle.width) / 2;
+                                        source_rectangle.width = dest_rectangle.width;
+                                    } else {
+                                        dest_rectangle.x += (dest_rectangle.width - source_rectangle.width) / 2;
+                                        dest_rectangle.width = source_rectangle.width;
+                                    }
 
-                        try ui.image(final_rectangle, bmp, .{
+                                    if (source_rectangle.height > dest_rectangle.height) {
+                                        source_rectangle.y = (source_rectangle.height - dest_rectangle.height) / 2;
+                                        source_rectangle.height = dest_rectangle.height;
+                                    } else {
+                                        dest_rectangle.y += (dest_rectangle.height - source_rectangle.height) / 2;
+                                        dest_rectangle.height = source_rectangle.height;
+                                    }
+                                }
+                            },
+                        }
+
+                        try ui.image(dest_rectangle, bmp, .{
                             .hit_test_visible = hit_test_visible,
+                            .source_rect = source_rectangle,
                         });
                     }
                 }
