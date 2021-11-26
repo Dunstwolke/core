@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const qoi = @import("qoi");
 const zero_graphics = @import("zero-graphics");
 
 const protocol = @import("dunstblick-protocol");
@@ -188,7 +189,7 @@ pub const Resource = struct {
         if (self.cache_data == .none) {
             self.cache_data = .{ .bitmap = BitmapCache{
                 .resource_manager = resource_manager,
-                .texture = resource_manager.createTexture(.ui, ResourceManager.DecodePng{ .data = self.data.items }) catch |err| blk: {
+                .texture = resource_manager.createTexture(.ui, DecodeQoi{ .data = self.data.items }) catch |err| blk: {
                     logger.warn("Could not load resource as a bitmap: {s}", .{@errorName(err)});
                     break :blk null;
                 },
@@ -198,6 +199,25 @@ pub const Resource = struct {
         }
         return self.cache_data.bitmap.texture;
     }
+
+    pub const DecodeQoi = struct {
+        data: []const u8,
+        flip_y: bool = false,
+
+        pub fn create(self: @This(), rm: *ResourceManager) ResourceManager.CreateResourceDataError!ResourceManager.TextureData {
+            var image = qoi.decodeBuffer(rm.allocator, self.data) catch |err| switch (err) {
+                error.OutOfMemory => return error.OutOfMemory,
+                else => return error.InvalidFormat,
+            };
+            errdefer image.deinit(rm.allocator);
+
+            return ResourceManager.TextureData{
+                .width = std.math.cast(u15, image.width) catch return error.InvalidFormat,
+                .height = std.math.cast(u15, image.height) catch return error.InvalidFormat,
+                .pixels = std.mem.sliceAsBytes(image.pixels),
+            };
+        }
+    };
 };
 
 fn isProperty(comptime T: type) bool {
@@ -575,12 +595,17 @@ pub const WidgetTree = struct {
                     .height = 5,
                 },
 
-            .progressbar => if (child_count > 0)
+            .progressbar => |*bar| if (child_count > 0)
                 self.computeDefaultWantedSize(widget)
+            else if (bar.get(.orientation) == .vertical)
+                zero_graphics.Size{
+                    .width = 24,
+                    .height = 320,
+                }
             else
                 zero_graphics.Size{
-                    .width = 256,
-                    .height = 32,
+                    .width = 320,
+                    .height = 24,
                 },
 
             .checkbox, .radiobutton => if (child_count > 0)
@@ -591,12 +616,17 @@ pub const WidgetTree = struct {
                     .height = 32,
                 },
 
-            .slider => if (child_count > 0)
+            .slider => |*slider| if (child_count > 0)
                 self.computeDefaultWantedSize(widget)
+            else if (slider.get(.orientation) == .vertical)
+                zero_graphics.Size{
+                    .width = 24,
+                    .height = 320,
+                }
             else
                 zero_graphics.Size{
-                    .width = 32,
-                    .height = 32,
+                    .width = 320,
+                    .height = 24,
                 },
 
             .picture => |*picture| blk: {
@@ -790,6 +820,27 @@ pub const WidgetTree = struct {
 
             // default logic
             .panel, .spacer, .container => self.computeDefaultWantedSize(widget),
+
+            .canvas_layout => blk: {
+                var size = zero_graphics.Size.empty;
+                for (children) |*child| {
+                    if (child.get(.visibility) == .collapsed)
+                        continue;
+
+                    const child_size = child.getWantedSizeWithMargins();
+
+                    const left = child.get(.left);
+                    const top = child.get(.top);
+
+                    size.width = std.math.max(size.width, std.math.cast(u15, left + child_size.width) catch 0); // assume underflow
+                    size.height = std.math.max(size.height, std.math.cast(u15, top + child_size.height) catch 0); // assume underflow
+                }
+
+                const padding = widget.get(.paddings);
+                size.width += mapToU15(padding.totalHorizontal());
+                size.height += mapToU15(padding.totalVertical());
+                break :blk size;
+            },
 
             // default logic
             else => blk: {
@@ -1093,6 +1144,23 @@ pub const WidgetTree = struct {
                 }
             },
 
+            .canvas_layout => {
+                for (children) |*child| {
+                    const size = child.getWantedSizeWithMargins();
+                    const left = child.get(.left);
+                    const top = child.get(.top);
+
+                    var child_rect = zero_graphics.Rectangle{
+                        .x = rectangle.x + @truncate(i16, left),
+                        .y = rectangle.y + @truncate(i16, top),
+                        .width = size.width,
+                        .height = size.height,
+                    };
+
+                    self.layoutWidget(child, child_rect);
+                }
+            },
+
             // Catcher for logic
             else => {
                 const T = struct {
@@ -1348,7 +1416,7 @@ pub const WidgetTree = struct {
             .spacer => {},
 
             // Layouts don't have their own "logic"
-            .stack_layout, .dock_layout, .grid_layout, .flow_layout => {},
+            .stack_layout, .dock_layout, .grid_layout, .flow_layout, .canvas_layout => {},
 
             .tab_layout => |*tab| {
                 const children = widget.children.items;
@@ -1687,7 +1755,7 @@ pub const Control = union(protocol.WidgetType) {
     treeview: EmptyControl,
     listbox: EmptyControl,
     picture: Picture,
-    textbox: EmptyControl,
+    textbox: TextBox,
     checkbox: CheckBox,
     radiobutton: RadioButton,
     scrollview: EmptyControl,
@@ -1797,6 +1865,31 @@ pub const Control = union(protocol.WidgetType) {
             return Self{
                 .text = .{ .value = types.String.new(allocator) },
                 .font_family = .{ .value = .sans },
+            };
+        }
+
+        pub fn setUp(self: *Self) void {
+            self.widget().set(.margins, protocol.Margins.all(8));
+            self.widget().set(.horizontal_alignment, .center);
+            self.widget().set(.vertical_alignment, .middle);
+            self.widget().set(.hit_test_visible, false);
+        }
+
+        pub fn deinit(self: *Self) void {
+            deinitAllProperties(Self, self);
+            self.* = undefined;
+        }
+    };
+
+    pub const TextBox = struct {
+        const Self = @This();
+        usingnamespace ControlMixin(Self);
+
+        text: Property(types.String),
+
+        pub fn init(allocator: *std.mem.Allocator) Self {
+            return Self{
+                .text = .{ .value = types.String.new(allocator) },
             };
         }
 

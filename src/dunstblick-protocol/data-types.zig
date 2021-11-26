@@ -45,8 +45,8 @@ pub const ResourceKind = enum(u8) {
     /// TODO: Write documentation
     layout = 0,
 
-    /// A PNG bitmap
-    /// See: https://en.wikipedia.org/wiki/Portable_Network_Graphics
+    /// A QOI (Quite OK Image) bitmap
+    /// See: https://github.com/MasterQ32/zig-qoi
     bitmap = 1,
 
     /// A TVG vector graphic.

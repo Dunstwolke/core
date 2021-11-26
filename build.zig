@@ -100,6 +100,11 @@ const pkgs = struct {
         .name = "uuid6",
         .path = .{ .path = "./lib/uuid6-zig/src/Uuid.zig" },
     };
+
+    const qoi = std.build.Pkg{
+        .name = "qoi",
+        .path = .{ .path = "lib/qoi/qoi.zig" },
+    };
 };
 
 pub fn build(b: *Builder) !void {
@@ -288,6 +293,7 @@ pub fn build(b: *Builder) !void {
     dunstblick_desktop.addPackage(pkgs.network);
     dunstblick_desktop.addPackage(pkgs.tvg);
     dunstblick_desktop.addPackage(pkgs.known_folders);
+    dunstblick_desktop.addPackage(pkgs.qoi);
     dunstblick_desktop.setBuildMode(mode);
 
     const desktop_app = dunstblick_desktop.compileFor(.{ .desktop = target });
@@ -365,12 +371,12 @@ pub fn build(b: *Builder) !void {
             const resources = sdk.addBundleResources();
 
             resources.addDrawing("app_icon", .{ .path = "src/test/widget-tester/icon.tvg" });
-            resources.addDrawing("ziggy", .{ .path = "src/test/widget-tester/ziggy.tvg" });
+            resources.addDrawing("ziggy.tvg", .{ .path = "src/test/widget-tester/ziggy.tvg" });
 
             resources.addLayout("index", .{ .path = "src/test/widget-tester/index.ui" });
 
-            resources.addBitmap("go.png", .{ .path = "src/test/widget-tester/go.png" });
-            resources.addBitmap("4by3.png", .{ .path = "src/test/widget-tester/4by3.png" });
+            resources.addBitmap("go.qoi", .{ .path = "src/test/widget-tester/go.png" });
+            resources.addBitmap("4by3.qoi", .{ .path = "src/test/widget-tester/4by3.png" });
 
             resources.addObject("root");
 

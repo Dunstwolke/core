@@ -28,7 +28,7 @@ TabLayout {
     }
 
     Picture {
-      image: resource("ziggy");
+      image: resource("ziggy.tvg");
     }
 
     /* row 1 */
@@ -136,9 +136,9 @@ TabLayout {
       StackLayout {
         orientation: vertical;
         Label { text: "Button"; }
-        Button { margins: 5; paddings: 2; Picture { horizontal-alignment: left; image: resource("go.png"); } Label { text: "Button"; } }
-        Button { margins: 5; paddings: 2; Picture { horizontal-alignment: left; image: resource("go.png"); } Label { text: "Button"; } }
-        Button { margins: 5; paddings: 2; Picture { horizontal-alignment: left; image: resource("go.png"); } Label { text: "Button"; } }
+        Button { margins: 5; paddings: 2; Picture { image-scaling: zoom; horizontal-alignment: left; image: resource("go.qoi"); } Label { text: "Button"; } }
+        Button { margins: 5; paddings: 2; Picture { image-scaling: zoom; horizontal-alignment: left; image: resource("go.qoi"); } Label { text: "Button"; } }
+        Button { margins: 5; paddings: 2; Picture { image-scaling: zoom; horizontal-alignment: left; image: resource("go.qoi"); } Label { text: "Button"; } }
       }
     }
 
@@ -208,7 +208,7 @@ TabLayout {
         Panel {
           margins: 5;
           Picture {
-            image: resource("4by3.png");
+            image: resource("4by3.qoi");
             image-scaling: none;
           }
         }
@@ -220,7 +220,7 @@ TabLayout {
         Panel {
           margins: 5;
           Picture {
-            image: resource("4by3.png");
+            image: resource("4by3.qoi");
             image-scaling: center;
           }
         }
@@ -232,7 +232,7 @@ TabLayout {
         Panel {
           margins: 5;
           Picture {
-            image: resource("4by3.png");
+            image: resource("4by3.qoi");
             image-scaling: stretch;
           }
         }
@@ -244,7 +244,7 @@ TabLayout {
         Panel {
           margins: 5;
           Picture {
-            image: resource("4by3.png");
+            image: resource("4by3.qoi");
             image-scaling: zoom;
           }
         }
@@ -256,7 +256,7 @@ TabLayout {
         Panel {
           margins: 5;
           Picture {
-            image: resource("4by3.png");
+            image: resource("4by3.qoi");
             image-scaling: contain;
           }
         }
@@ -268,7 +268,7 @@ TabLayout {
         Panel {
           margins: 5;
           Picture {
-            image: resource("4by3.png");
+            image: resource("4by3.qoi");
             image-scaling: cover;
           }
         }
@@ -393,10 +393,12 @@ TabLayout {
     columns: expand, expand, expand;
 
     Panel {
+      margins: 2;
       Label { text: "This is a panel"; }  
     }
 
     Panel {
+      margins: 2;
       StackLayout {
         orientation: vertical;
 
@@ -407,6 +409,7 @@ TabLayout {
     }
 
     Panel {
+      margins: 2;
       StackLayout {
         orientation: horizontal;
 
@@ -417,17 +420,19 @@ TabLayout {
     }
 
     Panel {
+      margins: 2;
       DockLayout {
         Button { margins: 0; paddings: 0; dock-site: top; Label { text: "[0] top"; } }
         Button { margins: 0; paddings: 0; dock-site: left; Label { text: "[1] left"; } }
         Button { margins: 0; paddings: 0; dock-site: right; Label { text: "[2] right"; } }
         Button { margins: 0; paddings: 0; dock-site: top; Label { text: "[3] top"; } }
-        Button { margins: 0; paddings: 0; dock-site: bottom; Label { text: "4] bottom"; } }
+        Button { margins: 0; paddings: 0; dock-site: bottom; Label { text: "[4] bottom"; } }
         Button { margins: 0; paddings: 0; Label { text: "[5] dock layout"; } }
       }
     }
 
     Panel {
+      margins: 2;
       FlowLayout {
         Button { margins: 0; paddings: 0; Label { text: "flow"; } }
         Button { margins: 0; paddings: 0; Label { text: "flow"; } }
@@ -440,9 +445,20 @@ TabLayout {
     }
 
     Panel {
+      margins: 2;
       CanvasLayout {
         Button { top: 10; left: 30; margins: 0; paddings: 0; Label { text: "canvas(10, 30)"; } }
         Button { top: 50; left: 100; margins: 0; paddings: 0; Label { text: "canvas(50, 100)"; } }
+      }
+    }
+
+    Panel {
+      margins: 2;
+      TabLayout {
+        Label { tab-title: "Page 1"; text: "Tab Content 1"; } 
+        Label { tab-title: "Page 2"; text: "Tab Content 2"; } 
+        Label { tab-title: "Page 3"; text: "Tab Content 3"; } 
+        Label { tab-title: "Page 4"; text: "Tab Content 4"; } 
       }
     }
 

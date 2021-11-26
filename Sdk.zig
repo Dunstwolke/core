@@ -1,6 +1,8 @@
 const std = @import("std");
 const logger = std.log.scoped(.dunstblick_sdk);
 const tvg = @import("lib/tvg/src/lib/tvg.zig");
+const qoi = @import("lib/qoi/qoi.zig");
+const zigimg = @import("./lib/zero-graphics/vendor/zigimg/zigimg.zig");
 
 const Pkg = std.build.Pkg;
 const Step = std.build.Step;
@@ -152,6 +154,7 @@ pub fn addCompileBitmap(sdk: *const Sdk, input_file: FileSource) *CompileImageSt
     return step;
 }
 
+/// Converts a bitmap file (supported by zigimg) to qoi
 pub const CompileImageStep = struct {
     const Self = @This();
 
@@ -167,21 +170,50 @@ pub const CompileImageStep = struct {
     fn make(step: *Step) anyerror!void {
         const self = @fieldParentPtr(Self, "step", step);
 
+        const allocator = self.sdk.builder.allocator;
+
         const src_path = self.input_file.getPath(self.sdk.builder);
 
-        const ext = std.fs.path.extension(src_path);
-        if (!std.mem.eql(u8, ext, ".png")) {
-            logger.err("Cannot compile bitmap: Unsupported extension {s} on file {s}", .{
-                ext, src_path,
-            });
-            return error.InvalidExtension;
+        var src_image = try zigimg.Image.fromFilePath(allocator, src_path);
+        defer src_image.deinit();
+
+        const linear_rgba8 = try allocator.alloc(qoi.Color, src_image.width * src_image.height);
+        defer allocator.free(linear_rgba8);
+
+        {
+            var idx: usize = 0;
+            var it = src_image.iterator();
+            while (it.next()) |pixel| {
+                std.debug.assert(idx < linear_rgba8.len);
+
+                const rgba8 = pixel.toIntegerColor8();
+                linear_rgba8[idx] = qoi.Color{
+                    .r = rgba8.R,
+                    .g = rgba8.G,
+                    .b = rgba8.B,
+                    .a = rgba8.A,
+                };
+                idx += 1;
+            }
         }
 
-        // TODO: Convert input files to png if necessary
+        const qoi_data = try qoi.encodeBuffer(allocator, qoi.ConstImage{
+            .width = std.math.cast(u16, src_image.width) catch return error.ImageTooLarge,
+            .height = std.math.cast(u16, src_image.height) catch return error.ImageTooLarge,
+            .pixels = linear_rgba8,
+        });
+        defer allocator.free(qoi_data);
 
-        // TODO: Verify for PNG signature!
+        var cache = CacheBuilder.init(self.sdk.builder, "dunstblick");
+        cache.addBytes(qoi_data);
 
-        self.output_file.path = src_path;
+        var root_path = try cache.createAndGetPath();
+
+        self.output_file.path = try std.fs.path.join(allocator, &[_][]const u8{
+            root_path,
+            "image.qoi",
+        });
+        try std.fs.cwd().writeFile(self.output_file.path.?, qoi_data);
     }
 };
 

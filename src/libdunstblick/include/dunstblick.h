@@ -24,9 +24,9 @@ enum dunstblick_ResourceKind {
   /// A layout resource contains the compiled description of a widget layout.
   /// Create a compiled layout with the @ref dunstblick-compiler.
   DUNSTBLICK_RESOURCE_LAYOUT = 0,
-  /// A raster image resource that contains a common image file like PNG or JPEG.
+  /// A raster image resource that contains a QOI image file.
   DUNSTBLICK_RESOURCE_BITMAP = 1,
-  /// A vector image resource that contains a yet unspecified format.
+  /// A vector image resource that contains a TVG vector file.
   DUNSTBLICK_RESOURCE_DRAWING = 2,
 };
 
