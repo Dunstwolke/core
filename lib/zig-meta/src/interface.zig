@@ -61,7 +61,7 @@ pub fn Interface(comptime Spec: type) type {
             };
         }
 
-        const VTable = comptime blk: {
+        const VTable = blk: {
             const dummy_field = std.builtin.TypeInfo.StructField{
                 .name = "",
                 .field_type = void,

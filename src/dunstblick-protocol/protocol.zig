@@ -106,7 +106,7 @@ fn expectServerEvent(
 
     // Simulate wild packet fragmentation based on the packet itself
     var rng_engine = std.rand.DefaultPrng.init(@enumToInt(event_type) + 16 * data.len);
-    const random = &rng_engine.random;
+    const random = rng_engine.random();
 
     var i: usize = 0;
     while (i < data.len) {
@@ -145,7 +145,7 @@ fn expectClientEvent(
 
     // Simulate wild packet fragmentation based on the packet itself
     var rng_engine = std.rand.DefaultPrng.init(@enumToInt(event_type) + 16 * data.len);
-    const random = &rng_engine.random;
+    const random = rng_engine.random();
 
     var i: usize = 0;
     while (i < data.len) {
@@ -817,7 +817,7 @@ fn testCommonHandshake(
 
     {
         var rng_engine = std.rand.DefaultPrng.init(13_37);
-        const random = &rng_engine.random;
+        const random = rng_engine.random();
 
         var i: usize = 0;
         while (i < 1_000) : (i += 1) {

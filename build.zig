@@ -68,11 +68,6 @@ const pkgs = struct {
         },
     };
 
-    const wasm = std.build.Pkg{
-        .name = "wasm",
-        .path = .{ .path = "./lib/wazm/src/main.zig" },
-    };
-
     const zigimg = std.build.Pkg{
         .name = "zigimg",
         .path = .{ .path = "./lib/zero-graphics/vendor/zigimg/zigimg.zig" },
@@ -329,19 +324,18 @@ pub fn build(b: *Builder) !void {
     const dunstnetz_daemon = b.addExecutable("dunstnetz-daemon", "src/dunstnetz-daemon/main.zig");
     dunstnetz_daemon.addPackage(pkgs.args);
     dunstnetz_daemon.addPackage(pkgs.dunstnetz);
-    dunstnetz_daemon.addPackage(pkgs.wasm);
     // dunstnetz_daemon.install();
 
-    const dunstblick_desktop_test = b.addTest("src/dunstblick-desktop/main.zig");
-    {
-        dunstblick_desktop_test.addPackage(pkgs.dunstblick_protocol);
-        dunstblick_desktop_test.addPackage(pkgs.network);
-        dunstblick_desktop_test.addPackage(pkgs.args);
-        dunstblick_desktop_test.addPackage(pkgs.uri);
-        dunstblick_desktop_test.addPackage(pkgs.painterz);
-        dunstblick_desktop_test.addPackage(pkgs.meta);
-        dunstblick_desktop_test.addPackage(pkgs.zerog);
-    }
+    // const dunstblick_desktop_test = b.addTest("src/dunstblick-desktop/main.zig");
+    // {
+    //     dunstblick_desktop_test.addPackage(pkgs.dunstblick_protocol);
+    //     dunstblick_desktop_test.addPackage(pkgs.network);
+    //     dunstblick_desktop_test.addPackage(pkgs.args);
+    //     dunstblick_desktop_test.addPackage(pkgs.uri);
+    //     dunstblick_desktop_test.addPackage(pkgs.painterz);
+    //     dunstblick_desktop_test.addPackage(pkgs.meta);
+    //     dunstblick_desktop_test.addPackage(pkgs.zerog);
+    // }
 
     const dunstnetz_test = b.addTest("src/dunstnetz/main.zig");
     {
@@ -352,7 +346,6 @@ pub fn build(b: *Builder) !void {
     {
         dunstnetz_daemon_test.addPackage(pkgs.args);
         dunstnetz_daemon_test.addPackage(pkgs.dunstnetz);
-        dunstnetz_daemon_test.addPackage(pkgs.wasm);
     }
 
     const dunstblick_protocol_test = b.addTest(pkgs.dunstblick_protocol.path.path);
@@ -407,7 +400,7 @@ pub fn build(b: *Builder) !void {
 
     const test_step = b.step("test", "Runs the full Dunstwolke test suite");
     test_step.dependOn(&compiler_test.step);
-    test_step.dependOn(&dunstblick_desktop_test.step);
+    // test_step.dependOn(&dunstblick_desktop_test.step);
     test_step.dependOn(&dunstnetz_test.step);
     test_step.dependOn(&dunstnetz_daemon_test.step);
     test_step.dependOn(&dunstblick_protocol_test.step);

@@ -16,9 +16,6 @@
 [submodule "lib/optional"]
 	path = lib/optional
 	url = https://github.com/TartanLlama/optional
-[submodule "lib/wazm"]
-	path = lib/wazm
-	url = https://github.com/fengb/wazm
 [submodule "lib/tvg"]
 	path = lib/tvg
 	url = https://github.com/MasterQ32/tvg
