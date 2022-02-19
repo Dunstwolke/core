@@ -27,7 +27,7 @@ pub const zerog_enable_window_mode = (builtin.mode == .Debug) and (builtin.cpu.a
 
 pub const Application = @This();
 
-allocator: *std.mem.Allocator,
+allocator: std.mem.Allocator,
 arena: std.heap.ArenaAllocator,
 input: *zero_graphics.Input,
 
@@ -56,7 +56,7 @@ dpi_scale: f32 = 1.0,
 
 settings_root_path: ?[]const u8,
 
-pub fn init(app: *Application, allocator: *std.mem.Allocator, input: *zero_graphics.Input) !void {
+pub fn init(app: *Application, allocator: std.mem.Allocator, input: *zero_graphics.Input) !void {
     var frame_timer = try std.time.Timer.start();
 
     app.* = .{
@@ -403,7 +403,7 @@ const SettingsEditor = struct {
 
     settings: *Settings,
 
-    pub fn spawn(desc: *ApplicationDescription, allocator: *std.mem.Allocator) ApplicationDescription.Interface.SpawnError!*ApplicationInstance {
+    pub fn spawn(desc: *ApplicationDescription, allocator: std.mem.Allocator) ApplicationDescription.Interface.SpawnError!*ApplicationInstance {
         _ = allocator;
 
         const settings = @fieldParentPtr(@This(), "description", desc);
@@ -571,7 +571,7 @@ const DemoAppDescription = struct {
         .state = .ready,
     },
 
-    pub fn spawn(desc: *ApplicationDescription, allocator: *std.mem.Allocator) !*ApplicationInstance {
+    pub fn spawn(desc: *ApplicationDescription, allocator: std.mem.Allocator) !*ApplicationInstance {
         const app = try allocator.create(DemoApp);
         app.* = DemoApp{
             .allocator = allocator,
@@ -588,7 +588,7 @@ const DemoAppDescription = struct {
 };
 
 const DemoApp = struct {
-    allocator: *std.mem.Allocator,
+    allocator: std.mem.Allocator,
     instance: ApplicationInstance,
     timer: i64,
     msg_buf: [64]u8,

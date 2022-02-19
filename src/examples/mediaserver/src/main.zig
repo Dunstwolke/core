@@ -184,22 +184,22 @@ fn doMeta(handle: c.HSYNC, channel: c.DWORD, bits: c.DWORD, user: ?*anyopaque) c
     _ = user;
     if (c.BASS_ChannelGetTags(channel, c.BASS_TAG_ID3)) |raw| {
         const id3 = @ptrCast(*const c.TAG_ID3, raw);
-        std.debug.warn("got id3: {s}\n", .{id3});
+        std.debug.print("got id3: {s}\n", .{id3});
     }
 
     if (c.BASS_ChannelGetTags(channel, c.BASS_TAG_ID3V2)) |raw| {
-        std.debug.warn("got id3v2: {s}\n", .{raw});
+        std.debug.print("got id3v2: {s}\n", .{raw});
     }
 
     if (c.BASS_ChannelGetTags(channel, c.BASS_TAG_META)) |raw| {
-        std.debug.warn("got shoutcast: {s}\n", .{@ptrCast([*:0]const u8, raw)});
+        std.debug.print("got shoutcast: {s}\n", .{@ptrCast([*:0]const u8, raw)});
     }
 
     if (c.BASS_ChannelGetTags(channel, c.BASS_TAG_OGG)) |raw| {
-        std.debug.warn("got icecast: {s}\n", .{raw});
+        std.debug.print("got icecast: {s}\n", .{raw});
     }
 
     if (c.BASS_ChannelGetTags(channel, BASS_TAG_HLS_EXTINF)) |raw| {
-        std.debug.warn("got hls segment: {s}\n", .{raw});
+        std.debug.print("got hls segment: {s}\n", .{raw});
     }
 }

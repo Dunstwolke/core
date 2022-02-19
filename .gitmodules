@@ -16,9 +16,6 @@
 [submodule "lib/optional"]
 	path = lib/optional
 	url = https://github.com/TartanLlama/optional
-[submodule "lib/tvg"]
-	path = lib/tvg
-	url = https://github.com/MasterQ32/tvg
 [submodule "lib/ini"]
 	path = lib/ini
 	url = https://github.com/ziglibs/ini
@@ -43,3 +40,6 @@
 [submodule "lib/zig-qoi"]
 	path = lib/qoi
 	url = https://github.com/MasterQ32/zig-qoi
+[submodule "lib/sdk"]
+	path = lib/tvg
+	url = https://github.com/TinyVG/sdk

@@ -23,7 +23,7 @@ widgets: IDMap,
 /// Initializes a new database.
 /// - `allocator` will be used to do Database-local allocations.
 /// - `allow_new_items` declares that the database is allowed to insert new IDs on a call to `get` instead of returning `null`.
-pub fn init(allocator: *std.mem.Allocator, allow_new_items: bool) Self {
+pub fn init(allocator: std.mem.Allocator, allow_new_items: bool) Self {
     return Self{
         .arena = std.heap.ArenaAllocator.init(allocator),
 
@@ -93,7 +93,7 @@ pub fn iterator(self: *Self, kind: Entry) IDMap.Iterator {
 /// - `allocator` will be used to do both function local as well as Database-local allocations.
 /// - `allow_new_items` is the same as in `init()`
 /// - `json` is the json document that should be loaded
-pub fn fromJson(allocator: *std.mem.Allocator, allow_new_items: bool, json: []const u8) !Self {
+pub fn fromJson(allocator: std.mem.Allocator, allow_new_items: bool, json: []const u8) !Self {
     // don't copy as the memory is valid as long as the parse tree is valid
     var parser = std.json.Parser.init(allocator, false);
     defer parser.deinit();
@@ -119,7 +119,7 @@ pub fn fromJson(allocator: *std.mem.Allocator, allow_new_items: bool, json: []co
 }
 
 fn dupe(self: *Self, str: []const u8) ![]u8 {
-    return self.arena.allocator.dupe(u8, str);
+    return self.arena.allocator().dupe(u8, str);
 }
 
 fn loadIdMap(self: *Self, config: std.json.ValueTree, key: []const u8, map: *IDMap) !void {

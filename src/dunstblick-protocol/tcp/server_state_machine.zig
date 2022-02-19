@@ -104,7 +104,7 @@ pub fn ServerStateMachine(comptime Writer: type) type {
             ProtocolViolation,
         };
 
-        allocator: *std.mem.Allocator,
+        allocator: std.mem.Allocator,
         writer: Writer,
 
         /// The cryptographic provider for the connection.
@@ -126,7 +126,7 @@ pub fn ServerStateMachine(comptime Writer: type) type {
         will_receive_username: bool = false,
         will_receive_password: bool = false,
 
-        pub fn init(allocator: *std.mem.Allocator, writer: Writer) Self {
+        pub fn init(allocator: std.mem.Allocator, writer: Writer) Self {
             return Self{
                 .allocator = allocator,
                 .writer = writer,

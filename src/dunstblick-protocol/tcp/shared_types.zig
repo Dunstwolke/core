@@ -45,17 +45,17 @@ pub const MsgReceiveBuffer = struct {
     /// was consumed.
     /// When `ok` is returned, the value will contain a buffer `.data` with the received bytes of `expected_len`.
     /// These bytes will be valid until the next call to `pushData` or `deinit`.
-    pub fn pushData(self: *Self, allocator: *std.mem.Allocator, new_data: []const u8, expected_size: usize) error{OutOfMemory}!ConsumeResult {
+    pub fn pushData(self: *Self, allocator: std.mem.Allocator, new_data: []const u8, expected_size: usize) error{OutOfMemory}!ConsumeResult {
         return pushDataGeneric(self, allocator, new_data, expected_size, true);
     }
 
     /// Similar to `pushData`, but allows to be called several times without resetting the
     /// stored data.
-    pub fn pushPrefix(self: *Self, allocator: *std.mem.Allocator, new_data: []const u8, expected_size: usize) error{OutOfMemory}!ConsumeResult {
+    pub fn pushPrefix(self: *Self, allocator: std.mem.Allocator, new_data: []const u8, expected_size: usize) error{OutOfMemory}!ConsumeResult {
         return pushDataGeneric(self, allocator, new_data, expected_size, false);
     }
 
-    pub fn pushDataGeneric(self: *Self, allocator: *std.mem.Allocator, new_data: []const u8, expected_size: usize, auto_reset: bool) error{OutOfMemory}!ConsumeResult {
+    pub fn pushDataGeneric(self: *Self, allocator: std.mem.Allocator, new_data: []const u8, expected_size: usize, auto_reset: bool) error{OutOfMemory}!ConsumeResult {
         const old_len = self.buffer.items.len;
 
         if (old_len + new_data.len < expected_size) {
@@ -102,7 +102,7 @@ pub const MsgReceiveBuffer = struct {
         return result;
     }
 
-    pub fn deinit(self: *Self, allocator: *std.mem.Allocator) void {
+    pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
         self.buffer.deinit(allocator);
     }
 };

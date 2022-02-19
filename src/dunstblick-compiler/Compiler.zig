@@ -8,12 +8,12 @@ pub const Database = @import("Database.zig");
 pub const Parser = @import("Parser.zig");
 pub const ErrorCollection = @import("ErrorCollection.zig");
 
-allocator: *std.mem.Allocator,
+allocator: std.mem.Allocator,
 database: *Database,
 
 errors: ErrorCollection,
 
-pub fn init(allocator: *std.mem.Allocator, database: *Database) Self {
+pub fn init(allocator: std.mem.Allocator, database: *Database) Self {
     return Self{
         .allocator = allocator,
         .database = database,

@@ -103,7 +103,7 @@ pub fn expectOneOf(self: *Self, comptime types: anytype) !Token {
             if (tok.type == t)
                 return tok;
         }
-        std.debug.warn("found: {}\n", .{tok});
+        std.debug.print("found: {}\n", .{tok});
         return error.UnexpectedToken;
     } else {
         return error.UnexpectedEndOfStream;

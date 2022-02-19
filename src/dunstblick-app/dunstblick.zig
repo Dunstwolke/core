@@ -582,7 +582,7 @@ pub const Application = struct {
     const EventNode = EventQueue.Node;
 
     mutex: std.Thread.Mutex,
-    allocator: *std.mem.Allocator,
+    allocator: std.mem.Allocator,
 
     multicast_sock: xnet.Socket,
     tcp_sock: xnet.Socket,
@@ -618,7 +618,7 @@ pub const Application = struct {
 
     /// Creates a new application that is visible to the network.
     pub fn open(
-        allocator: *std.mem.Allocator,
+        allocator: std.mem.Allocator,
         /// The name that is shown to the discovering clients.
         discovery_name: []const u8,
         /// Optional description of the application, utf-8 encoded, limited to 256 byte.

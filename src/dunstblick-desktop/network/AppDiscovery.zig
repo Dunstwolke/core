@@ -29,7 +29,7 @@ const scan_period = 100 * std.time.ns_per_ms;
 /// The time period how long a application will stay alive after it was discovered.
 const keep_alive_period = 1000 * std.time.ns_per_ms;
 
-allocator: *std.mem.Allocator,
+allocator: std.mem.Allocator,
 arena: std.heap.ArenaAllocator,
 
 multicast_sock: network.Socket,
@@ -43,7 +43,7 @@ active_apps: AppInstanceList,
 /// This stores the time stamp when the next scan update will happen.
 next_scan: i128,
 
-pub fn init(allocator: *std.mem.Allocator) !Self {
+pub fn init(allocator: std.mem.Allocator) !Self {
     errdefer |err| logger.err("failed to init app discovery: {}", .{err});
 
     var multicast_sock = try network.Socket.create(.ipv4, .udp);
@@ -282,7 +282,7 @@ pub const Application = struct {
 
     discovery: *Self,
 
-    pub fn spawn(desc: *ApplicationDescription, allocator: *std.mem.Allocator) ApplicationDescription.Interface.SpawnError!*ApplicationInstance {
+    pub fn spawn(desc: *ApplicationDescription, allocator: std.mem.Allocator) ApplicationDescription.Interface.SpawnError!*ApplicationInstance {
         const self = @fieldParentPtr(Application, "description", desc);
 
         const node = try self.discovery.allocator.create(AppInstanceNode);

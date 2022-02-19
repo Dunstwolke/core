@@ -92,7 +92,7 @@ pub fn ClientStateMachine(comptime Writer: type) type {
             SliceOutOfRange,
         };
 
-        allocator: *std.mem.Allocator,
+        allocator: std.mem.Allocator,
 
         crypto: CryptoState,
 
@@ -112,7 +112,7 @@ pub fn ClientStateMachine(comptime Writer: type) type {
         /// Number of resources that are requested by the client.
         requested_resource_count: u32 = undefined,
 
-        pub fn init(allocator: *std.mem.Allocator, writer: Writer) Self {
+        pub fn init(allocator: std.mem.Allocator, writer: Writer) Self {
             return Self{
                 .allocator = allocator,
                 .writer = writer,

@@ -288,11 +288,11 @@ pub const String = union(enum) {
         return .{ .constant = text };
     }
 
-    pub fn new(allocator: *std.mem.Allocator) String {
+    pub fn new(allocator: std.mem.Allocator) String {
         return String{ .dynamic = std.ArrayList(u8).init(allocator) };
     }
 
-    pub fn init(allocator: *std.mem.Allocator, text: []const u8) !String {
+    pub fn init(allocator: std.mem.Allocator, text: []const u8) !String {
         var list = std.ArrayList(u8).init(allocator);
         try list.appendSlice(text);
         return String{ .dynamic = list };

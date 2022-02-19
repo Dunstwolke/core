@@ -30,7 +30,7 @@ pub const FeedbackInterface = struct {
     }
 };
 
-allocator: *std.mem.Allocator,
+allocator: std.mem.Allocator,
 
 objects: std.AutoArrayHashMapUnmanaged(protocol.ObjectID, types.Object),
 resources: std.AutoArrayHashMapUnmanaged(protocol.ResourceID, Resource),
@@ -40,7 +40,7 @@ root_object: ?protocol.ObjectID,
 
 interface: FeedbackInterface,
 
-pub fn init(allocator: *std.mem.Allocator, interface: FeedbackInterface) DunstblickUI {
+pub fn init(allocator: std.mem.Allocator, interface: FeedbackInterface) DunstblickUI {
     return DunstblickUI{
         .allocator = allocator,
         .objects = .{},
@@ -280,14 +280,14 @@ fn deinitAllProperties(comptime T: type, container: *T) void {
 }
 
 pub const WidgetTree = struct {
-    allocator: *std.mem.Allocator,
+    allocator: std.mem.Allocator,
     arena: std.heap.ArenaAllocator,
     root: Widget,
     ui: *DunstblickUI,
 
     const scroll_bar_size = 32;
 
-    pub fn deserialize(ui: *DunstblickUI, allocator: *std.mem.Allocator, decoder: *protocol.Decoder) !WidgetTree {
+    pub fn deserialize(ui: *DunstblickUI, allocator: std.mem.Allocator, decoder: *protocol.Decoder) !WidgetTree {
         var tree = WidgetTree{
             .allocator = allocator,
             .arena = std.heap.ArenaAllocator.init(allocator),
@@ -1542,7 +1542,7 @@ pub const Widget = struct {
     left: Property(i32),
     top: Property(i32),
 
-    fn initControl(control_type: protocol.WidgetType, allocator: *std.mem.Allocator) Control {
+    fn initControl(control_type: protocol.WidgetType, allocator: std.mem.Allocator) Control {
         inline for (std.meta.fields(Control)) |field| {
             if (control_type == @field(protocol.WidgetType, field.name)) {
                 return @unionInit(Control, field.name, field.field_type.init(allocator));
@@ -1561,7 +1561,7 @@ pub const Widget = struct {
         unreachable;
     }
 
-    pub fn init(ui: *DunstblickUI, allocator: *std.mem.Allocator, control_type: protocol.WidgetType) Widget {
+    pub fn init(ui: *DunstblickUI, allocator: std.mem.Allocator, control_type: protocol.WidgetType) Widget {
         var widget = Widget{
             .user_interface = ui,
             .children = std.ArrayList(Widget).init(allocator),
@@ -1790,7 +1790,7 @@ pub const Control = union(protocol.WidgetType) {
 
         dummy: u32, // prevent zero-sizing
 
-        pub fn init(allocator: *std.mem.Allocator) Self {
+        pub fn init(allocator: std.mem.Allocator) Self {
             _ = allocator;
             return Self{
                 .dummy = 0,
@@ -1813,7 +1813,7 @@ pub const Control = union(protocol.WidgetType) {
 
         dummy: u32, // prevent zero-sizing
 
-        pub fn init(allocator: *std.mem.Allocator) Self {
+        pub fn init(allocator: std.mem.Allocator) Self {
             _ = allocator;
             return Self{
                 .dummy = 0,
@@ -1836,7 +1836,7 @@ pub const Control = union(protocol.WidgetType) {
 
         on_click: Property(protocol.EventID),
 
-        pub fn init(allocator: *std.mem.Allocator) Self {
+        pub fn init(allocator: std.mem.Allocator) Self {
             _ = allocator;
             return Self{
                 .on_click = .{ .value = .invalid },
@@ -1862,7 +1862,7 @@ pub const Control = union(protocol.WidgetType) {
         text: Property(types.String),
         font_family: Property(protocol.enums.Font),
 
-        pub fn init(allocator: *std.mem.Allocator) Self {
+        pub fn init(allocator: std.mem.Allocator) Self {
             return Self{
                 .text = .{ .value = types.String.new(allocator) },
                 .font_family = .{ .value = .sans },
@@ -1888,7 +1888,7 @@ pub const Control = union(protocol.WidgetType) {
 
         text: Property(types.String),
 
-        pub fn init(allocator: *std.mem.Allocator) Self {
+        pub fn init(allocator: std.mem.Allocator) Self {
             return Self{
                 .text = .{ .value = types.String.new(allocator) },
             };
@@ -1914,7 +1914,7 @@ pub const Control = union(protocol.WidgetType) {
         image: Property(protocol.ResourceID),
         image_scaling: Property(protocol.enums.ImageScaling),
 
-        pub fn init(allocator: *std.mem.Allocator) Self {
+        pub fn init(allocator: std.mem.Allocator) Self {
             _ = allocator;
             return Self{
                 .image = .{ .value = .invalid },
@@ -1938,7 +1938,7 @@ pub const Control = union(protocol.WidgetType) {
 
         is_checked: Property(bool),
 
-        pub fn init(allocator: *std.mem.Allocator) Self {
+        pub fn init(allocator: std.mem.Allocator) Self {
             _ = allocator;
             return Self{
                 .is_checked = .{ .value = false },
@@ -1965,7 +1965,7 @@ pub const Control = union(protocol.WidgetType) {
         group: Property(i32),
         selected_index: Property(i32),
 
-        pub fn init(allocator: *std.mem.Allocator) Self {
+        pub fn init(allocator: std.mem.Allocator) Self {
             _ = allocator;
             return Self{
                 .group = .{ .value = -1 },
@@ -1995,7 +1995,7 @@ pub const Control = union(protocol.WidgetType) {
         value: Property(f32),
         orientation: Property(protocol.enums.Orientation),
 
-        pub fn init(allocator: *std.mem.Allocator) Self {
+        pub fn init(allocator: std.mem.Allocator) Self {
             _ = allocator;
             return Self{
                 .minimum = .{ .value = 0.0 },
@@ -2024,7 +2024,7 @@ pub const Control = union(protocol.WidgetType) {
         value: Property(f32),
         orientation: Property(protocol.enums.Orientation),
 
-        pub fn init(allocator: *std.mem.Allocator) Self {
+        pub fn init(allocator: std.mem.Allocator) Self {
             _ = allocator;
             return Self{
                 .minimum = .{ .value = 0.0 },
@@ -2054,7 +2054,7 @@ pub const Control = union(protocol.WidgetType) {
         orientation: Property(protocol.enums.Orientation),
         display_progress_style: Property(protocol.enums.DisplayProgressStyle),
 
-        pub fn init(allocator: *std.mem.Allocator) Self {
+        pub fn init(allocator: std.mem.Allocator) Self {
             _ = allocator;
             return Self{
                 .minimum = .{ .value = 0.0 },
@@ -2081,7 +2081,7 @@ pub const Control = union(protocol.WidgetType) {
 
         orientation: Property(protocol.enums.StackDirection),
 
-        pub fn init(allocator: *std.mem.Allocator) Self {
+        pub fn init(allocator: std.mem.Allocator) Self {
             _ = allocator;
             return Self{
                 .orientation = .{ .value = .vertical },
@@ -2104,7 +2104,7 @@ pub const Control = union(protocol.WidgetType) {
 
         selected_index: Property(i32),
 
-        pub fn init(allocator: *std.mem.Allocator) Self {
+        pub fn init(allocator: std.mem.Allocator) Self {
             _ = allocator;
             return Self{
                 .selected_index = .{ .value = 0 },
@@ -2131,7 +2131,7 @@ pub const Control = union(protocol.WidgetType) {
         row_heights: std.ArrayList(u15),
         column_widths: std.ArrayList(u15),
 
-        pub fn init(allocator: *std.mem.Allocator) Self {
+        pub fn init(allocator: std.mem.Allocator) Self {
             return Self{
                 .rows = .{ .value = types.SizeList.init(allocator) },
                 .columns = .{ .value = types.SizeList.init(allocator) },

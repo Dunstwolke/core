@@ -25,7 +25,7 @@ pub fn main() !u8 {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
 
-    const allocator = &gpa.allocator;
+    const allocator = gpa.allocator();
 
     const args = args_parser.parseForCurrentProcess(struct {
         // This declares long options for double hyphen

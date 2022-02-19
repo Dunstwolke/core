@@ -380,7 +380,7 @@ const IconCache = struct {
     const SizedIcons = std.AutoHashMapUnmanaged(u30, *ResourceManager.Texture);
     const Map = std.StringHashMapUnmanaged(SizedIcons);
 
-    allocator: *std.mem.Allocator,
+    allocator: std.mem.Allocator,
     resource_manager: ?*ResourceManager,
     icon_map: Map,
     arena: std.heap.ArenaAllocator,
@@ -478,7 +478,7 @@ const long_click_indicator_period = long_click_period / 10;
 /// before a drag operation will be recognized
 const minimal_drag_distance = 16;
 
-allocator: *std.mem.Allocator,
+allocator: std.mem.Allocator,
 size: Size,
 config: *const Config,
 mouse_pos: Point,
@@ -510,7 +510,7 @@ icon_cache: IconCache,
 
 context_menu: ?ContextMenu = null,
 
-pub fn init(allocator: *std.mem.Allocator, resource_manager: *ResourceManager, renderer: *Renderer2D, config: *const Config) !Self {
+pub fn init(allocator: std.mem.Allocator, resource_manager: *ResourceManager, renderer: *Renderer2D, config: *const Config) !Self {
     var self = Self{
         .allocator = allocator,
         .size = Size{ .width = 0, .height = 0 },
@@ -1803,10 +1803,10 @@ const Button = struct {
 };
 
 const Workspace = struct {
-    allocator: *std.mem.Allocator,
+    allocator: std.mem.Allocator,
     window_tree: WindowTree,
 
-    fn init(allocator: *std.mem.Allocator) Workspace {
+    fn init(allocator: std.mem.Allocator) Workspace {
         return Workspace{
             .allocator = allocator,
             .window_tree = WindowTree{
@@ -1989,7 +1989,7 @@ const WindowTree = struct {
     /// The padding on the separator between groups, increases each nesting level by factor 1
     pub const separator_padding_per_nest_level = 24;
 
-    allocator: *std.mem.Allocator,
+    allocator: std.mem.Allocator,
     root: Node,
 
     pub fn deinit(self: *WindowTree, screen: *Self) void {

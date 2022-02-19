@@ -211,7 +211,7 @@ const Verb = union(enum) {
 };
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-const global_allocator = &gpa.allocator;
+const global_allocator = gpa.allocator();
 
 const version = struct {
     const major = 0;
@@ -354,7 +354,7 @@ pub fn main() !u8 {
             errdefer std.log.err("sqlite failed: {}", .{diag});
 
             const query_text = blk: {
-                var builder = std.ArrayList(u8).init(&arena.allocator);
+                var builder = std.ArrayList(u8).init(arena.allocator());
                 defer builder.deinit();
 
                 const writer = builder.writer();
@@ -406,7 +406,7 @@ pub fn main() !u8 {
 
             var iter = try query.iterator(FileEntry, .{ .count = verb.count });
 
-            try renderFileList(&arena.allocator, &iter, cli.options.json);
+            try renderFileList(arena.allocator(), &iter, cli.options.json);
         },
 
         .info => {
@@ -429,7 +429,7 @@ pub fn main() !u8 {
                 last_change: []const u8,
             };
 
-            const tag_or_null = try stmt_query.oneAlloc(Tag, &arena.allocator, .{}, .{uuid_text});
+            const tag_or_null = try stmt_query.oneAlloc(Tag, arena.allocator(), .{}, .{uuid_text});
 
             const tag: Tag = tag_or_null orelse {
                 logger.err("The file {s} does not exist!", .{&canonical_format});
@@ -456,9 +456,9 @@ pub fn main() !u8 {
                 creation_date: []const u8,
             };
 
-            const tags: [][]const u8 = try query_file_tags.all([]const u8, &arena.allocator, .{}, .{uuid_text});
+            const tags: [][]const u8 = try query_file_tags.all([]const u8, arena.allocator(), .{}, .{uuid_text});
 
-            const revisions: []Revision = try query_file_revs.all(Revision, &arena.allocator, .{}, .{uuid_text});
+            const revisions: []Revision = try query_file_revs.all(Revision, arena.allocator(), .{}, .{uuid_text});
 
             if (cli.options.json) {
                 var json = std.json.writeStream(stdout, 5);
@@ -579,7 +579,7 @@ pub fn main() !u8 {
             );
             defer stmt_fetch_tags.deinit();
 
-            const all_tags = try stmt_fetch_tags.all([]const u8, &arena.allocator, .{}, .{uuid_text});
+            const all_tags = try stmt_fetch_tags.all([]const u8, arena.allocator(), .{}, .{uuid_text});
 
             if (cli.options.json) {
                 try std.json.stringify(all_tags, .{}, stdout);
@@ -620,7 +620,7 @@ pub fn main() !u8 {
                 user_name: ?[]const u8,
             };
 
-            const tag_or_null = try stmt_query.oneAlloc(Tag, &arena.allocator, .{}, .{uuid_text});
+            const tag_or_null = try stmt_query.oneAlloc(Tag, arena.allocator(), .{}, .{uuid_text});
 
             const tag = tag_or_null orelse {
                 logger.err("The file {s} does not exist!", .{&canonical_format});
@@ -692,12 +692,12 @@ pub fn main() !u8 {
 
             var real_filter = sqlite3.Text{ .data = cli.positionals[0] };
             if (!verb.exact) {
-                real_filter.data = try std.fmt.allocPrint(&arena.allocator, "%{s}%", .{real_filter.data});
+                real_filter.data = try std.fmt.allocPrint(arena.allocator(), "%{s}%", .{real_filter.data});
             }
 
             var iter = try query.iterator(FileEntry, .{ .filter = real_filter, .limit = real_limit });
 
-            try renderFileList(&arena.allocator, &iter, cli.options.json);
+            try renderFileList(arena.allocator(), &iter, cli.options.json);
         },
 
         .tags => |verb| {
@@ -739,7 +739,7 @@ pub fn main() !u8 {
             // _Count_.______________Tag______________
             //     1 | text/plain
             //     1 | image/png
-            while (try iter.nextAlloc(&arena.allocator, .{ .diags = null })) |item| {
+            while (try iter.nextAlloc(arena.allocator(), .{ .diags = null })) |item| {
                 if (cli.options.json) {
                     defer first = false;
                     if (!first)
@@ -845,7 +845,7 @@ pub fn main() !u8 {
             const src_file = cli.positionals[0];
             const initial_tags = cli.positionals[1..];
 
-            const dataset = addDataset(&db, magic, &arena.allocator, dataset_dir, working_directory, src_file, verb.mime) catch |err| switch (err) {
+            const dataset = addDataset(&db, magic, arena.allocator(), dataset_dir, working_directory, src_file, verb.mime) catch |err| switch (err) {
                 error.CouldNotDetectMimeType => {
                     logger.err("Mime type could not be autodetected. Please provide a mime type with --mime <type>!", .{});
                     return 1;
@@ -859,7 +859,7 @@ pub fn main() !u8 {
                 revision: u32,
             };
 
-            if (try stmt_any_exists.oneAlloc(ExistingFile, &arena.allocator, .{}, .{ .dataset = file_dataset })) |existing| {
+            if (try stmt_any_exists.oneAlloc(ExistingFile, arena.allocator(), .{}, .{ .dataset = file_dataset })) |existing| {
                 std.log.err("The contents of this file are already available in file {s}, revision {d}!", .{
                     existing.file,
                     existing.revision,
@@ -870,7 +870,7 @@ pub fn main() !u8 {
             const file_uuid_str = uuidToString(source.create());
             const file_uuid = sqlite3.Text{ .data = &file_uuid_str };
 
-            const file_title = verb.name orelse try determineFileTitle(&arena.allocator, working_directory, MimeType.parse(dataset.mime_type), src_file);
+            const file_title = verb.name orelse try determineFileTitle(arena.allocator(), working_directory, MimeType.parse(dataset.mime_type), src_file);
 
             try stmt_create_file.exec(.{}, .{
                 .file = file_uuid,
@@ -919,7 +919,7 @@ const Dataset = struct {
     creation_date: []const u8,
 };
 
-fn addDataset(database: *sqlite3.Db, magic: *MagicSet, allocator: *std.mem.Allocator, dst_dir: std.fs.Dir, src_dir: std.fs.Dir, src_path: [:0]const u8, mime_hint: ?[]const u8) !Dataset {
+fn addDataset(database: *sqlite3.Db, magic: *MagicSet, allocator: std.mem.Allocator, dst_dir: std.fs.Dir, src_dir: std.fs.Dir, src_path: [:0]const u8, mime_hint: ?[]const u8) !Dataset {
     var diagnostics = sqlite3.Diagnostics{};
     errdefer std.log.err("sqlite failed: {}", .{diagnostics});
 
@@ -990,7 +990,7 @@ fn addDataset(database: *sqlite3.Db, magic: *MagicSet, allocator: *std.mem.Alloc
     return dataset_desc;
 }
 
-fn determineFileTitle(allocator: *std.mem.Allocator, dir: std.fs.Dir, mime: MimeType, file_path: []const u8) ![]const u8 {
+fn determineFileTitle(allocator: std.mem.Allocator, dir: std.fs.Dir, mime: MimeType, file_path: []const u8) ![]const u8 {
 
     // TODO: Implement improved guessing of file titles.
     // Possible sources:
@@ -1012,7 +1012,7 @@ const FileEntry = struct {
     user_name: ?[]const u8,
     last_change: []const u8,
 };
-fn renderFileList(allocator: *std.mem.Allocator, iter: anytype, json: bool) !void {
+fn renderFileList(allocator: std.mem.Allocator, iter: anytype, json: bool) !void {
     if (@typeInfo(@TypeOf(iter)) != .Pointer) @compileError("iter must be a pointer!");
 
     const column_header = "{s:_^36}_._{s:_^19}_._{s:_^59}\n";

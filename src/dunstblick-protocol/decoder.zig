@@ -80,7 +80,7 @@ pub const Decoder = struct {
         const bits = try self.readRaw(4);
         return @bitCast(f32, bits[0..4].*);
     }
-    pub fn readString(self: *Self, allocator: *std.mem.Allocator) ![]const u8 {
+    pub fn readString(self: *Self, allocator: std.mem.Allocator) ![]const u8 {
         const len = try self.readVarUInt();
 
         const str = try allocator.alloc(u8, len);

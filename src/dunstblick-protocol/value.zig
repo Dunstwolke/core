@@ -121,7 +121,7 @@ pub const Value = union(protocol.Type) {
     }
 
     pub const ConvertError = error{ OutOfMemory, UnsupportedConversion };
-    pub fn convertTo(self: Value, comptime T: type, opt_allocator: ?*std.mem.Allocator) ConvertError!T {
+    pub fn convertTo(self: Value, comptime T: type, opt_allocator: ?std.mem.Allocator) ConvertError!T {
         if (self.get(T)) |v| {
             return v;
         } else |_| {
@@ -357,7 +357,7 @@ pub const Value = union(protocol.Type) {
         };
     }
 
-    pub fn deserialize(allocator: *std.mem.Allocator, value_type: types.Type, decoder: *Decoder) !Value {
+    pub fn deserialize(allocator: std.mem.Allocator, value_type: types.Type, decoder: *Decoder) !Value {
         return switch (value_type) {
             .enumeration => Value{
                 .enumeration = try decoder.readByte(),

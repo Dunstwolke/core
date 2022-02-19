@@ -271,9 +271,9 @@ fn DynamicArray(comptime T: type) type {
         const Self = @This();
 
         items: []T,
-        allocator: *std.mem.Allocator,
+        allocator: std.mem.Allocator,
 
-        pub fn init(allocator: *std.mem.Allocator, items: []const T) !Self {
+        pub fn init(allocator: std.mem.Allocator, items: []const T) !Self {
             return Self{
                 .allocator = allocator,
                 .items = try allocator.dupe(T, items),
@@ -352,7 +352,7 @@ pub const Value = union(Type) {
         };
     }
 
-    pub fn dupe(self: Self, allocator: *std.mem.Allocator) !Self {
+    pub fn dupe(self: Self, allocator: std.mem.Allocator) !Self {
         return switch (self) {
             .invalid => unreachable,
 

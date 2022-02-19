@@ -1,7 +1,7 @@
 const std = @import("std");
 const logger = std.log.scoped(.dunstblick_sdk);
-const tvg = @import("lib/tvg/src/lib/tvg.zig");
-const qoi = @import("lib/qoi/qoi.zig");
+const tvg = @import("lib/tvg/src/lib/tinyvg.zig");
+const qoi = @import("lib/qoi/src/qoi.zig");
 const zigimg = @import("./lib/zero-graphics/vendor/zigimg/zigimg.zig");
 
 const Pkg = std.build.Pkg;
@@ -198,6 +198,7 @@ pub const CompileImageStep = struct {
         }
 
         const qoi_data = try qoi.encodeBuffer(allocator, qoi.ConstImage{
+            .colorspace = .sRGB,
             .width = std.math.cast(u16, src_image.width) catch return error.ImageTooLarge,
             .height = std.math.cast(u16, src_image.height) catch return error.ImageTooLarge,
             .pixels = linear_rgba8,

@@ -222,7 +222,7 @@ pub fn build(b: *Builder) !void {
     {
         // libdunstblick, a C frontend for dunstblick application
         const lib = b.addStaticLibrary("dunstblick", "./src/libdunstblick/src/c-binding.zig");
-        lib.emit_docs = true;
+        lib.emit_docs = .emit;
         lib.addPackage(pkgs.dunstblick_app);
         lib.addPackage(pkgs.dunstblick_protocol);
         lib.addIncludeDir("./src/libdunstblick/include");

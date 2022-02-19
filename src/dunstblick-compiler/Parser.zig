@@ -10,7 +10,7 @@ const Token = Tokenizer.Token;
 
 const Parser = @This();
 
-allocator: *std.mem.Allocator,
+allocator: std.mem.Allocator,
 database: *Database,
 errors: *ErrorCollection,
 tokens: *Tokenizer,

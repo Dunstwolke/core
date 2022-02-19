@@ -30,7 +30,7 @@ const Self = @This();
 
 flagged_for_deletion: bool = false,
 instance: ApplicationInstance,
-allocator: *std.mem.Allocator,
+allocator: std.mem.Allocator,
 arena: std.heap.ArenaAllocator,
 
 socket: ?network.Socket,
@@ -51,7 +51,7 @@ user_interface: DunstblickUI,
 
 const support_non_block = (builtin.os.tag == .linux and builtin.abi != .android);
 
-pub fn init(self: *Self, allocator: *std.mem.Allocator, app_desc: *const AppDiscovery.Application) !void {
+pub fn init(self: *Self, allocator: std.mem.Allocator, app_desc: *const AppDiscovery.Application) !void {
     self.* = Self{
         .instance = ApplicationInstance{
             .description = app_desc.description,
