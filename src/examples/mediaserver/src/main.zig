@@ -158,7 +158,7 @@ fn openFile(url: [*:0]const u8) !void {
     try playChannel(ch);
 }
 
-fn endSync(handle: c.HSYNC, channel: c.DWORD, bits: c.DWORD, user: ?*c_void) callconv(.C) void {
+fn endSync(handle: c.HSYNC, channel: c.DWORD, bits: c.DWORD, user: ?*anyopaque) callconv(.C) void {
     _ = handle;
     _ = channel;
     _ = bits;
@@ -166,7 +166,7 @@ fn endSync(handle: c.HSYNC, channel: c.DWORD, bits: c.DWORD, user: ?*c_void) cal
     std.io.getStdErr().writer().writeAll("end sync\n") catch {};
 }
 
-fn stallSync(handle: c.HSYNC, channel: c.DWORD, bits: c.DWORD, user: ?*c_void) callconv(.C) void {
+fn stallSync(handle: c.HSYNC, channel: c.DWORD, bits: c.DWORD, user: ?*anyopaque) callconv(.C) void {
     _ = handle;
     _ = channel;
     _ = bits;
@@ -175,7 +175,7 @@ fn stallSync(handle: c.HSYNC, channel: c.DWORD, bits: c.DWORD, user: ?*c_void) c
 }
 
 // update stream title from metadata
-fn doMeta(handle: c.HSYNC, channel: c.DWORD, bits: c.DWORD, user: ?*c_void) callconv(.C) void {
+fn doMeta(handle: c.HSYNC, channel: c.DWORD, bits: c.DWORD, user: ?*anyopaque) callconv(.C) void {
     _ = handle;
     _ = channel;
     _ = bits;

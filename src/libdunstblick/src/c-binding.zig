@@ -217,7 +217,7 @@ export fn dunstblick_WaitEvent(provider: *app.Application, event: *c.dunstblick_
     return pumpEvents(provider, event, null);
 }
 
-export fn dunstblick_AddResource(provider: *app.Application, resourceID: protocol.ResourceID, kind: protocol.ResourceKind, data: *const c_void, length: usize) callconv(.C) NativeErrorCode {
+export fn dunstblick_AddResource(provider: *app.Application, resourceID: protocol.ResourceID, kind: protocol.ResourceKind, data: *const anyopaque, length: usize) callconv(.C) NativeErrorCode {
     return mapDunstblickErrorVoid(provider.addResource(
         resourceID,
         kind,
@@ -250,11 +250,11 @@ export fn dunstblick_GetDisplaySize(connection: *app.Connection) callconv(.C) ap
     return connection.screen_resolution;
 }
 
-export fn dunstblick_GetUserData(connection: *app.Connection) callconv(.C) ?*c_void {
+export fn dunstblick_GetUserData(connection: *app.Connection) callconv(.C) ?*anyopaque {
     return connection.user_data_pointer;
 }
 
-export fn dunstblick_SetUserData(connection: *app.Connection, userData: ?*c_void) callconv(.C) void {
+export fn dunstblick_SetUserData(connection: *app.Connection, userData: ?*anyopaque) callconv(.C) void {
     connection.user_data_pointer = userData;
 }
 

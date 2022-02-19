@@ -1,6 +1,5 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const qoi = @import("qoi");
 const zero_graphics = @import("zero-graphics");
 
 const protocol = @import("dunstblick-protocol");
@@ -201,6 +200,8 @@ pub const Resource = struct {
     }
 
     pub const DecodeQoi = struct {
+        const qoi = @import("qoi");
+
         data: []const u8,
         flip_y: bool = false,
 

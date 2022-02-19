@@ -219,7 +219,7 @@ pub const Connection = struct {
 
     server: protocol.tcp.ServerStateMachine(xnet.Socket.Writer),
 
-    user_data_pointer: ?*c_void,
+    user_data_pointer: ?*anyopaque,
 
     fn init(provider: *Application, sock: xnet.Socket, endpoint: xnet.EndPoint) Connection {
         log.debug("connection from {}", .{endpoint});

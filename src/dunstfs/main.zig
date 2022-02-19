@@ -1145,19 +1145,19 @@ const MagicSet = opaque {
     extern fn magic_getpath(?[*:0]const u8, c_int) ?[*:0]const u8;
     extern fn magic_file(*MagicSet, [*:0]const u8) ?[*:0]const u8;
     extern fn magic_descriptor(*MagicSet, c_int) ?[*:0]const u8;
-    extern fn magic_buffer(*MagicSet, ?*const c_void, usize) ?[*:0]const u8;
+    extern fn magic_buffer(*MagicSet, ?*const anyopaque, usize) ?[*:0]const u8;
     extern fn magic_error(*MagicSet) ?[*:0]const u8;
     extern fn magic_getflags(*MagicSet) c_int;
     extern fn magic_setflags(*MagicSet, c_int) c_int;
     extern fn magic_version() c_int;
     extern fn magic_load(*MagicSet, [*:0]const u8) c_int;
-    extern fn magic_load_buffers(*MagicSet, [*]*c_void, [*]usize, usize) c_int;
+    extern fn magic_load_buffers(*MagicSet, [*]*anyopaque, [*]usize, usize) c_int;
     extern fn magic_compile(*MagicSet, [*:0]const u8) c_int;
     extern fn magic_check(*MagicSet, [*:0]const u8) c_int;
     extern fn magic_list(*MagicSet, [*:0]const u8) c_int;
     extern fn magic_errno(*MagicSet) c_int;
-    extern fn magic_setparam(*MagicSet, Parameter, ?*const c_void) c_int;
-    extern fn magic_getparam(*MagicSet, Parameter, ?*c_void) c_int;
+    extern fn magic_setparam(*MagicSet, Parameter, ?*const anyopaque) c_int;
+    extern fn magic_getparam(*MagicSet, Parameter, ?*anyopaque) c_int;
 
     const Parameter = enum(c_int) {
         indir_max = PARAM_INDIR_MAX,

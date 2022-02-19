@@ -1,4 +1,3 @@
-- android port
 - zg core rewrite
 - plseeaudio volume cntrol
 - media server

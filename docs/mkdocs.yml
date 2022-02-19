@@ -6,15 +6,16 @@ docs_dir: src
 
 nav:
   - Home: index.md
+  - Fabric: dunstfabric.md
   - Dunstblick:
-    - 'About': dunstblick.md
-    - 'Layout Engine': dunstblick/layout-engine.md
-    - 'Layout Language': dunstblick/layout-language.md
-    - 'Protocol': dunstblick/protocol.md
-    - 'Data Types': dunstblick/types.md
-    - 'Widgets': dunstblick/widgets.md
-  - Dunstnetz: dunstnetz.md
-  - DunstFS: dunstfs.md
+      - 'About': dunstblick.md
+      - 'Layout Engine': dunstblick/layout-engine.md
+      - 'Layout Language': dunstblick/layout-language.md
+      - 'Protocol': dunstblick/protocol.md
+      - 'Data Types': dunstblick/types.md
+      - 'Widgets': dunstblick/widgets.md
+  - Networking: dunstnetz.md
+  - Filesystem: dunstfs.md
 theme:
-    name: mkdocs
-    nav_style: light
+  name: mkdocs
+  nav_style: light

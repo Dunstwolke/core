@@ -1,8 +1,0 @@
-ScrollView
-{
-	Panel {
-		size-hint: 512, 512;
-		Label { margins: 16; text: "Top Left"; vertical-alignment: top; horizontal-alignment: left; }
-		Label { margins: 16; text: "Bottom Right"; vertical-alignment: bottom; horizontal-alignment: right; }
-	}
-}
