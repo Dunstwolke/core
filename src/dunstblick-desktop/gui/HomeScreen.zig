@@ -470,6 +470,13 @@ const IconCache = struct {
     }
 };
 
+const MouseDownData = struct {
+    button: zerog.Input.MouseButton,
+
+    timestamp: i128,
+    pos: Point,
+};
+
 /// Time period after which a normal click is recognized as a long-click.
 const long_click_period = 1000 * std.time.ns_per_ms;
 
@@ -495,8 +502,7 @@ menu_items: std.ArrayList(MenuItem),
 available_apps: std.ArrayList(AppReference),
 
 mode: MouseMode,
-mouse_down_timestamp: ?i128 = null,
-mouse_down_pos: ?Point = null,
+mouse_down_data: ?MouseDownData = null,
 
 resource_manager: *ResourceManager,
 renderer: *Renderer2D,
@@ -626,67 +632,42 @@ pub fn setMousePos(self: *Self, pos: Point) void {
 var rng = std.rand.DefaultPrng.init(0);
 
 pub fn mouseDown(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
-    _ = mouse_button;
+
+    // Ignore mouse presses until the first pressed button is released
+    if (self.mouse_down_data != null)
+        return;
 
     std.debug.assert(self.input_processor != null);
 
-    self.mouse_down_timestamp = std.time.nanoTimestamp();
-    self.mouse_down_pos = self.mouse_pos;
+    self.mouse_down_data = MouseDownData{
+        .timestamp = std.time.nanoTimestamp(),
+        .pos = self.mouse_pos,
+        .button = mouse_button,
+    };
 
     self.input_processor.?.pointerDown();
-
-    // switch (self.mode) {
-    //     .default => {
-    //         // Check if the user pressed the mouse on a button
-    //         for (self.menu_items.items) |btn, i| {
-    //             const rect = self.getMenuButtonRectangle(i);
-    //             if (rect.contains(self.mouse_pos)) {
-    //                 if (btn == .button and btn.button.state.enabled) {
-    //                     self.mode = .{ .button_press = i };
-    //                 }
-    //                 return;
-    //             }
-    //         }
-    //     },
-    //     .button_press => unreachable,
-    //     .app_menu => {
-    //         const app_menu = self.getAppMenuRectangle();
-
-    //         if (app_menu.contains(self.mouse_pos)) {
-
-    //             // Check if the user pressed the mouse on a button
-    //             for (self.available_apps.items) |app, i| {
-    //                 const rect = self.getAppButtonRectangle(i);
-    //                 if (rect.contains(self.mouse_pos)) {
-    //                     if (app.application.state == .ready) {
-    //                         self.mode = .{ .app_press = .{
-    //                             .index = i,
-    //                             .position = self.mouse_pos,
-    //                         } };
-    //                     }
-    //                     return;
-    //                 }
-    //             }
-    //         } else {
-    //             self.mode = .default;
-    //         }
-    //     },
-    //     .app_press, .app_drag_menu, .app_drag_desktop => unreachable,
-    // }
 }
 
 pub fn mouseUp(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
     std.debug.assert(self.input_processor != null);
 
-    if (mouse_button != .primary)
+    const data = self.mouse_down_data orelse {
+        logger.warn("Invalid button sequence: Got button release for {s}, but no button was clicked previously!", .{
+            @tagName(mouse_button),
+        });
         return;
+    };
+    if (data.button != mouse_button) {
+        logger.warn("Invalid button sequence: Got button release for {s}, but {s} button was clicked previously!", .{
+            @tagName(mouse_button),
+            @tagName(data.button),
+        });
+        return;
+    }
 
-    const long_click = if (self.mouse_down_timestamp) |ts|
-        (std.time.nanoTimestamp() - ts) > long_click_period
-    else
-        false;
-    self.mouse_down_timestamp = null;
-    self.mouse_down_pos = null;
+    const long_click = (data.button == .secondary) or
+        ((std.time.nanoTimestamp() - data.timestamp) > long_click_period);
+    self.mouse_down_data = null;
 
     self.input_processor.?.pointerUp(if (long_click or mouse_button == .secondary)
         UserInterface.Pointer.secondary
@@ -788,7 +769,7 @@ const ContextMenu = struct {
 
 fn openContextMenu(self: *Self, data: ContextMenu.Data) void {
     self.context_menu = ContextMenu{
-        .position = self.mouse_down_pos orelse self.mouse_pos,
+        .position = if (self.mouse_down_data) |dat| dat.pos else self.mouse_pos,
         .data = data,
     };
 }
@@ -1358,90 +1339,90 @@ pub fn render(self: *Self) RenderError!void {
     try self.ui.render();
 
     // Long-click activity rendering
-    if (self.mouse_down_timestamp) |ts| {
-        if (self.mouse_down_pos) |mdp| {
-            if (!self.isDragDistanceReached(mdp)) {
-                const delta = std.math.clamp(std.time.nanoTimestamp() - ts, 0, long_click_period);
-                if (delta >= long_click_indicator_period) {
-                    const Helper = struct {
-                        center: Point,
+    if (self.mouse_down_data) |data| {
+        const ts = data.timestamp;
+        const mdp = data.pos;
+        if (!self.isDragDistanceReached(mdp)) {
+            const delta = std.math.clamp(std.time.nanoTimestamp() - ts, 0, long_click_period);
+            if (delta >= long_click_indicator_period) {
+                const Helper = struct {
+                    center: Point,
 
-                        fn getFromAngle(help: @This(), radius: f32, a: f32) Point {
-                            var dx = std.math.round(radius * std.math.sin(a));
-                            var dy = std.math.round(radius * std.math.cos(a));
-                            return Point{
-                                .x = help.center.x + @floatToInt(i16, dx),
-                                .y = help.center.y - @floatToInt(i16, dy),
-                            };
-                        }
-                    };
-
-                    const delta_f = @intToFloat(f32, delta) / @intToFloat(f32, long_click_period);
-
-                    const segment_count: usize = 36; // 10° max
-
-                    const helper = Helper{
-                        .center = mdp,
-                    };
-
-                    const inner_radius = 16;
-                    const outer_radius = 24;
-
-                    {
-                        var last_inner = helper.getFromAngle(inner_radius, 0);
-                        var last_outer = helper.getFromAngle(outer_radius, 0);
-
-                        var i: usize = 1;
-                        while (i <= segment_count) : (i += 1) {
-                            const a = 2.0 * std.math.pi * @intToFloat(f32, i) / @intToFloat(f32, segment_count);
-
-                            const current_inner = helper.getFromAngle(inner_radius, delta_f * a);
-                            const current_outer = helper.getFromAngle(outer_radius, delta_f * a);
-
-                            try renderer.fillQuad(
-                                [4]Point{
-                                    last_inner,
-                                    last_outer,
-                                    current_inner,
-                                    current_outer,
-                                },
-                                self.config.longclick_indicator.fill_color,
-                            );
-
-                            last_inner = current_inner;
-                            last_outer = current_outer;
-                        }
+                    fn getFromAngle(help: @This(), radius: f32, a: f32) Point {
+                        var dx = std.math.round(radius * std.math.sin(a));
+                        var dy = std.math.round(radius * std.math.cos(a));
+                        return Point{
+                            .x = help.center.x + @floatToInt(i16, dx),
+                            .y = help.center.y - @floatToInt(i16, dy),
+                        };
                     }
+                };
 
-                    {
-                        var last_inner = helper.getFromAngle(inner_radius, 0);
-                        var last_outer = helper.getFromAngle(outer_radius, 0);
+                const delta_f = @intToFloat(f32, delta) / @intToFloat(f32, long_click_period);
 
-                        var i: usize = 1;
-                        while (i <= segment_count) : (i += 1) {
-                            const a = 2.0 * std.math.pi * @intToFloat(f32, i) / @intToFloat(f32, segment_count);
+                const segment_count: usize = 36; // 10° max
 
-                            const current_inner = helper.getFromAngle(inner_radius, a);
-                            const current_outer = helper.getFromAngle(outer_radius, a);
+                const helper = Helper{
+                    .center = mdp,
+                };
 
-                            try renderer.drawLine(
-                                last_outer.x,
-                                last_outer.y,
-                                current_outer.x,
-                                current_outer.y,
-                                self.config.longclick_indicator.outline,
-                            );
-                            try renderer.drawLine(
-                                last_inner.x,
-                                last_inner.y,
-                                current_inner.x,
-                                current_inner.y,
-                                self.config.longclick_indicator.outline,
-                            );
+                const inner_radius = 16;
+                const outer_radius = 24;
 
-                            last_inner = current_inner;
-                            last_outer = current_outer;
-                        }
+                {
+                    var last_inner = helper.getFromAngle(inner_radius, 0);
+                    var last_outer = helper.getFromAngle(outer_radius, 0);
+
+                    var i: usize = 1;
+                    while (i <= segment_count) : (i += 1) {
+                        const a = 2.0 * std.math.pi * @intToFloat(f32, i) / @intToFloat(f32, segment_count);
+
+                        const current_inner = helper.getFromAngle(inner_radius, delta_f * a);
+                        const current_outer = helper.getFromAngle(outer_radius, delta_f * a);
+
+                        try renderer.fillQuad(
+                            [4]Point{
+                                last_inner,
+                                last_outer,
+                                current_inner,
+                                current_outer,
+                            },
+                            self.config.longclick_indicator.fill_color,
+                        );
+
+                        last_inner = current_inner;
+                        last_outer = current_outer;
+                    }
+                }
+
+                {
+                    var last_inner = helper.getFromAngle(inner_radius, 0);
+                    var last_outer = helper.getFromAngle(outer_radius, 0);
+
+                    var i: usize = 1;
+                    while (i <= segment_count) : (i += 1) {
+                        const a = 2.0 * std.math.pi * @intToFloat(f32, i) / @intToFloat(f32, segment_count);
+
+                        const current_inner = helper.getFromAngle(inner_radius, a);
+                        const current_outer = helper.getFromAngle(outer_radius, a);
+
+                        try renderer.drawLine(
+                            last_outer.x,
+                            last_outer.y,
+                            current_outer.x,
+                            current_outer.y,
+                            self.config.longclick_indicator.outline,
+                        );
+                        try renderer.drawLine(
+                            last_inner.x,
+                            last_inner.y,
+                            current_inner.x,
+                            current_inner.y,
+                            self.config.longclick_indicator.outline,
+                        );
+
+                        last_inner = current_inner;
+                        last_outer = current_outer;
                     }
                 }
             }
