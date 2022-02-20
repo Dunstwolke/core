@@ -1,0 +1,9 @@
+{
+  "autostart": true,
+  "restart": "always",
+  "command": [
+    "nc",
+    "-l",
+    "8080"
+  ]
+}

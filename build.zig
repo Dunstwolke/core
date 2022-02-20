@@ -118,6 +118,13 @@ pub fn build(b: *Builder) !void {
         break :blk copy;
     };
 
+    const dunstinit = b.addExecutable("dunstinit", "src/dunstinit/main.zig");
+    dunstinit.addPackage(pkgs.args);
+    dunstinit.addPackage(pkgs.network);
+    dunstinit.setTarget(target);
+    dunstinit.setBuildMode(mode);
+    dunstinit.install();
+
     const dunstblick_step = b.step("dunstblick", "Makes everything related to dunstblick.");
 
     const libsqlite3 = b.addStaticLibrary("sqlite3", null);
