@@ -568,7 +568,7 @@ pub fn init(allocator: std.mem.Allocator, resource_manager: *ResourceManager, re
     try self.menu_items.append(MenuItem{ .button = Button{ .data = .app_menu } });
     try self.menu_items.append(.separator);
     try self.menu_items.append(MenuItem{ .button = Button{ .data = .{ .workspace = Workspace.init(allocator) } } });
-    try self.menu_items.append(MenuItem{ .button = Button{ .data = .{ .workspace = Workspace.init(allocator) } } });
+    // try self.menu_items.append(MenuItem{ .button = Button{ .data = .{ .workspace = Workspace.init(allocator) } } });
 
     return self;
 }
@@ -686,6 +686,8 @@ pub fn mouseUp(self: *Self, mouse_button: zerog.Input.MouseButton) !void {
             // We dragged the application over the desktop, so we will for sure
             // return to normal mode
             self.mode = .default;
+
+            // TODO: Implement better error handling here
 
             const app = &self.available_apps.items[app_index];
 
@@ -923,7 +925,11 @@ pub fn update(self: *Self, dt: f32) !void {
 
                 const icon = switch (button.data) {
                     .app_menu => @as([]const u8, &icons.app_menu),
-                    .workspace => &icons.workspace,
+                    .workspace => |workspace| switch (workspace.window_tree.root) {
+                        .starting => |app| app.application.description.icon orelse &icons.workspace,
+                        .connected => |app| app.application.description.icon orelse &icons.workspace,
+                        else => &icons.workspace,
+                    },
                 };
 
                 const texture = try self.icon_cache.get(icon, self.getPhysicalSize(Size{ .width = 48, .height = 48 }));
@@ -970,13 +976,54 @@ pub fn update(self: *Self, dt: f32) !void {
             .style = ui_app_menu_panel_theme,
         });
 
-        for (self.available_apps.items) |*app, idx| {
-            const button_rect = self.getAppButtonRectangle(idx);
+        for (self.available_apps.items) |*app, app_index| {
+            const button_rect = self.getAppButtonRectangle(app_index);
 
             switch (try self.appButton(builder, button_rect, app, false)) {
                 .none => {},
-                .clicked => logger.info("app button was clicked!", .{}),
-                .dragged => self.mode = .{ .app_drag_menu = idx },
+                .clicked => {
+                    // TODO: Implement better error handling here
+
+                    logger.info("app button was clicked!", .{});
+
+                    const new_workspace_index = self.menu_items.items.len;
+                    const menu_item = try self.menu_items.addOne();
+                    menu_item.* = MenuItem{
+                        .button = Button{
+                            .data = Button.Data{
+                                .workspace = Workspace.init(self.allocator),
+                            },
+                        },
+                    };
+                    errdefer {
+                        var item = self.menu_items.pop();
+                        item.button.data.workspace.deinit(self);
+                    }
+
+                    const workspace = &menu_item.button.data.workspace;
+
+                    logger.info("spawning on the app[{d}] '{s}'", .{ app_index, app.application.display_name });
+
+                    const target_location = WindowTree.NodeInsertLocation{
+                        .path = undefined,
+                        .path_len = 0,
+                        .position = .replace,
+                    };
+
+                    const app_instance = try app.application.spawn(self.allocator);
+
+                    var node = WindowTree.Node{
+                        .starting = AppInstance{
+                            .application = app_instance,
+                        },
+                    };
+
+                    try workspace.window_tree.insertLeaf(target_location, node, self);
+
+                    self.current_workspace = new_workspace_index;
+                    self.mode = .default;
+                },
+                .dragged => self.mode = .{ .app_drag_menu = app_index },
                 .context_menu_requested => self.openContextMenu(.{ .app_info = app }),
             }
         }
@@ -1827,9 +1874,14 @@ fn performAppTransition(leaf: *WindowTree.Node) !void {
             }
         },
         .exited => |*app| {
-            std.debug.assert(app.application.status == .exited);
+            _ = app;
             // the exited application isn't updated anymore
             // as there is nothing to do here
+
+            // NOTE:
+            // This assertion isn't false if the *same* application instance
+            // is ran again. This happens when you open builtin views (like settins)
+            // std.debug.assert(app.application.status == .exited);
         },
         else => unreachable,
     }
