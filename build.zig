@@ -35,7 +35,7 @@ const pkgs = struct {
 
     const tvg = std.build.Pkg{
         .name = "tvg",
-        .path = .{ .path = "./lib/tvg/src/lib/tvg.zig" },
+        .path = .{ .path = "./lib/tvg/src/lib/tinyvg.zig" },
     };
 
     const meta = std.build.Pkg{
@@ -98,7 +98,7 @@ const pkgs = struct {
 
     const qoi = std.build.Pkg{
         .name = "qoi",
-        .path = .{ .path = "lib/qoi/qoi.zig" },
+        .path = .{ .path = "lib/qoi/src/qoi.zig" },
     };
 };
 

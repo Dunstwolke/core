@@ -81,9 +81,9 @@ pub fn init(self: *Self, allocator: std.mem.Allocator, app_desc: *const AppDisco
     self.client = protocol.tcp.ClientStateMachine(network.Socket.Writer).init(allocator, self.socket.?.writer());
     errdefer self.client.deinit();
 
-    self.instance.description.display_name = try self.arena.allocator.dupeZ(u8, self.instance.description.display_name);
+    self.instance.description.display_name = try self.arena.allocator().dupeZ(u8, self.instance.description.display_name);
     if (self.instance.description.icon) |*icon| {
-        icon.* = try self.arena.allocator.dupe(u8, icon.*);
+        icon.* = try self.arena.allocator().dupe(u8, icon.*);
     }
 
     self.instance.status = .{ .starting = "Connecting..." };
@@ -241,7 +241,7 @@ pub fn notifyReadable(self: *Self) !void {
                                 var temp_list = std.ArrayList(protocol.ResourceID).init(self.allocator);
                                 defer temp_list.deinit();
 
-                                try temp_list.ensureCapacity(self.resources.count());
+                                try temp_list.ensureTotalCapacity(self.resources.count());
                                 var it = self.resources.iterator();
                                 while (it.next()) |res| {
                                     temp_list.appendAssumeCapacity(res.key_ptr.*);
@@ -446,7 +446,7 @@ fn decodeAndExecuteMessage(self: *Self, packet: []const u8) !void {
         },
 
         .disconnect => {
-            const reason = try decoder.readString(&self.arena.allocator);
+            const reason = try decoder.readString(self.arena.allocator());
             self.disconnect(null);
 
             self.instance.status = .{ .exited = reason };

@@ -1,6 +1,7 @@
+const std = @import("std");
 const tvg = @import("tvg");
 
-const builder = tvg.builder(.@"1/256", .default);
+// const builder = tvg.builder(.@"1/256", .default);
 
 pub const demo_apps = struct {
     pub const archiver = @embedFile("archiver.tvg");
@@ -28,58 +29,103 @@ const signal_red = rgb("910002");
 /// If an app doesn't provide a icon, this is shown instead.
 pub const app_placeholder = @embedFile("application.tvg");
 
+fn rectangle(x: f32, y: f32, w: f32, h: f32) tvg.Rectangle {
+    return tvg.Rectangle{ .x = x, .y = y, .width = w, .height = h };
+}
+
 pub const app_menu = blk: {
     @setEvalBranchQuota(10_000);
 
-    break :blk builder.header(48, 48) ++
-        builder.colorTable(&[_]tvg.Color{dim_black}) ++
-        builder.fillRectangles(9, .flat, 0) ++
-        builder.rectangle(8, 8, 8, 8) ++
-        builder.rectangle(20, 8, 8, 8) ++
-        builder.rectangle(32, 8, 8, 8) ++
-        builder.rectangle(8, 20, 8, 8) ++
-        builder.rectangle(20, 20, 8, 8) ++
-        builder.rectangle(32, 20, 8, 8) ++
-        builder.rectangle(8, 32, 8, 8) ++
-        builder.rectangle(20, 32, 8, 8) ++
-        builder.rectangle(32, 32, 8, 8) ++
-        builder.end_of_document;
+    var icon_data: [4069]u8 = undefined;
+
+    var stream = std.io.fixedBufferStream(&icon_data);
+
+    var builder = tvg.builder.create(stream.writer());
+
+    builder.writeHeader(48, 48, .@"1/256", .u8888, .default) catch unreachable;
+
+    builder.writeColorTable(&.{dim_black}) catch unreachable;
+
+    builder.writeFillRectangles(.{ .flat = 0 }, &.{
+        rectangle(8, 8, 8, 8),
+        rectangle(20, 8, 8, 8),
+        rectangle(32, 8, 8, 8),
+        rectangle(8, 20, 8, 8),
+        rectangle(20, 20, 8, 8),
+        rectangle(32, 20, 8, 8),
+        rectangle(8, 32, 8, 8),
+        rectangle(20, 32, 8, 8),
+        rectangle(32, 32, 8, 8),
+    }) catch unreachable;
+
+    const final_data = stream.getWritten();
+
+    break :blk final_data[0..final_data.len].*;
 };
 
 pub const workspace = blk: {
     @setEvalBranchQuota(10_000);
 
-    break :blk builder.header(48, 48) ++
-        builder.colorTable(&[_]tvg.Color{dim_black}) ++
-        builder.fillRectangles(3, .flat, 0) ++
-        builder.rectangle(6, 10, 38, 12) ++
-        builder.rectangle(6, 24, 12, 14) ++
-        builder.rectangle(20, 24, 24, 14) ++
-        builder.end_of_document;
+    var icon_data: [4069]u8 = undefined;
+
+    var stream = std.io.fixedBufferStream(&icon_data);
+
+    var builder = tvg.builder.create(stream.writer());
+
+    builder.writeHeader(48, 48, .@"1/256", .u8888, .default) catch unreachable;
+
+    builder.writeColorTable(&.{dim_black}) catch unreachable;
+
+    builder.writeFillRectangles(.{ .flat = 0 }, &.{
+        rectangle(6, 10, 38, 12),
+        rectangle(6, 24, 12, 14),
+        rectangle(20, 24, 24, 14),
+    }) catch unreachable;
+
+    const final_data = stream.getWritten();
+
+    break :blk final_data[0..final_data.len].*;
 };
 
 pub const workspace_add = blk: {
     @setEvalBranchQuota(10_000);
 
-    break :blk builder.header(48, 48) ++
-        builder.colorTable(&[_]tvg.Color{ dim_black, signal_red }) ++
-        builder.fillRectangles(3, .flat, 0) ++
-        builder.rectangle(6, 10, 38, 12) ++
-        builder.rectangle(6, 24, 12, 14) ++
-        builder.rectangle(20, 24, 24, 14) ++
-        builder.fillPath(1, .flat, 1) ++
-        builder.uint(11) ++
-        builder.point(26, 32) ++
-        builder.path.horiz(32) ++
-        builder.path.vert(26) ++
-        builder.path.horiz(36) ++
-        builder.path.vert(32) ++
-        builder.path.horiz(42) ++
-        builder.path.vert(36) ++
-        builder.path.horiz(36) ++
-        builder.path.vert(42) ++
-        builder.path.horiz(32) ++
-        builder.path.vert(36) ++
-        builder.path.horiz(26) ++
-        builder.end_of_document;
+    var icon_data: [4069]u8 = undefined;
+
+    var stream = std.io.fixedBufferStream(&icon_data);
+
+    var builder = tvg.builder.create(stream.writer());
+
+    builder.writeHeader(48, 48, .@"1/256", .u8888, .default) catch unreachable;
+
+    builder.writeColorTable(&.{ dim_black, signal_red }) catch unreachable;
+
+    builder.writeFillRectangles(.{ .flat = 0 }, &.{
+        rectangle(6, 10, 38, 12),
+        rectangle(6, 24, 12, 14),
+        rectangle(20, 24, 24, 14),
+    }) catch unreachable;
+
+    builder.writeFillPath(.{ .flat = 1 }, &.{
+        .{
+            .start = .{ .x = 26, .y = 32 },
+            .commands = &.{
+                .{ .horiz = .{ .data = 32 } },
+                .{ .vert = .{ .data = 26 } },
+                .{ .horiz = .{ .data = 36 } },
+                .{ .vert = .{ .data = 32 } },
+                .{ .horiz = .{ .data = 42 } },
+                .{ .vert = .{ .data = 36 } },
+                .{ .horiz = .{ .data = 36 } },
+                .{ .vert = .{ .data = 42 } },
+                .{ .horiz = .{ .data = 32 } },
+                .{ .vert = .{ .data = 36 } },
+                .{ .horiz = .{ .data = 26 } },
+            },
+        },
+    }) catch unreachable;
+
+    const final_data = stream.getWritten();
+
+    break :blk final_data[0..final_data.len].*;
 };

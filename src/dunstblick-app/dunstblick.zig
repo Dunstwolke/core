@@ -365,7 +365,7 @@ pub const Connection = struct {
                 const event = try self.provider.createEvent();
                 errdefer self.provider.freeEvent(event);
 
-                const value = try Value.deserialize(&event.memory.allocator, value_type, &reader);
+                const value = try Value.deserialize(event.memory.allocator(), value_type, &reader);
 
                 event.event = Event{
                     .property_changed = PropertyChangedEvent{
@@ -1001,7 +1001,7 @@ pub const Application = struct {
         const node = if (self.event_stash.pop()) |node|
             node
         else
-            try self.event_arena.allocator.create(EventNode);
+            try self.event_arena.allocator().create(EventNode);
 
         node.* = EventNode{
             .data = AppEvent{
@@ -1081,7 +1081,7 @@ pub const Application = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
 
-        var cloned_data = try std.mem.dupe(self.allocator, u8, data);
+        var cloned_data = try self.allocator.dupe(u8, data);
         errdefer self.allocator.free(cloned_data);
 
         const result = try self.resources.getOrPut(id);

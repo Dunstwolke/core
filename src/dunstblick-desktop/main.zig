@@ -101,8 +101,8 @@ pub fn init(app: *Application, allocator: std.mem.Allocator, input: *zero_graphi
     errdefer app.available_apps.deinit();
 
     if (zero_graphics.backend != .android) {
-        app.settings_root_path = if (try known_folders.getPath(&app.arena.allocator, .local_configuration)) |folder|
-            try std.fs.path.join(&app.arena.allocator, &[_][]const u8{ folder, "dunstblick" })
+        app.settings_root_path = if (try known_folders.getPath(app.arena.allocator(), .local_configuration)) |folder|
+            try std.fs.path.join(app.arena.allocator(), &[_][]const u8{ folder, "dunstblick" })
         else
             null;
     } else {
@@ -115,7 +115,7 @@ pub fn init(app: *Application, allocator: std.mem.Allocator, input: *zero_graphi
         var jni = android.JNI.init(android_app.activity);
         defer jni.deinit();
 
-        app.settings_root_path = try jni.getFilesDir(&app.arena.allocator);
+        app.settings_root_path = try jni.getFilesDir(app.arena.allocator());
     }
 
     logger.info("load settings...", .{});
@@ -199,7 +199,7 @@ fn loadSettings(app: *Application) !bool {
 
 fn saveSettings(app: *Application) !bool {
     // if (zero_graphics.backend == .android) {
-    //     logger.emerg("Android file I/O doesn't work properly yet", .{});
+    //     logger.err("Android file I/O doesn't work properly yet", .{});
     //     return false;
     // }
 

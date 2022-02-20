@@ -95,7 +95,7 @@ fn allocApp(self: *Self) !*AppNode {
     const node = if (self.free_app_list.popFirst()) |n|
         n
     else
-        try self.arena.allocator.create(AppNode);
+        try self.arena.allocator().create(AppNode);
     node.* = .{
         .data = undefined,
     };

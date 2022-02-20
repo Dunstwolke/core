@@ -849,7 +849,7 @@ pub const WidgetTree = struct {
                     var message = std.EnumArray(protocol.WidgetType, bool).initFill(false);
                 };
                 if (!T.message.get(widget.control)) {
-                    logger.emerg("TODO: Implement widget size computation for {s}", .{@tagName(std.meta.activeTag(widget.control))});
+                    logger.err("TODO: Implement widget size computation for {s}", .{@tagName(std.meta.activeTag(widget.control))});
                     T.message.set(widget.control, true);
                 }
 
@@ -1168,7 +1168,7 @@ pub const WidgetTree = struct {
                     var message = std.EnumArray(protocol.WidgetType, bool).initFill(false);
                 };
                 if (!T.message.get(widget.control)) {
-                    logger.emerg("TODO: Implement widget layout for {s}", .{@tagName(std.meta.activeTag(widget.control))});
+                    logger.err("TODO: Implement widget layout for {s}", .{@tagName(std.meta.activeTag(widget.control))});
                     T.message.set(widget.control, true);
                 }
 
@@ -1456,7 +1456,7 @@ pub const WidgetTree = struct {
                     var message = std.EnumArray(protocol.WidgetType, bool).initFill(false);
                 };
                 if (!T.message.get(widget.control)) {
-                    logger.emerg("TODO: Implement widget logic for {s}", .{@tagName(std.meta.activeTag(widget.control))});
+                    logger.err("TODO: Implement widget logic for {s}", .{@tagName(std.meta.activeTag(widget.control))});
                     T.message.set(widget.control, true);
                 }
 

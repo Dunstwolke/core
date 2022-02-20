@@ -403,8 +403,8 @@ const IconCache = struct {
             const swidth = @as(usize, size.width);
             const sheight = @as(usize, size.height);
 
-            const pixels = try self.arena.allocator.alloc(Color, swidth * sheight);
-            errdefer self.arena.allocator.free(pixels);
+            const pixels = try self.arena.allocator().alloc(Color, swidth * sheight);
+            errdefer self.arena.allocator().free(pixels);
 
             std.mem.set(Color, pixels, Color.transparent);
 
@@ -414,7 +414,9 @@ const IconCache = struct {
                 width: usize,
                 height: usize,
 
-                pub fn setPixel(section: @This(), x: isize, y: isize, color: [4]u8) void {
+                pub fn setPixel(section: @This(), x: isize, y: isize, color: tvg.Color) void {
+                    const bits = color.toRgba8();
+
                     const px = std.math.cast(usize, x) catch return;
                     const py = std.math.cast(usize, y) catch return;
 
@@ -423,10 +425,10 @@ const IconCache = struct {
                     const buf = &section.buffer[section.width * py + px];
                     const dst = buf.*;
                     const src = Color{
-                        .r = color[0],
-                        .g = color[1],
-                        .b = color[2],
-                        .a = color[3],
+                        .r = bits[0],
+                        .g = bits[1],
+                        .b = bits[2],
+                        .a = bits[3],
                     };
 
                     buf.* = Color.alphaBlend(dst, src, src.a);
@@ -434,7 +436,7 @@ const IconCache = struct {
             };
 
             tvg.render(
-                &arena.allocator,
+                arena.allocator(),
                 TvgCanvas{
                     .buffer = pixels.ptr,
                     .width = swidth,

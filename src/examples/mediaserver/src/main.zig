@@ -51,7 +51,7 @@ pub fn main() anyerror!u8 {
     // _ = c.dunstblick_SetConnectedCallback(dbProvider, clientConnected, null);
     // _ = c.dunstblick_SetDisconnectedCallback(dbProvider, clientDisconnected, null);
 
-    inline for (std.meta.declarations(data.resources)) |decl| {
+    inline for (comptime std.meta.declarations(data.resources)) |decl| {
         const res = @field(data.resources, decl.name);
         try app.addResource(res.id, res.kind, res.data);
     }

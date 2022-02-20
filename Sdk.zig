@@ -254,19 +254,33 @@ pub const CompileDrawingStep = struct {
 
         // Just run the input file through the TVG parser once
         {
-            const file = try std.fs.cwd().openFile(src_path, .{});
+            const file = std.fs.cwd().openFile(src_path, .{}) catch |err| {
+                std.debug.panic("Failed to open {s}: {s}", .{
+                    src_path,
+                    @errorName(err),
+                });
+            };
             defer file.close();
 
-            var parser = try tvg.parse(self.sdk.builder.allocator, file.reader());
-            defer parser.deinit();
-
-            while (try parser.next()) |cmd| {
-                _ = cmd;
-            }
+            validate(self.sdk.builder.allocator, file.reader()) catch |err| {
+                std.debug.panic("{s} is not a valid TinyVG file: {s}", .{
+                    src_path,
+                    @errorName(err),
+                });
+            };
         }
 
         // No need to cache it, we just verbatim pass the file through
         self.output_file.path = src_path;
+    }
+
+    fn validate(allocator: std.mem.Allocator, reader: std.fs.File.Reader) !void {
+        var parser = try tvg.parse(allocator, reader);
+        defer parser.deinit();
+
+        while (try parser.next()) |cmd| {
+            _ = cmd;
+        }
     }
 };
 

@@ -7,14 +7,14 @@ pub fn main() !void {
     defer _ = gpa.deinit();
 
     var app = try dunstblick.Application.open(
-        &gpa.allocator,
+        gpa.allocator(),
         "Widget Tester",
         "A overview over all Dunstblick widgets",
         app_data.resources.app_icon.data,
     );
     defer app.close();
 
-    inline for (std.meta.declarations(app_data.resources)) |decl| {
+    inline for (comptime std.meta.declarations(app_data.resources)) |decl| {
         const res = @field(app_data.resources, decl.name);
         try app.addResource(res.id, res.kind, res.data);
     }
