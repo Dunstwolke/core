@@ -16,9 +16,9 @@ const pkgs = struct {
     const antiphony = std.build.Pkg{
         .name = "antiphony",
         .path = .{ .path = "vendor/antiphony/src/antiphony.zig" },
-        .depenencies = &.{
+        .dependencies = &.{
             .{
-                .path = "s2s",
+                .name = "s2s",
                 .path = .{ .path = "vendor/antiphony/vendor/s2s/s2s.zig" },
             },
         },
@@ -129,7 +129,15 @@ pub fn build(b: *Builder) !void {
         break :blk copy;
     };
 
-    const dunstinit = b.addExecutable("dunstinit", "src/dunstinit/main.zig");
+    const dunstctl = b.addExecutable("dunstctl", "src/dunstinit/control-main.zig");
+    dunstctl.addPackage(pkgs.args);
+    dunstctl.addPackage(pkgs.network);
+    dunstctl.addPackage(pkgs.antiphony);
+    dunstctl.setTarget(target);
+    dunstctl.setBuildMode(mode);
+    dunstctl.install();
+
+    const dunstinit = b.addExecutable("dunstinit", "src/dunstinit/service-main.zig");
     dunstinit.addPackage(pkgs.args);
     dunstinit.addPackage(pkgs.network);
     dunstinit.addPackage(pkgs.antiphony);
