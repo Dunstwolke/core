@@ -65,7 +65,7 @@ pub fn main() !u8 {
         try network.connectToHost(gpa.allocator(), host_name, rpc.dunstfabric_port, .tcp)
     else blk: {
         var socket = try network.Socket.create(.ipv4, .tcp);
-        defer socket.close();
+        errdefer socket.close();
 
         try socket.connect(rpc.end_point);
 
@@ -88,19 +88,28 @@ pub fn main() !u8 {
         switch (cli.verb.?) {
             .start => |verb| {
                 _ = verb;
-                try service.invoke("startService", .{service_name});
+                service.invoke("startService", .{service_name}) catch |err| {
+                    try stderr.print("failed to start service {s}: {s}\n", .{ service_name, getErrorDescription(err) });
+                };
             },
             .stop => |verb| {
                 _ = verb;
-                try service.invoke("stopService", .{service_name});
+                service.invoke("stopService", .{service_name}) catch |err| {
+                    try stderr.print("failed to stop service {s}: {s}\n", .{ service_name, getErrorDescription(err) });
+                };
             },
             .restart => |verb| {
                 _ = verb;
-                try service.invoke("restartService", .{service_name});
+                service.invoke("restartService", .{service_name}) catch |err| {
+                    try stderr.print("failed to restart service {s}: {s}\n", .{ service_name, getErrorDescription(err) });
+                };
             },
             .status => |verb| {
                 _ = verb;
-                const status: rpc.ServiceStatus = try service.invoke("getServiceStatus", .{service_name});
+                const status: rpc.ServiceStatus = service.invoke("getServiceStatus", .{service_name}) catch |err| {
+                    try stderr.print("failed to restart service {s}: {s}\n", .{ service_name, getErrorDescription(err) });
+                    continue;
+                };
                 if (status.online) {
                     try stdout.print("{s} is online: pid={d}\n", .{ service_name, status.pid });
                 } else {
@@ -110,7 +119,19 @@ pub fn main() !u8 {
         }
     }
 
+    try service.shutdown();
+
     return 0;
+}
+
+fn getErrorDescription(err: anyerror) []const u8 {
+    return switch (err) {
+        error.Timeout => "The remote command timed out.",
+        error.FileNotFound => "The service executable was not found.",
+        error.IoError => "There was an error starting the remote service.",
+
+        else => |e| @errorName(e),
+    };
 }
 
 fn printUsage(stream: anytype, exe_name: []const u8) !void {

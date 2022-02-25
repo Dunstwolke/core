@@ -129,6 +129,9 @@ pub fn build(b: *Builder) !void {
         break :blk copy;
     };
 
+    const dunstinit_step = b.step("dunstinit", "Builds everything related to dunstinit.");
+    const dunstblick_step = b.step("dunstblick", "Builds everything related to dunstblick.");
+
     const dunstctl = b.addExecutable("dunstctl", "src/dunstinit/control-main.zig");
     dunstctl.addPackage(pkgs.args);
     dunstctl.addPackage(pkgs.network);
@@ -136,6 +139,7 @@ pub fn build(b: *Builder) !void {
     dunstctl.setTarget(target);
     dunstctl.setBuildMode(mode);
     dunstctl.install();
+    dunstinit_step.dependOn(&dunstctl.install_step.?.step);
 
     const dunstinit = b.addExecutable("dunstinit", "src/dunstinit/service-main.zig");
     dunstinit.addPackage(pkgs.args);
@@ -144,8 +148,7 @@ pub fn build(b: *Builder) !void {
     dunstinit.setTarget(target);
     dunstinit.setBuildMode(mode);
     dunstinit.install();
-
-    const dunstblick_step = b.step("dunstblick", "Makes everything related to dunstblick.");
+    dunstinit_step.dependOn(&dunstinit.install_step.?.step);
 
     const libsqlite3 = b.addStaticLibrary("sqlite3", null);
     libsqlite3.addCSourceFile("./vendor/zig-sqlite/c/sqlite3.c", &[_][]const u8{"-std=c99"});

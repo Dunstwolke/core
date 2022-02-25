@@ -16,12 +16,17 @@ pub const public_end_point = network.EndPoint{
     .port = dunstfabric_port,
 };
 
+pub const ProcessID = union(enum) {
+    windows: std.os.windows.DWORD,
+    unix: i32,
+};
+
 pub const ServiceControlError = error{ Timeout, UnkownService, IoError, FileNotFound, OutOfMemory };
 pub const CreateServiceError = error{ Timeout, AlreadyExists, FileNotFound, OutOfMemory };
 
 pub const ServiceStatus = struct {
     online: bool,
-    pid: ?std.os.pid_t,
+    pid: ?ProcessID,
 };
 
 pub const ServiceDescriptor = struct {

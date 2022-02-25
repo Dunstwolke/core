@@ -1,6 +1,7 @@
 const std = @import("std");
 const args_parser = @import("args");
 const network = @import("network");
+const builtin = @import("builtin");
 
 const rpc = @import("rpc.zig");
 
@@ -117,10 +118,14 @@ pub fn main() !u8 {
         while (iter.next()) |kv| {
             const svc = kv.value_ptr;
             if (svc.descriptor.autostart) {
-                try svc.start();
+                svc.start() catch |err| {
+                    std.log.err("failed to start service {s}: {s}", .{ kv.key_ptr.*, @errorName(err) });
+                };
             }
         }
     }
+
+    std.log.debug("ready.", .{});
 
     while (true) {
         while (command_queue.active_queue.get()) |node| {
@@ -168,7 +173,10 @@ pub fn main() !u8 {
                     if (services.getPtr(cmd.service)) |svc| {
                         cmd.result = if (svc.process) |proc| rpc.ServiceStatus{
                             .online = true,
-                            .pid = proc.pid,
+                            .pid = if (builtin.os.tag == .windows)
+                                rpc.ProcessID{ .windows = GetProcessId(proc.handle) }
+                            else
+                                rpc.ProcessID{ .unix = proc.pid },
                         } else rpc.ServiceStatus{
                             .online = false,
                             .pid = null,
@@ -193,38 +201,65 @@ pub fn main() !u8 {
             var iter = services.iterator();
             while (iter.next()) |kv| {
                 const svc = kv.value_ptr;
-                if (svc.process) |proc| {
-                    // TODO: Figure out how to check for process liveness
-
-                    const waitres = std.os.waitpid(proc.pid, std.os.W.NOHANG);
-
-                    const exit_code = if (waitres.status >= 0 and waitres.status <= 255) blk: {
-                        std.debug.print("{} => {}\n", .{ proc.pid, waitres.status });
-                        proc.deinit();
-                        svc.process = null;
-                        break :blk @truncate(u8, waitres.status);
-                    } else null;
-
-                    if (exit_code) |code| {
-                        std.log.info("Service {s} exited with code {d}", .{ svc.name, code });
-
-                        const restart = switch (svc.descriptor.restart) {
-                            .no => false,
-                            .@"on-failure" => (code == 0),
-                            .always => true,
-                        };
-
-                        if (restart) {
-                            try svc.start();
-                        }
-                    }
-                }
+                periodicProcessCheck(svc) catch |err| {
+                    std.log.err("failed to check process: {s}", .{@errorName(err)});
+                };
             }
         }
         std.time.sleep(5 * std.time.ns_per_us);
     }
 
     return 0;
+}
+
+fn periodicProcessCheck(svc: *Service) !void {
+    if (svc.process) |proc| {
+        // TODO: Figure out how to check for process liveness
+
+        const exit_code = if (builtin.os.tag == .windows) blk: {
+            std.os.windows.WaitForSingleObjectEx(proc.handle, 0, false) catch |err| switch (err) {
+                error.WaitTimeOut => break :blk null,
+                else => |e| return e,
+            };
+
+            const term = try proc.wait(); // this should not block
+
+            proc.deinit();
+            svc.process = null;
+
+            break :blk switch (term) {
+                .Exited => |code| code,
+                .Signal => unreachable, // not possible on windows,
+                .Stopped => unreachable, // not possible on windows,
+                .Unknown => 0xFF, // we just make something recognizable
+            };
+
+            //
+        } else blk: {
+            const waitres = std.os.waitpid(proc.pid, std.os.W.NOHANG);
+
+            break :blk if (waitres.status >= 0 and waitres.status <= 255) b: {
+                std.debug.print("{} => {}\n", .{ proc.pid, waitres.status });
+                proc.deinit();
+                svc.process = null;
+                break :b @truncate(u8, waitres.status);
+            } else null;
+        };
+
+        if (exit_code) |code| {
+            std.log.info("Service {s} exited with code {d}", .{ svc.name, code });
+
+            const restart = switch (svc.descriptor.restart) {
+                .no => false,
+                .@"on-failure" => (code == 0),
+                .always => true,
+            };
+
+            if (restart) {
+                try svc.start();
+            }
+        }
+    }
 }
 
 pub const Service = struct {
@@ -366,7 +401,7 @@ const ControlQueue = struct {
 const HostControl = struct {
     dummy: u8 = 0,
 
-    const command_timeout = 50 * std.time.ns_per_ms;
+    const command_timeout = 250 * std.time.ns_per_ms;
 
     pub fn startService(service: []const u8) rpc.ServiceControlError!void {
         var cmd = Command{ .startService = .{
@@ -436,14 +471,9 @@ const HostControl = struct {
     }
 };
 
-fn processManagementConnection(socket: network.Socket) !void {
-    errdefer socket.close();
-
+fn processManagementConnection(allocator: std.mem.Allocator, socket: network.Socket) !void {
     const protocol_magic = [4]u8{ 0xf7, 0xcb, 0xbb, 0x05 };
     const protocol_version: u8 = 1;
-
-    var thread_allocator = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = thread_allocator.deinit();
 
     const reader = socket.reader();
     const writer = socket.writer();
@@ -457,7 +487,7 @@ fn processManagementConnection(socket: network.Socket) !void {
     if (remote_version != protocol_version)
         return error.ProtocolMismatch;
 
-    var end_point = RpcHostEndPoint.init(thread_allocator.allocator(), reader, writer);
+    var end_point = RpcHostEndPoint.init(allocator, reader, writer);
     defer end_point.destroy();
 
     var ctrl = HostControl{};
@@ -467,12 +497,31 @@ fn processManagementConnection(socket: network.Socket) !void {
     try end_point.acceptCalls();
 }
 
+fn processManagementConnectionSafe(socket: network.Socket) void {
+    defer socket.close();
+
+    var thread_allocator = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = thread_allocator.deinit();
+
+    processManagementConnection(thread_allocator.allocator(), socket) catch |err| {
+        std.log.err("management thread died: {s}", .{@errorName(err)});
+        if (builtin.mode == .Debug and builtin.os.tag != .windows) {
+            // TODO: Fix windows stack trace printing on wine
+            if (@errorReturnTrace()) |trace| {
+                std.debug.dumpStackTrace(trace.*);
+            }
+        }
+    };
+}
+
 fn acceptConnectionsThread(listener: network.Socket) !void {
     while (true) {
         var client_socket = try listener.accept();
         errdefer client_socket.close();
 
-        var management_thread = try std.Thread.spawn(.{}, processManagementConnection, .{client_socket});
+        var management_thread = try std.Thread.spawn(.{}, processManagementConnectionSafe, .{client_socket});
         management_thread.detach();
     }
 }
+
+extern "kernel32" fn GetProcessId(process: std.os.windows.HANDLE) std.os.windows.DWORD;
