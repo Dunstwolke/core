@@ -1,45 +1,45 @@
-[submodule "lib/zig-args"]
-	path = lib/zig-args
+[submodule "vendor/zig-args"]
+	path = vendor/zig-args
 	url = https://github.com/MasterQ32/zig-args
-[submodule "lib/zig-network"]
-	path = lib/zig-network
+[submodule "vendor/zig-network"]
+	path = vendor/zig-network
 	url = https://github.com/MasterQ32/zig-network
-[submodule "lib/zig-uri"]
-	path = lib/zig-uri
+[submodule "vendor/zig-uri"]
+	path = vendor/zig-uri
 	url = https://github.com/MasterQ32/zig-uri
-[submodule "lib/stb"]
-	path = lib/stb
+[submodule "vendor/stb"]
+	path = vendor/stb
 	url = https://github.com/nothings/stb
-[submodule "lib/painterz"]
-	path = lib/painterz
+[submodule "vendor/painterz"]
+	path = vendor/painterz
 	url = https://github.com/ziglibs/painterz
-[submodule "lib/optional"]
-	path = lib/optional
+[submodule "vendor/optional"]
+	path = vendor/optional
 	url = https://github.com/TartanLlama/optional
-[submodule "lib/ini"]
-	path = lib/ini
+[submodule "vendor/ini"]
+	path = vendor/ini
 	url = https://github.com/ziglibs/ini
-[submodule "lib/foxwren"]
-	path = lib/foxwren
+[submodule "vendor/foxwren"]
+	path = vendor/foxwren
 	url = https://github.com/malcolmstill/foxwren
-[submodule "lib/zero-graphics"]
-	path = lib/zero-graphics
+[submodule "vendor/zero-graphics"]
+	path = vendor/zero-graphics
 	url = https://github.com/MasterQ32/zero-graphics
-[submodule "lib/zig-charm"]
-	path = lib/zig-charm
+[submodule "vendor/zig-charm"]
+	path = vendor/zig-charm
 	url = https://github.com/jedisct1/zig-charm
-[submodule "lib/known-folders"]
-	path = lib/known-folders
+[submodule "vendor/known-folders"]
+	path = vendor/known-folders
 	url = https://github.com/ziglibs/known-folders
-[submodule "lib/zig-sqlite"]
-	path = lib/zig-sqlite
+[submodule "vendor/zig-sqlite"]
+	path = vendor/zig-sqlite
 	url = https://github.com/vrischmann/zig-sqlite
-[submodule "lib/uuid6-zig"]
-	path = lib/uuid6-zig
+[submodule "vendor/uuid6-zig"]
+	path = vendor/uuid6-zig
 	url = https://github.com/jdknezek/uuid6-zig
-[submodule "lib/zig-qoi"]
-	path = lib/qoi
+[submodule "vendor/zig-qoi"]
+	path = vendor/qoi
 	url = https://github.com/MasterQ32/zig-qoi
-[submodule "lib/sdk"]
-	path = lib/tvg
+[submodule "vendor/sdk"]
+	path = vendor/tvg
 	url = https://github.com/TinyVG/sdk

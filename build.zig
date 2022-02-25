@@ -3,44 +3,44 @@ const Builder = std.build.Builder;
 
 const DunstblickSdk = @import("Sdk.zig");
 
-const ZeroGraphicsSdk = @import("lib/zero-graphics/Sdk.zig");
-const SdlSdk = @import("lib/zero-graphics/vendor/SDL.zig/Sdk.zig");
-const AndroidSdk = @import("lib/zero-graphics/vendor/ZigAndroidTemplate/Sdk.zig");
+const ZeroGraphicsSdk = @import("vendor/zero-graphics/Sdk.zig");
+const SdlSdk = @import("vendor/zero-graphics/vendor/SDL.zig/Sdk.zig");
+const AndroidSdk = @import("vendor/zero-graphics/vendor/ZigAndroidTemplate/Sdk.zig");
 
 const pkgs = struct {
     const network = std.build.Pkg{
         .name = "network",
-        .path = .{ .path = "./lib/zig-network/network.zig" },
+        .path = .{ .path = "./vendor/zig-network/network.zig" },
     };
 
     const known_folders = std.build.Pkg{
         .name = "known-folders",
-        .path = .{ .path = "./lib/known-folders/known-folders.zig" },
+        .path = .{ .path = "./vendor/known-folders/known-folders.zig" },
     };
 
     const args = std.build.Pkg{
         .name = "args",
-        .path = .{ .path = "./lib/zig-args/args.zig" },
+        .path = .{ .path = "./vendor/zig-args/args.zig" },
     };
 
     const uri = std.build.Pkg{
         .name = "uri",
-        .path = .{ .path = "./lib/zig-uri/uri.zig" },
+        .path = .{ .path = "./vendor/zig-uri/uri.zig" },
     };
 
     const painterz = std.build.Pkg{
         .name = "painterz",
-        .path = .{ .path = "./lib/painterz/painterz.zig" },
+        .path = .{ .path = "./vendor/painterz/painterz.zig" },
     };
 
     const tvg = std.build.Pkg{
         .name = "tvg",
-        .path = .{ .path = "./lib/tvg/src/lib/tinyvg.zig" },
+        .path = .{ .path = "./vendor/tvg/src/lib/tinyvg.zig" },
     };
 
     const meta = std.build.Pkg{
         .name = "zig-meta",
-        .path = .{ .path = "./lib/zig-meta/meta.zig" },
+        .path = .{ .path = "./vendor/zig-meta/meta.zig" },
     };
 
     const dunstblick_protocol = std.build.Pkg{
@@ -70,12 +70,12 @@ const pkgs = struct {
 
     const zigimg = std.build.Pkg{
         .name = "zigimg",
-        .path = .{ .path = "./lib/zero-graphics/vendor/zigimg/zigimg.zig" },
+        .path = .{ .path = "./vendor/zero-graphics/vendor/zigimg/zigimg.zig" },
     };
 
     const zerog = std.build.Pkg{
         .name = "zero-graphics",
-        .path = .{ .path = "./lib/zero-graphics/src/zero-graphics.zig" },
+        .path = .{ .path = "./vendor/zero-graphics/src/zero-graphics.zig" },
         .dependencies = &[_]std.build.Pkg{
             zigimg,
         },
@@ -83,22 +83,22 @@ const pkgs = struct {
 
     const charm = std.build.Pkg{
         .name = "charm",
-        .path = .{ .path = "./lib/zig-charm/src/main.zig" },
+        .path = .{ .path = "./vendor/zig-charm/src/main.zig" },
     };
 
     const sqlite3 = std.build.Pkg{
         .name = "sqlite3",
-        .path = .{ .path = "./lib/zig-sqlite/sqlite.zig" },
+        .path = .{ .path = "./vendor/zig-sqlite/sqlite.zig" },
     };
 
     const uuid6 = std.build.Pkg{
         .name = "uuid6",
-        .path = .{ .path = "./lib/uuid6-zig/src/Uuid.zig" },
+        .path = .{ .path = "./vendor/uuid6-zig/src/Uuid.zig" },
     };
 
     const qoi = std.build.Pkg{
         .name = "qoi",
-        .path = .{ .path = "lib/qoi/src/qoi.zig" },
+        .path = .{ .path = "vendor/qoi/src/qoi.zig" },
     };
 };
 
@@ -128,7 +128,7 @@ pub fn build(b: *Builder) !void {
     const dunstblick_step = b.step("dunstblick", "Makes everything related to dunstblick.");
 
     const libsqlite3 = b.addStaticLibrary("sqlite3", null);
-    libsqlite3.addCSourceFile("./lib/zig-sqlite/c/sqlite3.c", &[_][]const u8{"-std=c99"});
+    libsqlite3.addCSourceFile("./vendor/zig-sqlite/c/sqlite3.c", &[_][]const u8{"-std=c99"});
     libsqlite3.setBuildMode(mode);
     libsqlite3.setTarget(musl_target);
     libsqlite3.linkLibC();
@@ -145,7 +145,7 @@ pub fn build(b: *Builder) !void {
     if (!musl_target.isWindows()) {
         libmagic.defineCMacro("HAVE_UNISTD_H", null);
     }
-    libmagic.addIncludeDir("lib/file-5.40");
+    libmagic.addIncludeDir("vendor/file-5.40");
     libmagic.linkLibC();
 
     const dunstfs = b.addExecutable("dfs", "./src/dunstfs/main.zig");
@@ -155,7 +155,7 @@ pub fn build(b: *Builder) !void {
     dunstfs.addPackage(pkgs.args);
     dunstfs.addPackage(pkgs.known_folders);
     dunstfs.addPackage(pkgs.uuid6);
-    dunstfs.addIncludeDir("./lib/zig-sqlite/c");
+    dunstfs.addIncludeDir("./vendor/zig-sqlite/c");
     dunstfs.linkLibrary(libsqlite3);
     dunstfs.linkLibrary(libmagic);
     dunstfs.linkLibC();
@@ -414,24 +414,24 @@ pub fn build(b: *Builder) !void {
 }
 
 const libmagic_sources = [_][]const u8{
-    "lib/file-5.40/src/buffer.c",
-    "lib/file-5.40/src/apprentice.c",
-    "lib/file-5.40/src/magic.c",
-    "lib/file-5.40/src/softmagic.c",
-    "lib/file-5.40/src/ascmagic.c",
-    "lib/file-5.40/src/encoding.c",
-    "lib/file-5.40/src/compress.c",
-    "lib/file-5.40/src/is_csv.c",
-    "lib/file-5.40/src/is_json.c",
-    "lib/file-5.40/src/is_tar.c",
-    "lib/file-5.40/src/readelf.c",
-    "lib/file-5.40/src/print.c",
-    "lib/file-5.40/src/fsmagic.c",
-    "lib/file-5.40/src/funcs.c",
-    "lib/file-5.40/src/apptype.c",
-    "lib/file-5.40/src/der.c",
-    "lib/file-5.40/src/cdf.c",
-    "lib/file-5.40/src/cdf_time.c",
-    "lib/file-5.40/src/readcdf.c",
-    "lib/file-5.40/src/fmtcheck.c",
+    "vendor/file-5.40/src/buffer.c",
+    "vendor/file-5.40/src/apprentice.c",
+    "vendor/file-5.40/src/magic.c",
+    "vendor/file-5.40/src/softmagic.c",
+    "vendor/file-5.40/src/ascmagic.c",
+    "vendor/file-5.40/src/encoding.c",
+    "vendor/file-5.40/src/compress.c",
+    "vendor/file-5.40/src/is_csv.c",
+    "vendor/file-5.40/src/is_json.c",
+    "vendor/file-5.40/src/is_tar.c",
+    "vendor/file-5.40/src/readelf.c",
+    "vendor/file-5.40/src/print.c",
+    "vendor/file-5.40/src/fsmagic.c",
+    "vendor/file-5.40/src/funcs.c",
+    "vendor/file-5.40/src/apptype.c",
+    "vendor/file-5.40/src/der.c",
+    "vendor/file-5.40/src/cdf.c",
+    "vendor/file-5.40/src/cdf_time.c",
+    "vendor/file-5.40/src/readcdf.c",
+    "vendor/file-5.40/src/fmtcheck.c",
 };

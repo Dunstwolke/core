@@ -1,8 +1,8 @@
 const std = @import("std");
 const logger = std.log.scoped(.dunstblick_sdk);
-const tvg = @import("lib/tvg/src/lib/tinyvg.zig");
-const qoi = @import("lib/qoi/src/qoi.zig");
-const zigimg = @import("./lib/zero-graphics/vendor/zigimg/zigimg.zig");
+const tvg = @import("vendor/tvg/src/lib/tinyvg.zig");
+const qoi = @import("vendor/qoi/src/qoi.zig");
+const zigimg = @import("./vendor/zero-graphics/vendor/zigimg/zigimg.zig");
 
 const Pkg = std.build.Pkg;
 const Step = std.build.Step;
@@ -607,7 +607,7 @@ fn sdkRoot() []const u8 {
 const pkgs = struct {
     const network = std.build.Pkg{
         .name = "network",
-        .path = FileSource{ .path = sdkRoot() ++ "/lib/zig-network/network.zig" },
+        .path = FileSource{ .path = sdkRoot() ++ "/vendor/zig-network/network.zig" },
     };
 
     const dunstblick_protocol = std.build.Pkg{
@@ -620,12 +620,12 @@ const pkgs = struct {
 
     const args = std.build.Pkg{
         .name = "args",
-        .path = FileSource{ .path = sdkRoot() ++ "/lib/zig-args/args.zig" },
+        .path = FileSource{ .path = sdkRoot() ++ "/vendor/zig-args/args.zig" },
     };
 
     const charm = std.build.Pkg{
         .name = "charm",
-        .path = .{ .path = sdkRoot() ++ "/lib/zig-charm/src/main.zig" },
+        .path = .{ .path = sdkRoot() ++ "/vendor/zig-charm/src/main.zig" },
     };
 };
 
