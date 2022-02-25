@@ -44,6 +44,7 @@ pub const DeviceCaps = struct {
     mass_storage: bool,
     display: bool,
     app_host: bool,
+    internet_access: bool,
 };
 
 pub fn init() !void {

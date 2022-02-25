@@ -11,6 +11,7 @@ const device_config = dunstnetz.DeviceConfig{
         .mass_storage = false,
         .display = false,
         .app_host = false,
+        .internet_access = false,
     },
 };
 

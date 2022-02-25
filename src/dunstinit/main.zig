@@ -1,4 +1,6 @@
 const std = @import("std");
+const network = @import("network");
+const rpc = @import("antiphony");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
