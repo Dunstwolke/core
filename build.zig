@@ -13,6 +13,17 @@ const pkgs = struct {
         .path = .{ .path = "./vendor/zig-network/network.zig" },
     };
 
+    const antiphony = std.build.Pkg{
+        .name = "antiphony",
+        .path = .{ .path = "vendor/antiphony/src/antiphony.zig" },
+        .depenencies = &.{
+            .{
+                .path = "s2s",
+                .path = .{ .path = "vendor/antiphony/vendor/s2s/s2s.zig" },
+            },
+        },
+    };
+
     const known_folders = std.build.Pkg{
         .name = "known-folders",
         .path = .{ .path = "./vendor/known-folders/known-folders.zig" },
@@ -121,6 +132,7 @@ pub fn build(b: *Builder) !void {
     const dunstinit = b.addExecutable("dunstinit", "src/dunstinit/main.zig");
     dunstinit.addPackage(pkgs.args);
     dunstinit.addPackage(pkgs.network);
+    dunstinit.addPackage(pkgs.antiphony);
     dunstinit.setTarget(target);
     dunstinit.setBuildMode(mode);
     dunstinit.install();

@@ -43,3 +43,6 @@
 [submodule "vendor/sdk"]
 	path = vendor/tvg
 	url = https://github.com/TinyVG/sdk
+[submodule "vendor/antiphony"]
+	path = vendor/antiphony
+	url = https://github.com/ziglibs/antiphony
