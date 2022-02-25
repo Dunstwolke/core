@@ -11,6 +11,11 @@ pub const end_point = network.EndPoint{
     .port = dunstfabric_port,
 };
 
+pub const public_end_point = network.EndPoint{
+    .address = .{ .ipv4 = network.Address.IPv4.any },
+    .port = dunstfabric_port,
+};
+
 pub const ServiceControlError = error{ Timeout, UnkownService, IoError, FileNotFound, OutOfMemory };
 pub const CreateServiceError = error{ Timeout, AlreadyExists, FileNotFound, OutOfMemory };
 

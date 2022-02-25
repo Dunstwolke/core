@@ -6,16 +6,19 @@ const rpc = @import("rpc.zig");
 
 const RpcClientEndPoint = rpc.Definition.ClientEndPoint(network.Socket.Reader, network.Socket.Writer, ClientControl);
 
-var global_shutdown = false;
-
 const ClientControl = struct {
     dummy: u8 = 0,
 };
-
 var client_ctrl = ClientControl{};
 
 const CliOptions = struct {
     help: bool = false,
+    host: ?[]const u8 = null,
+
+    pub const shorthands = .{
+        .h = "help",
+        .H = "host",
+    };
 };
 
 const CliVerb = union(enum) {
@@ -58,10 +61,17 @@ pub fn main() !u8 {
         return 1;
     }
 
-    var socket = try network.Socket.create(.ipv4, .tcp);
-    defer socket.close();
+    var socket = if (cli.options.host) |host_name|
+        try network.connectToHost(gpa.allocator(), host_name, rpc.dunstfabric_port, .tcp)
+    else blk: {
+        var socket = try network.Socket.create(.ipv4, .tcp);
+        defer socket.close();
 
-    try socket.connect(rpc.end_point);
+        try socket.connect(rpc.end_point);
+
+        break :blk socket;
+    };
+    defer socket.close();
 
     var reader = socket.reader();
     var writer = socket.writer();

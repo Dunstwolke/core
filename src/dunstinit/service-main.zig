@@ -1,15 +1,45 @@
 const std = @import("std");
+const args_parser = @import("args");
 const network = @import("network");
 
 const rpc = @import("rpc.zig");
+
+fn printUsage(stream: anytype, exe_name: []const u8) !void {
+    _ = exe_name;
+    try stream.writeAll(
+        \\BLAH BLAH BLAH
+        \\
+    );
+}
 
 const RpcHostEndPoint = rpc.Definition.HostEndPoint(network.Socket.Reader, network.Socket.Writer, HostControl);
 
 var command_queue: ControlQueue = undefined;
 
-pub fn main() !void {
+const CliOptions = struct {
+    help: bool = false,
+    expose: bool = false,
+
+    pub const shorthands = .{
+        .h = "help",
+        .e = "expose",
+    };
+};
+
+pub fn main() !u8 {
+    var stdout = std.io.getStdOut().writer();
+    // var stderr = std.io.getStdErr().writer();
+
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
+
+    var cli = args_parser.parseForCurrentProcess(CliOptions, gpa.allocator(), .print) catch return 1;
+    defer cli.deinit();
+
+    if (cli.options.help) {
+        try printUsage(stdout, cli.executable_name.?);
+        return 0;
+    }
 
     command_queue = ControlQueue{ .arena = std.heap.ArenaAllocator.init(gpa.allocator()) };
     defer command_queue.arena.deinit();
@@ -18,7 +48,12 @@ pub fn main() !void {
     defer listener.close();
 
     try listener.enablePortReuse(true);
-    try listener.bind(rpc.end_point);
+
+    try listener.bind(if (cli.options.expose)
+        rpc.public_end_point
+    else
+        rpc.end_point);
+
     try listener.listen();
 
     var control_thread = try std.Thread.spawn(.{}, acceptConnectionsThread, .{listener});
@@ -188,6 +223,8 @@ pub fn main() !void {
         }
         std.time.sleep(5 * std.time.ns_per_us);
     }
+
+    return 0;
 }
 
 pub const Service = struct {
