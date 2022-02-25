@@ -39,8 +39,8 @@ const CliVerb = union(enum) {
 };
 
 pub fn main() !u8 {
-    var stdout = std.io.getStdOut();
-    var stderr = std.io.getStdErr();
+    var stdout = std.io.getStdOut().writer();
+    var stderr = std.io.getStdErr().writer();
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -90,6 +90,12 @@ pub fn main() !u8 {
             },
             .status => |verb| {
                 _ = verb;
+                const status: rpc.ServiceStatus = try service.invoke("getServiceStatus", .{service_name});
+                if (status.online) {
+                    try stdout.print("{s} is online: pid={d}\n", .{ service_name, status.pid });
+                } else {
+                    try stdout.print("{s} is offline.\n", .{service_name});
+                }
             },
         }
     }
