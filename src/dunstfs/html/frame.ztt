@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+
+<head>
+  <link rel="stylesheet" href="/style.css">
+  <title>DunstFS</title>
+</head>
+
+<body lang="en">
+
+  <div id="topbar">
+    <nav>
+      <ul>
+        <li><b>DunstFS</b></li>
+        <li><a href="/">Files</a></li>
+        <li><a href="/settings">Settings</a></li>
+      </ul>
+    </nav>
+  </div>
+
+  <div id="bottom">
+    <div id="sidebar">
+      <h1>Filter:</h1>
+      <form method="GET">
+      <input type="text" name="filter">
+      </form>
+      &nbsp;
+      <h1>Tags:</h1>
+      <ul class="taglist">
+        <li><a href="">+</a><a href="">-</a> <a href="">image/png</a> (100)</li>
+        <li><a href="">+</a><a href="">-</a> <a href="">text/plain</a> (100)</li>
+        <li><a href="">+</a><a href="">-</a> <a href="">text/zig</a> (100)</li>
+      </ul>
+    </div>
+
+    <? try context.renderContent(output); ?>
+  </div>
+</body>
+
+</html>

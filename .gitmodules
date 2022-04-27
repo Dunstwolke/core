@@ -46,3 +46,9 @@
 [submodule "vendor/antiphony"]
 	path = vendor/antiphony
 	url = https://github.com/ziglibs/antiphony
+[submodule "vendor/serve"]
+	path = vendor/serve
+	url = https://github.com/MasterQ32/zig-serve
+[submodule "vendor/ztt"]
+	path = vendor/ztt
+	url = https://github.com/MasterQ32/ZTT

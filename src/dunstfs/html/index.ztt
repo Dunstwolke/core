@@ -1,0 +1,24 @@
+<div class="contentview" id="filelist">
+  <div class="list">
+    <a class="dfs-item" href="/file/{guid}">
+      <img class="icon" src="/img/file.svg">
+      <span class="filename">File 1</span>
+    </a>
+    <a class="dfs-item" href="">
+      <img class="icon" src="/img/file.svg">
+      <span class="filename">File 2</span>
+    </a>
+    <a class="dfs-item" href="">
+      <img class="icon" src="/img/file.svg">
+      <span class="filename">File 3</span>
+    </a>
+    <a class="dfs-item" href="">
+      <img class="icon" src="/img/file.svg">
+      <span class="filename">File 4</span>
+    </a>
+    <a class="dfs-item" href="">
+      <img class="icon" src="/img/file.svg">
+      <span class="filename">File 5</span>
+    </a>
+  </div>
+</div>

@@ -8,7 +8,9 @@ const rpc = @import("rpc.zig");
 fn printUsage(stream: anytype, exe_name: []const u8) !void {
     _ = exe_name;
     try stream.writeAll(
-        \\BLAH BLAH BLAH
+        \\dunstinit-daemon [-h] [-e]
+        \\  -h, --help    Show this help
+        \\  -e, --expose  Expose service to public interface
         \\
     );
 }
@@ -127,6 +129,12 @@ pub fn main() !u8 {
 
     std.log.debug("ready.", .{});
 
+    coreLoop(&services);
+
+    return 0;
+}
+
+fn coreLoop(services: *std.StringArrayHashMap(Service)) void {
     while (true) {
         while (command_queue.active_queue.get()) |node| {
             defer @atomicStore(bool, &node.data.completed, true, .SeqCst);
@@ -472,8 +480,8 @@ const HostControl = struct {
 };
 
 fn processManagementConnection(allocator: std.mem.Allocator, socket: network.Socket) !void {
-    const protocol_magic = [4]u8{ 0xf7, 0xcb, 0xbb, 0x05 };
-    const protocol_version: u8 = 1;
+    const protocol_magic = rpc.protocol_magic;
+    const protocol_version: u8 = rpc.protocol_version;
 
     const reader = socket.reader();
     const writer = socket.writer();

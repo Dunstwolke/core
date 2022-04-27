@@ -33,6 +33,7 @@ pub const ServiceDescriptor = struct {
     autostart: bool = false,
     restart: Restart = .no,
     command: []const []const u8,
+    dependencies: []const u8 = &.{},
 };
 
 pub const Restart = enum {

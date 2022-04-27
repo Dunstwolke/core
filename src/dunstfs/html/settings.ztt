@@ -1,0 +1,8 @@
+<div class="contentview" id="settings">
+  <h1>Settings</h1>
+  <form action="GET">
+    <table>
+      
+    </table>
+  </form>
+</div>

@@ -7,6 +7,9 @@ const ZeroGraphicsSdk = @import("vendor/zero-graphics/Sdk.zig");
 const SdlSdk = @import("vendor/zero-graphics/vendor/SDL.zig/Sdk.zig");
 const AndroidSdk = @import("vendor/zero-graphics/vendor/ZigAndroidTemplate/Sdk.zig");
 
+const ZigServeSdk = @import("vendor/serve/build.zig");
+const ZTT = @import("vendor/ztt/src/TemplateStep.zig");
+
 const pkgs = struct {
     const network = std.build.Pkg{
         .name = "network",
@@ -111,6 +114,12 @@ const pkgs = struct {
         .name = "qoi",
         .path = .{ .path = "vendor/qoi/src/qoi.zig" },
     };
+
+    const serve = std.build.Pkg{
+        .name = "serve",
+        .path = .{ .path = "vendor/serve/src/serve.zig" },
+        .dependencies = &.{ network, uri },
+    };
 };
 
 pub fn build(b: *Builder) !void {
@@ -171,18 +180,65 @@ pub fn build(b: *Builder) !void {
     libmagic.addIncludeDir("vendor/file-5.40");
     libmagic.linkLibC();
 
-    const dunstfs = b.addExecutable("dfs", "./src/dunstfs/main.zig");
-    dunstfs.setBuildMode(mode);
-    dunstfs.setTarget(musl_target);
-    dunstfs.addPackage(pkgs.sqlite3);
-    dunstfs.addPackage(pkgs.args);
-    dunstfs.addPackage(pkgs.known_folders);
-    dunstfs.addPackage(pkgs.uuid6);
-    dunstfs.addIncludeDir("./vendor/zig-sqlite/c");
-    dunstfs.linkLibrary(libsqlite3);
-    dunstfs.linkLibrary(libmagic);
-    dunstfs.linkLibC();
-    dunstfs.install();
+    const libwolfssl = ZigServeSdk.createWolfSSL(b, musl_target);
+
+    const dunstfs_daemon = b.addExecutable("dfs-daemon", "./src/dunstfs/daemon.zig");
+    dunstfs_daemon.setBuildMode(mode);
+    dunstfs_daemon.setTarget(musl_target);
+    dunstfs_daemon.addPackage(pkgs.sqlite3);
+    dunstfs_daemon.addPackage(pkgs.args);
+    dunstfs_daemon.addPackage(pkgs.known_folders);
+    dunstfs_daemon.addPackage(pkgs.uuid6);
+    dunstfs_daemon.addPackage(pkgs.network);
+    dunstfs_daemon.addPackage(pkgs.antiphony);
+    dunstfs_daemon.addIncludeDir("./vendor/zig-sqlite/c");
+    dunstfs_daemon.linkLibrary(libsqlite3);
+    dunstfs_daemon.linkLibrary(libmagic);
+    dunstfs_daemon.linkLibC();
+    dunstfs_daemon.install();
+
+    const dunstfs_cli = b.addExecutable("dfs", "./src/dunstfs/cli.zig");
+    dunstfs_cli.setBuildMode(mode);
+    dunstfs_cli.setTarget(musl_target);
+    dunstfs_cli.addPackage(pkgs.args);
+    dunstfs_cli.addPackage(pkgs.known_folders);
+    dunstfs_cli.addPackage(pkgs.uuid6);
+    dunstfs_cli.addPackage(pkgs.network);
+    dunstfs_cli.addPackage(pkgs.antiphony);
+    dunstfs_cli.linkLibrary(libmagic);
+    dunstfs_cli.linkLibC();
+    dunstfs_cli.install();
+
+    const dunstfs_interface = b.addExecutable("dfs-interface", "./src/dunstfs/interface.zig");
+    dunstfs_interface.setBuildMode(mode);
+    dunstfs_interface.setTarget(musl_target);
+    dunstfs_interface.addPackage(pkgs.args);
+    dunstfs_interface.addPackage(pkgs.known_folders);
+    dunstfs_interface.addPackage(pkgs.uuid6);
+    dunstfs_interface.addPackage(pkgs.serve);
+    dunstfs_interface.addPackage(pkgs.uri);
+    dunstfs_interface.addPackage(pkgs.network);
+    dunstfs_interface.addPackage(.{
+        .name = "template.frame",
+        .path = ZTT.transform(b, "src/dunstfs/html/frame.ztt"),
+    });
+    dunstfs_interface.addPackage(.{
+        .name = "template.index",
+        .path = ZTT.transform(b, "src/dunstfs/html/index.ztt"),
+    });
+    dunstfs_interface.addPackage(.{
+        .name = "template.settings",
+        .path = ZTT.transform(b, "src/dunstfs/html/settings.ztt"),
+    });
+    dunstfs_interface.addPackage(.{
+        .name = "template.file",
+        .path = ZTT.transform(b, "src/dunstfs/html/file.ztt"),
+    });
+    dunstfs_interface.linkLibrary(libmagic);
+    dunstfs_interface.linkLibrary(libwolfssl);
+    dunstfs_interface.addIncludeDir("vendor/serve/vendor/wolfssl");
+    dunstfs_interface.linkLibC();
+    dunstfs_interface.install();
 
     const compiler = b.addExecutable("dunstblick-compiler", "./src/dunstblick-compiler/main.zig");
     compiler.addPackage(pkgs.args);
