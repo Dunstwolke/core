@@ -17,23 +17,27 @@ pub const public_end_point = network.EndPoint{
     .port = dunstfs_port,
 };
 
-pub const AddFileError = error{ OutOfMemory, IoError, Timeout, SourceNotFound };
-pub const UpdateFileError = error{ OutOfMemory, IoError, Timeout, FileNotFound, SourceNotFound };
-pub const RemoveFileError = error{ OutOfMemory, IoError, Timeout, FileNotFound };
-pub const GetFileError = error{ OutOfMemory, IoError, Timeout, FileNotFound, AccessDenied };
-pub const RenameFileError = error{ OutOfMemory, IoError, Timeout, FileNotFound };
-pub const AddTagError = error{ OutOfMemory, IoError, Timeout, FileNotFound };
-pub const RemoveTagError = error{ OutOfMemory, IoError, Timeout, FileNotFound };
-pub const ListFileTagsError = error{ OutOfMemory, IoError, Timeout, FileNotFound };
-pub const ListTagsError = error{ OutOfMemory, IoError, Timeout };
-pub const ListFilesError = error{ OutOfMemory, IoError, Timeout };
-pub const OpenFileError = error{ OutOfMemory, IoError, Timeout, FileNotFound };
-pub const FileInfoError = error{ OutOfMemory, IoError, Timeout, FileNotFound };
+pub const AllocatingCall = rpc.AllocatingCall;
+
+pub const AddFileError = error{ OutOfMemory, AccessDenied, IoError, InvalidSourceFile, SourceFileNotFound };
+pub const UpdateFileError = error{ OutOfMemory, AccessDenied, IoError, InvalidSourceFile, FileNotFound, SourceFileNotFound };
+pub const RemoveFileError = error{ OutOfMemory, IoError, FileNotFound };
+pub const GetFileError = error{ OutOfMemory, IoError, FileNotFound, AccessDenied };
+pub const RenameFileError = error{ OutOfMemory, IoError, FileNotFound };
+pub const AddTagError = error{ OutOfMemory, IoError, FileNotFound };
+pub const RemoveTagError = error{ OutOfMemory, IoError, FileNotFound };
+pub const ListFileTagsError = error{ OutOfMemory, IoError, FileNotFound };
+pub const ListTagsError = error{ OutOfMemory, IoError };
+pub const ListFilesError = error{ OutOfMemory, IoError };
+pub const OpenFileError = error{ OutOfMemory, IoError, FileNotFound };
+pub const FileInfoError = error{ OutOfMemory, IoError, FileNotFound };
 
 pub const FileListItem = struct {
     uuid: Uuid,
-    name: ?[]const u8,
-    mime: []const u8,
+    user_name: ?[]const u8,
+    last_change: []const u8,
+
+    //     mime: []const u8,
 };
 
 pub const TagInfo = struct {
@@ -41,15 +45,19 @@ pub const TagInfo = struct {
     count: u32,
 };
 
+pub const Date = [19]u8; // YYYY-MM-DD hh:mm:ss
+
 pub const FileInfo = struct {
-    // sorted new-to-old
     name: ?[]const u8,
-    revisions: []const Revision,
+    tags: []const []const u8,
+    revisions: []const Revision, // sorted new-to-old
+    last_change: Date,
 };
 
 pub const Revision = struct {
-    hash: [32]u8, // blake3
-    date: [19]u8, // YYYY-MM-DD hh:mm:ss
+    number: u32,
+    dataset: [32]u8, // blake3 hash of the file contents
+    date: Date,
     mime: []const u8,
     size: u64,
 };
@@ -65,13 +73,13 @@ pub const Definition = rpc.CreateDefinition(.{
         .open = fn (file: Uuid, read_only: bool) OpenFileError!void,
         .info = fn (file: Uuid) FileInfoError!FileInfo,
 
-        .list = fn (skip: u32, limit: ?u32, include_filters: []const []const u8, exclude_filters: []const []const u8) ListFilesError!FileListItem,
-        .find = fn (skip: u32, limit: ?u32, filter: []const u8) ListFilesError!FileListItem,
+        .list = fn (skip: u32, limit: ?u32, include_filters: []const []const u8, exclude_filters: []const []const u8) ListFilesError![]FileListItem,
+        .find = fn (skip: u32, limit: ?u32, filter: []const u8, exact: bool) ListFilesError![]FileListItem,
 
         // Tag management
         .addTags = fn (file: Uuid, tags: []const []const u8) AddTagError!void,
         .removeTags = fn (file: Uuid, tags: []const []const u8) RemoveTagError!void,
-        .listFileTags = fn (file: Uuid) ListFileTagsError![]const u8,
+        .listFileTags = fn (file: Uuid) ListFileTagsError![]const []const u8,
         .listTags = fn (filter: ?[]const u8, limit: ?u32) ListTagsError![]TagInfo,
 
         // Utility

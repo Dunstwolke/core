@@ -1,6 +1,7 @@
 const std = @import("std");
 const network = @import("network");
 const rpc = @import("rpc.zig");
+const antiphony = @import("antiphony");
 const Uuid = @import("uuid6");
 const logger = std.log.scoped(.rpc_client);
 
@@ -16,7 +17,10 @@ const RpcClient = @This();
 socket: network.Socket,
 service: RpcClientEndPoint,
 
+pub const defs = rpc;
 pub const free = RpcClientEndPoint.free;
+
+pub const AllocatingCall = antiphony.AllocatingCall;
 
 pub fn connect(allocator: std.mem.Allocator, host_name: ?[]const u8) !RpcClient {
     var socket = if (host_name) |host|
@@ -74,14 +78,14 @@ pub fn get(self: *RpcClient, file: Uuid, target: []const u8) !void {
 pub fn open(self: *RpcClient, file: Uuid, read_only: bool) !void {
     return try self.service.invoke("open", .{ file, read_only });
 }
-pub fn info(self: *RpcClient, file: Uuid) !rpc.FileInfo {
-    return try self.service.invoke("info", .{file});
+pub fn info(self: *RpcClient, allocator: std.mem.Allocator, file: Uuid) !rpc.FileInfo {
+    return try self.service.invokeAlloc(allocator, "info", .{file});
 }
-pub fn list(self: *RpcClient, skip: u32, limit: ?u32, include_filters: []const []const u8, exclude_filters: []const []const u8) !rpc.FileListItem {
-    return try self.service.invoke("list", .{ skip, limit, include_filters, exclude_filters });
+pub fn list(self: *RpcClient, allocator: std.mem.Allocator, skip: u32, limit: ?u32, include_filters: []const []const u8, exclude_filters: []const []const u8) ![]rpc.FileListItem {
+    return try self.service.invokeAlloc(allocator, "list", .{ skip, limit, include_filters, exclude_filters });
 }
-pub fn find(self: *RpcClient, skip: u32, limit: ?u32, filter: []const u8) !rpc.FileListItem {
-    return try self.service.invoke("find", .{ skip, limit, filter });
+pub fn find(self: *RpcClient, allocator: std.mem.Allocator, skip: u32, limit: ?u32, filter: []const u8, exact: bool) ![]rpc.FileListItem {
+    return try self.service.invokeAlloc(allocator, "find", .{ skip, limit, filter, exact });
 }
 pub fn addTags(self: *RpcClient, file: Uuid, tags: []const []const u8) !void {
     return try self.service.invoke("addTags", .{ file, tags });
@@ -89,8 +93,8 @@ pub fn addTags(self: *RpcClient, file: Uuid, tags: []const []const u8) !void {
 pub fn removeTags(self: *RpcClient, file: Uuid, tags: []const []const u8) !void {
     return try self.service.invoke("removeTags", .{ file, tags });
 }
-pub fn listFileTags(self: *RpcClient, file: Uuid) ![]const u8 {
-    return try self.service.invoke("listFileTags", .{file});
+pub fn listFileTags(self: *RpcClient, allocator: std.mem.Allocator, file: Uuid) ![]const []const u8 {
+    return try self.service.invokeAlloc(allocator, "listFileTags", .{file});
 }
 pub fn listTags(self: *RpcClient, allocator: std.mem.Allocator, filter: ?[]const u8, limit: ?u32) ![]rpc.TagInfo {
     return try self.service.invokeAlloc(allocator, "listTags", .{ filter, limit });
