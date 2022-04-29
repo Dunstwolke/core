@@ -2,6 +2,7 @@
 <html>
 
 <head>
+  <meta charset="utf-8">
   <link rel="stylesheet" href="/style.css">
   <title>DunstFS</title>
 </head>
@@ -19,19 +20,36 @@
   </div>
 
   <div id="bottom">
+    <? if(@TypeOf(context).features.any()) { ?>
     <div id="sidebar">
+      <? if(@TypeOf(context).features.search) { ?>
       <h1>Filter:</h1>
       <form method="GET">
-      <input type="text" name="filter">
+      <input type="text" name="filter" value="<? try output.writeAll(context.getSearch()); ?>">
       </form>
+      <? } ?>
       &nbsp;
+      <? if(@TypeOf(context).features.tags) { ?>
       <h1>Tags:</h1>
       <ul class="taglist">
-        <li><a href="">+</a><a href="">-</a> <a href="">image/png</a> (100)</li>
-        <li><a href="">+</a><a href="">-</a> <a href="">text/plain</a> (100)</li>
-        <li><a href="">+</a><a href="">-</a> <a href="">text/zig</a> (100)</li>
+        <? for(context.getTags()) |tag| {  ?>
+        <li><a href="">+</a><a href="">-</a> <a href=""><? try output.writeAll(tag); ?></a> (100)</li>
+        <? } ?>
       </ul>
+      <? } ?>
+      &nbsp;
+      <? if(@TypeOf(context).features.upload) { ?>
+      <h1>Upload:</h1>
+      <form method="POST" action="/create">
+        <div style="position: relative;width: 100%; height: 5rem;background-color: white;border: 3px groove silver;">
+          <input type="file" name="data" style="height: 100%;opacity: 0;position: absolute;top: 0;left: 0;">
+          <span style="position: absolute;top: 0;left: 0;width: 100%;height: 100%;pointer-events: none;line-height: 5rem;text-align: center;">Drag file here…</span>
+        </div>
+        <button type="submit" name="create" style="margin-left: auto;">Create</button>
+      </form>
+      <? } ?>
     </div>
+    <? } ?>
 
     <? try context.renderContent(output); ?>
   </div>

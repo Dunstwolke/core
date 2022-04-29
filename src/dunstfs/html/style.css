@@ -61,6 +61,7 @@ a {
 #sidebar h1 {
   font-size: 1.2rem;
   margin: 0;
+  margin-bottom: 0.25rem;
 }
 
 #sidebar input {
@@ -118,8 +119,12 @@ a {
 
 .list .dfs-item span.filename {
   display: block;
+  font-size: 0.7rem;
 }
 
+.list .dfs-item span.filename.unnamed {
+  font-style: italic;
+}
 
 .taglist {
   list-style: none;

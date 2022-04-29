@@ -73,9 +73,8 @@ fn printUsage(writer: anytype) !void {
         \\    filtered by the [pattern].
         \\    When [--count n] is present, only the n most important tags will be printed.
         \\
-        \\  gc [--dry-run]
+        \\  gc
         \\    Collects all data sets that are currently not in use and deletes them.
-        \\    When --dry-run is set, it will only list the files deleted, but won't actually delete them.
         \\
         \\Tags & Tag Wildcards:
         \\  DunstFS uses a hierarchical tag architecture that allows quick selection of fitting tags.

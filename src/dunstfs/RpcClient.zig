@@ -20,6 +20,12 @@ service: RpcClientEndPoint,
 pub const defs = rpc;
 pub const free = RpcClientEndPoint.free;
 
+pub const FileListItem = rpc.FileListItem;
+pub const TagInfo = rpc.TagInfo;
+pub const Date = rpc.Date;
+pub const FileInfo = rpc.FileInfo;
+pub const Revision = rpc.Revision;
+
 pub const AllocatingCall = antiphony.AllocatingCall;
 
 pub fn connect(allocator: std.mem.Allocator, host_name: ?[]const u8) !RpcClient {

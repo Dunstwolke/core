@@ -218,6 +218,7 @@ pub fn build(b: *Builder) !void {
     dunstfs_interface.addPackage(pkgs.serve);
     dunstfs_interface.addPackage(pkgs.uri);
     dunstfs_interface.addPackage(pkgs.network);
+    dunstfs_interface.addPackage(pkgs.antiphony);
     dunstfs_interface.addPackage(.{
         .name = "template.frame",
         .path = ZTT.transform(b, "src/dunstfs/html/frame.ztt"),

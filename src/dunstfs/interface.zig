@@ -25,12 +25,12 @@ const std = @import("std");
 const uri = @import("uri");
 const builtin = @import("builtin");
 const args_parser = @import("args");
-const sqlite3 = @import("sqlite3");
-const known_folders = @import("known-folders");
 const Uuid = @import("uuid6");
 const serve = @import("serve");
 
-const logger = std.log.scoped(.dfs);
+const logger = std.log.scoped(.dfs_interface);
+
+const RpcClient = @import("RpcClient.zig");
 
 // Set the log level to warning
 pub const log_level: std.log.Level = if (builtin.mode == .Debug) std.log.Level.debug else std.log.Level.info;
@@ -53,6 +53,7 @@ const CommonOptions = struct {
     help: bool = false,
     verbose: bool = false,
     version: bool = false,
+    host: ?[]const u8 = null,
 
     pub const shorthands = .{
         .h = "help",
@@ -102,6 +103,12 @@ pub fn main() !u8 {
     if (cli.options.verbose)
         current_log_level = .info;
 
+    var rpc = RpcClient.connect(gpa.allocator(), cli.options.host) catch |err| {
+        logger.err("could not connect to rpc daemon: {s}", .{@errorName(err)});
+        return 1;
+    };
+    defer rpc.deinit();
+
     var http_server = try serve.HttpListener.init(global_allocator);
     defer http_server.deinit();
 
@@ -133,8 +140,29 @@ pub fn main() !u8 {
         if (std.mem.eql(u8, url.path, "/")) {
             // index page
 
+            var files = try rpc.list(
+                arena.allocator(),
+                0,
+                null,
+                &.{},
+                &.{},
+            );
+
+            var tags = std.StringArrayHashMap(void).init(arena.allocator());
+            defer tags.deinit();
+
+            for (files) |file| {
+                const info = try rpc.info(arena.allocator(), file.uuid);
+                for (info.tags) |tag| {
+                    try tags.put(tag, {});
+                }
+            }
+
             const response = try context.response.writer();
-            try templates.frame.render(response, IndexView{});
+            try templates.frame.render(response, IndexView{
+                .files = files,
+                .tags = tags.keys(),
+            });
         } else if (std.mem.startsWith(u8, url.path, "/file/")) {
             // file view
 
@@ -171,16 +199,56 @@ pub fn main() !u8 {
     return 0;
 }
 
+pub const ViewFeatures = struct {
+    search: bool,
+    tags: bool,
+    upload: bool,
+
+    pub fn any(v: ViewFeatures) bool {
+        return v.search and v.tags and v.upload;
+    }
+};
+
 const IndexView = struct {
     const Self = @This();
 
+    pub const features = ViewFeatures{
+        .search = true,
+        .tags = true,
+        .upload = true,
+    };
+
+    tags: []const []const u8,
+    files: []const RpcClient.FileListItem,
+
     pub fn renderContent(self: Self, writer: anytype) !void {
         try templates.index.render(writer, self);
+    }
+
+    pub fn getIcon(self: Self, file: RpcClient.FileListItem) []const u8 {
+        _ = self;
+        _ = file;
+        return "file.svg";
+    }
+
+    pub fn getSearch(self: Self) []const u8 {
+        _ = self;
+        return "";
+    }
+
+    pub fn getTags(self: Self) []const []const u8 {
+        return self.tags;
     }
 };
 
 const SettingsView = struct {
     const Self = @This();
+
+    pub const features = ViewFeatures{
+        .search = false,
+        .tags = false,
+        .upload = false,
+    };
 
     pub fn renderContent(self: Self, writer: anytype) !void {
         try templates.settings.render(writer, self);
@@ -189,6 +257,12 @@ const SettingsView = struct {
 
 const FileView = struct {
     const Self = @This();
+
+    pub const features = ViewFeatures{
+        .search = false,
+        .tags = false,
+        .upload = false,
+    };
 
     pub fn renderContent(self: Self, writer: anytype) !void {
         try templates.file.render(writer, self);
