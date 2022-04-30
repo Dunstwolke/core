@@ -201,6 +201,7 @@ const SystemInterface = struct {
         uuid: []const u8,
         user_name: ?[]const u8,
         last_change: []const u8,
+        mime_type: []const u8,
     };
 
     allocator: std.mem.Allocator,
@@ -229,10 +230,14 @@ const SystemInterface = struct {
         self.global_lock.unlock();
     }
 
-    fn mapSqlError(err: (sqlite3.Error || error{ OutOfMemory, Workaround })) error{ IoError, OutOfMemory } {
+    fn mapSqlError(sys: *SystemInterface, err: (sqlite3.Error || error{ OutOfMemory, Workaround })) error{ IoError, OutOfMemory } {
         return switch (err) {
             error.OutOfMemory => error.OutOfMemory,
-            else => error.IoError,
+            else => {
+                logger.warn("mappig sql error {s} to IoError:", .{@errorName(err)});
+                logger.warn("{}", .{sys.db.getDetailedError()});
+                return error.IoError;
+            },
         };
     }
 
@@ -289,15 +294,18 @@ const SystemInterface = struct {
         const file_uuid_str = uuidToString(file_uuid);
         const file_uuid_text = sqlite3.Text{ .data = &file_uuid_str };
 
+        sys.db_intf.create_file.reset();
         sys.db_intf.create_file.exec(.{}, .{
             file_uuid_text,
             file_title,
-        }) catch |err| return mapSqlError(err);
+        }) catch |err| return sys.mapSqlError(err);
+
+        sys.db_intf.add_revision.reset();
         sys.db_intf.add_revision.exec(.{}, .{
             file_uuid_text,
             file_dataset,
             file_uuid_text,
-        }) catch |err| return mapSqlError(err);
+        }) catch |err| return sys.mapSqlError(err);
 
         logger.info("created file({s}, {s}, {s}, {s})", .{ file_title, mime_type, &dataset.checksum, dataset.creation_date });
 
@@ -307,7 +315,7 @@ const SystemInterface = struct {
             sys.db_intf.add_tag.exec(.{}, .{
                 .file = file_uuid_text,
                 .tag = tag,
-            }) catch |err| return mapSqlError(err);
+            }) catch |err| return sys.mapSqlError(err);
         }
 
         return file_uuid;
@@ -334,12 +342,12 @@ const SystemInterface = struct {
             sys.db_intf.set_file_name.exec(.{}, .{
                 name_text,
                 uuid_text,
-            }) catch |err| return mapSqlError(err);
+            }) catch |err| return sys.mapSqlError(err);
         } else {
             sys.db_intf.delete_file_name.reset();
             sys.db_intf.delete_file_name.exec(.{}, .{
                 uuid_text,
-            }) catch |err| return mapSqlError(err);
+            }) catch |err| return sys.mapSqlError(err);
         }
     }
 
@@ -351,13 +359,13 @@ const SystemInterface = struct {
         var uuid_text = sqlite3.Text{ .data = &canonical_format };
 
         sys.db_intf.delete_all_revisions.reset();
-        sys.db_intf.delete_all_revisions.exec(.{}, .{uuid_text}) catch |err| return mapSqlError(err);
+        sys.db_intf.delete_all_revisions.exec(.{}, .{uuid_text}) catch |err| return sys.mapSqlError(err);
 
         sys.db_intf.delete_all_tags.reset();
-        sys.db_intf.delete_all_tags.exec(.{}, .{uuid_text}) catch |err| return mapSqlError(err);
+        sys.db_intf.delete_all_tags.exec(.{}, .{uuid_text}) catch |err| return sys.mapSqlError(err);
 
         sys.db_intf.delete_file.reset();
-        sys.db_intf.delete_file.exec(.{}, .{uuid_text}) catch |err| return mapSqlError(err);
+        sys.db_intf.delete_file.exec(.{}, .{uuid_text}) catch |err| return sys.mapSqlError(err);
     }
 
     pub fn get(file: Uuid, target: []const u8) rpc.GetFileError!void {
@@ -390,7 +398,7 @@ const SystemInterface = struct {
         sys.db_intf.query_file_tags.reset();
         sys.db_intf.query_file_revs.reset();
 
-        const tag_or_null = sys.db_intf.query_file_info.oneAlloc(Tag, rpc_wrap.allocator, .{}, .{uuid_text}) catch |err| return mapSqlError(err);
+        const tag_or_null = sys.db_intf.query_file_info.oneAlloc(Tag, rpc_wrap.allocator, .{}, .{uuid_text}) catch |err| return sys.mapSqlError(err);
 
         const tag: Tag = tag_or_null orelse return error.FileNotFound;
 
@@ -401,8 +409,8 @@ const SystemInterface = struct {
             creation_date: []const u8,
         };
 
-        const tags: [][]const u8 = sys.db_intf.query_file_tags.all([]const u8, rpc_wrap.allocator, .{}, .{uuid_text}) catch |err| return mapSqlError(err);
-        const revisions: []Revision = sys.db_intf.query_file_revs.all(Revision, rpc_wrap.allocator, .{}, .{uuid_text}) catch |err| return mapSqlError(err);
+        const tags: [][]const u8 = sys.db_intf.query_file_tags.all([]const u8, rpc_wrap.allocator, .{}, .{uuid_text}) catch |err| return sys.mapSqlError(err);
+        const revisions: []Revision = sys.db_intf.query_file_revs.all(Revision, rpc_wrap.allocator, .{}, .{uuid_text}) catch |err| return sys.mapSqlError(err);
 
         const revs = try rpc_wrap.allocator.alloc(rpc.Revision, revisions.len);
 
@@ -430,9 +438,6 @@ const SystemInterface = struct {
         sys.lock();
         defer sys.unlock();
 
-        var diag = sqlite3.Diagnostics{};
-        errdefer std.log.err("sqlite failed: {}", .{diag});
-
         const query_text = blk: {
             var builder = std.ArrayList(u8).init(rpc_wrap.allocator);
             defer builder.deinit();
@@ -443,7 +448,8 @@ const SystemInterface = struct {
                 \\SELECT
                 \\    Files.uuid,
                 \\    Files.user_name,
-                \\    Files.last_change
+                \\    Files.last_change,
+                \\    (SELECT mime_type FROM DataSets WHERE checksum = (SELECT dataset FROM Revisions WHERE file = uuid ORDER BY revision DESC LIMIT 1)) AS mime_type
                 \\  FROM Files
                 \\  LEFT JOIN FileTags ON Files.uuid = FileTags.file
             );
@@ -488,27 +494,20 @@ const SystemInterface = struct {
 
         // std.debug.print("{s}\n", .{query_text});
 
-        var query = sys.db.prepareDynamic(query_text) catch |err| return switch (err) {
-            else => error.IoError,
-        };
+        var query = sys.db.prepareDynamic(query_text) catch |err| return sys.mapSqlError(err);
         defer query.deinit();
 
         const real_limit: u32 = limit orelse @as(u32, std.math.maxInt(u32));
         var iter = query.iterator(FileListItemRaw, .{
             .count = real_limit,
             .offset = skip,
-        }) catch |err| return switch (err) {
-            else => error.IoError,
-        };
+        }) catch |err| return sys.mapSqlError(err);
 
         var items = std.ArrayList(rpc.FileListItem).init(rpc_wrap.allocator);
         defer items.deinit();
 
         while (true) {
-            const maybe_item = iter.nextAlloc(rpc_wrap.allocator, .{ .diags = null }) catch |err| return switch (err) {
-                error.OutOfMemory => |e| e,
-                else => error.IoError,
-            };
+            const maybe_item = iter.nextAlloc(rpc_wrap.allocator, .{ .diags = null }) catch |err| return sys.mapSqlError(err);
             const item = maybe_item orelse break;
             try items.append(rpc.FileListItem{
                 .uuid = Uuid.parse(item.uuid) catch |e| {
@@ -517,6 +516,7 @@ const SystemInterface = struct {
                 },
                 .user_name = item.user_name,
                 .last_change = item.last_change,
+                .mime_type = item.mime_type,
             });
         }
 
@@ -560,6 +560,7 @@ const SystemInterface = struct {
                 },
                 .user_name = item.user_name,
                 .last_change = item.last_change,
+                .mime_type = item.mime_type,
             });
         }
 
@@ -844,7 +845,15 @@ const prepared_statement_sources = struct {
         \\SELECT tag, count FROM Tags WHERE tag LIKE ?{text} ORDER BY count LIMIT ?{u32}
     ;
     const find_file =
-        \\SELECT * FROM Files WHERE user_name LIKE ?{text} ORDER BY user_name LIMIT ?{u32} OFFSET ?{u32}
+        \\SELECT
+        \\  Files.uuid,
+        \\  Files.user_name,
+        \\  Files.last_change,
+        \\  (SELECT mime_type FROM DataSets WHERE checksum = (SELECT dataset FROM Revisions WHERE file = uuid ORDER BY revision DESC LIMIT 1)) AS mime_type
+        \\FROM Files
+        \\WHERE user_name LIKE ?{text}
+        \\ORDER BY user_name 
+        \\LIMIT ?{u32} OFFSET ?{u32}
     ;
     const query_file_info =
         \\SELECT uuid, user_name, last_change FROM Files WHERE uuid = ?{text}

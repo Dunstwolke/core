@@ -137,15 +137,72 @@ pub fn main() !u8 {
             continue;
         };
 
+        var query = std.StringArrayHashMap([]const u8).init(temp_memory.allocator());
+        defer query.deinit();
+
+        {
+            var iter = std.mem.tokenize(u8, url.query orelse "", "&");
+            while (iter.next()) |raw_kvp| {
+                if (std.mem.indexOfScalar(u8, raw_kvp, '=')) |split_index| {
+                    const raw_key = raw_kvp[0..split_index];
+                    const raw_value = raw_kvp[split_index + 1 ..];
+
+                    const key = try uri.unescapeString(temp_memory.allocator(), raw_key);
+                    const value = try uri.unescapeString(temp_memory.allocator(), raw_value);
+
+                    try query.put(key, value);
+                } else {
+                    const raw_key = raw_kvp;
+                    const key = try uri.unescapeString(temp_memory.allocator(), raw_key);
+
+                    try query.put(key, "");
+                }
+            }
+        }
+
+        {
+            var iter = query.iterator();
+            while (iter.next()) |kvp| {
+                std.debug.print("'{}' => '{}'\n", .{
+                    std.fmt.fmtSliceEscapeUpper(kvp.key_ptr.*),
+                    std.fmt.fmtSliceEscapeUpper(kvp.value_ptr.*),
+                });
+            }
+        }
+
         if (std.mem.eql(u8, url.path, "/")) {
             // index page
+
+            var pos_filters = std.ArrayList([]const u8).init(temp_memory.allocator());
+            var neg_filters = std.ArrayList([]const u8).init(temp_memory.allocator());
+
+            var search_string_raw = query.get("filter") orelse "";
+            var search_string_filt = std.ArrayList(u8).init(temp_memory.allocator());
+
+            {
+                var iter = std.mem.tokenize(u8, search_string_raw, " \t\r\n");
+                while (iter.next()) |item| {
+                    if (std.mem.eql(u8, item, "-"))
+                        continue;
+                    if (search_string_filt.items.len > 0) {
+                        try search_string_filt.append(' ');
+                    }
+                    try search_string_filt.appendSlice(item);
+
+                    if (std.mem.startsWith(u8, item, "-")) {
+                        try neg_filters.append(item[1..]);
+                    } else {
+                        try pos_filters.append(item);
+                    }
+                }
+            }
 
             var files = try rpc.list(
                 arena.allocator(),
                 0,
                 null,
-                &.{},
-                &.{},
+                pos_filters.items,
+                neg_filters.items,
             );
 
             var tags = std.StringArrayHashMap(void).init(arena.allocator());
@@ -162,6 +219,7 @@ pub fn main() !u8 {
             try templates.frame.render(response, IndexView{
                 .files = files,
                 .tags = tags.keys(),
+                .search_string = search_string_filt.items,
             });
         } else if (std.mem.startsWith(u8, url.path, "/file/")) {
             // file view
@@ -179,9 +237,15 @@ pub fn main() !u8 {
             const response = try context.response.writer();
             try response.writeAll(@embedFile("html/style.css"));
         } else if (std.mem.startsWith(u8, url.path, "/img/")) {
-            const name = std.fs.path.basename(url.path);
+            const name = url.path[5..];
 
-            var file = try img_dir.openFile(name, .{});
+            var file = img_dir.openFile(name, .{}) catch |err| {
+                try context.response.setStatusCode(.not_found);
+
+                const response = try context.response.writer();
+                try response.print("could not find file {s}: {s}\n", .{ url.path, @errorName(err) });
+                continue;
+            };
             defer file.close();
 
             try context.response.setHeader("Content-Type", "image/svg+xml"); // TODO: Replace with actual mime type
@@ -220,6 +284,7 @@ const IndexView = struct {
 
     tags: []const []const u8,
     files: []const RpcClient.FileListItem,
+    search_string: []const u8,
 
     pub fn renderContent(self: Self, writer: anytype) !void {
         try templates.index.render(writer, self);
@@ -227,18 +292,76 @@ const IndexView = struct {
 
     pub fn getIcon(self: Self, file: RpcClient.FileListItem) []const u8 {
         _ = self;
-        _ = file;
-        return "file.svg";
+
+        // try exact matching
+        inline for (comptime std.meta.fields(@TypeOf(mime_icon_table))) |fld| {
+            if (std.mem.eql(u8, fld.name, file.mime_type)) {
+                return @field(mime_icon_table, fld.name);
+            }
+        }
+
+        // try class matching:
+        if (std.mem.startsWith(u8, file.mime_type, "image/")) {
+            return "mime/image.svg";
+        }
+        if (std.mem.startsWith(u8, file.mime_type, "audio/")) {
+            return "mime/music.svg";
+        }
+        if (std.mem.startsWith(u8, file.mime_type, "text/")) {
+            return "mime/document.svg";
+        }
+        if (std.mem.startsWith(u8, file.mime_type, "video/")) {
+            return "mime/video.svg";
+        }
+
+        return "mime/generic.svg";
     }
 
     pub fn getSearch(self: Self) []const u8 {
-        _ = self;
-        return "";
+        return self.search_string;
     }
 
     pub fn getTags(self: Self) []const []const u8 {
         return self.tags;
     }
+};
+
+const mime_icon_table = .{
+    .@"application/zip" = "mime/archive.svg",
+    .@"application/x-tar" = "mime/archive.svg",
+    .@"application/x-7z-compressed" = "mime/archive.svg",
+
+    .@"application/rtf" = "mime/document.svg",
+    .@"application/dxf" = "mime/cad.svg",
+    .@"application/pdf" = "mime/pdf.svg",
+
+    // microsoft office
+    .@"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" = "mime/ms-excel.svg", // .xlsx
+    .@"application/vnd.openxmlformats-officedocument.wordprocessingml.document" = "mime/ms-word.svg", // .docx
+    .@"application/vnd.openxmlformats-officedocument.presentationml.presentation" = "mime/ms-powerpoint.svg", // .pptx
+
+    .@"application/msword" = "mime/ms-word.svg", // .doc
+    .@"application/mspowerpoint" = "mime/ms-powerpoint.svg", // .ppt
+    .@"application/msexcel" = "mime/ms-excel.svg", // .xls
+
+    // libre/open office
+    .@"application/vnd.oasis.opendocument.chart" = "mime/chart.svg", //  *.odc
+    .@"application/vnd.oasis.opendocument.formula" = "mime/generic.svg", //  *.odf
+    .@"application/vnd.oasis.opendocument.graphics" = "mime/cad.svg", //  *.odg
+    .@"application/vnd.oasis.opendocument.image" = "mime/image.svg", //  *.odi
+    .@"application/vnd.oasis.opendocument.presentation" = "mime/generic.svg", //  *.odp
+    .@"application/vnd.oasis.opendocument.spreadsheet" = "mime/chart.svg", //  *.ods
+    .@"application/vnd.oasis.opendocument.text" = "mime/document.svg", //  *.odt
+    .@"application/vnd.oasis.opendocument.text-master" = "mime/document.svg", //  *.odm
+
+    .@"text/rtf" = "mime/document.svg",
+    .@"text/tab-separated-values" = "mime/csv.svg",
+    .@"text/csv" = "mime/csv.svg",
+    .@"text/xml" = "mime/code.svg",
+    .@"text/css" = "mime/code.svg",
+    .@"text/html" = "mime/code.svg",
+    .@"text/javascript" = "mime/code.svg",
+    .@"text/json" = "mime/code.svg",
 };
 
 const SettingsView = struct {

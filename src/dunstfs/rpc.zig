@@ -36,8 +36,7 @@ pub const FileListItem = struct {
     uuid: Uuid,
     user_name: ?[]const u8,
     last_change: []const u8,
-
-    //     mime: []const u8,
+    mime_type: []const u8,
 };
 
 pub const TagInfo = struct {

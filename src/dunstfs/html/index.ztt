@@ -1,14 +1,20 @@
 <div class="contentview" id="filelist">
   <div class="list">
     <? for(context.files) |file| { ?>
-    <a class="dfs-item" href="/file/<? try output.print("{}", .{file.uuid}); ?>">
+    <div class="dfs-item" href="#">
+      <div class="toolbar">
+        <a href="#" title="Open file"><img src="/img/file-view.svg" /></a>
+        <a href="#" title="Edit file"><img src="/img/file-edit.svg" /></a>
+        <span class="spacer"></span>
+        <a href="/file/<? try output.print("{}", .{file.uuid}); ?>" title="Open details…"><img src="/img/file-details.svg" /></a>
+      </div>
       <img class="icon" src="/img/<? try output.writeAll(context.getIcon(file)); ?>">
       <? if(file.user_name) |name| { ?>
       <span class="filename"><? try output.writeAll(name); ?></span>
       <? } else { ?>
       <span class="filename unnamed">unnamed</span>
       <? } ?>
-    </a>
+    </div>
     <? } ?>
   </div>
 </div>

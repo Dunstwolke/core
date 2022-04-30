@@ -84,14 +84,14 @@ a {
 .list .dfs-item {
   width: var(--dfs-item-size);
   height: var(--dfs-item-size);
-  
+
   text-align: center;
   margin: 0.25rem;
   display: flex;
   flex-basis: var(--dfs-item-size);
   flex-grow: 0;
   flex-shrink: 0;
-  
+
   flex-direction: column;
   flex-wrap: nowrap;
   align-items: center;
@@ -101,6 +101,8 @@ a {
 
   border-radius: 0.5rem;
   background-color: #415A77;
+
+  color: white;
 
   padding: 0.25rem;
   /* border: 1px solid black; */
@@ -120,6 +122,7 @@ a {
 .list .dfs-item span.filename {
   display: block;
   font-size: 0.7rem;
+  height: 2em;
 }
 
 .list .dfs-item span.filename.unnamed {
@@ -140,4 +143,56 @@ a {
 .taglist li {
   font-family: monospace;
   white-space: nowrap;
+}
+
+
+#uploadbox div.dropfield {
+  position: relative;
+  width: 100%;
+  height: 5rem;
+  background-color: white;
+  border: 3px groove silver;
+}
+
+#uploadbox div.dropfield input {
+  height: 100%;
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+#uploadbox div.dropfield span {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  line-height: 5rem;
+  text-align: center;
+}
+
+#uploadbox button {
+  margin-top: 0.25rem;
+  float: right;
+}
+
+.dfs-item .toolbar {
+  display: flex;
+  flex-wrap: nowrap;
+  width: 100%;
+}
+
+.dfs-item .toolbar .spacer {
+  flex: 1;
+}
+
+.dfs-item .toolbar img {
+  width: 1rem;
+  opacity: 50%;
+}
+
+.dfs-item .toolbar a:hover img {
+  opacity: 100%;
 }
