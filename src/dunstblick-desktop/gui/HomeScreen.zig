@@ -1396,8 +1396,8 @@ pub fn render(self: *Self) RenderError!void {
                     center: Point,
 
                     fn getFromAngle(help: @This(), radius: f32, a: f32) Point {
-                        var dx = std.math.round(radius * std.math.sin(a));
-                        var dy = std.math.round(radius * std.math.cos(a));
+                        var dx = @round(radius * @sin(a));
+                        var dy = @round(radius * @cos(a));
                         return Point{
                             .x = help.center.x + @floatToInt(i16, dx),
                             .y = help.center.y - @floatToInt(i16, dy),
@@ -1690,7 +1690,7 @@ const AppMenuLayout = struct {
 };
 
 /// This function computes the layout (number of rows/cols) for the application
-/// menu and tries to get as close as possible to 
+/// menu and tries to get as close as possible to
 fn getAppMenuLayout(self: Self) AppMenuLayout {
     const count = self.available_apps.items.len;
 
@@ -1698,9 +1698,9 @@ fn getAppMenuLayout(self: Self) AppMenuLayout {
 
     const count_f = @intToFloat(f32, count);
 
-    const rows_temp_f = std.math.sqrt(count_f / preferred_aspect);
-    const cols_f = std.math.ceil(rows_temp_f * preferred_aspect);
-    const rows_f = std.math.ceil(cols_f / preferred_aspect);
+    const rows_temp_f = @sqrt(count_f / preferred_aspect);
+    const cols_f = @ceil(rows_temp_f * preferred_aspect);
+    const rows_f = @ceil(cols_f / preferred_aspect);
 
     // Minimum layout is 3×2 (roughly requires 300×200)
     const max_cols: u15 = std.math.max(3, (self.size.width - self.config.workspace_bar.getWidth() - 3 * self.config.workspace_bar.margins) / (self.config.app_menu.margins + self.config.app_menu.button_size));
@@ -1991,7 +1991,7 @@ const WindowTree = struct {
             /// inserts the new node on the given side.
             /// left/right create a horizontal group,
             /// top/bottom create a vertical group.
-            /// left/top inserts at the "low" position, 
+            /// left/top inserts at the "low" position,
             /// right/bottom inserts at the "high" position
             split_and_insert: RectangleSide,
 
@@ -2254,7 +2254,7 @@ const WindowTree = struct {
                 var edge: usize = 0;
                 while (edge <= group.children.len) : (edge += 1) {
                     const edge_pos = @intToFloat(f32, edge) * segment;
-                    if (std.math.fabs(pos - edge_pos) < padding / 2)
+                    if (@fabs(pos - edge_pos) < padding / 2)
                         break :blk edge;
                 }
 
@@ -2277,7 +2277,7 @@ const WindowTree = struct {
     }
 
     /// Inserts a new leaf in the tree at the given location. The node will be copied into the tree and the
-    /// original variant might not be used anymore. 
+    /// original variant might not be used anymore.
     pub fn insertLeaf(self: *WindowTree, location: NodeInsertLocation, node: Node, screen: *Self) !void {
         var target_node = &self.root;
         for (location.path[0..location.path_len]) |child_index| {

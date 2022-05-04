@@ -74,11 +74,10 @@ pub fn main() !u8 {
         var iter = services.iterator();
         while (iter.next()) |kv| {
             const svc = kv.value_ptr;
-            if (svc.process) |process| {
+            if (svc.process) |*process| {
                 _ = process.kill() catch |err| {
                     std.log.err("failed to stop process {s}: {s}", .{ kv.key_ptr.*, @errorName(err) });
                 };
-                process.deinit();
             }
             std.json.parseFree(rpc.ServiceDescriptor, svc.descriptor, json_parse_options);
             gpa.allocator().free(kv.key_ptr.*);
@@ -248,7 +247,6 @@ fn periodicProcessCheck(svc: *Service) !void {
 
             break :blk if (waitres.status >= 0 and waitres.status <= 255) b: {
                 std.debug.print("{} => {}\n", .{ proc.pid, waitres.status });
-                proc.deinit();
                 svc.process = null;
                 break :b @truncate(u8, waitres.status);
             } else null;
@@ -272,7 +270,7 @@ fn periodicProcessCheck(svc: *Service) !void {
 
 pub const Service = struct {
     allocator: std.mem.Allocator,
-    process: ?*std.ChildProcess,
+    process: ?std.ChildProcess,
     descriptor: rpc.ServiceDescriptor,
     name: []const u8,
 
@@ -285,8 +283,7 @@ pub const Service = struct {
         // var environment = try std.process.getEnvMap(gpa.allocator());
         // defer environment.deinit();
 
-        var child = try std.ChildProcess.init(svc.descriptor.command, svc.allocator);
-        errdefer child.deinit();
+        var child = std.ChildProcess.init(svc.descriptor.command, svc.allocator);
 
         // child.env_map = &environment;
 
@@ -296,12 +293,10 @@ pub const Service = struct {
     }
 
     fn stop(svc: *Service) !void {
-        if (svc.process) |proc| {
+        if (svc.process) |*proc| {
             std.log.info("Stopping service {s}...", .{svc.name});
             const term = try proc.kill();
             std.log.info("exit code = {}\n", .{term});
-
-            proc.deinit();
 
             svc.process = null;
         }

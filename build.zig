@@ -391,6 +391,10 @@ pub fn build(b: *Builder) !void {
         const app = dunstblick_desktop.compileFor(.android);
         app.install();
 
+        for (app.data.android.libraries) |lib| {
+            lib.bundle_compiler_rt = false;
+        }
+
         const push_app = app.data.android.install();
 
         const run_app = app.data.android.run();

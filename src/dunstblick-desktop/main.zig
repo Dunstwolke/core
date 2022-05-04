@@ -677,18 +677,18 @@ const DemoApp = struct {
             const t = self.render_time - 0.01 * @intToFloat(f32, self.delta_t) * @intToFloat(f32, round);
             const a = @intCast(u8, 255 - 10 * round);
 
-            const r = @floatToInt(u8, 255.0 * (0.5 + 0.5 * std.math.sin(0.3 * t + 0.3)));
-            const g = @floatToInt(u8, 255.0 * (0.5 + 0.5 * std.math.sin(0.3 * t + 1.3)));
-            const b = @floatToInt(u8, 255.0 * (0.5 + 0.5 * std.math.sin(0.3 * t + 2.3)));
+            const r = @floatToInt(u8, 255.0 * (0.5 + 0.5 * @sin(0.3 * t + 0.3)));
+            const g = @floatToInt(u8, 255.0 * (0.5 + 0.5 * @sin(0.3 * t + 1.3)));
+            const b = @floatToInt(u8, 255.0 * (0.5 + 0.5 * @sin(0.3 * t + 2.3)));
 
             var points: [3][2]f32 = undefined;
 
             for (points) |*pt, i| {
                 const offset = @intToFloat(f32, i);
-                const mirror = std.math.sin((1.0 + 0.2 * offset) * t + offset);
+                const mirror = @sin((1.0 + 0.2 * offset) * t + offset);
 
-                pt[0] = mirror * std.math.sin((0.1 * offset) * 0.4 * t + offset);
-                pt[1] = mirror * std.math.cos((0.1 * offset) * 0.4 * t + offset);
+                pt[0] = mirror * @sin((0.1 * offset) * 0.4 * t + offset);
+                pt[1] = mirror * @cos((0.1 * offset) * 0.4 * t + offset);
             }
 
             var real_pt: [3]zero_graphics.Point = undefined;
