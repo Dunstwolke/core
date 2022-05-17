@@ -120,6 +120,12 @@ const pkgs = struct {
         .path = .{ .path = "vendor/serve/src/serve.zig" },
         .dependencies = &.{ network, uri },
     };
+
+    const dunst_environment = std.build.Pkg{
+        .name = "dunst-environment",
+        .path = .{ .path = "src/dunst-environment/main.zig" },
+        .dependencies = &.{known_folders},
+    };
 };
 
 pub fn build(b: *Builder) !void {
@@ -132,9 +138,11 @@ pub fn build(b: *Builder) !void {
     const mode = b.standardReleaseOptions();
     const target = b.standardTargetOptions(.{});
 
-    const musl_target = blk: {
+    const static_target = blk: {
         var copy = target;
-        copy.abi = .musl;
+        if (copy.isLinux()) {
+            copy.abi = .musl;
+        }
         break :blk copy;
     };
 
@@ -145,73 +153,91 @@ pub fn build(b: *Builder) !void {
     dunstctl.addPackage(pkgs.args);
     dunstctl.addPackage(pkgs.network);
     dunstctl.addPackage(pkgs.antiphony);
+    dunstctl.addPackage(pkgs.dunst_environment);
     dunstctl.setTarget(target);
     dunstctl.setBuildMode(mode);
     dunstctl.install();
     dunstinit_step.dependOn(&dunstctl.install_step.?.step);
+    if (target.isWindows()) {
+        dunstctl.linkSystemLibraryName("ws2_32");
+    }
 
     const dunstinit = b.addExecutable("dunstinit", "src/dunstinit/service-main.zig");
     dunstinit.addPackage(pkgs.args);
     dunstinit.addPackage(pkgs.network);
     dunstinit.addPackage(pkgs.antiphony);
+    dunstinit.addPackage(pkgs.dunst_environment);
     dunstinit.setTarget(target);
     dunstinit.setBuildMode(mode);
     dunstinit.install();
     dunstinit_step.dependOn(&dunstinit.install_step.?.step);
+    if (target.isWindows()) {
+        dunstinit.linkSystemLibraryName("ws2_32");
+    }
 
     const libsqlite3 = b.addStaticLibrary("sqlite3", null);
     libsqlite3.addCSourceFile("./vendor/zig-sqlite/c/sqlite3.c", &[_][]const u8{"-std=c99"});
     libsqlite3.setBuildMode(mode);
-    libsqlite3.setTarget(musl_target);
+    libsqlite3.setTarget(static_target);
     libsqlite3.linkLibC();
 
     const libmagic = b.addStaticLibrary("magic", null);
     libmagic.addCSourceFiles(&libmagic_sources, &[_][]const u8{ "-std=c99", "-fno-sanitize=undefined" });
     libmagic.setBuildMode(mode);
-    libmagic.setTarget(musl_target);
+    libmagic.setTarget(static_target);
     libmagic.defineCMacro("HAVE_STDINT_H", null);
     libmagic.defineCMacro("HAVE_INTTYPES_H", null);
     libmagic.defineCMacro("HAVE_WCHAR_H", null);
     libmagic.defineCMacro("HAVE_WCTYPE_H", null);
     libmagic.defineCMacro("HAVE_CONFIG_H", null);
-    if (!musl_target.isWindows()) {
+    if (!static_target.isWindows()) {
         libmagic.defineCMacro("HAVE_UNISTD_H", null);
     }
     libmagic.addIncludeDir("vendor/file-5.40");
     libmagic.linkLibC();
 
-    const libwolfssl = ZigServeSdk.createWolfSSL(b, musl_target);
+    const libwolfssl = ZigServeSdk.createWolfSSL(b, static_target);
 
     const dunstfs_daemon = b.addExecutable("dfs-daemon", "./src/dunstfs/daemon.zig");
     dunstfs_daemon.setBuildMode(mode);
-    dunstfs_daemon.setTarget(musl_target);
+    dunstfs_daemon.setTarget(static_target);
     dunstfs_daemon.addPackage(pkgs.sqlite3);
     dunstfs_daemon.addPackage(pkgs.args);
     dunstfs_daemon.addPackage(pkgs.known_folders);
     dunstfs_daemon.addPackage(pkgs.uuid6);
     dunstfs_daemon.addPackage(pkgs.network);
     dunstfs_daemon.addPackage(pkgs.antiphony);
+    dunstfs_daemon.addPackage(pkgs.dunst_environment);
     dunstfs_daemon.addIncludeDir("./vendor/zig-sqlite/c");
     dunstfs_daemon.linkLibrary(libsqlite3);
     dunstfs_daemon.linkLibrary(libmagic);
     dunstfs_daemon.linkLibC();
-    dunstfs_daemon.install();
+    if (target.isWindows()) {
+        std.log.warn("libmagic needs regex.h from gnu regex. not installing dfs-daemon", .{});
+    } else {
+        dunstfs_daemon.install();
+    }
 
     const dunstfs_cli = b.addExecutable("dfs", "./src/dunstfs/cli.zig");
     dunstfs_cli.setBuildMode(mode);
-    dunstfs_cli.setTarget(musl_target);
+    dunstfs_cli.setTarget(static_target);
     dunstfs_cli.addPackage(pkgs.args);
     dunstfs_cli.addPackage(pkgs.known_folders);
     dunstfs_cli.addPackage(pkgs.uuid6);
     dunstfs_cli.addPackage(pkgs.network);
     dunstfs_cli.addPackage(pkgs.antiphony);
+    dunstfs_cli.addPackage(pkgs.dunst_environment);
     dunstfs_cli.linkLibrary(libmagic);
     dunstfs_cli.linkLibC();
-    dunstfs_cli.install();
+    if (static_target.isWindows()) {
+        std.log.warn("libmagic needs regex.h from gnu regex. not installing dfs", .{});
+    } else {
+        dunstfs_cli.install();
+    }
 
     const dunstfs_interface = b.addExecutable("dfs-interface", "./src/dunstfs/interface.zig");
     dunstfs_interface.setBuildMode(mode);
-    dunstfs_interface.setTarget(musl_target);
+    dunstfs_interface.setTarget(static_target);
     dunstfs_interface.addPackage(pkgs.args);
     dunstfs_interface.addPackage(pkgs.known_folders);
     dunstfs_interface.addPackage(pkgs.uuid6);
@@ -219,6 +245,7 @@ pub fn build(b: *Builder) !void {
     dunstfs_interface.addPackage(pkgs.uri);
     dunstfs_interface.addPackage(pkgs.network);
     dunstfs_interface.addPackage(pkgs.antiphony);
+    dunstfs_interface.addPackage(pkgs.dunst_environment);
     dunstfs_interface.addPackage(.{
         .name = "template.frame",
         .path = ZTT.transform(b, "src/dunstfs/html/frame.ztt"),
@@ -239,7 +266,11 @@ pub fn build(b: *Builder) !void {
     dunstfs_interface.linkLibrary(libwolfssl);
     dunstfs_interface.addIncludeDir("vendor/serve/vendor/wolfssl");
     dunstfs_interface.linkLibC();
-    dunstfs_interface.install();
+    if (static_target.isWindows()) {
+        std.log.warn("libmagic needs regex.h from gnu regex. not installing dfs-interface", .{});
+    } else {
+        dunstfs_interface.install();
+    }
 
     const compiler = b.addExecutable("dunstblick-compiler", "./src/dunstblick-compiler/main.zig");
     compiler.addPackage(pkgs.args);
@@ -266,7 +297,9 @@ pub fn build(b: *Builder) !void {
         mediaserver.addIncludeDir("./src/examples/mediaserver/bass");
         mediaserver.linkSystemLibrary("bass");
 
-        mediaserver.install();
+        if (!target.isWindows()) {
+            mediaserver.install();
+        }
 
         {
             const resources = sdk.addBundleResources();
@@ -317,6 +350,9 @@ pub fn build(b: *Builder) !void {
         lib.setTarget(target);
         lib.setBuildMode(mode);
         lib.install();
+        if (target.isWindows()) {
+            lib.linkSystemLibraryName("ws2_32");
+        }
 
         // calculator example
         const calculator = b.addExecutable("calculator", null);
@@ -380,6 +416,9 @@ pub fn build(b: *Builder) !void {
 
     const desktop_app = dunstblick_desktop.compileFor(.{ .desktop = target });
     desktop_app.install();
+    if (target.isWindows()) {
+        desktop_app.data.desktop.linkSystemLibraryName("ws2_32");
+    }
 
     dunstblick_step.dependOn(&desktop_app.data.desktop.install_step.?.step);
 

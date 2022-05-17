@@ -4,7 +4,7 @@ const network = @import("network");
 const builtin = @import("builtin");
 const Uuid = @import("uuid6");
 const sqlite3 = @import("sqlite3");
-const known_folders = @import("known-folders");
+const dunst_environment = @import("dunst-environment");
 
 const libmagic = @import("magic.zig");
 const MagicSet = libmagic.MagicSet;
@@ -90,18 +90,7 @@ pub fn main() !u8 {
     const source = Uuid.v4.Source.init(rng.random());
 
     logger.info("Determine the data directory...", .{});
-    var root_dir: std.fs.Dir = blk: {
-        var data_dir = (try known_folders.open(global_allocator, .data, .{})) orelse {
-            std.log.err("Missing data directory!\n", .{});
-            return 1;
-        };
-        defer data_dir.close();
-
-        break :blk data_dir.makeOpenPath("dunstwolke/filesystem", .{}) catch {
-            std.log.err("Could not open the DunstFS data directory!\n", .{});
-            return 1;
-        };
-    };
+    var root_dir = dunst_environment.openRoot(.filesystem, .{}) catch return 1;
     defer root_dir.close();
 
     logger.info("Create dataset folder...", .{});

@@ -2,6 +2,7 @@ const std = @import("std");
 const args_parser = @import("args");
 const network = @import("network");
 const builtin = @import("builtin");
+const dunst_environment = @import("dunst-environment");
 
 const rpc = @import("rpc.zig");
 
@@ -84,9 +85,12 @@ pub fn main() !u8 {
         }
     }
 
-    {
-        var config_dir = try std.fs.cwd().openDir("system-root/config/services", .{ .iterate = true });
-        defer config_dir.close();
+    var services_dir = blk: {
+        var config_root = try dunst_environment.openRoot(.config, .{});
+        defer config_root.close();
+
+        var config_dir = try config_root.makeOpenPath("services", .{ .iterate = true });
+        errdefer config_dir.close();
 
         var iterator = config_dir.iterate();
         while (try iterator.next()) |entry| {
@@ -112,7 +116,10 @@ pub fn main() !u8 {
                 .allocator = gpa.allocator(),
             });
         }
-    }
+
+        break :blk config_dir;
+    };
+    defer services_dir.close();
 
     {
         var iter = services.iterator();
@@ -220,7 +227,7 @@ fn coreLoop(services: *std.StringArrayHashMap(Service)) void {
 }
 
 fn periodicProcessCheck(svc: *Service) !void {
-    if (svc.process) |proc| {
+    if (svc.process) |*proc| {
         // TODO: Figure out how to check for process liveness
 
         const exit_code = if (builtin.os.tag == .windows) blk: {
@@ -231,7 +238,6 @@ fn periodicProcessCheck(svc: *Service) !void {
 
             const term = try proc.wait(); // this should not block
 
-            proc.deinit();
             svc.process = null;
 
             break :blk switch (term) {
