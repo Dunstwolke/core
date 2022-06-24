@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <link rel="stylesheet" href="popup.css">
+</head>
+
+<body>
+  <h1>DunstFS QuickSave</h1>
+  <table disabled>
+    <tr>
+      <td>Title:</td>
+      <td colspan="2"><input id="title" type="text"></td>
+    </tr>
+    <tr>
+      <td>Tags:</td>
+      <td><textarea id="taglist" rows="5" cols="30" autofocus></textarea></td>
+      <td><button id="saveButton" type="button">Save</button></td>
+    </tr>
+  </table>
+  <div id="overlay">
+    <h1 id="overlay-text">Connecting to DunstFS...</h1>
+  </div>
+  <script src="popup.js"></script>
+</body>
+
+</html>

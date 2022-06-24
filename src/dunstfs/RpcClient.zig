@@ -78,8 +78,8 @@ pub fn rename(self: *RpcClient, file: Uuid, name: ?[]const u8) !void {
 pub fn delete(self: *RpcClient, file: Uuid) !void {
     return try self.service.invoke("delete", .{file});
 }
-pub fn get(self: *RpcClient, file: Uuid, target: []const u8) !void {
-    return try self.service.invoke("get", .{ file, target });
+pub fn get(self: *RpcClient, allocator: std.mem.Allocator, file: Uuid, target: []const u8) !Revision {
+    return try self.service.invokeAlloc(allocator, "get", .{ file, target });
 }
 pub fn open(self: *RpcClient, file: Uuid, read_only: bool) !void {
     return try self.service.invoke("open", .{ file, read_only });

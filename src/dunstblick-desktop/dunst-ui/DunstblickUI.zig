@@ -213,8 +213,8 @@ pub const Resource = struct {
             errdefer image.deinit(rm.allocator);
 
             return ResourceManager.TextureData{
-                .width = std.math.cast(u15, image.width) catch return error.InvalidFormat,
-                .height = std.math.cast(u15, image.height) catch return error.InvalidFormat,
+                .width = std.math.cast(u15, image.width) orelse return error.InvalidFormat,
+                .height = std.math.cast(u15, image.height) orelse return error.InvalidFormat,
                 .pixels = std.mem.sliceAsBytes(image.pixels),
             };
         }
@@ -833,8 +833,8 @@ pub const WidgetTree = struct {
                     const left = child.get(.left);
                     const top = child.get(.top);
 
-                    size.width = std.math.max(size.width, std.math.cast(u15, left + child_size.width) catch 0); // assume underflow
-                    size.height = std.math.max(size.height, std.math.cast(u15, top + child_size.height) catch 0); // assume underflow
+                    size.width = std.math.max(size.width, std.math.cast(u15, left + child_size.width) orelse 0); // assume underflow
+                    size.height = std.math.max(size.height, std.math.cast(u15, top + child_size.height) orelse 0); // assume underflow
                 }
 
                 const padding = widget.get(.paddings);
@@ -1499,8 +1499,8 @@ pub const Widget = struct {
     /// as soon as any change to the object hierarchy is done (insertion/deletion).
     binding_source: ?*types.Object,
 
-    /// If this is not `null`, this widget was created from a certain template 
-    /// and will be used to keep the widget alive after a resize of the parent 
+    /// If this is not `null`, this widget was created from a certain template
+    /// and will be used to keep the widget alive after a resize of the parent
     /// list.
     template_id: ?protocol.ResourceID,
 
@@ -2176,7 +2176,7 @@ pub const Control = union(protocol.WidgetType) {
 };
 
 fn mapToU15(value: anytype) u15 {
-    return std.math.cast(u15, value) catch std.math.maxInt(u15);
+    return std.math.cast(u15, value) orelse std.math.maxInt(u15);
 }
 
 fn convertSizeToZeroG(size: protocol.Size) zero_graphics.Size {

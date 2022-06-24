@@ -394,8 +394,8 @@ pub const Value = union(protocol.Type) {
 
             .size => Value{
                 .size = .{
-                    .width = try std.math.cast(u15, try decoder.readVarUInt()),
-                    .height = try std.math.cast(u15, try decoder.readVarUInt()),
+                    .width = std.math.cast(u15, try decoder.readVarUInt()) orelse return error.Overflow,
+                    .height = std.math.cast(u15, try decoder.readVarUInt()) orelse return error.Overflow,
                 },
             },
 
@@ -427,7 +427,7 @@ pub const Value = union(protocol.Type) {
 
                 for (list.items) |*item| {
                     switch (item.*) {
-                        .absolute => |*v| v.* = try std.math.cast(u15, try decoder.readVarUInt()),
+                        .absolute => |*v| v.* = std.math.cast(u15, try decoder.readVarUInt()) orelse return error.Overflow,
                         .percentage => |*v| v.* = @intToFloat(f32, std.math.clamp(try decoder.readByte(), 0, 100)) / 100.0,
                         else => {},
                     }
@@ -438,8 +438,8 @@ pub const Value = union(protocol.Type) {
 
             .point => Value{
                 .point = .{
-                    .x = try std.math.cast(i15, try decoder.readVarSInt()),
-                    .y = try std.math.cast(i15, try decoder.readVarSInt()),
+                    .x = std.math.cast(i15, try decoder.readVarSInt()) orelse return error.Overflow,
+                    .y = std.math.cast(i15, try decoder.readVarSInt()) orelse return error.Overflow,
                 },
             },
 

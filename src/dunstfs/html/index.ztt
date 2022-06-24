@@ -8,12 +8,14 @@
         <span class="spacer"></span>
         <a href="/file/<? try output.print("{}", .{file.uuid}); ?>" title="Open details…"><img src="/img/file-details.svg" /></a>
       </div>
-      <img class="icon" src="/img/<? try output.writeAll(context.getIcon(file)); ?>">
-      <? if(file.user_name) |name| { ?>
-      <span class="filename"><? try output.writeAll(name); ?></span>
-      <? } else { ?>
-      <span class="filename unnamed">unnamed</span>
-      <? } ?>
+      <a class="main" href="/file/<? try output.print("{}", .{file.uuid}); ?>">
+        <img class="icon" src="/img/<? try output.writeAll(context.getIcon(file)); ?>">
+        <? if(file.user_name) |name| { ?>
+        <span class="filename"><? try output.writeAll(name); ?></span>
+        <? } else { ?>
+        <span class="filename unnamed">unnamed</span>
+        <? } ?>
+      </a>
     </div>
     <? } ?>
   </div>

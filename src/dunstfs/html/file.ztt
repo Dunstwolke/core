@@ -1,3 +1,4 @@
 <div class="contentview" id="fileview">
-  <h1>File View</h1>
+  <h1><? const file_name = context.file_info.name orelse "&lt;Untitled&gt;"; try output.writeAll(file_name); ?></h1>
+  <iframe src="/file/<? try output.print("{}", .{context.file_uuid}); ?>?raw"></iframe>
 </div>

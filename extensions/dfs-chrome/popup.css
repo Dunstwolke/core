@@ -1,0 +1,40 @@
+* {
+  box-sizing: border-box;
+}
+
+input[type="text"] {
+  width: 100%;
+}
+
+button {
+  width: 4rem;
+  height: 4rem;
+  display: block;
+  margin: 0.5rem;
+}
+
+h1 {
+  margin: 0;
+  text-align: center;
+}
+
+textarea {
+  font-family: monospace;
+  resize: none;
+}
+
+#overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #FFFFFFCC;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#overlay.hidden {
+  display: none;
+}

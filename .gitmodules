@@ -52,3 +52,6 @@
 [submodule "vendor/ztt"]
 	path = vendor/ztt
 	url = https://github.com/MasterQ32/ZTT
+[submodule "vendor/pcre2"]
+	path = vendor/pcre2
+	url = https://github.com/PCRE2Project/pcre2

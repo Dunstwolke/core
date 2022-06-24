@@ -112,7 +112,7 @@ pub fn main() !u8 {
     var http_server = try serve.HttpListener.init(global_allocator);
     defer http_server.deinit();
 
-    try http_server.addEndpoint(serve.IP.any_v4, 8444);
+    try http_server.addEndpoint(serve.IP{ .ipv4 = .{ 127, 0, 42, 1 } }, 8444);
 
     try http_server.start();
 
@@ -125,142 +125,184 @@ pub fn main() !u8 {
         var context = try http_server.getContext();
         defer context.deinit();
 
-        const host_name = context.request.headers.get("Host") orelse @as([]const u8, "this");
-
-        const fake_uri = try std.fmt.allocPrint(temp_memory.allocator(), "http://{s}{s}", .{
-            host_name,
-            context.request.url,
-        });
-
-        const url = uri.parse(fake_uri) catch |err| {
-            std.log.err("failed to parse url '{s}': {}", .{ context.request.url, err });
-            continue;
-        };
-
-        var query = std.StringArrayHashMap([]const u8).init(temp_memory.allocator());
-        defer query.deinit();
-
-        {
-            var iter = std.mem.tokenize(u8, url.query orelse "", "&");
-            while (iter.next()) |raw_kvp| {
-                if (std.mem.indexOfScalar(u8, raw_kvp, '=')) |split_index| {
-                    const raw_key = raw_kvp[0..split_index];
-                    const raw_value = raw_kvp[split_index + 1 ..];
-
-                    const key = try uri.unescapeString(temp_memory.allocator(), raw_key);
-                    const value = try uri.unescapeString(temp_memory.allocator(), raw_value);
-
-                    try query.put(key, value);
-                } else {
-                    const raw_key = raw_kvp;
-                    const key = try uri.unescapeString(temp_memory.allocator(), raw_key);
-
-                    try query.put(key, "");
-                }
-            }
-        }
-
-        {
-            var iter = query.iterator();
-            while (iter.next()) |kvp| {
-                std.debug.print("'{}' => '{}'\n", .{
-                    std.fmt.fmtSliceEscapeUpper(kvp.key_ptr.*),
-                    std.fmt.fmtSliceEscapeUpper(kvp.value_ptr.*),
-                });
-            }
-        }
-
-        if (std.mem.eql(u8, url.path, "/")) {
-            // index page
-
-            var pos_filters = std.ArrayList([]const u8).init(temp_memory.allocator());
-            var neg_filters = std.ArrayList([]const u8).init(temp_memory.allocator());
-
-            var search_string_raw = query.get("filter") orelse "";
-            var search_string_filt = std.ArrayList(u8).init(temp_memory.allocator());
-
-            {
-                var iter = std.mem.tokenize(u8, search_string_raw, " \t\r\n");
-                while (iter.next()) |item| {
-                    if (std.mem.eql(u8, item, "-"))
-                        continue;
-                    if (search_string_filt.items.len > 0) {
-                        try search_string_filt.append(' ');
-                    }
-                    try search_string_filt.appendSlice(item);
-
-                    if (std.mem.startsWith(u8, item, "-")) {
-                        try neg_filters.append(item[1..]);
-                    } else {
-                        try pos_filters.append(item);
-                    }
-                }
-            }
-
-            var files = try rpc.list(
-                arena.allocator(),
-                0,
-                null,
-                pos_filters.items,
-                neg_filters.items,
-            );
-
-            var tags = std.StringArrayHashMap(void).init(arena.allocator());
-            defer tags.deinit();
-
-            for (files) |file| {
-                const info = try rpc.info(arena.allocator(), file.uuid);
-                for (info.tags) |tag| {
-                    try tags.put(tag, {});
-                }
-            }
-
-            const response = try context.response.writer();
-            try templates.frame.render(response, IndexView{
-                .files = files,
-                .tags = tags.keys(),
-                .search_string = search_string_filt.items,
+        handleRequest(context, &rpc, img_dir, temp_memory.allocator()) catch |err| {
+            logger.err("failed to handle request to {s}: {s}", .{
+                context.request.url,
+                @errorName(err),
             });
-        } else if (std.mem.startsWith(u8, url.path, "/file/")) {
-            // file view
-
-            const response = try context.response.writer();
-            try templates.frame.render(response, FileView{});
-        } else if (std.mem.eql(u8, url.path, "/settings")) {
-            // settings page
-
-            const response = try context.response.writer();
-            try templates.frame.render(response, SettingsView{});
-        } else if (std.mem.eql(u8, url.path, "/style.css")) {
-            try context.response.setHeader("Content-Type", "text/css");
-
-            const response = try context.response.writer();
-            try response.writeAll(@embedFile("html/style.css"));
-        } else if (std.mem.startsWith(u8, url.path, "/img/")) {
-            const name = url.path[5..];
-
-            var file = img_dir.openFile(name, .{}) catch |err| {
-                try context.response.setStatusCode(.not_found);
-
-                const response = try context.response.writer();
-                try response.print("could not find file {s}: {s}\n", .{ url.path, @errorName(err) });
-                continue;
-            };
-            defer file.close();
-
-            try context.response.setHeader("Content-Type", "image/svg+xml"); // TODO: Replace with actual mime type
-
-            const response = try context.response.writer();
-
-            var fifo = std.fifo.LinearFifo(u8, .{ .Static = 4096 }).init();
-            try fifo.pump(file.reader(), response);
-        } else {
-            const response = try context.response.writer();
-            try response.print("File not found: {s}", .{url.path});
-        }
+        };
     }
 
     return 0;
+}
+
+fn handleRequest(context: *serve.HttpContext, rpc: *RpcClient, img_dir: std.fs.Dir, allocator: std.mem.Allocator) !void {
+    const host_name = context.request.headers.get("Host") orelse @as([]const u8, "this");
+
+    const fake_uri = try std.fmt.allocPrint(allocator, "http://{s}{s}", .{
+        host_name,
+        context.request.url,
+    });
+
+    const url = uri.parse(fake_uri) catch |err| {
+        std.log.err("failed to parse url '{s}': {}", .{ context.request.url, err });
+        return;
+    };
+
+    var query = std.StringArrayHashMap([]const u8).init(allocator);
+    defer query.deinit();
+
+    {
+        var iter = std.mem.tokenize(u8, url.query orelse "", "&");
+        while (iter.next()) |raw_kvp| {
+            if (std.mem.indexOfScalar(u8, raw_kvp, '=')) |split_index| {
+                const raw_key = raw_kvp[0..split_index];
+                const raw_value = raw_kvp[split_index + 1 ..];
+
+                const key = try uri.unescapeString(allocator, raw_key);
+                const value = try uri.unescapeString(allocator, raw_value);
+
+                try query.put(key, value);
+            } else {
+                const raw_key = raw_kvp;
+                const key = try uri.unescapeString(allocator, raw_key);
+
+                try query.put(key, "");
+            }
+        }
+    }
+
+    {
+        var iter = query.iterator();
+        while (iter.next()) |kvp| {
+            std.debug.print("'{}' => '{}'\n", .{
+                std.fmt.fmtSliceEscapeUpper(kvp.key_ptr.*),
+                std.fmt.fmtSliceEscapeUpper(kvp.value_ptr.*),
+            });
+        }
+    }
+
+    if (std.mem.eql(u8, url.path, "/")) {
+        // index page
+
+        var pos_filters = std.ArrayList([]const u8).init(allocator);
+        var neg_filters = std.ArrayList([]const u8).init(allocator);
+
+        var search_string_raw = query.get("filter") orelse "";
+        var search_string_filt = std.ArrayList(u8).init(allocator);
+
+        {
+            var iter = std.mem.tokenize(u8, search_string_raw, " \t\r\n");
+            while (iter.next()) |item| {
+                if (std.mem.eql(u8, item, "-"))
+                    continue;
+                if (search_string_filt.items.len > 0) {
+                    try search_string_filt.append(' ');
+                }
+                try search_string_filt.appendSlice(item);
+
+                if (std.mem.startsWith(u8, item, "-")) {
+                    try neg_filters.append(item[1..]);
+                } else {
+                    try pos_filters.append(item);
+                }
+            }
+        }
+
+        var files = try rpc.list(
+            allocator,
+            0,
+            null,
+            pos_filters.items,
+            neg_filters.items,
+        );
+
+        var tags = std.StringArrayHashMap(void).init(allocator);
+        defer tags.deinit();
+
+        for (files) |file| {
+            const info = try rpc.info(allocator, file.uuid);
+            for (info.tags) |tag| {
+                try tags.put(tag, {});
+            }
+        }
+
+        const response = try context.response.writer();
+        try templates.frame.render(response, IndexView{
+            .files = files,
+            .tags = tags.keys(),
+            .search_string = search_string_filt.items,
+        });
+    } else if (std.mem.startsWith(u8, url.path, "/file/")) {
+        // file view
+
+        if (Uuid.parse(url.path[6..])) |file_uuid| {
+            if (query.contains("raw")) {
+                if (rpc.get(allocator, file_uuid, "/tmp/demo_file")) |revision| {
+                    try context.response.setHeader("Content-Type", revision.mime);
+
+                    var fifo = std.fifo.LinearFifo(u8, .{ .Static = 8192 }).init();
+
+                    var file = try std.fs.cwd().openFile("/tmp/demo_file", .{});
+                    defer file.close();
+
+                    const response = try context.response.writer();
+
+                    try fifo.pump(file.reader(), response);
+                } else |err| {
+                    try context.response.setHeader("Content-Type", "text/plain");
+
+                    const response = try context.response.writer();
+                    try response.print("Could not fetch file content: {s}", .{@errorName(err)});
+                }
+            } else {
+                const file_info = try rpc.info(allocator, file_uuid);
+
+                const response = try context.response.writer();
+                try templates.frame.render(response, FileView{
+                    .file_uuid = file_uuid,
+                    .file_info = file_info,
+                });
+            }
+        } else |_| {
+            try context.response.setHeader("Content-Type", "text/plain");
+            try context.response.setStatusCode(.bad_request);
+
+            const response = try context.response.writer();
+            try response.print("Invalid url: {s}", .{url.path});
+        }
+    } else if (std.mem.eql(u8, url.path, "/settings")) {
+        // settings page
+
+        const response = try context.response.writer();
+        try templates.frame.render(response, SettingsView{});
+    } else if (std.mem.eql(u8, url.path, "/style.css")) {
+        try context.response.setHeader("Content-Type", "text/css");
+
+        const response = try context.response.writer();
+        try response.writeAll(@embedFile("html/style.css"));
+    } else if (std.mem.startsWith(u8, url.path, "/img/")) {
+        const name = url.path[5..];
+
+        var file = img_dir.openFile(name, .{}) catch |err| {
+            try context.response.setStatusCode(.not_found);
+
+            const response = try context.response.writer();
+            try response.print("could not find file {s}: {s}\n", .{ url.path, @errorName(err) });
+            return;
+        };
+        defer file.close();
+
+        try context.response.setHeader("Content-Type", "image/svg+xml"); // TODO: Replace with actual mime type
+
+        const response = try context.response.writer();
+
+        var fifo = std.fifo.LinearFifo(u8, .{ .Static = 4096 }).init();
+        try fifo.pump(file.reader(), response);
+    } else {
+        const response = try context.response.writer();
+        try response.print("File not found: {s}", .{url.path});
+    }
 }
 
 pub const ViewFeatures = struct {
@@ -269,7 +311,7 @@ pub const ViewFeatures = struct {
     upload: bool,
 
     pub fn any(v: ViewFeatures) bool {
-        return v.search and v.tags and v.upload;
+        return v.search or v.tags or v.upload;
     }
 };
 
@@ -381,14 +423,21 @@ const SettingsView = struct {
 const FileView = struct {
     const Self = @This();
 
+    file_uuid: Uuid,
+    file_info: RpcClient.FileInfo,
+
     pub const features = ViewFeatures{
         .search = false,
-        .tags = false,
+        .tags = true,
         .upload = false,
     };
 
     pub fn renderContent(self: Self, writer: anytype) !void {
         try templates.file.render(writer, self);
+    }
+
+    pub fn getTags(self: Self) []const []const u8 {
+        return self.file_info.tags;
     }
 };
 

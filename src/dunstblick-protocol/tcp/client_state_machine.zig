@@ -1,7 +1,7 @@
 //! This file implements a dunstblick protocol display client.
 //! It does not depend on any network interface, but has a pure push/pull API
 //! that allows using it in any freestanding environment.
-//! 
+//!
 //! Design considerations:
 //! Display clients have higher requirements on the hardware and assume to have
 //! at least memory in the mega bytes available, thus require a general purpose
@@ -430,7 +430,7 @@ pub fn ClientStateMachine(comptime Writer: type) type {
             std.debug.assert(self.state == .resource_request);
 
             var length_data: [4]u8 = undefined;
-            std.mem.writeIntLittle(u32, &length_data, std.math.cast(u32, resources.len) catch return error.SliceOutOfRange);
+            std.mem.writeIntLittle(u32, &length_data, std.math.cast(u32, resources.len) orelse return error.SliceOutOfRange);
 
             self.temp_msg_buffer.shrinkRetainingCapacity(0);
 
@@ -456,7 +456,7 @@ pub fn ClientStateMachine(comptime Writer: type) type {
             std.debug.assert(self.state == .established);
 
             var length_data: [4]u8 = undefined;
-            std.mem.writeIntLittle(u32, &length_data, std.math.cast(u32, message.len) catch return error.SliceOutOfRange);
+            std.mem.writeIntLittle(u32, &length_data, std.math.cast(u32, message.len) orelse return error.SliceOutOfRange);
 
             try self.temp_msg_buffer.resize(self.allocator, message.len);
             std.mem.copy(u8, self.temp_msg_buffer.items, message);

@@ -314,7 +314,7 @@ const SystemInterface = struct {
         _ = file;
         _ = source_file;
         _ = mime;
-        @panic("not implemented yet");
+        return error.NotImplementedYet;
     }
 
     pub fn rename(sys: *SystemInterface, file: Uuid, maybe_name: ?[]const u8) rpc.RenameFileError!void {
@@ -357,16 +357,81 @@ const SystemInterface = struct {
         sys.db_intf.delete_file.exec(.{}, .{uuid_text}) catch |err| return sys.mapSqlError(err);
     }
 
-    pub fn get(file: Uuid, target: []const u8) rpc.GetFileError!void {
-        _ = file;
-        _ = target;
-        @panic("not implemented yet");
+    pub fn get(sys_wrap: rpc.AllocatingCall(*SystemInterface), file: Uuid, target_file_path: []const u8) rpc.GetFileError!rpc.Revision {
+        const sys = sys_wrap.value;
+        const allocator = sys_wrap.allocator;
+
+        if (!std.fs.path.isAbsolute(target_file_path)) {
+            return error.InvalidDestinationFile;
+        }
+
+        sys.lock();
+        defer sys.unlock();
+
+        var canonical_format = try sys.assertFile(file);
+        var uuid_text = sqlite3.Text{ .data = &canonical_format };
+
+        const RevisionData = struct {
+            revision: u32,
+            dataset: []const u8,
+            creation_date: []const u8,
+            mime_type: []const u8,
+        };
+
+        sys.db_intf.fetch_latest_revision.reset();
+        const maybe_raw_rev_info = sys.db_intf.fetch_latest_revision.oneAlloc(RevisionData, allocator, .{}, .{
+            uuid_text,
+        }) catch |err| return sys.mapSqlError(err);
+
+        const raw_rev_info = maybe_raw_rev_info orelse {
+            logger.err("failed to get dataset for file {}: not found", .{file});
+            return error.IoError;
+        };
+
+        const revision_string = raw_rev_info.dataset;
+
+        var dataset: [32]u8 = undefined;
+        _ = std.fmt.hexToBytes(&dataset, revision_string) catch return error.IoError;
+
+        var revision = rpc.Revision{
+            .number = raw_rev_info.revision,
+            .dataset = dataset,
+            .date = raw_rev_info.creation_date[0..19].*,
+            .mime = raw_rev_info.mime_type, // TODO: Implement these
+            .size = 0, // TODO: Implement these
+        };
+
+        var file_stat = sys.dataset_dir.statFile(revision_string) catch |err| {
+            logger.err("failed to stat dataset {s}: {s}", .{
+                revision_string,
+                @errorName(err),
+            });
+            return error.IoError;
+        };
+        revision.size = file_stat.size;
+
+        std.fs.Dir.copyFile(
+            sys.dataset_dir,
+            revision_string,
+            std.fs.cwd(),
+            target_file_path,
+            .{ .override_mode = 0o666 }, // make target file read-write
+        ) catch |err| {
+            logger.err("failed to copy dataset {s} to file {s}: {s}", .{
+                &revision.dataset,
+                target_file_path,
+                @errorName(err),
+            });
+            return error.IoError;
+        };
+
+        return revision;
     }
 
     pub fn open(file: Uuid, read_only: bool) rpc.OpenFileError!void {
         _ = file;
         _ = read_only;
-        @panic("not implemented yet");
+        return error.NotImplementedYet;
     }
 
     pub fn info(rpc_wrap: rpc.AllocatingCall(*SystemInterface), file: Uuid) rpc.FileInfoError!rpc.FileInfo {
@@ -405,11 +470,15 @@ const SystemInterface = struct {
 
         for (revs) |*rev, i| {
             const src = revisions[i];
+
+            var dataset: [32]u8 = undefined;
+            _ = std.fmt.hexToBytes(&dataset, src.dataset) catch return error.IoError;
+
             rev.* = rpc.Revision{
                 .number = src.revision,
-                .dataset = src.dataset[0..32].*,
+                .dataset = dataset,
                 .date = src.creation_date[0..19].*,
-                .mime = "", // TODO: Implement these
+                .mime = src.mime_type,
                 .size = 0, // TODO: Implement these
             };
         }
@@ -704,7 +773,9 @@ const SystemInterface = struct {
 
         errdefer sys.dataset_dir.deleteFile(&hash_str) catch |err| logger.err("failed to delete incomplete file {s}: {s}", .{ &hash_str, @errorName(err) });
 
-        var output_file = try sys.dataset_dir.createFile(&hash_str, .{});
+        var output_file = try sys.dataset_dir.createFile(&hash_str, .{
+            .mode = 0o444, // make all datasets read-only
+        });
         defer output_file.close();
 
         var fifo = std.fifo.LinearFifo(u8, .{ .Static = 8192 }).init();
@@ -889,6 +960,14 @@ const prepared_statement_sources = struct {
     const delete_file =
         \\DELETE FROM Files WHERE uuid = ?{text}
     ;
+    const fetch_latest_revision =
+        \\SELECT revision, dataset, creation_date, mime_type
+        \\  FROM Revisions
+        \\  INNER JOIN DataSets ON Revisions.dataset = DataSets.checksum
+        \\  WHERE file = ?{text}
+        \\  ORDER BY revision DESC 
+        \\  LIMIT 1
+    ;
 };
 
 const DatabaseInterface = struct {
@@ -912,6 +991,7 @@ const DatabaseInterface = struct {
     delete_all_revisions: sqlite3.StatementType(.{}, prepared_statement_sources.delete_all_revisions) = undefined,
     delete_all_tags: sqlite3.StatementType(.{}, prepared_statement_sources.delete_all_tags) = undefined,
     delete_file: sqlite3.StatementType(.{}, prepared_statement_sources.delete_file) = undefined,
+    fetch_latest_revision: sqlite3.StatementType(.{}, prepared_statement_sources.fetch_latest_revision) = undefined,
 };
 
 const MimeType = struct {

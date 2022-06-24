@@ -13,53 +13,53 @@ const ZTT = @import("vendor/ztt/src/TemplateStep.zig");
 const pkgs = struct {
     const network = std.build.Pkg{
         .name = "network",
-        .path = .{ .path = "./vendor/zig-network/network.zig" },
+        .source = .{ .path = "./vendor/zig-network/network.zig" },
     };
 
     const antiphony = std.build.Pkg{
         .name = "antiphony",
-        .path = .{ .path = "vendor/antiphony/src/antiphony.zig" },
+        .source = .{ .path = "vendor/antiphony/src/antiphony.zig" },
         .dependencies = &.{
             .{
                 .name = "s2s",
-                .path = .{ .path = "vendor/antiphony/vendor/s2s/s2s.zig" },
+                .source = .{ .path = "vendor/antiphony/vendor/s2s/s2s.zig" },
             },
         },
     };
 
     const known_folders = std.build.Pkg{
         .name = "known-folders",
-        .path = .{ .path = "./vendor/known-folders/known-folders.zig" },
+        .source = .{ .path = "./vendor/known-folders/known-folders.zig" },
     };
 
     const args = std.build.Pkg{
         .name = "args",
-        .path = .{ .path = "./vendor/zig-args/args.zig" },
+        .source = .{ .path = "./vendor/zig-args/args.zig" },
     };
 
     const uri = std.build.Pkg{
         .name = "uri",
-        .path = .{ .path = "./vendor/zig-uri/uri.zig" },
+        .source = .{ .path = "./vendor/zig-uri/uri.zig" },
     };
 
     const painterz = std.build.Pkg{
         .name = "painterz",
-        .path = .{ .path = "./vendor/painterz/painterz.zig" },
+        .source = .{ .path = "./vendor/painterz/painterz.zig" },
     };
 
     const tvg = std.build.Pkg{
         .name = "tvg",
-        .path = .{ .path = "./vendor/tvg/src/lib/tinyvg.zig" },
+        .source = .{ .path = "./vendor/tvg/src/lib/tinyvg.zig" },
     };
 
     const meta = std.build.Pkg{
         .name = "zig-meta",
-        .path = .{ .path = "./vendor/zig-meta/meta.zig" },
+        .source = .{ .path = "./vendor/zig-meta/meta.zig" },
     };
 
     const dunstblick_protocol = std.build.Pkg{
         .name = "dunstblick-protocol",
-        .path = .{ .path = "./src/dunstblick-protocol/protocol.zig" },
+        .source = .{ .path = "./src/dunstblick-protocol/protocol.zig" },
         .dependencies = &[_]std.build.Pkg{
             charm,
         },
@@ -67,7 +67,7 @@ const pkgs = struct {
 
     const dunstblick_app = std.build.Pkg{
         .name = "dunstblick-app",
-        .path = .{ .path = "./src/dunstblick-app/dunstblick.zig" },
+        .source = .{ .path = "./src/dunstblick-app/dunstblick.zig" },
         .dependencies = &[_]std.build.Pkg{
             dunstblick_protocol,
             network,
@@ -76,7 +76,7 @@ const pkgs = struct {
 
     const dunstnetz = std.build.Pkg{
         .name = "dunstnetz",
-        .path = .{ .path = "./src/dunstnetz/main.zig" },
+        .source = .{ .path = "./src/dunstnetz/main.zig" },
         .dependencies = &[_]std.build.Pkg{
             network,
         },
@@ -84,12 +84,12 @@ const pkgs = struct {
 
     const zigimg = std.build.Pkg{
         .name = "zigimg",
-        .path = .{ .path = "./vendor/zero-graphics/vendor/zigimg/zigimg.zig" },
+        .source = .{ .path = "./vendor/zero-graphics/vendor/zigimg/zigimg.zig" },
     };
 
     const zerog = std.build.Pkg{
         .name = "zero-graphics",
-        .path = .{ .path = "./vendor/zero-graphics/src/zero-graphics.zig" },
+        .source = .{ .path = "./vendor/zero-graphics/src/zero-graphics.zig" },
         .dependencies = &[_]std.build.Pkg{
             zigimg,
         },
@@ -97,33 +97,33 @@ const pkgs = struct {
 
     const charm = std.build.Pkg{
         .name = "charm",
-        .path = .{ .path = "./vendor/zig-charm/src/main.zig" },
+        .source = .{ .path = "./vendor/zig-charm/src/main.zig" },
     };
 
     const sqlite3 = std.build.Pkg{
         .name = "sqlite3",
-        .path = .{ .path = "./vendor/zig-sqlite/sqlite.zig" },
+        .source = .{ .path = "./vendor/zig-sqlite/sqlite.zig" },
     };
 
     const uuid6 = std.build.Pkg{
         .name = "uuid6",
-        .path = .{ .path = "./vendor/uuid6-zig/src/Uuid.zig" },
+        .source = .{ .path = "./vendor/uuid6-zig/src/Uuid.zig" },
     };
 
     const qoi = std.build.Pkg{
         .name = "qoi",
-        .path = .{ .path = "vendor/qoi/src/qoi.zig" },
+        .source = .{ .path = "vendor/qoi/src/qoi.zig" },
     };
 
     const serve = std.build.Pkg{
         .name = "serve",
-        .path = .{ .path = "vendor/serve/src/serve.zig" },
+        .source = .{ .path = "vendor/serve/src/serve.zig" },
         .dependencies = &.{ network, uri },
     };
 
     const dunst_environment = std.build.Pkg{
         .name = "dunst-environment",
-        .path = .{ .path = "src/dunst-environment/main.zig" },
+        .source = .{ .path = "src/dunst-environment/main.zig" },
         .dependencies = &.{known_folders},
     };
 };
@@ -181,6 +181,9 @@ pub fn build(b: *Builder) !void {
     libsqlite3.setTarget(static_target);
     libsqlite3.linkLibC();
 
+    const libpcre2 = createPcre2(b, static_target, mode);
+    libpcre2.install();
+
     const libmagic = b.addStaticLibrary("magic", null);
     libmagic.addCSourceFiles(&libmagic_sources, &[_][]const u8{ "-std=c99", "-fno-sanitize=undefined" });
     libmagic.setBuildMode(mode);
@@ -190,11 +193,20 @@ pub fn build(b: *Builder) !void {
     libmagic.defineCMacro("HAVE_WCHAR_H", null);
     libmagic.defineCMacro("HAVE_WCTYPE_H", null);
     libmagic.defineCMacro("HAVE_CONFIG_H", null);
+    libmagic.defineCMacro("HAVE_SYS_SYSMACROS_H", null);
     if (!static_target.isWindows()) {
         libmagic.defineCMacro("HAVE_UNISTD_H", null);
     }
     libmagic.addIncludeDir("vendor/file-5.40");
     libmagic.linkLibC();
+    // if(!libmagic.target.isLinux()) {
+    // libmagic.linkLibrary(libpcre2);
+    // libmagic.addIncludePath("vendor/pcre2-premade");
+    // libmagic.addIncludePath("vendor/pcre2/src");
+    if (static_target.isWindows()) {
+        libmagic.defineCMacro("WIN32", null);
+    }
+    // }
 
     const libwolfssl = ZigServeSdk.createWolfSSL(b, static_target);
 
@@ -210,13 +222,10 @@ pub fn build(b: *Builder) !void {
     dunstfs_daemon.addPackage(pkgs.dunst_environment);
     dunstfs_daemon.addIncludeDir("./vendor/zig-sqlite/c");
     dunstfs_daemon.linkLibrary(libsqlite3);
+    dunstfs_daemon.linkLibrary(libpcre2);
     dunstfs_daemon.linkLibrary(libmagic);
     dunstfs_daemon.linkLibC();
-    if (target.isWindows()) {
-        std.log.warn("libmagic needs regex.h from gnu regex. not installing dfs-daemon", .{});
-    } else {
-        dunstfs_daemon.install();
-    }
+    dunstfs_daemon.install();
 
     const dunstfs_cli = b.addExecutable("dfs", "./src/dunstfs/cli.zig");
     dunstfs_cli.setBuildMode(mode);
@@ -227,13 +236,10 @@ pub fn build(b: *Builder) !void {
     dunstfs_cli.addPackage(pkgs.network);
     dunstfs_cli.addPackage(pkgs.antiphony);
     dunstfs_cli.addPackage(pkgs.dunst_environment);
+    dunstfs_cli.linkLibrary(libpcre2);
     dunstfs_cli.linkLibrary(libmagic);
     dunstfs_cli.linkLibC();
-    if (static_target.isWindows()) {
-        std.log.warn("libmagic needs regex.h from gnu regex. not installing dfs", .{});
-    } else {
-        dunstfs_cli.install();
-    }
+    dunstfs_cli.install();
 
     const dunstfs_interface = b.addExecutable("dfs-interface", "./src/dunstfs/interface.zig");
     dunstfs_interface.setBuildMode(mode);
@@ -248,29 +254,26 @@ pub fn build(b: *Builder) !void {
     dunstfs_interface.addPackage(pkgs.dunst_environment);
     dunstfs_interface.addPackage(.{
         .name = "template.frame",
-        .path = ZTT.transform(b, "src/dunstfs/html/frame.ztt"),
+        .source = ZTT.transform(b, "src/dunstfs/html/frame.ztt"),
     });
     dunstfs_interface.addPackage(.{
         .name = "template.index",
-        .path = ZTT.transform(b, "src/dunstfs/html/index.ztt"),
+        .source = ZTT.transform(b, "src/dunstfs/html/index.ztt"),
     });
     dunstfs_interface.addPackage(.{
         .name = "template.settings",
-        .path = ZTT.transform(b, "src/dunstfs/html/settings.ztt"),
+        .source = ZTT.transform(b, "src/dunstfs/html/settings.ztt"),
     });
     dunstfs_interface.addPackage(.{
         .name = "template.file",
-        .path = ZTT.transform(b, "src/dunstfs/html/file.ztt"),
+        .source = ZTT.transform(b, "src/dunstfs/html/file.ztt"),
     });
+    dunstfs_interface.linkLibrary(libpcre2);
     dunstfs_interface.linkLibrary(libmagic);
     dunstfs_interface.linkLibrary(libwolfssl);
     dunstfs_interface.addIncludeDir("vendor/serve/vendor/wolfssl");
     dunstfs_interface.linkLibC();
-    if (static_target.isWindows()) {
-        std.log.warn("libmagic needs regex.h from gnu regex. not installing dfs-interface", .{});
-    } else {
-        dunstfs_interface.install();
-    }
+    dunstfs_interface.install();
 
     const compiler = b.addExecutable("dunstblick-compiler", "./src/dunstblick-compiler/main.zig");
     compiler.addPackage(pkgs.args);
@@ -478,7 +481,7 @@ pub fn build(b: *Builder) !void {
         dunstnetz_daemon_test.addPackage(pkgs.dunstnetz);
     }
 
-    const dunstblick_protocol_test = b.addTest(pkgs.dunstblick_protocol.path.path);
+    const dunstblick_protocol_test = b.addTest(pkgs.dunstblick_protocol.source.path);
     {
         dunstblick_protocol_test.addPackage(pkgs.charm);
     }
@@ -557,4 +560,114 @@ const libmagic_sources = [_][]const u8{
     "vendor/file-5.40/src/cdf_time.c",
     "vendor/file-5.40/src/readcdf.c",
     "vendor/file-5.40/src/fmtcheck.c",
+};
+
+fn createPcre2(b: *std.build.Builder, target: std.zig.CrossTarget, mode: std.builtin.Mode) *std.build.LibExeObjStep {
+    const libpcre2 = b.addStaticLibrary("pcre2", null);
+    libpcre2.addIncludePath("vendor/pcre2/src");
+    libpcre2.addIncludePath("vendor/pcre2-premade");
+    libpcre2.addCSourceFiles(&libpcre2_sources, &[_][]const u8{"-std=c99"});
+    libpcre2.setBuildMode(mode);
+    libpcre2.setTarget(target);
+    libpcre2.linkLibC();
+
+    libpcre2.defineCMacro("PCRE2_CODE_UNIT_WIDTH", "8");
+
+    libpcre2.defineCMacro("NEWLINE_DEFAULT", "2"); // "LF"
+
+    libpcre2.defineCMacro("MAX_NAME_COUNT", "10000");
+    libpcre2.defineCMacro("MAX_NAME_SIZE", "32");
+
+    // SET(PCRE2_EBCDIC OFF CACHE BOOL "Use EBCDIC coding instead of ASCII. (This is rarely used outside of mainframe systems.)")
+    // libpcre2.defineCMacro("EBCDIC", null);
+
+    // SET(PCRE2_EBCDIC_NL25 OFF CACHE BOOL "Use 0x25 as EBCDIC NL character instead of 0x15; implies EBCDIC.")
+    // libpcre2.defineCMacro("EBCDIC_NL25", null);
+
+    // SET(PCRE2_LINK_SIZE "2" CACHE STRING "Internal link size (2, 3 or 4 allowed). See LINK_SIZE in config.h.in for details.")
+    libpcre2.defineCMacro("LINK_SIZE", "2");
+
+    // SET(PCRE2_PARENS_NEST_LIMIT "250" CACHE STRING "Default nested parentheses limit. See PARENS_NEST_LIMIT in config.h.in for details.")
+    libpcre2.defineCMacro("PARENS_NEST_LIMIT", "250");
+
+    // SET(PCRE2_HEAP_LIMIT "20000000" CACHE STRING "Default limit on heap memory (kibibytes). See HEAP_LIMIT in config.h.in for details.")
+    libpcre2.defineCMacro("HEAP_LIMIT", "20000000");
+
+    // SET(PCRE2_MATCH_LIMIT "10000000" CACHE STRING "Default limit on internal looping. See MATCH_LIMIT in config.h.in for details.")
+    libpcre2.defineCMacro("MATCH_LIMIT", "10000000");
+
+    // SET(PCRE2_MATCH_LIMIT_DEPTH "MATCH_LIMIT" CACHE STRING "Default limit on internal depth of search. See MATCH_LIMIT_DEPTH in config.h.in for details.")
+    libpcre2.defineCMacro("MATCH_LIMIT_DEPTH", "MATCH_LIMIT");
+
+    // SET(PCRE2GREP_BUFSIZE "20480" CACHE STRING "Buffer starting size parameter for pcre2grep. See PCRE2GREP_BUFSIZE in config.h.in for details.")
+    libpcre2.defineCMacro("PCRE2GREP_BUFSIZE", "20480");
+
+    // SET(PCRE2GREP_MAX_BUFSIZE "1048576" CACHE STRING "Buffer maximum size parameter for pcre2grep. See PCRE2GREP_MAX_BUFSIZE in config.h.in for details.")
+    libpcre2.defineCMacro("PCRE2GREP_MAX_BUFSIZE", "1048576");
+
+    // SET(PCRE2_NEWLINE "LF" CACHE STRING "What to recognize as a newline (one of CR, LF, CRLF, ANY, ANYCRLF, NUL).")
+    libpcre2.defineCMacro("NEWLINE", "LF");
+
+    // SET(PCRE2_HEAP_MATCH_RECURSE OFF CACHE BOOL "Obsolete option: do not use")
+    // libpcre2.defineCMacro("HEAP_MATCH_RECURSE", null);
+
+    // SET(PCRE2_SUPPORT_JIT OFF CACHE BOOL "Enable support for Just-in-time compiling.")
+    // libpcre2.defineCMacro("SUPPORT_JIT", null);
+
+    // SET(PCRE2_SUPPORT_JIT_SEALLOC OFF CACHE BOOL "Enable SELinux compatible execmem allocator in JIT (experimental).") (IGNORE)
+    // libpcre2.defineCMacro("SUPPORT_JIT_SEALLOC", null);
+
+    // SET(PCRE2GREP_SUPPORT_JIT ON CACHE BOOL "Enable use of Just-in-time compiling in pcre2grep.")
+    libpcre2.defineCMacro("PCRE2GREP_SUPPORT_JIT", null);
+
+    // SET(PCRE2GREP_SUPPORT_CALLOUT ON CACHE BOOL "Enable callout string support in pcre2grep.")
+    libpcre2.defineCMacro("PCRE2GREP_SUPPORT_CALLOUT", null);
+
+    // SET(PCRE2GREP_SUPPORT_CALLOUT_FORK ON CACHE BOOL "Enable callout string fork support in pcre2grep.")
+    libpcre2.defineCMacro("PCRE2GREP_SUPPORT_CALLOUT_FORK", null);
+
+    // SET(PCRE2_SUPPORT_UNICODE ON CACHE BOOL "Enable support for Unicode and UTF-8/UTF-16/UTF-32 encoding.")
+    libpcre2.defineCMacro("SUPPORT_UNICODE", null);
+
+    // SET(PCRE2_SUPPORT_BSR_ANYCRLF OFF CACHE BOOL "ON=Backslash-R matches only LF CR and CRLF, OFF=Backslash-R matches all Unicode Linebreaks")
+    // libpcre2.defineCMacro("SUPPORT_BSR_ANYCRLF", null);
+
+    // SET(PCRE2_NEVER_BACKSLASH_C OFF CACHE BOOL "If ON, backslash-C (upper case C) is locked out.")
+    // libpcre2.defineCMacro("NEVER_BACKSLASH_C", null);
+
+    // SET(PCRE2_SUPPORT_VALGRIND OFF CACHE BOOL "Enable Valgrind support.")
+    // libpcre2.defineCMacro("SUPPORT_VALGRIND", null);
+
+    return libpcre2;
+}
+
+const libpcre2_sources = [_][]const u8{
+    "vendor/pcre2/src/pcre2_auto_possess.c",
+    "vendor/pcre2-premade/pcre2_chartables.c",
+    "vendor/pcre2/src/pcre2_compile.c",
+    "vendor/pcre2/src/pcre2_config.c",
+    "vendor/pcre2/src/pcre2_context.c",
+    "vendor/pcre2/src/pcre2_convert.c",
+    "vendor/pcre2/src/pcre2_dfa_match.c",
+    "vendor/pcre2/src/pcre2_error.c",
+    "vendor/pcre2/src/pcre2_extuni.c",
+    "vendor/pcre2/src/pcre2_find_bracket.c",
+    "vendor/pcre2/src/pcre2_jit_compile.c",
+    "vendor/pcre2/src/pcre2_maketables.c",
+    "vendor/pcre2/src/pcre2_match.c",
+    "vendor/pcre2/src/pcre2_match_data.c",
+    "vendor/pcre2/src/pcre2_newline.c",
+    "vendor/pcre2/src/pcre2_ord2utf.c",
+    "vendor/pcre2/src/pcre2_pattern_info.c",
+    "vendor/pcre2/src/pcre2_script_run.c",
+    "vendor/pcre2/src/pcre2_serialize.c",
+    "vendor/pcre2/src/pcre2_string_utils.c",
+    "vendor/pcre2/src/pcre2_study.c",
+    "vendor/pcre2/src/pcre2_substitute.c",
+    "vendor/pcre2/src/pcre2_substring.c",
+    "vendor/pcre2/src/pcre2_tables.c",
+    "vendor/pcre2/src/pcre2_ucd.c",
+    "vendor/pcre2/src/pcre2_valid_utf.c",
+    "vendor/pcre2/src/pcre2_xclass.c",
+    "vendor/pcre2/src/pcre2posix.c",
 };

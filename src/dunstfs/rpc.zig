@@ -20,16 +20,16 @@ pub const public_end_point = network.EndPoint{
 pub const AllocatingCall = rpc.AllocatingCall;
 
 pub const AddFileError = error{ OutOfMemory, AccessDenied, IoError, InvalidSourceFile, SourceFileNotFound };
-pub const UpdateFileError = error{ OutOfMemory, AccessDenied, IoError, InvalidSourceFile, FileNotFound, SourceFileNotFound };
+pub const UpdateFileError = error{ NotImplementedYet, OutOfMemory, AccessDenied, IoError, InvalidSourceFile, FileNotFound, SourceFileNotFound };
 pub const RemoveFileError = error{ OutOfMemory, IoError, FileNotFound };
-pub const GetFileError = error{ OutOfMemory, IoError, FileNotFound, AccessDenied };
+pub const GetFileError = error{ OutOfMemory, IoError, FileNotFound, AccessDenied, InvalidDestinationFile };
 pub const RenameFileError = error{ OutOfMemory, IoError, FileNotFound };
 pub const AddTagError = error{ OutOfMemory, IoError, FileNotFound };
 pub const RemoveTagError = error{ OutOfMemory, IoError, FileNotFound };
 pub const ListFileTagsError = error{ OutOfMemory, IoError, FileNotFound };
 pub const ListTagsError = error{ OutOfMemory, IoError };
 pub const ListFilesError = error{ OutOfMemory, IoError };
-pub const OpenFileError = error{ OutOfMemory, IoError, FileNotFound };
+pub const OpenFileError = error{ NotImplementedYet, OutOfMemory, IoError, FileNotFound };
 pub const FileInfoError = error{ OutOfMemory, IoError, FileNotFound };
 
 pub const FileListItem = struct {
@@ -51,6 +51,14 @@ pub const FileInfo = struct {
     tags: []const []const u8,
     revisions: []const Revision, // sorted new-to-old
     last_change: Date,
+
+    pub fn currentRevision(self: @This()) ?Revision {
+        if (self.revisions.len > 0) {
+            return self.revisions[0];
+        } else {
+            return null;
+        }
+    }
 };
 
 pub const Revision = struct {
@@ -68,7 +76,7 @@ pub const Definition = rpc.CreateDefinition(.{
         .update = fn (file: Uuid, source_file: []const u8, mime: []const u8) UpdateFileError!void,
         .rename = fn (file: Uuid, name: ?[]const u8) RenameFileError!void,
         .delete = fn (file: Uuid) RemoveFileError!void,
-        .get = fn (file: Uuid, target: []const u8) GetFileError!void,
+        .get = fn (file: Uuid, target: []const u8) GetFileError!Revision,
         .open = fn (file: Uuid, read_only: bool) OpenFileError!void,
         .info = fn (file: Uuid) FileInfoError!FileInfo,
 

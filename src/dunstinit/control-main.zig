@@ -137,7 +137,20 @@ fn getErrorDescription(err: anyerror) []const u8 {
 fn printUsage(stream: anytype, exe_name: []const u8) !void {
     _ = exe_name;
     try stream.writeAll(
-        \\BLAH BLAH BLAH
+        \\dunstinit-daemon [-h] [-H <ip>] <verb>
+        \\Options:
+        \\  -h, --help      Show this help
+        \\  -H, --host <ip> Connects to the given host at <ip>.
+        \\
+        \\Verbs:
+        \\  start <service>
+        \\      Starts the <service>.
+        \\  stop <service>
+        \\      Stops the <service>.
+        \\  restart <service>
+        \\      Restarts the <service>.
+        \\  status <service>
+        \\      Prints the status of <service>.
         \\
     );
 }

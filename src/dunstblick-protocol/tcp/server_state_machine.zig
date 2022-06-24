@@ -48,7 +48,7 @@ pub const ReceiveEvent = union(enum) {
         /// If not null, the user has provided a user name
         username: ?[]const u8,
 
-        /// When `true`, a key must now be provided via 
+        /// When `true`, a key must now be provided via
         /// the `setKeyAndVerify()` method.
         requires_key: bool,
     };
@@ -437,7 +437,7 @@ pub fn ServerStateMachine(comptime Writer: type) type {
             std.debug.assert(self.state == .connect_response);
 
             var bits = protocol.ConnectResponse{
-                .resource_count = std.math.cast(u32, resources.len) catch return error.SliceOutOfRange,
+                .resource_count = std.math.cast(u32, resources.len) orelse return error.SliceOutOfRange,
             };
 
             try self.send(std.mem.asBytes(&bits));
@@ -460,7 +460,7 @@ pub fn ServerStateMachine(comptime Writer: type) type {
             std.debug.assert(self.state.resource_header < self.available_resource_count);
 
             var length_data: [4]u8 = undefined;
-            std.mem.writeIntLittle(u32, &length_data, std.math.cast(u32, data.len) catch return error.SliceOutOfRange);
+            std.mem.writeIntLittle(u32, &length_data, std.math.cast(u32, data.len) orelse return error.SliceOutOfRange);
 
             var bits = protocol.ResourceHeader{
                 .id = id,
@@ -487,7 +487,7 @@ pub fn ServerStateMachine(comptime Writer: type) type {
             std.debug.assert(self.state == .established);
 
             var length_data: [4]u8 = undefined;
-            std.mem.writeIntLittle(u32, &length_data, std.math.cast(u32, message.len) catch return error.SliceOutOfRange);
+            std.mem.writeIntLittle(u32, &length_data, std.math.cast(u32, message.len) orelse return error.SliceOutOfRange);
 
             try self.temp_msg_buffer.resize(self.allocator, message.len);
             std.mem.copy(u8, self.temp_msg_buffer.items, message);

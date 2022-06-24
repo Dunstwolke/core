@@ -33,7 +33,7 @@
       <h1>Tags:</h1>
       <ul class="taglist">
         <? for(context.getTags()) |tag| {  ?>
-        <li><a href="">+</a><a href="">-</a> <a href="?filter=<? try output.writeAll(tag); ?>"><? try output.writeAll(tag); ?></a></li>
+        <li><a href="">+</a><a href="">-</a> <a href="/?filter=<? try output.writeAll(tag); ?>"><? try output.writeAll(tag); ?></a></li>
         <? } ?>
       </ul>
       <? } ?>

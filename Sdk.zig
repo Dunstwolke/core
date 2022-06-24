@@ -36,7 +36,7 @@ pub fn init(b: *std.build.Builder) *Sdk {
 pub fn getAppPackage(sdk: *const Sdk, name: []const u8) Pkg {
     return sdk.builder.dupePkg(Pkg{
         .name = sdk.builder.dupe(name),
-        .path = FileSource{ .path = sdkRoot() ++ "/src/dunstblick-app/dunstblick.zig" },
+        .source = FileSource{ .path = sdkRoot() ++ "/src/dunstblick-app/dunstblick.zig" },
         .dependencies = &[_]std.build.Pkg{
             pkgs.network,
             pkgs.dunstblick_protocol,
@@ -47,7 +47,7 @@ pub fn getAppPackage(sdk: *const Sdk, name: []const u8) Pkg {
 pub fn getCompilerPackage(sdk: *const Sdk, name: []const u8) Pkg {
     return sdk.builder.dupePkg(Pkg{
         .name = sdk.builder.dupe(name),
-        .path = FileSource{ .path = sdkRoot() ++ "/src/dunstblick-compiler/package.zig" },
+        .source = FileSource{ .path = sdkRoot() ++ "/src/dunstblick-compiler/package.zig" },
         .dependencies = &[_]std.build.Pkg{
             pkgs.dunstblick_protocol,
         },
@@ -199,8 +199,8 @@ pub const CompileImageStep = struct {
 
         const qoi_data = try qoi.encodeBuffer(allocator, qoi.ConstImage{
             .colorspace = .sRGB,
-            .width = std.math.cast(u16, src_image.width) catch return error.ImageTooLarge,
-            .height = std.math.cast(u16, src_image.height) catch return error.ImageTooLarge,
+            .width = std.math.cast(u16, src_image.width) orelse return error.ImageTooLarge,
+            .height = std.math.cast(u16, src_image.height) orelse return error.ImageTooLarge,
             .pixels = linear_rgba8,
         });
         defer allocator.free(qoi_data);
@@ -470,7 +470,7 @@ pub const BundleResourcesStep = struct {
     pub fn getPackage(self: *Self, name: []const u8) std.build.Pkg {
         return std.build.Pkg{
             .name = name,
-            .path = .{ .generated = &self.output_file },
+            .source = .{ .generated = &self.output_file },
             .dependencies = &[_]Pkg{
                 pkgs.dunstblick_protocol,
             },
@@ -607,12 +607,12 @@ fn sdkRoot() []const u8 {
 const pkgs = struct {
     const network = std.build.Pkg{
         .name = "network",
-        .path = FileSource{ .path = sdkRoot() ++ "/vendor/zig-network/network.zig" },
+        .source = FileSource{ .path = sdkRoot() ++ "/vendor/zig-network/network.zig" },
     };
 
     const dunstblick_protocol = std.build.Pkg{
         .name = "dunstblick-protocol",
-        .path = FileSource{ .path = sdkRoot() ++ "/src/dunstblick-protocol/protocol.zig" },
+        .source = FileSource{ .path = sdkRoot() ++ "/src/dunstblick-protocol/protocol.zig" },
         .dependencies = &[_]std.build.Pkg{
             charm,
         },
@@ -620,12 +620,12 @@ const pkgs = struct {
 
     const args = std.build.Pkg{
         .name = "args",
-        .path = FileSource{ .path = sdkRoot() ++ "/vendor/zig-args/args.zig" },
+        .source = FileSource{ .path = sdkRoot() ++ "/vendor/zig-args/args.zig" },
     };
 
     const charm = std.build.Pkg{
         .name = "charm",
-        .path = .{ .path = sdkRoot() ++ "/vendor/zig-charm/src/main.zig" },
+        .source = .{ .path = sdkRoot() ++ "/vendor/zig-charm/src/main.zig" },
     };
 };
 

@@ -275,8 +275,14 @@ const ui_theme = UserInterface.Theme{
     },
 
     .text_box = .{
-        .border = rgb("cccccc"),
-        .background = rgb("303030"),
+        .default = .{
+            .border = default_colors.dark_green,
+            .background = rgb("303030"),
+        },
+        .focused = .{
+            .border = default_colors.bright_green,
+            .background = rgb("303030"),
+        },
     },
 
     .label = .{
@@ -417,8 +423,8 @@ const IconCache = struct {
                 pub fn setPixel(section: @This(), x: isize, y: isize, color: tvg.Color) void {
                     const bits = color.toRgba8();
 
-                    const px = std.math.cast(usize, x) catch return;
-                    const py = std.math.cast(usize, y) catch return;
+                    const px = std.math.cast(usize, x) orelse return;
+                    const py = std.math.cast(usize, y) orelse return;
 
                     if (px >= section.width or py >= section.height)
                         return;

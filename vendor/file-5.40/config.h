@@ -23,7 +23,7 @@
 // #define HAVE_BZLIB_H 1
 
 /* Define to 1 if you have the `ctime_r' function. */
-#define HAVE_CTIME_R 1
+// #define HAVE_CTIME_R 1
 
 /* HAVE_DAYLIGHT */
 #define HAVE_DAYLIGHT 1
@@ -46,16 +46,16 @@
 #define HAVE_ERR_H 1
 
 /* Define to 1 if you have the <fcntl.h> header file. */
-#define HAVE_FCNTL_H 1
+// #define HAVE_FCNTL_H 1
 
 /* Define to 1 if you have the `fmtcheck' function. */
 /* #undef HAVE_FMTCHECK */
 
 /* Define to 1 if you have the `fork' function. */
-#define HAVE_FORK 1
+// #define HAVE_FORK 1
 
 /* Define to 1 if you have the `freelocale' function. */
-#define HAVE_FREELOCALE 1
+// #define HAVE_FREELOCALE 1
 
 /* Define to 1 if fseeko (and presumably ftello) exists and is declared. */
 #define HAVE_FSEEKO 1
@@ -124,10 +124,10 @@
 #define HAVE_MMAP 1
 
 /* Define to 1 if you have the `newlocale' function. */
-#define HAVE_NEWLOCALE 1
+// #define HAVE_NEWLOCALE 1
 
 /* Define to 1 if you have the `pipe2' function. */
-#define HAVE_PIPE2 1
+// #define HAVE_PIPE2 1
 
 /* Define to 1 if you have the `pread' function. */
 #define HAVE_PREAD 1
@@ -169,22 +169,22 @@
 #define HAVE_STRUCT_STAT_ST_RDEV 1
 
 /* Define to 1 if `tm_gmtoff' is a member of `struct tm'. */
-#define HAVE_STRUCT_TM_TM_GMTOFF 1
+// #define HAVE_STRUCT_TM_TM_GMTOFF 1
 
 /* Define to 1 if `tm_zone' is a member of `struct tm'. */
-#define HAVE_STRUCT_TM_TM_ZONE 1
+// #define HAVE_STRUCT_TM_TM_ZONE 1
 
 /* Define to 1 if you have the <sys/mman.h> header file. */
-#define HAVE_SYS_MMAN_H 1
+// #define HAVE_SYS_MMAN_H 1
 
 /* Define to 1 if you have the <sys/param.h> header file. */
-#define HAVE_SYS_PARAM_H 1
+// #define HAVE_SYS_PARAM_H 1
 
 /* Define to 1 if you have the <sys/stat.h> header file. */
-#define HAVE_SYS_STAT_H 1
+// #define HAVE_SYS_STAT_H 1
 
 /* Define to 1 if you have the <sys/sysmacros.h> header file. */
-#define HAVE_SYS_SYSMACROS_H 1
+// #define HAVE_SYS_SYSMACROS_H 1
 
 /* Define to 1 if you have the <sys/time.h> header file. */
 #define HAVE_SYS_TIME_H 1
@@ -196,7 +196,7 @@
 /* #undef HAVE_SYS_UTIME_H */
 
 /* Define to 1 if you have <sys/wait.h> that is POSIX.1 compatible. */
-#define HAVE_SYS_WAIT_H 1
+// #define HAVE_SYS_WAIT_H 1
 
 /* HAVE_TM_ISDST */
 #define HAVE_TM_ISDST 1
@@ -214,22 +214,22 @@
 #define HAVE_UNISTD_H 1
 
 /* Define to 1 if you have the `uselocale' function. */
-#define HAVE_USELOCALE 1
+// #define HAVE_USELOCALE 1
 
 /* Define to 1 if you have the `utime' function. */
 #define HAVE_UTIME 1
 
 /* Define to 1 if you have the `utimes' function. */
-#define HAVE_UTIMES 1
+// #define HAVE_UTIMES 1
 
 /* Define to 1 if you have the <utime.h> header file. */
-#define HAVE_UTIME_H 1
+// #define HAVE_UTIME_H 1
 
 /* Define to 1 if you have the `vasprintf' function. */
 #define HAVE_VASPRINTF 1
 
 /* Define to 1 if you have the `vfork' function. */
-#define HAVE_VFORK 1
+// #define HAVE_VFORK 1
 
 /* Define to 1 if you have the <vfork.h> header file. */
 /* #undef HAVE_VFORK_H */

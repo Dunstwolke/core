@@ -1,0 +1,26 @@
+{
+  "name": "DunstFS Utilities",
+  "description": "Quickly safe links into your DunstFS file system.",
+  "version": "1.0",
+  "manifest_version": 3,
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["storage", "activeTab", "scripting"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "/images/dfs-16.png",
+      "32": "/images/dfs-32.png",
+      "48": "/images/dfs-48.png",
+      "128": "/images/dfs-128.png"
+    }
+  },
+  "icons": {
+    "16": "/images/dfs-16.png",
+    "32": "/images/dfs-32.png",
+    "48": "/images/dfs-48.png",
+    "128": "/images/dfs-128.png"
+  }
+}
